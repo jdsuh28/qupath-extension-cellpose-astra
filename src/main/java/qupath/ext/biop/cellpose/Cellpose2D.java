@@ -96,6 +96,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
@@ -113,22 +114,33 @@ import java.util.stream.IntStream;
 
 /**
  * Dense object detection based on the cellpose and omnipose publications
+ * 
  * <pre>
  * Stringer, C., Wang, T., Michaelos, M. et al.
  *     "Cellpose: a generalist algorithm for cellular segmentation"
- *     <i>Nat Methods 18, 100–106 (2021). <a href="https://doi.org/10.1038/s41592-020-01018-x">doi.org/10.1038/s41592-020-01018-x</a></i>
+ *     <i>Nat Methods 18, 100–106 (2021). <a href=
+"https://doi.org/10.1038/s41592-020-01018-x">doi.org/10.1038/s41592-020-01018-x</a></i>
  * </pre>
+ * 
  * And
+ * 
  * <pre>
  * Cutler, K.J., Stringer, C., Lo, T.W. et al.
  *     "Omnipose: a high-precision morphology-independent solution for bacterial cell segmentation"
  *     <i>Nat Methods 19, 1438–1448 (2022). https://doi.org/10.1038/s41592-022-01639-4</i>
  * </pre>
- * See the main repos at <a href="https://github.com/mouseland/cellpose">https://github.com/mouseland/cellpose</a> and <a href="https://github.com/kevinjohncutler/omnipose">https://github.com/kevinjohncutler/omnipose</a>
+ * 
+ * See the main repos at <a href=
+ * "https://github.com/mouseland/cellpose">https://github.com/mouseland/cellpose</a>
+ * and <a href=
+ * "https://github.com/kevinjohncutler/omnipose">https://github.com/kevinjohncutler/omnipose</a>
  *
  * <p>
- * The structure of this extension was adapted from the qupath-stardist-extension at <a href="https://github.com/qupath/qupath-extension-stardist">https://github.com/qupath/qupath-extension-stardist</a>
- * This way the Cellpose builder mirrors the StarDist2D builder, which should allow users familiar with the StarDist extension to use this one.
+ * The structure of this extension was adapted from the
+ * qupath-stardist-extension at <a href=
+ * "https://github.com/qupath/qupath-extension-stardist">https://github.com/qupath/qupath-extension-stardist</a>
+ * This way the Cellpose builder mirrors the StarDist2D builder, which should
+ * allow users familiar with the StarDist extension to use this one.
  * <p>
  *
  * @author Olivier Burri
@@ -167,6 +179,7 @@ public class Cellpose2D {
     public boolean useTestDir;
     public String outputModelName;
     public File groundTruthDirectory;
+    public File qcDirectory;
     protected CellposeSetup cellposeSetup = CellposeSetup.getInstance();
     // Parameters and parameter values that will be passed to the cellpose command
     protected LinkedHashMap<String, String> parameters;
@@ -180,11 +193,18 @@ public class Cellpose2D {
     private List<String> theLog;
     private ResultsTable trainingResults;
     private ResultsTable qcResults;
-    private File modelFile;
+
+    /**
+     * Deterministic evidence output directories (set by builder).
+     * - getResultsTrainDirectory(): training evidence (e.g., training_results.csv)
+     * - getResultsQcDirectory(): QC evidence (e.g., qc_results.csv)
+     */
+    protected File resultsDirectory;
 
     /**
      * Create a builder to customize detection parameters.
-     * This accepts either Text describing the built-in models from cellpose (cyto, cyto2, nuc)
+     * This accepts either Text describing the built-in models from cellpose (cyto,
+     * cyto2, nuc)
      * or a path to a custom model (as a String)
      *
      * @param modelPath name or path to model to use for prediction.
@@ -196,7 +216,8 @@ public class Cellpose2D {
 
     /**
      * Load a previously serialized builder.
-     * See {@link CellposeBuilder#CellposeBuilder(File)} and {@link CellposeBuilder#saveBuilder(String)}
+     * See {@link CellposeBuilder#CellposeBuilder(File)} and
+     * {@link CellposeBuilder#saveBuilder(String)}
      *
      * @param builderPath path to the builder JSON file.
      * @return this builder
@@ -206,9 +227,11 @@ public class Cellpose2D {
     }
 
     /**
-     * Build a normalization op that can be based upon the entire (2D) image, rather than only local tiles.
+     * Build a normalization op that can be based upon the entire (2D) image, rather
+     * than only local tiles.
      * <p>
      * Example:
+     * 
      * <pre>
      * <code>
      *   var builder = Cellpose2D.builder()
@@ -223,7 +246,8 @@ public class Cellpose2D {
      * </code>
      * </pre>
      * <p>
-     * Note that currently this requires downsampling the image to a manageable size.
+     * Note that currently this requires downsampling the image to a manageable
+     * size.
      *
      * @return a builder for a normalization op
      */
@@ -238,7 +262,8 @@ public class Cellpose2D {
             roiNucleus = children.iterator().next().getROI();
         else if (children.size() > 1)
             throw new IllegalArgumentException("Cannot convert object with multiple child objects to a cell!");
-        return PathObjects.createCellObject(pathObject.getROI(), roiNucleus, pathObject.getPathClass(), pathObject.getMeasurementList());
+        return PathObjects.createCellObject(pathObject.getROI(), roiNucleus, pathObject.getPathClass(),
+                pathObject.getMeasurementList());
     }
 
     private static PathObject cellToObject(PathObject cell, Function<ROI, PathObject> creator) {
@@ -260,7 +285,8 @@ public class Cellpose2D {
     }
 
     /**
-     * Optionally submit runnable to a thread pool. This limits the parallelization used by parallel streams.
+     * Optionally submit runnable to a thread pool. This limits the parallelization
+     * used by parallel streams.
      *
      * @param runnable The runnable to submit
      */
@@ -293,7 +319,8 @@ public class Cellpose2D {
      * @return the directory
      */
     public File getTrainingDirectory() {
-        return new File(groundTruthDirectory, "train");
+        // Training dataset workspace is groundTruthDirectory itself (no nested /train)
+        return groundTruthDirectory;
     }
 
     /**
@@ -302,7 +329,9 @@ public class Cellpose2D {
      * @return the directory
      */
     public File getValidationDirectory() {
-        return new File(groundTruthDirectory, "test");
+        // Validation/QC dataset workspace is explicitly qcDirectory (no
+        // groundTruthDirectory/test)
+        return qcDirectory;
     }
 
     private Geometry simplify(Geometry geom) {
@@ -316,20 +345,24 @@ public class Cellpose2D {
     }
 
     /**
-     * Detect cells within one or more parent objects, firing update events upon completion.
+     * Detect cells within one or more parent objects, firing update events upon
+     * completion.
      *
      * @param imageData the image data containing the object
-     * @param parents   the parent objects; existing child objects will be removed, and replaced by the detected cells
+     * @param parents   the parent objects; existing child objects will be removed,
+     *                  and replaced by the detected cells
      */
     public void detectObjects(ImageData<BufferedImage> imageData, Collection<? extends PathObject> parents) {
         runInPool(() -> detectObjectsImpl(imageData, parents));
     }
 
     /**
-     * Detect cells within one or more parent objects, firing update events upon completion.
+     * Detect cells within one or more parent objects, firing update events upon
+     * completion.
      *
      * @param imageData the image data containing the object
-     * @param parents   the parent objects; existing child objects will be removed, and replaced by the detected cells
+     * @param parents   the parent objects; existing child objects will be removed,
+     *                  and replaced by the detected cells
      */
     public void detectObjectsImpl(ImageData<BufferedImage> imageData, Collection<? extends PathObject> parents) {
 
@@ -352,9 +385,10 @@ public class Cellpose2D {
             resolution = resolution.createScaledInstance(downsample, downsample);
         }
 
-        // The opServer is needed only to get tile requests, or calculate global normalization percentiles
-        ImageDataServer<BufferedImage> opServer = ImageOps.buildServer(imageData, op, resolution, tileWidth, tileHeight);
-
+        // The opServer is needed only to get tile requests, or calculate global
+        // normalization percentiles
+        ImageDataServer<BufferedImage> opServer = ImageOps.buildServer(imageData, op, resolution, tileWidth,
+                tileHeight);
 
         // Get downsample factor
         double downsample = 1;
@@ -371,20 +405,18 @@ public class Cellpose2D {
 
         Map<PathObject, PathObject> tileParentsMap = parents.parallelStream().map(parent -> {
             ROI roi = parent.getROI();
-            int pad = (int)(padding / cal.getAveragedPixelSize().doubleValue());
+            int pad = (int) (padding / cal.getAveragedPixelSize().doubleValue());
             ROI paddedRoi = ROIs.createRectangleROI(
                     roi.getBoundsX() - pad,
                     roi.getBoundsY() - pad,
                     roi.getBoundsWidth() + 2 * pad,
-                    roi.getBoundsHeight() + 2 * pad
-            );
+                    roi.getBoundsHeight() + 2 * pad);
 
             Map<PathObject, PathObject> parentExpensionMap = new HashMap<>();
             parentExpensionMap.put(parent, PathObjects.createAnnotationObject(paddedRoi));
 
             return parentExpensionMap;
         }).map(Map::entrySet).flatMap(Set::stream).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
 
         List<TileFile> allTiles = tileParentsMap.entrySet().parallelStream().map(parentEntry -> {
             PathObject parent = parentEntry.getValue();
@@ -397,13 +429,16 @@ public class Cellpose2D {
 
             Collection<? extends ROI> rois = RoiTools.computeTiledROIs(
                     parent.getROI(),
-                    ImmutableDimension.getInstance((int) (tileWidth * finalDownsample), (int) (tileWidth * finalDownsample)),
-                    ImmutableDimension.getInstance((int) (tileWidth * finalDownsample * 1.5), (int) (tileHeight * finalDownsample * 1.5)),
+                    ImmutableDimension.getInstance((int) (tileWidth * finalDownsample),
+                            (int) (tileWidth * finalDownsample)),
+                    ImmutableDimension.getInstance((int) (tileWidth * finalDownsample * 1.5),
+                            (int) (tileHeight * finalDownsample * 1.5)),
                     true,
-                    (int) (overlap * finalDownsample)
-            );
+                    (int) (overlap * finalDownsample));
 
-            List<RegionRequest> tiles = rois.stream().map(r -> RegionRequest.createInstance(opServer.getPath(), opServer.getDownsampleForResolution(0), r)).toList();
+            List<RegionRequest> tiles = rois.stream().map(
+                    r -> RegionRequest.createInstance(opServer.getPath(), opServer.getDownsampleForResolution(0), r))
+                    .toList();
 
             // Compute op with preprocessing
             ArrayList<ImageOp> fullPreprocess = new ArrayList<>();
@@ -411,23 +446,26 @@ public class Cellpose2D {
 
             // Do global preprocessing calculations, if required
             if (globalPreprocess) {
-                try{
-                    if(globalPreprocessingProvidedByUser == null) {
+                try {
+                    if (globalPreprocessingProvidedByUser == null) {
                         List<ImageOp> splitMergeListImageOp = new ArrayList<>();
 
                         // apply different global normalization for each channel
-                        for (Map.Entry<ColorTransforms.ColorTransform, Map<String, Double>> entry : this.normalizeChannelPercentilesGlobalMap.entrySet()) {
+                        for (Map.Entry<ColorTransforms.ColorTransform, Map<String, Double>> entry : this.normalizeChannelPercentilesGlobalMap
+                                .entrySet()) {
                             ColorTransforms.ColorTransform channel = entry.getKey();
                             Map<String, Double> attributes = entry.getValue();
 
                             // compute channel normalization
-                            splitMergeListImageOp.add(computeNormalizationImageOps(channel, attributes, imageData, parent.getROI(), request.getImagePlane()));
+                            splitMergeListImageOp.add(computeNormalizationImageOps(channel, attributes, imageData,
+                                    parent.getROI(), request.getImagePlane()));
                         }
 
                         // adding global normalization per channel to the pre-processing list
                         fullPreprocess.add(ImageOps.Core.splitMerge(splitMergeListImageOp));
-                    }else{
-                        var normalizeOps = globalPreprocessingProvidedByUser.createOps(op, imageData, parent.getROI(), request.getImagePlane());
+                    } else {
+                        var normalizeOps = globalPreprocessingProvidedByUser.createOps(op, imageData, parent.getROI(),
+                                request.getImagePlane());
                         fullPreprocess.addAll(normalizeOps);
                     }
                     // If this has happened, then we need to disable cellpose normalization
@@ -446,7 +484,6 @@ public class Cellpose2D {
             }
 
             ImageDataOp opWithPreprocessing = op.appendOps(fullPreprocess.toArray(ImageOp[]::new));
-
 
             // Keep a reference to the images here while they are being saved
             logger.info("Saving images for {} tiles", tiles.size());
@@ -474,7 +511,8 @@ public class Cellpose2D {
             return;
         }
 
-        // Group the candidates per parent object, as this is needed to optimize when checking for overlap
+        // Group the candidates per parent object, as this is needed to optimize when
+        // checking for overlap
         Map<PathObject, List<CandidateObject>> candidatesPerParent = allTiles.stream()
                 .flatMap(t -> t.getCandidates().stream())
                 .collect(Collectors.groupingBy(c -> c.parent));
@@ -494,7 +532,8 @@ public class Cellpose2D {
             List<PathObject> finalObjects = filteredDetections.parallelStream()
                     .map(n -> {
                         try {
-                            return convertToObject(n, parent.getROI().getImagePlane(), expansion, constrainToParent, mask);
+                            return convertToObject(n, parent.getROI().getImagePlane(), expansion, constrainToParent,
+                                    mask);
                         } catch (Exception oe) {
                             logger.warn("Error converting to object: {}", oe.getLocalizedMessage(), oe);
                             return null;
@@ -507,9 +546,11 @@ public class Cellpose2D {
                 logger.info("Resolving cell overlaps for {}", parent);
                 if (creatorFun != null) {
                     // It's awkward, but we need to temporarily convert to cells and back
-                    var cells = finalObjects.parallelStream().map(Cellpose2D::objectToCell).collect(Collectors.toList());
+                    var cells = finalObjects.parallelStream().map(Cellpose2D::objectToCell)
+                            .collect(Collectors.toList());
                     cells = CellTools.constrainCellOverlaps(cells);
-                    finalObjects = cells.parallelStream().map(c -> cellToObject(c, creatorFun)).collect(Collectors.toList());
+                    finalObjects = cells.parallelStream().map(c -> cellToObject(c, creatorFun))
+                            .collect(Collectors.toList());
                 } else
                     finalObjects = CellTools.constrainCellOverlaps(finalObjects);
             }
@@ -536,7 +577,8 @@ public class Cellpose2D {
 
                 finalObjects.parallelStream().forEach(cell -> {
                     try {
-                        ObjectMeasurements.addIntensityMeasurements(server2, cell, finalDownsample, measurements, compartments);
+                        ObjectMeasurements.addIntensityMeasurements(server2, cell, finalDownsample, measurements,
+                                compartments);
                     } catch (IOException ie) {
                         logger.info("Error adding intensity measurement: {}", ie.getLocalizedMessage(), ie);
                     }
@@ -556,10 +598,10 @@ public class Cellpose2D {
     }
 
     private ImageOp computeNormalizationImageOps(ColorTransforms.ColorTransform channel,
-                                                 Map<String, Double> attributes,
-                                                 ImageData<BufferedImage> imageData,
-                                                 ROI parentROI,
-                                                 ImagePlane imagePlane) throws IOException {
+            Map<String, Double> attributes,
+            ImageData<BufferedImage> imageData,
+            ROI parentROI,
+            ImagePlane imagePlane) throws IOException {
 
         // get the percentiles per channels
         ImageDataOp channelOp = ImageOps.buildImageDataOp(channel);
@@ -581,7 +623,7 @@ public class Cellpose2D {
         List<ImageOp> normalizeOps = new ArrayList<>(normalizeOpsTmp);
 
         // add the operators to the list
-        normalizeOps.addFirst(ImageOps.Channels.extract((int)index));
+        normalizeOps.addFirst(ImageOps.Channels.extract((int) index));
 
         return ImageOps.Core.sequential(normalizeOps);
     }
@@ -602,12 +644,13 @@ public class Cellpose2D {
         }
     }
 
-    private PathObject convertToObject(CandidateObject object, ImagePlane plane, double cellExpansion, boolean constrainToParent, Geometry mask) {
+    private PathObject convertToObject(CandidateObject object, ImagePlane plane, double cellExpansion,
+            boolean constrainToParent, Geometry mask) {
         var geomNucleus = simplify(object.geometry);
         PathObject pathObject;
         if (cellExpansion > 0) {
-//			cellExpansion = geomNucleus.getPrecisionModel().makePrecise(cellExpansion);
-//			cellExpansion = Math.round(cellExpansion);
+            // cellExpansion = geomNucleus.getPrecisionModel().makePrecise(cellExpansion);
+            // cellExpansion = Math.round(cellExpansion);
             // Note that prior to QuPath v0.4.0 an extra fix was needed here
             var geomCell = CellTools.estimateCellBoundary(geomNucleus, cellExpansion, cellConstrainScale);
             if (constrainToParent) {
@@ -616,14 +659,15 @@ public class Cellpose2D {
                 var geomCell2 = geomCell;
                 geomNucleus = GeometryTools.attemptOperation(geomNucleus, g -> g.intersection(geomCell2));
                 geomNucleus = GeometryTools.ensurePolygonal(geomNucleus);
-            }else{
-                if(!geomNucleus.intersects(mask)){
+            } else {
+                if (!geomNucleus.intersects(mask)) {
                     return null;
                 }
             }
             geomCell = simplify(geomCell);
 
-            // Intersection with complex mask could give rise to linestring(s) - which we want to remove
+            // Intersection with complex mask could give rise to linestring(s) - which we
+            // want to remove
             geomCell = GeometryTools.ensurePolygonal(geomCell);
 
             if (geomCell.isEmpty()) {
@@ -651,8 +695,8 @@ public class Cellpose2D {
                 if (geomNucleus.isEmpty()) {
                     return null;
                 }
-            } else{
-                if(!geomNucleus.intersects(mask)){
+            } else {
+                if (!geomNucleus.intersects(mask)) {
                     return null;
                 }
             }
@@ -672,7 +716,8 @@ public class Cellpose2D {
     }
 
     /**
-     * Filters the overlapping detections based on their size, a bit like CellDetection and applying the iou threshold
+     * Filters the overlapping detections based on their size, a bit like
+     * CellDetection and applying the iou threshold
      *
      * @param rawCandidates the list of detections to filter
      * @return a list with the filtered results
@@ -689,7 +734,8 @@ public class Cellpose2D {
         int skipErrorCount = 0;
 
         // Create a spatial cache to find overlaps more quickly
-        // (Because of later tests, we don't need to update envelopes even though geometries may be modified)
+        // (Because of later tests, we don't need to update envelopes even though
+        // geometries may be modified)
         Map<CandidateObject, Envelope> envelopes = new HashMap<>();
         var tree = new STRtree();
         for (var det : candidateList) {
@@ -707,15 +753,18 @@ public class Cellpose2D {
 
             List<CandidateObject> overlaps = (List<CandidateObject>) tree.query(envelope);
             for (CandidateObject overlappingCandidate : overlaps) {
-                if (overlappingCandidate == currentCandidate || skippedObjects.contains(overlappingCandidate) || retainedObjects.contains(overlappingCandidate))
+                if (overlappingCandidate == currentCandidate || skippedObjects.contains(overlappingCandidate)
+                        || retainedObjects.contains(overlappingCandidate))
                     continue;
 
                 // If we have an overlap, try to keep the largest object
                 try {
 
                     var env = envelopes.get(overlappingCandidate);
-                    if (envelope.intersects(env) && currentCandidate.geometry.intersects(overlappingCandidate.geometry)) {
-                        // Retain the nucleus only if it is not fragmented, or less than half its original area
+                    if (envelope.intersects(env)
+                            && currentCandidate.geometry.intersects(overlappingCandidate.geometry)) {
+                        // Retain the nucleus only if it is not fragmented, or less than half its
+                        // original area
                         var difference = overlappingCandidate.geometry.difference(currentCandidate.geometry);
 
                         if (difference instanceof GeometryCollection) {
@@ -734,7 +783,7 @@ public class Cellpose2D {
                             }
                             difference = difference.getGeometryN(index);
                         }
-// difference instanceof Polygon &&
+                        // difference instanceof Polygon &&
                         if (difference.getArea() > overlappingCandidate.area / 2.0)
                             overlappingCandidate.geometry = difference;
                         else {
@@ -759,15 +808,19 @@ public class Cellpose2D {
     }
 
     /**
-     * Saves a region request as an image. We use the ImageJ API because ImageWriter did not work for me
+     * Saves a region request as an image. We use the ImageJ API because ImageWriter
+     * did not work for me
      *
-     * @param op        the operations to apply on the image before saving it (32-bit, channel extraction, preprocessing)
+     * @param op        the operations to apply on the image before saving it
+     *                  (32-bit, channel extraction, preprocessing)
      * @param imageData the current ImageData
      * @param request   the region we want to save
-     * @return a simple object that contains the request and the associated file in the temp folder
+     * @return a simple object that contains the request and the associated file in
+     *         the temp folder
      * @throws IOException an error in case of read/write issue
      */
-    private TileFile saveTileImage(ImageDataOp op, ImageData<BufferedImage> imageData, RegionRequest request, PathObject parent) throws IOException {
+    private TileFile saveTileImage(ImageDataOp op, ImageData<BufferedImage> imageData, RegionRequest request,
+            PathObject parent) throws IOException {
 
         // This applies all ops to the current tile
         Mat mat;
@@ -777,7 +830,7 @@ public class Cellpose2D {
         // Convert to something we can save
         ImagePlus imp = OpenCVTools.matToImagePlus("Temp", mat);
 
-        //BufferedImage image = OpenCVTools.matToBufferedImage(mat);
+        // BufferedImage image = OpenCVTools.matToBufferedImage(mat);
 
         File tempFile = new File(tempDirectory,
                 "Temp_" +
@@ -798,7 +851,8 @@ public class Cellpose2D {
     }
 
     /**
-     * Selects the right folder to run from, based on whether it's cellpose or omnipose.
+     * Selects the right folder to run from, based on whether it's cellpose or
+     * omnipose.
      * Hopefully this will become deprecated soon
      *
      * @return the virtual environment runner that can run the desired command
@@ -824,10 +878,10 @@ public class Cellpose2D {
         }
 
         // Set python executable to switch between Omnipose and Cellpose
-        String pythonPath = this.useCellposeSAM ? cellposeSetup.getCellposeSAMPythonPath() : cellposeSetup.getCellposePythonPath();
+        String pythonPath = this.useCellposeSAM ? cellposeSetup.getCellposeSAMPythonPath()
+                : cellposeSetup.getCellposePythonPath();
         if (this.parameters.containsKey("omni") && !cellposeSetup.getOmniposePythonPath().isEmpty())
             pythonPath = cellposeSetup.getOmniposePythonPath();
-
 
         return new VirtualEnvironmentRunner(pythonPath, type, condaPath, this.getClass().getSimpleName());
 
@@ -837,11 +891,13 @@ public class Cellpose2D {
      * This class actually runs Cellpose by calling the virtual environment
      *
      * @throws IOException          Exception in case files could not be read
-     * @throws InterruptedException Exception in case of command thread has some failing
+     * @throws InterruptedException Exception in case of command thread has some
+     *                              failing
      */
     private void runCellpose(List<TileFile> allTiles) throws InterruptedException, IOException {
 
-        // Need to define the name of the command we are running. We used to be able to use 'cellpose' for both but not since Cellpose v2
+        // Need to define the name of the command we are running. We used to be able to
+        // use 'cellpose' for both but not since Cellpose v2
         String runCommand = this.parameters.containsKey("omni") ? "omnipose" : "cellpose";
         VirtualEnvironmentRunner veRunner = getVirtualEnvironmentRunner();
 
@@ -869,7 +925,8 @@ public class Cellpose2D {
 
         cellposeArguments.add("--no_npy");
 
-        if (!this.disableGPU) cellposeArguments.add("--use_gpu");
+        if (!this.disableGPU)
+            cellposeArguments.add("--use_gpu");
 
         cellposeArguments.add("--verbose");
 
@@ -881,10 +938,12 @@ public class Cellpose2D {
         processCellposeFiles(veRunner, allTiles);
     }
 
-    private void processCellposeFiles(VirtualEnvironmentRunner veRunner, List<TileFile> allTiles) throws CancellationException, InterruptedException, IOException {
+    private void processCellposeFiles(VirtualEnvironmentRunner veRunner, List<TileFile> allTiles)
+            throws CancellationException, InterruptedException, IOException {
 
         // Make sure that allTiles is not null, if it is, just return null
-        // as we are likely just running validation and thus do not need to give any results back
+        // as we are likely just running validation and thus do not need to give any
+        // results back
         if (allTiles == null) {
             veRunner.getProcess().waitFor();
             return;
@@ -905,7 +964,7 @@ public class Cellpose2D {
             });
         } else { // Experimental file listening and running
 
-            //Make a map of the original names and the expected names
+            // Make a map of the original names and the expected names
             LinkedHashMap<File, TileFile> remainingFiles = allTiles.stream().map(entry -> {
                 File expectedFile = entry.getLabelFile();
                 return new AbstractMap.SimpleEntry<>(expectedFile, entry);
@@ -915,13 +974,15 @@ public class Cellpose2D {
                 // We need to listen for changes in the temp folder
                 veRunner.startWatchService(this.tempDirectory.toPath());
 
-                // The command above will run in a separate thread, now we can start listening for the files changing
+                // The command above will run in a separate thread, now we can start listening
+                // for the files changing
                 while (!remainingFiles.isEmpty() && veRunner.getProcess().isAlive()) {
                     if (!veRunner.getProcess().isAlive()) {
                         // It's no longer running so check the exit code
                         int exitValue = veRunner.getProcess().exitValue();
                         if (exitValue != 0) {
-                            throw new IOException("Cellpose process exited with value " + exitValue + ". Please check output above for indications of the problem.\nWill attempt to continue");
+                            throw new IOException("Cellpose process exited with value " + exitValue
+                                    + ". Please check output above for indications of the problem.\nWill attempt to continue");
                         }
                     }
 
@@ -936,7 +997,8 @@ public class Cellpose2D {
                     LinkedHashMap<File, TileFile> finishedFiles = remainingFiles.entrySet().stream().filter(set -> {
                         // Create a file that matches the mask name
                         return changedFiles.contains(set.getKey().getName());
-                    }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b, LinkedHashMap::new));
+                    }).collect(
+                            Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b, LinkedHashMap::new));
 
                     // Announce that these files are done
                     finishedFiles.forEach((key, tile) -> executor.execute(() -> {
@@ -994,25 +1056,18 @@ public class Cellpose2D {
 
         try {
 
-            if(this.cleanTrainingDir) {
+            if (this.cleanTrainingDir) {
                 // Clear a previous run
                 cleanDirectory(this.groundTruthDirectory);
 
                 saveTrainingImages();
             }
+
             runTraining();
-
-            this.modelFile = moveRenameAndReturnModelFile();
-
-            // Get the training results before overwriting the log with a new run
+            // Parse training results from the log (train() must not run QC)
             this.trainingResults = parseTrainingResults();
 
-            // Get cellpose masks from the validation
-            runCellposeOnValidationImages();
-
-            this.qcResults = runCellposeQC();
-
-            return modelFile;
+            return new File(getTrainingDirectory(), "models");
 
         } catch (IOException | InterruptedException e) {
             logger.error("Error while running cellpose training: {}", e.getMessage(), e);
@@ -1021,10 +1076,28 @@ public class Cellpose2D {
     }
 
     /**
-     * Configures and runs the {@link VirtualEnvironmentRunner} that will ultimately run cellpose training
+     * Runs QC explicitly (no training, no model moving).
+     *
+     * Mechanical preconditions only: * - qcDirectory must be resolved (explicitly
+     * provided or defaulted by the builder)
+     */
+    public ResultsTable runQC() throws IOException, InterruptedException {
+
+        requireQcDirectory();// Create validation masks from the trained model (required by QC)
+        runCellposeOnValidationImages();
+
+        this.qcResults = runCellposeQC();
+
+        return this.qcResults;
+    }
+
+    /**
+     * Configures and runs the {@link VirtualEnvironmentRunner} that will ultimately
+     * run cellpose training
      *
      * @throws IOException          Exception in case files could not be read
-     * @throws InterruptedException Exception in case of command thread has some failing
+     * @throws InterruptedException Exception in case of command thread has some
+     *                              failing
      */
     private void runTraining() throws IOException, InterruptedException {
         String runCommand = this.parameters.containsKey("omni") ? "omnipose" : "cellpose";
@@ -1038,7 +1111,7 @@ public class Cellpose2D {
         cellposeArguments.add("--dir");
         cellposeArguments.add(getTrainingDirectory().getAbsolutePath());
 
-        if(this.useTestDir) {
+        if (this.useTestDir) {
             cellposeArguments.add("--test_dir");
             cellposeArguments.add(getValidationDirectory().getAbsolutePath());
         }
@@ -1054,7 +1127,8 @@ public class Cellpose2D {
         });
 
         // Some people may deactivate this...
-        if (!this.disableGPU) cellposeArguments.add("--use_gpu");
+        if (!this.disableGPU)
+            cellposeArguments.add("--use_gpu");
 
         cellposeArguments.add("--verbose");
 
@@ -1073,27 +1147,26 @@ public class Cellpose2D {
      */
     private void runCellposeOnValidationImages() {
 
-        // Assume that cellpose training was already run and run cellpose again on the /test folder
-        logger.info("Running the new model {} on the validation images to obtain labels for QC", this.modelFile.getName());
+        // Assume that cellpose training was already run and run cellpose again on the
+        // /test folder
+        String modelName = (this.model == null) ? "<null>" : new File(this.model).getName();
+        logger.info("Running the model {} on the validation images to obtain labels for QC", modelName);
 
         File tmp = this.tempDirectory;
         this.tempDirectory = getValidationDirectory();
-
-        String tmpModel = this.model;
-        this.model = this.modelFile.getAbsolutePath();
-
         try {
             runCellpose(null);
         } catch (InterruptedException | IOException e) {
             logger.error(e.getMessage(), e);
+        } finally {
+            // Make sure things are back the way they were
+            this.tempDirectory = tmp;
         }
-        // Make sure things are back the way they were
-        this.tempDirectory = tmp;
-        this.model = tmpModel;
     }
 
     /**
-     * Runs the python script "run-cellpose-qc.py", which should be in the QuPath Extensions folder
+     * Runs the python script "run-cellpose-qc.py", which should be in the QuPath
+     * Extensions folder
      *
      * @return the results table with the QC metrics or null
      * @throws IOException          if the python script is not found
@@ -1101,64 +1174,81 @@ public class Cellpose2D {
      */
     private ResultsTable runCellposeQC() throws IOException, InterruptedException {
 
-        File qcFolder = getQCFolder();
+        File qcResultsDir = getResultsQcDirectory();
 
-        qcFolder.mkdirs();
-
-        // Let's check if the QC notebook is available in the 'extensions' folder
+        // Locate QC script inside the installed extension directory (must be unique &
+        // deterministic)
         String cellposeVersion = CellposeExtension.getExtensionVersion();
         List<File> extensionDirList = QuPathGUI.getExtensionCatalogManager()
                 .getCatalogManagedInstalledJars()
-                .parallelStream()
-                .filter(e->e.toString().contains("qupath-extension-cellpose-"+cellposeVersion))
+                .stream()
+                .filter(e -> e.toString().contains("qupath-extension-cellpose-" + cellposeVersion))
                 .map(Path::getParent)
                 .map(Path::toString)
                 .map(File::new)
+                .sorted(Comparator.comparing(File::getAbsolutePath))
                 .collect(Collectors.toList());
 
-        if(extensionDirList.isEmpty()){
+        if (extensionDirList.isEmpty()) {
             logger.warn("Cellpose extension not installed ; cannot find QC script");
             return null;
         }
+        if (extensionDirList.size() > 1) {
+            throw new IllegalStateException(
+                    "Refusing to select QC script from multiple installed extension directories: " +
+                            extensionDirList.stream().map(File::getAbsolutePath).collect(Collectors.joining(", ")));
+        }
 
-        File qcPythonFile = new File(extensionDirList.getFirst(), "run-cellpose-qc.py");
+        File qcPythonFile = new File(extensionDirList.get(0), "run-cellpose-qc.py");
         if (!qcPythonFile.exists()) {
-            logger.warn("File {} was not found in {}.\nPlease download it from {}", qcPythonFile.getName(),
-                    extensionDirList.getFirst().getAbsolutePath(),
+            logger.warn("File {} was not found in {}. Please download it from {}", qcPythonFile.getName(),
+                    extensionDirList.get(0).getAbsolutePath(),
                     new CellposeExtension().getRepository().getUrlString());
             return null;
         }
 
         // Start the Virtual Environment Runner
         VirtualEnvironmentRunner qcRunner = getVirtualEnvironmentRunner();
-        List<String> qcArguments = new ArrayList<>(Arrays.asList(qcPythonFile.getAbsolutePath(), getValidationDirectory().getAbsolutePath(), this.modelFile.getName()));
-
-        qcRunner.setArguments(qcArguments);
-
-        qcRunner.runCommand(true);
-
-
-        // The results are stored in the validation directory, open them as a results table
-        File qcResults = new File(getValidationDirectory(), "QC-Results" + File.separator + "Quality_Control for " + this.modelFile.getName() + ".csv");
-
-        if (!qcResults.exists()) {
-            logger.warn("No QC results file name {} found in {}\nCheck in the logger for a potential reason", qcResults.getName(), qcResults.getParent());
-            logger.warn("In case you are missing the 'skimage' module, simply run 'pip install scikit-image' in your cellpose environment");
-            return null;
+        String modelName = (this.model == null) ? null : new File(this.model).getName();
+        if (modelName == null || modelName.isBlank() || "None".equals(modelName)) {
+            throw new IllegalStateException(
+                    "QC requires a concrete model path/name (builder model was null/blank/None).");
         }
 
-        // Move this csv file into the QC folder in the main QuPath project
-        File finalQCResultFile = new File(qcFolder, qcResults.getName());
-        FileUtils.moveFile(qcResults, finalQCResultFile);
+        // Deterministic outputs: qc_results.csv is written directly into
+        // <resultsDirectory>/qc
+        File finalQCResultFile = new File(qcResultsDir, "qc_results.csv");
+        if (finalQCResultFile.exists()) {
+            throw new IOException("Refusing to overwrite existing QC result: " + finalQCResultFile.getAbsolutePath());
+        }
+
+        List<String> qcArguments = new ArrayList<>(Arrays.asList(
+                qcPythonFile.getAbsolutePath(),
+                getValidationDirectory().getAbsolutePath(),
+                modelName,
+                qcResultsDir.getAbsolutePath()));
+
+        qcRunner.setArguments(qcArguments);
+        qcRunner.runCommand(true);
+
+        if (!finalQCResultFile.exists()) {
+            logger.warn("No QC results file {} found in {}. Check in the logger for a potential reason",
+                    finalQCResultFile.getName(), finalQCResultFile.getParent());
+            logger.warn(
+                    "In case you are missing the 'skimage' module, simply run 'pip install scikit-image' in your cellpose environment");
+            return null;
+        }
 
         return ResultsTable.open(finalQCResultFile.getAbsolutePath());
     }
 
     /**
-     * Returns the log from running the cellpose command, with any error messages and status updates of the cellpose process
+     * Returns the log from running the cellpose command, with any error messages
+     * and status updates of the cellpose process
      * You can use this during training or prediction
      *
-     * @return the entire dump of the cellpose log, each line is one element of the String array.
+     * @return the entire dump of the cellpose log, each line is one element of the
+     *         String array.
      */
     public List<String> getOutputLog() {
         return theLog;
@@ -1168,7 +1258,8 @@ public class Cellpose2D {
      * Returns a parsed version of the cellpose log as a ResultsTable with columns
      * Epoch, Time, Loss, Loss Test and LR
      *
-     * @return an ImageJ ResultsTable that can be displayed with {@link ResultsTable#show(String)}
+     * @return an ImageJ ResultsTable that can be displayed with
+     *         {@link ResultsTable#show(String)}
      */
     public ResultsTable getTrainingResults() {
         return this.trainingResults;
@@ -1189,11 +1280,18 @@ public class Cellpose2D {
      *
      * @return a parsed results table
      */
+    /**
+     * Returns a parsed version of the cellpose log as a ResultsTable with columns
+     * Epoch, Time, Loss, Loss Test and LR
+     *
+     * @return a parsed results table
+     */
     private ResultsTable parseTrainingResults() {
         ResultsTable trainingResults = new ResultsTable();
 
         if (this.theLog != null) {
-            // Try to parse the output of Cellpose to give meaningful information to the user. This is very old school
+            // Try to parse the output of Cellpose to give meaningful information to the
+            // user. This is very old school
             for (String line : this.theLog) {
                 Matcher m;
                 for (LogParser parser : LogParser.values()) {
@@ -1206,23 +1304,15 @@ public class Cellpose2D {
                         if (parser != LogParser.OMNI) { // Omnipose does not provide validation loss
                             trainingResults.addValue("Validation Loss", Double.parseDouble(m.group("val")));
                             trainingResults.addValue("LR", Double.parseDouble(m.group("lr")));
-
                         } else {
                             trainingResults.addValue("Validation Loss", Double.NaN);
                             trainingResults.addValue("LR", Double.NaN);
-
                         }
                     }
                 }
             }
         }
 
-        //Save results to QC
-        File qcTrainingResults = new File(getQCFolder(), "Training Result - " + modelFile.getName());
-
-        logger.info("Saving Training Results to {}", qcTrainingResults.getParent());
-
-        trainingResults.save(qcTrainingResults.getAbsolutePath());
         return trainingResults;
     }
 
@@ -1234,7 +1324,7 @@ public class Cellpose2D {
      */
     public void showTrainingGraph(boolean show, boolean save) {
         ResultsTable output = this.trainingResults;
-        File qcFolder = getQCFolder();
+        File trainResultsDir = getResultsTrainDirectory();
 
         final NumberAxis xAxis = new NumberAxis();
         final NumberAxis yAxis = new NumberAxis();
@@ -1244,33 +1334,39 @@ public class Cellpose2D {
         yAxis.setLowerBound(0);
         yAxis.setUpperBound(3.0);
 
-        //creating the chart
+        // creating the chart
         final LineChart<Number, Number> lineChart = new LineChart<>(xAxis, yAxis);
 
         lineChart.setTitle("Cellpose Training");
-        //defining a series
+        // defining a series
         XYChart.Series<Number, Number> loss = new XYChart.Series<>();
         XYChart.Series<Number, Number> lossTest = new XYChart.Series<>();
         loss.setName("Loss");
         lossTest.setName("Loss Test");
-        //populating the series with data
+        // populating the series with data
         for (int i = 0; i < output.getCounter(); i++) {
             loss.getData().add(new XYChart.Data<>(output.getValue("Epoch", i), output.getValue("Loss", i)));
-            lossTest.getData().add(new XYChart.Data<>(output.getValue("Epoch", i), output.getValue("Validation Loss", i)));
+            lossTest.getData()
+                    .add(new XYChart.Data<>(output.getValue("Epoch", i), output.getValue("Validation Loss", i)));
 
         }
         lineChart.getData().add(loss);
         lineChart.getData().add(lossTest);
         FXUtils.runOnApplicationThread(() -> {
-            Dialog<ButtonType> dialog = Dialogs.builder().content(lineChart).title("Cellpose Training").buttons("Close").buttons(ButtonType.CLOSE).build();
+            Dialog<ButtonType> dialog = Dialogs.builder().content(lineChart).title("Cellpose Training").buttons("Close")
+                    .buttons(ButtonType.CLOSE).build();
 
-            if (show) dialog.show();
+            if (show)
+                dialog.show();
 
             if (save) {
-                // Save a copy as well in the QC folder
-                String trainingGraph = "Training Result - " + this.modelFile.getName() + ".png";
-
-                File trainingGraphFile = new File(qcFolder, trainingGraph);
+                // Save a copy as well in the training results folder (deterministic name)
+                File trainingGraphFile = new File(trainResultsDir, "training_graph.png");
+                if (trainingGraphFile.exists()) {
+                    logger.error("Refusing to overwrite existing training graph: {}",
+                            trainingGraphFile.getAbsolutePath());
+                    return;
+                }
                 WritableImage writableImage = new WritableImage((int) dialog.getWidth(), (int) dialog.getHeight());
                 dialog.getDialogPane().snapshot(null, writableImage);
                 RenderedImage renderedImage = SwingFXUtils.fromFXImage(writableImage, null);
@@ -1280,7 +1376,8 @@ public class Cellpose2D {
                 try {
                     ImageIO.write(renderedImage, "png", trainingGraphFile);
                 } catch (IOException e) {
-                    logger.error("Could not write Training Graph image {} in {}.", trainingGraphFile.getName(), trainingGraphFile.getParent());
+                    logger.error("Could not write Training Graph image {} in {}.", trainingGraphFile.getName(),
+                            trainingGraphFile.getParent());
                     logger.error("Error Message", e);
                 }
             }
@@ -1300,20 +1397,76 @@ public class Cellpose2D {
      * @return the Quality Control folder
      */
     private File getQCFolder() {
-        return new File(this.modelDirectory, "QC");
+        // QC dataset workspace is qcDirectory itself (no nested artifact subfolder)
+        return requireQcDirectory();
     }
 
     /**
-     * Saves the images from two servers (typically a server with the original data and another with labels)
+     * Root directory for deterministic result artifacts.
+     * Results are written under <resultsDirectory>/training and
+     * <resultsDirectory>/qc.
+     */
+    private File requireResultsDirectory() {
+        if (this.resultsDirectory == null) {
+            throw new IllegalStateException("resultsDirectory is required but was null.");
+        }
+        return this.resultsDirectory;
+    }
+
+    private File getResultsTrainDirectory() {
+        File d = new File(requireResultsDirectory(), "training");
+        if (!d.exists() && !d.mkdirs()) {
+            throw new IllegalStateException("Failed to create results/training directory: " + d.getAbsolutePath());
+        }
+        return d;
+    }
+
+    private File getResultsQcDirectory() {
+        File d = new File(requireResultsDirectory(), "qc");
+        if (!d.exists() && !d.mkdirs()) {
+            throw new IllegalStateException("Failed to create results/qc directory: " + d.getAbsolutePath());
+        }
+        return d;
+    }
+
+    /**
+     * Mechanical precondition: qcDirectory must be resolved by the builder.
+     * No policy (like clearing folders) is enforced here; pipeline owns that.
+     */
+    private File requireQcDirectory() {
+        if (this.qcDirectory == null) {
+            throw new IllegalStateException("qcDirectory is required but was null.");
+        }
+        return this.qcDirectory;
+    }
+
+    private void persistTrainingResults(ResultsTable trainingResults) {
+        File outDir = getResultsTrainDirectory();
+        outDir.mkdirs();
+        File outFile = new File(outDir, "training_results.csv");
+        if (outFile.exists()) {
+            throw new IllegalStateException(
+                    "Refusing to overwrite existing training results: " + outFile.getAbsolutePath());
+        }
+        logger.info("Saving Training Results to {}", outFile.getAbsolutePath());
+        trainingResults.save(outFile.getAbsolutePath());
+    }
+
+    /**
+     * Saves the images from two servers (typically a server with the original data
+     * and another with labels)
      * to the right directories as image/mask pairs, ready for cellpose
      *
-     * @param annotations    the annotations in which to create RegionRequests to save
-     * @param imageName      the desired name of the images (the position of the request will be appended to make them unique)
+     * @param annotations    the annotations in which to create RegionRequests to
+     *                       save
+     * @param imageName      the desired name of the images (the position of the
+     *                       request will be appended to make them unique)
      * @param originalServer the server that will contain the images
      * @param labelServer    the server that contains the labels
      * @param saveDirectory  the location where to save the pair of images
      */
-    private void saveImagePairs(List<PathObject> annotations, String imageName, ImageServer<BufferedImage> originalServer, ImageServer<BufferedImage> labelServer, File saveDirectory) {
+    private void saveImagePairs(List<PathObject> annotations, String imageName,
+            ImageServer<BufferedImage> originalServer, ImageServer<BufferedImage> labelServer, File saveDirectory) {
 
         if (annotations.isEmpty()) {
             return;
@@ -1353,7 +1506,8 @@ public class Cellpose2D {
     }
 
     /**
-     * Goes through the current project and saves the images and masks to the training and validation directories
+     * Goes through the current project and saves the images and masks to the
+     * training and validation directories
      */
     public void saveTrainingImages() {
 
@@ -1364,7 +1518,6 @@ public class Cellpose2D {
         File valDirectory = getValidationDirectory();
         valDirectory.mkdirs();
 
-
         Project<BufferedImage> project = QPEx.getQuPath().getProject();
 
         project.getImageList().forEach(e -> {
@@ -1374,19 +1527,24 @@ public class Cellpose2D {
 
                 imageData = e.readImageData();
 
-                // If there is an op for the channels, apply it and add it as an extra channel and make the new ImageData
+                // If there is an op for the channels, apply it and add it as an extra channel
+                // and make the new ImageData
                 if (this.extendChannelOp != null) {
                     // Create an average channels server
-                    ImageServer<BufferedImage> avgServer = new TransformedServerBuilder(imageData.getServer()).averageChannelProject().build();
-                    ImageData<BufferedImage> avgImageData = new ImageData<>(avgServer, imageData.getHierarchy(), ImageData.ImageType.OTHER);
+                    ImageServer<BufferedImage> avgServer = new TransformedServerBuilder(imageData.getServer())
+                            .averageChannelProject().build();
+                    ImageData<BufferedImage> avgImageData = new ImageData<>(avgServer, imageData.getHierarchy(),
+                            ImageData.ImageType.OTHER);
                     // Create a filtered server channel
                     ImageDataOp op2 = ImageOps.buildImageDataOp(ColorTransforms.createMeanChannelTransform());
 
                     op2 = op2.appendOps(extendChannelOp);
-                    ImageServer<BufferedImage> opServer = ImageOps.buildServer(avgImageData, op2, imageData.getServer().getPixelCalibration());
+                    ImageServer<BufferedImage> opServer = ImageOps.buildServer(avgImageData, op2,
+                            imageData.getServer().getPixelCalibration());
 
                     // Combine both into a new server
-                    ImageServer<BufferedImage> combinedServer = new TransformedServerBuilder(avgServer).concatChannels(opServer).build();
+                    ImageServer<BufferedImage> combinedServer = new TransformedServerBuilder(avgServer)
+                            .concatChannels(opServer).build();
 
                     imageData = new ImageData<>(combinedServer, imageData.getHierarchy(), ImageData.ImageType.OTHER);
                 }
@@ -1395,11 +1553,17 @@ public class Cellpose2D {
 
                 Collection<PathObject> allAnnotations = imageData.getHierarchy().getAnnotationObjects();
                 // Get Squares for Training, Validation and Testing
-                List<PathObject> trainingAnnotations = allAnnotations.stream().filter(a -> a.getPathClass() == PathClass.getInstance("Training")).collect(Collectors.toList());
-                List<PathObject> validationAnnotations = allAnnotations.stream().filter(a -> a.getPathClass() == PathClass.getInstance("Validation")).collect(Collectors.toList());
+                List<PathObject> trainingAnnotations = allAnnotations.stream()
+                        .filter(a -> a.getPathClass() == PathClass.getInstance("Training"))
+                        .collect(Collectors.toList());
+                List<PathObject> validationAnnotations = allAnnotations.stream()
+                        .filter(a -> a.getPathClass() == PathClass.getInstance("Validation"))
+                        .collect(Collectors.toList());
 
                 // TODO add test annotations too
-                //List<PathObject> testingAnnotations = allAnnotations.stream().filter(a -> a.getPathClass() == PathClass.getInstance("Test")).collect(Collectors.toList());
+                // List<PathObject> testingAnnotations = allAnnotations.stream().filter(a ->
+                // a.getPathClass() ==
+                // PathClass.getInstance("Test")).collect(Collectors.toList());
 
                 PixelCalibration resolution = imageData.getServer().getPixelCalibration();
                 if (Double.isFinite(pixelSize) && pixelSize > 0) {
@@ -1407,7 +1571,8 @@ public class Cellpose2D {
                     resolution = resolution.createScaledInstance(downsample, downsample);
                 }
 
-                logger.info("Found {} Training objects and {} Validation objects in image {}", trainingAnnotations.size(), validationAnnotations.size(), imageName);
+                logger.info("Found {} Training objects and {} Validation objects in image {}",
+                        trainingAnnotations.size(), validationAnnotations.size(), imageName);
 
                 if (!trainingAnnotations.isEmpty() || !validationAnnotations.isEmpty()) {
                     // Make the server using the required ops
@@ -1417,21 +1582,24 @@ public class Cellpose2D {
 
                     if (globalPreprocess) {
                         try {
-                            if(globalPreprocessingProvidedByUser == null) {
+                            if (globalPreprocessingProvidedByUser == null) {
                                 List<ImageOp> splitMergeListImageOp = new ArrayList<>();
 
                                 // apply different global normalization for each channel
-                                for (Map.Entry<ColorTransforms.ColorTransform, Map<String, Double>> entry : this.normalizeChannelPercentilesGlobalMap.entrySet()) {
+                                for (Map.Entry<ColorTransforms.ColorTransform, Map<String, Double>> entry : this.normalizeChannelPercentilesGlobalMap
+                                        .entrySet()) {
                                     ColorTransforms.ColorTransform channel = entry.getKey();
                                     Map<String, Double> attributes = entry.getValue();
 
                                     // Do channel normalization
-                                    splitMergeListImageOp.add(computeNormalizationImageOps(channel, attributes, imageData, null, null));
+                                    splitMergeListImageOp.add(
+                                            computeNormalizationImageOps(channel, attributes, imageData, null, null));
                                 }
                                 // adding global normalization per channel to the pre-processing list
                                 fullPreprocess.add(ImageOps.Core.splitMerge(splitMergeListImageOp));
-                            }else{
-                                var normalizeOps = globalPreprocessingProvidedByUser.createOps(op, imageData, null, null);
+                            } else {
+                                var normalizeOps = globalPreprocessingProvidedByUser.createOps(op, imageData, null,
+                                        null);
                                 fullPreprocess.addAll(normalizeOps);
                             }
                             // If this has happened, then we need to disable cellpose normalization
@@ -1449,7 +1617,8 @@ public class Cellpose2D {
 
                     var opWithPreprocessing = op.appendOps(fullPreprocess.toArray(ImageOp[]::new));
 
-                    ImageServer<BufferedImage> processed = ImageOps.buildServer(imageData, opWithPreprocessing, resolution, tileWidth, tileHeight);
+                    ImageServer<BufferedImage> processed = ImageOps.buildServer(imageData, opWithPreprocessing,
+                            resolution, tileWidth, tileHeight);
 
                     LabeledImageServer labelServer = new LabeledImageServer.Builder(imageData)
                             .backgroundLabel(0, ColorTools.BLACK)
@@ -1468,35 +1637,13 @@ public class Cellpose2D {
     }
 
     /**
-     * Checks the default folder where cellpose drops a trained model (../train/models/)
+     * Checks the default folder where cellpose drops a trained model
+     * (../train/models/)
      * and moves it to the defined modelDirectory using {@link #modelDirectory}
      *
      * @return the File of the moved model
      * @throws IOException in case there was a problem moving the file
      */
-    private File moveRenameAndReturnModelFile() throws IOException {
-
-        if (this.outputModelName == null) {
-            this.outputModelName = "Custom_model";
-        }
-        // Append timestamp
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH_mm");
-        this.outputModelName += "_" + formatter.format(LocalDateTime.now());
-
-        File cellPoseModelFolder = new File(getTrainingDirectory(), "models");
-        // Find the first file in there
-        File[] all = cellPoseModelFolder.listFiles();
-        Optional<File> cellPoseModel = Arrays.stream(Objects.requireNonNull(all)).filter(f -> f.getName().contains("cellpose")).findFirst();
-        if (cellPoseModel.isPresent()) {
-            File model = cellPoseModel.get();
-            logger.info("Found model file at {} ", model);
-            File newModel = new File(modelDirectory, this.outputModelName + ".cpm");
-            FileUtils.copyFile(model, newModel);
-            logger.info("Model file {} moved to {}", newModel.getName(), newModel.getParent().replace('\\', '/'));
-            return newModel;
-        }
-        return null;
-    }
 
     private Collection<CandidateObject> readObjectsFromTileFile(TileFile tileFile) {
         RegionRequest request = tileFile.getTile();
@@ -1539,9 +1686,14 @@ public class Cellpose2D {
                         // get the Polygon, fill with 0 and add to the manager
                         Roi roi = new PolygonRoi(wand.xpoints, wand.ypoints, wand.npoints, Roi.FREEROI);
                         // Name the Roi with the position in the stack followed by the label ID
-                        // ip.fill should use roi, otherwise make a rectangle that erases surrounding pixels
+                        // ip.fill should use roi, otherwise make a rectangle that erases surrounding
+                        // pixels
 
-                        CandidateObject o = new CandidateObject(IJTools.convertToROI(roi, -1 * request.getX() / request.getDownsample(), -1 * request.getY() / request.getDownsample(), request.getDownsample(), request.getImagePlane()).getGeometry(), tileFile.getParent());
+                        CandidateObject o = new CandidateObject(
+                                IJTools.convertToROI(roi, -1 * request.getX() / request.getDownsample(),
+                                        -1 * request.getY() / request.getDownsample(), request.getDownsample(),
+                                        request.getImagePlane()).getGeometry(),
+                                tileFile.getParent());
 
                         rois.add(o);
                         ip.fill(roi);
@@ -1557,7 +1709,8 @@ public class Cellpose2D {
      * convert a label image to a collection of Geometry objects
      *
      * @param tileFile the current tileFile we are processing
-     * @return a collection of CandidateObject that will be added to the total objects
+     * @return a collection of CandidateObject that will be added to the total
+     *         objects
      */
     private Collection<CandidateObject> readObjectsFromFileOld(TileFile tileFile) {
 
@@ -1585,26 +1738,36 @@ public class Cellpose2D {
                 }
             }
             bfImage.flush();
-            // Ignore the IDs, because they will be the same across different images, and we don't really need them
-            if (candidates.isEmpty()) return Collections.emptyList();
+            // Ignore the IDs, because they will be the same across different images, and we
+            // don't really need them
+            if (candidates.isEmpty())
+                return Collections.emptyList();
             return candidates.values();
 
         } catch (IOException e) {
-            logger.warn("Image {} could not be read for some reason: \n{}", tileFile.getLabelFile(), e.getLocalizedMessage());
+            logger.warn("Image {} could not be read for some reason: \n{}", tileFile.getLabelFile(),
+                    e.getLocalizedMessage());
         }
         return Collections.emptyList();
     }
 
-
     public enum LogParser {
 
-        // Cellpose 2 pattern when training : "Look for "Epoch 0, Time  2.3s, Loss 1.0758, Loss Test 0.6007, LR 0.2000"
-        // Cellpose 3 pattern when training : "5, train_loss=2.6546, test_loss=2.0054, LR=0.1111, time 2.56s"
-        // Omnipose pattern when training   : "Train epoch: 10 | Time: 0.22min | last epoch: 0.74s | <sec/epoch>: 0.73s | <sec/batch>: 0.33s | <Batch Loss>: 5.076259 | <Epoch Loss>: 4.429341"
-        // WARNING: Currently Omnipose does not provide any output to the validation loss (Test loss in Cellpose)
-        CP2("Cellpose v2", ".*Epoch\\s*(?<epoch>\\d+),\\s*Time\\s*(?<time>\\d+\\.\\d)s,\\s*Loss\\s*(?<loss>\\d+\\.\\d+),\\s*Loss Test\\s*(?<val>\\d+\\.\\d+),\\s*LR\\s*(?<lr>\\d+\\.\\d+).*"),
-        CP3("Cellpose v3", ".* (?<epoch>\\d+), train_loss=(?<loss>\\d+\\.\\d+), test_loss=(?<val>\\d+\\.\\d+), LR=(?<lr>\\d+\\.\\d+), time (?<time>\\d+\\.\\d+)s.*"),
-        OMNI("Omnipose", ".*Train epoch: (?<epoch>\\d+) \\| Time: (?<time>\\d+\\.\\d+)min .*\\<Epoch Loss\\>: (?<loss>\\d+\\.\\d+).*");
+        // Cellpose 2 pattern when training : "Look for "Epoch 0, Time 2.3s, Loss
+        // 1.0758, Loss Test 0.6007, LR 0.2000"
+        // Cellpose 3 pattern when training : "5, train_loss=2.6546, test_loss=2.0054,
+        // LR=0.1111, time 2.56s"
+        // Omnipose pattern when training : "Train epoch: 10 | Time: 0.22min | last
+        // epoch: 0.74s | <sec/epoch>: 0.73s | <sec/batch>: 0.33s | <Batch Loss>:
+        // 5.076259 | <Epoch Loss>: 4.429341"
+        // WARNING: Currently Omnipose does not provide any output to the validation
+        // loss (Test loss in Cellpose)
+        CP2("Cellpose v2",
+                ".*Epoch\\s*(?<epoch>\\d+),\\s*Time\\s*(?<time>\\d+\\.\\d)s,\\s*Loss\\s*(?<loss>\\d+\\.\\d+),\\s*Loss Test\\s*(?<val>\\d+\\.\\d+),\\s*LR\\s*(?<lr>\\d+\\.\\d+).*"),
+        CP3("Cellpose v3",
+                ".* (?<epoch>\\d+), train_loss=(?<loss>\\d+\\.\\d+), test_loss=(?<val>\\d+\\.\\d+), LR=(?<lr>\\d+\\.\\d+), time (?<time>\\d+\\.\\d+)s.*"),
+        OMNI("Omnipose",
+                ".*Train epoch: (?<epoch>\\d+) \\| Time: (?<time>\\d+\\.\\d+)min .*\\<Epoch Loss\\>: (?<loss>\\d+\\.\\d+).*");
 
         private final String name;
         private final Pattern pattern;
@@ -1634,7 +1797,6 @@ public class Cellpose2D {
         private final PathObject parent;
 
         private Collection<CandidateObject> candidates = Collections.emptyList();
-
 
         TileFile(RegionRequest request, File imageFile, PathObject parent) {
             this.request = request;
