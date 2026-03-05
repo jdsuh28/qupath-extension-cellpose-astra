@@ -107,6 +107,8 @@ public class VirtualEnvironmentRunner {
                         // Adjust path to the folder with the env name based on the python location. In Linux/macOS it's in the 'bin' sub folder
                         cmd.addAll(Arrays.asList(condaCommand, "activate", new File(pythonPath).getParentFile().getParent(), ";", "python"));
                         break;
+                    default:
+                        break;
                 }
                 break;
             case VENV:
@@ -117,6 +119,8 @@ public class VirtualEnvironmentRunner {
                     case UNIX:
                     case OSX:
                         cmd.add(new File(pythonPath, "bin/python").getAbsolutePath());
+                        break;
+                    default:
                         break;
                 }
                 break;
