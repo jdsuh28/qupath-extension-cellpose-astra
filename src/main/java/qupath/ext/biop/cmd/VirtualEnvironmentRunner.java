@@ -17,8 +17,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
- * A wrapper to run python virtualenvs, that tries to figure out the commands to
- * run based on the environment type
+ * A wrapper to run python virtualenvs, that tries to figure out the commands to run based on the environment type
  *
  * @author Olivier Burri
  * @author Romain Guiet
@@ -40,16 +39,12 @@ public class VirtualEnvironmentRunner {
     private Process process;
 
     /**
-     * This enum helps us figure out the type of virtualenv. We need to change
-     * {@link #getActivationCommand()} as well.
+     * This enum helps us figure out the type of virtualenv. We need to change {@link #getActivationCommand()} as well.
      */
     public enum EnvType {
-        CONDA("Anaconda or Miniconda",
-                "If you need to start your virtual environment with 'conda activate' then this is the type for you"),
-        VENV("Python venv",
-                "If you use 'myenv/Scripts/activate' to call your virtual environment, then use this environment type"),
-        EXE("Python Executable",
-                "Use this if you'd like to call the python executable directly. Can be useful in case you have issues with conda."),
+        CONDA("Anaconda or Miniconda", "If you need to start your virtual environment with 'conda activate' then this is the type for you"),
+        VENV( "Python venv", "If you use 'myenv/Scripts/activate' to call your virtual environment, then use this environment type"),
+        EXE("Python Executable", "Use this if you'd like to call the python executable directly. Can be useful in case you have issues with conda."),
         OTHER("Other (Unsupported)", "Currently only conda and venv are supported.");
 
         private final String description;
@@ -60,9 +55,7 @@ public class VirtualEnvironmentRunner {
             this.help = help;
         }
 
-        public String getDescription() {
-            return this.description;
-        }
+        public String getDescription() {return this.description;}
 
         @Override
         public String toString() {
@@ -71,7 +64,7 @@ public class VirtualEnvironmentRunner {
     }
 
     public VirtualEnvironmentRunner(String environmentNameOrPath, EnvType type, String name) {
-        this(environmentNameOrPath, type, null, name);
+        this(environmentNameOrPath, type, null, name );
     }
 
     public VirtualEnvironmentRunner(String environmentNameOrPath, EnvType type, String condaPath, String name) {
@@ -84,16 +77,11 @@ public class VirtualEnvironmentRunner {
     }
 
     /**
-     * This method returns the command that will be needed by the
-     * {@link ProcessBuilder}, to start Python in the
+     * This method returns the command that will be needed by the {@link ProcessBuilder}, to start Python in the
      * desired virtual environment type.
-     * Issue is that under windows you can just pile a bunch of Strings together,
-     * and it runs
-     * In Mac or UNIX, the bash -c command must be followed by the full command
-     * enclosed in quotes
-     * 
-     * @return a list of Strings up to the start of the 'python' command. Use
-     *         {@link #setArguments(List)} to set the actual command to run.
+     * Issue is that under windows you can just pile a bunch of Strings together, and it runs
+     * In Mac or UNIX, the bash -c command must be followed by the full command enclosed in quotes
+     * @return a list of Strings up to the start of the 'python' command. Use {@link #setArguments(List)} to set the actual command to run.
      */
     private List<String> getActivationCommand() {
 
@@ -105,25 +93,19 @@ public class VirtualEnvironmentRunner {
             case CONDA:
                 switch (platform) {
                     case WINDOWS:
-                        if (condaCommand == null) {
+                        if( condaCommand == null ) {
                             condaCommand = "conda.bat";
                         }
-                        // Adjust path to the folder with the env name based on the python location. On
-                        // Windows it's at the root of the environment
-                        cmd.addAll(Arrays.asList("CALL", condaCommand, "activate", new File(pythonPath).getParent(),
-                                "&", "python"));
+                        // Adjust path to the folder with the env name based on the python location. On Windows it's at the root of the environment
+                        cmd.addAll(Arrays.asList("CALL", condaCommand, "activate", new File(pythonPath).getParent(), "&", "python"));
                         break;
                     case UNIX:
                     case OSX:
-                        if (condaCommand == null) {
+                        if( condaCommand == null ) {
                             condaCommand = "conda";
                         }
-                        // Adjust path to the folder with the env name based on the python location. In
-                        // Linux/macOS it's in the 'bin' sub folder
-                        cmd.addAll(Arrays.asList(condaCommand, "activate",
-                                new File(pythonPath).getParentFile().getParent(), ";", "python"));
-                        break;
-                    default:
+                        // Adjust path to the folder with the env name based on the python location. In Linux/macOS it's in the 'bin' sub folder
+                        cmd.addAll(Arrays.asList(condaCommand, "activate", new File(pythonPath).getParentFile().getParent(), ";", "python"));
                         break;
                 }
                 break;
@@ -135,8 +117,6 @@ public class VirtualEnvironmentRunner {
                     case UNIX:
                     case OSX:
                         cmd.add(new File(pythonPath, "bin/python").getAbsolutePath());
-                        break;
-                    default:
                         break;
                 }
                 break;
@@ -150,10 +130,8 @@ public class VirtualEnvironmentRunner {
     }
 
     /**
-     * This is the code you actually want to run after 'python'. For example adding
-     * {@code Arrays.asList("--version")}
+     * This is the code you actually want to run after 'python'. For example adding {@code Arrays.asList("--version")}
      * should return the version of python that is being run.
-     * 
      * @param arguments any cellpose or omnipose command line argument
      */
     public void setArguments(List<String> arguments) {
@@ -162,10 +140,8 @@ public class VirtualEnvironmentRunner {
 
     /**
      * This builds, runs the command and outputs it to the logger as it is being run
-     * 
-     * @param waitUntilDone whether to wait for the process to end or not before
-     *                      exiting this method
-     * @throws IOException in case there is an issue with the process
+     * @param waitUntilDone whether to wait for the process to end or not before exiting this method
+     * @throws IOException  in case there is an issue with the process
      */
     public void runCommand(boolean waitUntilDone) throws IOException {
 
@@ -175,8 +151,7 @@ public class VirtualEnvironmentRunner {
         // Get the arguments specific to the command we want to run
         command.addAll(arguments);
 
-        // OK so here we need to either just continue appending the commands in the case
-        // of windows
+        // OK so here we need to either just continue appending the commands in the case of windows
         // or making a big string for NIX systems
         List<String> shell = new ArrayList<>();
 
@@ -188,15 +163,15 @@ public class VirtualEnvironmentRunner {
 
                 // If there are spaces, then we should encapsulate the command with quotes
                 command = command.stream().map(s -> {
-                    if (s.trim().contains(" "))
-                        return "\"" + s.trim() + "\"";
-                    return s;
-                }).collect(Collectors.toList());
+                            if (s.trim().contains(" "))
+                                return "\"" + s.trim() + "\"";
+                            return s;
+                        }).collect(Collectors.toList());
 
                 // The last part needs to be sent as a single string, otherwise it does not run
-                String cmdString = command.toString().replace(",", "");
+                String cmdString = command.toString().replace(",","");
 
-                shell.add(cmdString.substring(1, cmdString.length() - 1));
+                shell.add(cmdString.substring(1, cmdString.length()-1));
                 break;
 
             case WINDOWS:
@@ -206,8 +181,8 @@ public class VirtualEnvironmentRunner {
                 break;
         }
 
-        // Try to make a command that is fully readable and that can be copied and
-        // pasted
+
+        // Try to make a command that is fully readable and that can be copied and pasted
         List<String> printable = shell.stream().map(s -> {
             // add quotes if there are spaces in the paths
             if (s.contains(" "))
@@ -217,7 +192,7 @@ public class VirtualEnvironmentRunner {
         }).collect(Collectors.toList());
         String executionString = printable.toString().replace(",", "");
 
-        logger.info("Executing command:\n{}", executionString.substring(1, executionString.length() - 1));
+        logger.info("Executing command:\n{}", executionString.substring(1, executionString.length()-1));
         logger.info("This command should run directly if copy-pasted into your shell");
 
         // Now the cmd line is ready
@@ -234,7 +209,7 @@ public class VirtualEnvironmentRunner {
             public void run() {
                 BufferedReader stdIn = new BufferedReader(new InputStreamReader(process.getInputStream()));
                 try {
-                    for (String line = stdIn.readLine(); line != null;) {
+                    for (String line = stdIn.readLine(); line != null; ) {
                         logger.info("{}: {}", name, line);
                         logResults.add(line);
                         line = stdIn.readLine();
@@ -247,10 +222,11 @@ public class VirtualEnvironmentRunner {
         t.setDaemon(true);
         t.start();
 
+
         logger.info("Virtual Environment Runner Started");
 
         // If we ask to wait, let's wait directly here rather than handle it outside
-        if (waitUntilDone) {
+        if(waitUntilDone) {
             try {
                 this.process.waitFor();
             } catch (InterruptedException e) {
@@ -262,11 +238,9 @@ public class VirtualEnvironmentRunner {
     public Process getProcess() {
         return this.process;
     }
-
     public List<String> getProcessLog() {
         return this.logResults;
     }
-
     public void startWatchService(Path folderToListen) throws IOException {
         this.watchService = FileSystems.getDefault().newWatchService();
 
@@ -278,7 +252,7 @@ public class VirtualEnvironmentRunner {
         if (key == null)
             return Collections.emptyList();
         List<WatchEvent<?>> events = key.pollEvents();
-        List<String> files = events.stream()
+        List<String>files = events.stream()
                 .map(e -> ((Path) e.context()).toString())
                 .collect(Collectors.toList());
         key.reset();
@@ -286,7 +260,6 @@ public class VirtualEnvironmentRunner {
     }
 
     public void closeWatchService() throws IOException {
-        if (watchService != null)
-            watchService.close();
+        if (watchService != null ) watchService.close();
     }
 }
