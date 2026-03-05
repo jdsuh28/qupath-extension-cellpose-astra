@@ -4,12 +4,21 @@ plugins {
     id("qupath-conventions")
 }
 
+/*
+ * Update metadata to be specific to the ASTRA pipeline
+ * Version number shown in QuPath should be ASTRA version number
+ */
 qupathExtension {
-    name = "qupath-extension-cellpose"
-    group = "io.github.qupath"
-    version = "0.12.0"
-    description = "QuPath extension to use Cellpose"
-    automaticModule = "qupath.ext.biop.cellpose"
+    // name = "qupath-extension-cellpose"
+    // group = "io.github.qupath"
+    // version = "0.12.0"
+    // description = "QuPath extension to use Cellpose"
+    // automaticModule = "qupath.ext.biop.cellpose"
+    name = "qupath-extension-cellpose-astra"
+    group = "io.github.jdsuh28"
+    version = "0.0.0-astra-dev"
+    description = "ASTRA fork of the BIOP Cellpose extension for QuPath"
+    automaticModule = "qupath.ext.astra.cellpose"
 }
 
 dependencies {
