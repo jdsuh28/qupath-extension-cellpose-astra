@@ -16,6 +16,8 @@
 
 package qupath.ext.biop.cellpose;
 
+import qupath.ext.astra.AstraHooks;
+
 import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.PolygonRoi;
@@ -1010,7 +1012,10 @@ public class Cellpose2D {
             // Get cellpose masks from the validation
             runCellposeOnValidationImages();
 
-            this.qcResults = runCellposeQC();
+            // ASTRA HOOK: allow ASTRA workflow to skip QC without altering legacy behavior
+            if (!AstraHooks.skipQC()) {
+                this.qcResults = runCellposeQC();
+            }
 
             return modelFile;
 
