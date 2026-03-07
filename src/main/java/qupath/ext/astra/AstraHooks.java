@@ -1,4 +1,4 @@
-package qupath.ext.biop.cellpose.astra;
+package qupath.ext.astra;
 
 import qupath.ext.biop.cellpose.Cellpose2D;
 
@@ -15,6 +15,14 @@ public class AstraHooks {
      * ASTRA workflow may override this behavior through configuration
      * or environment detection in the future.
      */
+    public static boolean skipModelMoveRename() {
+        return false;
+    }
+
+    public static Object runQC(Cellpose2D model) throws Exception {
+        return model.runQCStandalone();
+    }
+
     public static boolean skipQC() {
         return false;
     }

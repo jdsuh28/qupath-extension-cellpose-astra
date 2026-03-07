@@ -16,7 +16,7 @@
 
 package qupath.ext.biop.cellpose;
 
-import qupath.ext.astra.AstraHooks;
+import qupath.ext.astra.AstraHooks; // ASTRA: hook layer for ASTRA-specific policy.
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -169,6 +169,8 @@ public class Cellpose2D {
     public boolean useTestDir;
     public String outputModelName;
     public File groundTruthDirectory;
+    public File qcDirectory;
+    protected File resultsDirectory;
     protected CellposeSetup cellposeSetup = CellposeSetup.getInstance();
     // Parameters and parameter values that will be passed to the cellpose command
     protected LinkedHashMap<String, String> parameters;
@@ -295,7 +297,8 @@ public class Cellpose2D {
      * @return the directory
      */
     public File getTrainingDirectory() {
-        return new File(groundTruthDirectory, "train");
+        // ASTRA: delegate training-directory policy to AstraHooks.
+        return AstraHooks.resolveTrainingDirectory(groundTruthDirectory);
     }
 
     /**
@@ -304,7 +307,8 @@ public class Cellpose2D {
      * @return the directory
      */
     public File getValidationDirectory() {
-        return new File(groundTruthDirectory, "test");
+        // ASTRA: delegate validation/QC-directory policy to AstraHooks.
+        return AstraHooks.resolveValidationDirectory(groundTruthDirectory, qcDirectory);
     }
 
     private Geometry simplify(Geometry geom) {
@@ -996,29 +1000,31 @@ public class Cellpose2D {
 
         try {
 
-            if(this.cleanTrainingDir) {
+            if (this.cleanTrainingDir) {
                 // Clear a previous run
                 cleanDirectory(this.groundTruthDirectory);
 
                 saveTrainingImages();
             }
+
             runTraining();
 
-            // ASTRA HOOK: optionally disable automatic model move/rename
-            if (!AstraHooks.skipModelMoveRename()) {
-                this.modelFile = moveRenameAndReturnModelFile();
+            // Parse training results from the log
+            this.trainingResults = parseTrainingResults();
+            // ASTRA: optional hook for ASTRA-side training-results handling.
+            AstraHooks.onTrainingResultsParsed(this, this.trainingResults);
+
+            // ASTRA: optionally skip legacy post-train model promotion and implicit QC.
+            if (AstraHooks.skipModelMove(this) || AstraHooks.skipAutomaticQc(this)) {
+                return AstraHooks.trainingArtifactReturnValue(this, getTrainingDirectory());
             }
 
-            // Get the training results before overwriting the log with a new run
-            this.trainingResults = parseTrainingResults();
+            this.modelFile = moveRenameAndReturnModelFile();
 
             // Get cellpose masks from the validation
             runCellposeOnValidationImages();
 
-            // ASTRA HOOK: allow ASTRA workflow to skip QC without altering legacy behavior
-            if (!AstraHooks.skipQC()) {
-                this.qcResults = runCellposeQC();
-            }
+            this.qcResults = runCellposeQC();
 
             return modelFile;
 
@@ -1026,6 +1032,21 @@ public class Cellpose2D {
             logger.error("Error while running cellpose training: {}", e.getMessage(), e);
         }
         return null;
+    }
+
+
+    /**
+     * Run QC explicitly (without training).
+     *
+     * ASTRA:
+     * - QC is a separate step from training.
+     * - Preconditions are enforced fail-fast rather than guessed silently.
+     */
+    public ResultsTable runQC() throws IOException, InterruptedException {
+        AstraHooks.requireQcDirectory(this);
+        runCellposeOnValidationImages();
+        this.qcResults = runCellposeQC();
+        return this.qcResults;
     }
 
     /**
@@ -1081,23 +1102,29 @@ public class Cellpose2D {
      */
     private void runCellposeOnValidationImages() {
 
-        // Assume that cellpose training was already run and run cellpose again on the /test folder
-        logger.info("Running the new model {} on the validation images to obtain labels for QC", this.modelFile.getName());
+        // ASTRA: resolve the QC model deterministically.
+        // ASTRA: prefer an explicit model argument; otherwise fall back to legacy modelFile.
+        String qcModelPath = AstraHooks.resolveQcModelPathForValidation(this);
+        // ASTRA: resolve deterministic QC model-name token for the Python QC runner.
+        String qcModelName = AstraHooks.resolveQcModelNameForQc(this);
+
+        logger.info("Running the model {} on the validation images to obtain labels for QC", qcModelName);
 
         File tmp = this.tempDirectory;
-        this.tempDirectory = getValidationDirectory();
-
         String tmpModel = this.model;
-        this.model = this.modelFile.getAbsolutePath();
 
         try {
+            // ASTRA: run QC inference directly in the validation/QC directory so cp_masks land beside QC inputs.
+            this.tempDirectory = getValidationDirectory();
+            this.model = qcModelPath;
             runCellpose(null);
         } catch (InterruptedException | IOException e) {
             logger.error(e.getMessage(), e);
+        } finally {
+            // ASTRA: always restore mutable execution state after the QC inference pass.
+            this.tempDirectory = tmp;
+            this.model = tmpModel;
         }
-        // Make sure things are back the way they were
-        this.tempDirectory = tmp;
-        this.model = tmpModel;
     }
 
     /**
@@ -1129,7 +1156,8 @@ public class Cellpose2D {
             return null;
         }
 
-        File qcPythonFile = new File(extensionDirList.getFirst(), "run-cellpose-qc.py");
+        // ASTRA: prefer ASTRA QC script location while preserving BIOP fallback.
+        File qcPythonFile = AstraHooks.resolveQcPythonFile(extensionDirList.getFirst());
         if (!qcPythonFile.exists()) {
             logger.warn("File {} was not found in {}.\nPlease download it from {}", qcPythonFile.getName(),
                     extensionDirList.getFirst().getAbsolutePath(),
@@ -1139,15 +1167,24 @@ public class Cellpose2D {
 
         // Start the Virtual Environment Runner
         VirtualEnvironmentRunner qcRunner = getVirtualEnvironmentRunner();
-        List<String> qcArguments = new ArrayList<>(Arrays.asList(qcPythonFile.getAbsolutePath(), getValidationDirectory().getAbsolutePath(), this.modelFile.getName()));
+        String qcModelName = AstraHooks.resolveQcModelNameForQc(this);
+        List<String> qcArguments = new ArrayList<>(Arrays.asList(
+                qcPythonFile.getAbsolutePath(),
+                getValidationDirectory().getAbsolutePath(),
+                qcModelName
+        ));
+        // ASTRA: pass the deterministic QC output directory so qc_results.csv lands in results/qc.
+        if (AstraHooks.enabled()) {
+            qcArguments.add(qcFolder.getAbsolutePath());
+        }
 
         qcRunner.setArguments(qcArguments);
 
         qcRunner.runCommand(true);
 
 
-        // The results are stored in the validation directory, open them as a results table
-        File qcResults = new File(getValidationDirectory(), "QC-Results" + File.separator + "Quality_Control for " + this.modelFile.getName() + ".csv");
+        // ASTRA: resolve the QC CSV from the deterministic ASTRA output directory when hooks are enabled.
+        File qcResults = AstraHooks.resolveQcResultsFile(getValidationDirectory(), qcModelName, qcFolder);
 
         if (!qcResults.exists()) {
             logger.warn("No QC results file name {} found in {}\nCheck in the logger for a potential reason", qcResults.getName(), qcResults.getParent());
@@ -1155,9 +1192,11 @@ public class Cellpose2D {
             return null;
         }
 
-        // Move this csv file into the QC folder in the main QuPath project
-        File finalQCResultFile = new File(qcFolder, qcResults.getName());
-        FileUtils.moveFile(qcResults, finalQCResultFile);
+        // ASTRA: only move the QC CSV if it was emitted somewhere other than its final deterministic destination.
+        File finalQCResultFile = AstraHooks.resolveFinalQcResultFile(qcFolder, qcResults);
+        if (!qcResults.getAbsoluteFile().equals(finalQCResultFile.getAbsoluteFile())) {
+            FileUtils.moveFile(qcResults, finalQCResultFile);
+        }
 
         return ResultsTable.open(finalQCResultFile.getAbsolutePath());
     }
@@ -1225,12 +1264,13 @@ public class Cellpose2D {
             }
         }
 
-        //Save results to QC
-        File qcTrainingResults = new File(getQCFolder(), "Training Result - " + modelFile.getName());
-
-        logger.info("Saving Training Results to {}", qcTrainingResults.getParent());
-
-        trainingResults.save(qcTrainingResults.getAbsolutePath());
+        if (AstraHooks.allowLegacyTrainingResultsSave(this)) {
+            // ASTRA: save training results into the ASTRA training-results folder when hooks are enabled.
+            String trainingModelName = AstraHooks.resolveModelDisplayName(this);
+            File trainingResultsFile = AstraHooks.resolveTrainingResultsFile(getTrainingResultsFolder(), trainingModelName);
+            logger.info("Saving Training Results to {}", trainingResultsFile.getParent());
+            trainingResults.save(trainingResultsFile.getAbsolutePath());
+        }
         return trainingResults;
     }
 
@@ -1242,7 +1282,7 @@ public class Cellpose2D {
      */
     public void showTrainingGraph(boolean show, boolean save) {
         ResultsTable output = this.trainingResults;
-        File qcFolder = getQCFolder();
+        File trainingResultsFolder = getTrainingResultsFolder();
 
         final NumberAxis xAxis = new NumberAxis();
         final NumberAxis yAxis = new NumberAxis();
@@ -1275,10 +1315,9 @@ public class Cellpose2D {
             if (show) dialog.show();
 
             if (save) {
-                // Save a copy as well in the QC folder
-                String trainingGraph = "Training Result - " + this.modelFile.getName() + ".png";
-
-                File trainingGraphFile = new File(qcFolder, trainingGraph);
+                // ASTRA: save the training graph into the ASTRA training-results folder when hooks are enabled.
+                String trainingModelName = AstraHooks.resolveModelDisplayName(this);
+                File trainingGraphFile = AstraHooks.resolveTrainingGraphFile(trainingResultsFolder, trainingModelName);
                 WritableImage writableImage = new WritableImage((int) dialog.getWidth(), (int) dialog.getHeight());
                 dialog.getDialogPane().snapshot(null, writableImage);
                 RenderedImage renderedImage = SwingFXUtils.fromFXImage(writableImage, null);
@@ -1308,7 +1347,18 @@ public class Cellpose2D {
      * @return the Quality Control folder
      */
     private File getQCFolder() {
-        return new File(this.modelDirectory, "QC");
+        // ASTRA: route QC result artifacts into the ASTRA qc results folder when hooks are enabled.
+        return AstraHooks.resolveQcFolder(this.modelDirectory, this.resultsDirectory);
+    }
+
+    /**
+     * Get the location of the training-results folder.
+     *
+     * @return the training-results folder
+     */
+    private File getTrainingResultsFolder() {
+        // ASTRA: route training result artifacts into the ASTRA training results folder when hooks are enabled.
+        return AstraHooks.resolveTrainingResultsFolder(this.modelDirectory, this.resultsDirectory);
     }
 
     /**
@@ -1705,12 +1755,4 @@ public class Cellpose2D {
             geometry = geometry.getGeometryN(index);
         }
     }
-
-    // ASTRA HOOK: run QC independently of training
-    public Object runQCStandalone() throws Exception {
-        runCellposeOnValidationImages();
-        this.qcResults = runCellposeQC();
-        return this.qcResults;
-    }
-
 }

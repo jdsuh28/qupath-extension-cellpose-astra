@@ -12,6 +12,8 @@ from scipy.optimize import linear_sum_assignment
 parser = argparse.ArgumentParser(description='Get Quality Metrics from Cellpose Run. Needs a folder with Raw Data, Ground Truth and Cellpose Labels')
 parser.add_argument('dir', nargs=1, help='a directory containing the resulting images for QC (Raw, GT and Model Results)')
 parser.add_argument('model', nargs=1, help='The name of the model being tested')
+# ASTRA: optional deterministic output directory for qc_results.csv
+parser.add_argument('out_dir', nargs='?', default=None, help='optional output directory for deterministic qc_results.csv')
 
 args = parser.parse_args()
 data_folder = args.dir[0]
@@ -19,6 +21,7 @@ print (data_folder)
 
 model_name = args.model[0]
 print(model_name)
+out_dir = args.out_dir
 matching_criteria = dict()
 
 ## All functions to do the work
@@ -305,19 +308,28 @@ def matching_dataset_lazy(y_gen, thresh=0.5, criterion='iou', by_image=False, sh
 
 
 # Here we start testing the differences between GT and predicted label images
-def compareLabels( model_name, image_folder ):
+def compareLabels( model_name, image_folder, out_dir=None ):
     
     image_folder = Path(image_folder)
     # Grab all tif images
     raw_images = [x for x in Path(image_folder).glob("*.tif") if not ( "masks" in x.name or "flows" in x.name )]
 
-    # Define save folder from the parent of the predicted_labels_folder
-    results_path = image_folder / "QC-Results"
+    # ASTRA: optional deterministic output path.
+    # ASTRA: if out_dir is provided, write qc_results.csv there and refuse overwrites.
+    if out_dir is not None and str(out_dir).strip() != "":
+        results_path = Path(out_dir)
+        results_path.mkdir(parents=True, exist_ok=True)
+        file_path = results_path / "qc_results.csv"
+        if file_path.exists():
+            raise FileExistsError(f"Refusing to overwrite existing QC results: {file_path}")
+    else:
+        # ASTRA: backward-compatible fallback (legacy BIOP behavior)
+        results_path = image_folder / "QC-Results"
+        # Make the directory if it's missing
+        results_path.absolute().mkdir( exist_ok=True )
+        file_path = results_path / ( "Quality_Control for "+model_name+".csv" )
 
-    # Make the directory if it's missing
-    results_path.absolute().mkdir( exist_ok=True )
-
-    with open(results_path / ( "Quality_Control for "+model_name+".csv" ), "w", newline='') as file:
+    with open(file_path, "w", newline='') as file:
         writer = csv.writer(file, delimiter=",")
 
         writer.writerow(["model","image","Prediction v. GT Intersection over Union", "false positive", "true positive", "false negative", "precision", "recall", "accuracy", "f1 score", "n_true", "n_pred", "mean_true_score", "mean_matched_score", "panoptic_quality"])  
@@ -358,4 +370,4 @@ def compareLabels( model_name, image_folder ):
 
 
 # Finally running the check on the given inputs
-compareLabels(model_name, data_folder)
+compareLabels(model_name, data_folder, out_dir)

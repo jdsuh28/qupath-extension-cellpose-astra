@@ -1,3 +1,10 @@
+/*
+ * ASTRA:
+ * - Override extension metadata so QuPath loads ASTRA as a distinct extension.
+ * - The version shown in QuPath is ASTRA-authoritative and is updated by the ASTRA workflow.
+ * - The placeholder below is intentionally non-authoritative until the workflow performs a release.
+ */
+
 plugins {
     id("maven-publish")
     // QuPath Gradle extension convention plugin

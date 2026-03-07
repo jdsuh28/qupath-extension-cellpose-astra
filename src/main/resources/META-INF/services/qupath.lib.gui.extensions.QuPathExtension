@@ -1,1 +1,2 @@
+# ASTRA: distinct QuPath extension entrypoint for the ASTRA fork
 qupath.ext.astra.AstraCellposeExtension
