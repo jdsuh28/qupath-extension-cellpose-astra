@@ -26,7 +26,7 @@
  *   skipAutomaticQc=true|false
  *   allowLegacyTrainingResultsSave=true|false
  *   trainingDirMode=flat|nested
- *   qcScriptRelativePath=QC/run-cellpose-qc.py
+ *   qcScriptRelativePath=run-cellpose-qc.py
  *   resultsRelativePath=results
  */
 
@@ -309,11 +309,11 @@ public final class AstraHooks {
      * 2) <extensionDir>/run-cellpose-qc.py
      *
      * ASTRA default:
-     *   astra/qc/run-cellpose-qc.py
+     *   run-cellpose-qc.py
      */
     public static File resolveQcPythonFile(File extensionDir) {
         Objects.requireNonNull(extensionDir, "extensionDir");
-        String rel = propStr("qcScriptRelativePath", "QC/run-cellpose-qc.py");
+        String rel = propStr("qcScriptRelativePath", "run-cellpose-qc.py");
         File candidate = new File(extensionDir, rel);
         if (enabled() && candidate.exists()) return candidate;
         return new File(extensionDir, "run-cellpose-qc.py");
@@ -427,7 +427,8 @@ public final class AstraHooks {
      */
     public static File resolveQcDirectory(File quPathProjectDir, File qcDirectory) {
         Objects.requireNonNull(quPathProjectDir, "quPathProjectDir");
-        return resolveQcRootDirectory(quPathProjectDir, qcDirectory);
+        if (enabled() && qcDirectory != null) return qcDirectory;
+        return new File(quPathProjectDir, "test");
     }
 
     /**
@@ -439,13 +440,18 @@ public final class AstraHooks {
      * Override:
      *   resultsRelativePath=...
      */
-    public static File resolveResultsDirectory(File quPathProjectDir, File resultsDirectory) {
-        Objects.requireNonNull(quPathProjectDir, "quPathProjectDir");
-        return resolveResultsRootDirectory(quPathProjectDir, resultsDirectory);
-    }
-
     public static File resolveResultsDirectory(File quPathProjectDir) {
         return resolveResultsDirectory(quPathProjectDir, null);
+    }
+
+    /**
+     * Builder-facing hook for results directory resolution with an optional explicit directory.
+     */
+    public static File resolveResultsDirectory(File quPathProjectDir, File resultsDirectory) {
+        Objects.requireNonNull(quPathProjectDir, "quPathProjectDir");
+        if (resultsDirectory != null) return resultsDirectory;
+        String rel = propStr("resultsRelativePath", "results");
+        return new File(quPathProjectDir, rel);
     }
 
     /**
@@ -531,6 +537,9 @@ public final class AstraHooks {
      */
     public static File resolveTrainingResultsFile(File qcFolder, String modelDisplayName) {
         Objects.requireNonNull(qcFolder, "qcFolder");
+        if (enabled()) {
+            return new File(qcFolder, "training_results.csv");
+        }
         if (modelDisplayName == null || modelDisplayName.isBlank()) {
             throw new IllegalArgumentException("modelDisplayName must be non-empty");
         }
@@ -542,6 +551,9 @@ public final class AstraHooks {
      */
     public static File resolveTrainingGraphFile(File qcFolder, String modelDisplayName) {
         Objects.requireNonNull(qcFolder, "qcFolder");
+        if (enabled()) {
+            return new File(qcFolder, "training_graph.png");
+        }
         if (modelDisplayName == null || modelDisplayName.isBlank()) {
             throw new IllegalArgumentException("modelDisplayName must be non-empty");
         }
