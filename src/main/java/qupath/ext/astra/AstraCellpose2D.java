@@ -8,11 +8,9 @@ import javafx.scene.chart.XYChart;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
 import javafx.scene.image.WritableImage;
-import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.ext.biop.cellpose.Cellpose2D;
-import qupath.ext.biop.cellpose.CellposeExtension;
 import qupath.ext.biop.cmd.VirtualEnvironmentRunner;
 import qupath.fx.dialogs.Dialogs;
 import qupath.fx.utils.FXUtils;
@@ -22,23 +20,17 @@ import javax.imageio.ImageIO;
 import java.awt.image.RenderedImage;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.jar.Attributes;
-import java.util.jar.Manifest;
-import java.net.URL;
 import java.util.stream.Collectors;
 
 /**
@@ -85,16 +77,17 @@ public class AstraCellpose2D extends Cellpose2D {
 
     @Override
     public File getTrainingDirectory() {
-        return AstraHooks.resolveTrainingDirectory(groundTruthDirectory);
+        return resolveTrainingDirectory(groundTruthDirectory);
     }
 
     @Override
     public File getValidationDirectory() {
-        return AstraHooks.resolveValidationDirectory(groundTruthDirectory, astraQcDirectory);
+        return resolveValidationDirectory(astraQcDirectory);
     }
 
     @Override
     public File train() {
+        requireExplicitModel(this);
         try {
             if (this.cleanTrainingDir) {
                 invokePrivateVoid(this, "cleanDirectory", new Class<?>[]{File.class}, this.groundTruthDirectory);
@@ -105,37 +98,20 @@ public class AstraCellpose2D extends Cellpose2D {
 
             ResultsTable parsedTrainingResults = parseTrainingResultsAstra();
             setTrainingResults(parsedTrainingResults);
-            AstraHooks.onTrainingResultsParsed(this, parsedTrainingResults);
+            saveTrainingGraphAfterTraining();
 
-            if (AstraHooks.saveTrainingGraphAfterTraining(this)) {
-                saveTrainingGraphAfterTraining();
-            }
-
-            boolean skipModelMove = AstraHooks.skipModelMove(this);
-            boolean skipAutomaticQc = AstraHooks.skipAutomaticQc(this);
-
-            if (!skipModelMove) {
-                File movedModel = (File) invokePrivate(this, "moveRenameAndReturnModelFile", new Class<?>[0]);
-                setModelFile(movedModel);
-            }
-
-            if (!skipAutomaticQc) {
-                if (skipModelMove) {
-                    throw new IllegalStateException("ASTRA automatic QC cannot run when model promotion is disabled.");
-                }
-                runCellposeOnValidationImagesAstra();
-                setQcResults(runCellposeQCAstra());
-            }
-
-            return skipModelMove ? AstraHooks.trainingArtifactReturnValue(this, getTrainingDirectory()) : getModelFile();
-        } catch (IOException | InterruptedException e) {
-            logger.error("Error while running ASTRA cellpose training: {}", e.getMessage(), e);
-            return null;
+            return trainingArtifactReturnValue(getTrainingDirectory());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("ASTRA training was interrupted.", e);
+        } catch (IOException e) {
+            throw new IllegalStateException("ASTRA training failed.", e);
         }
     }
 
     public ResultsTable runQC() throws IOException, InterruptedException {
         requireAstraQcDirectory();
+        requireExplicitModel(this);
         runCellposeOnValidationImagesAstra();
         ResultsTable results = runCellposeQCAstra();
         setQcResults(results);
@@ -188,10 +164,14 @@ public class AstraCellpose2D extends Cellpose2D {
             }
 
             if (save) {
-                String trainingModelName = safeModelDisplayName();
-                File trainingGraphFile = AstraHooks.resolveTrainingGraphFile(trainingResultsFolder, trainingModelName);
-                WritableImage writableImage = new WritableImage((int) dialog.getWidth(), (int) dialog.getHeight());
-                dialog.getDialogPane().snapshot(null, writableImage);
+                File trainingGraphFile = resolveTrainingGraphFile(trainingResultsFolder);
+                lineChart.setAnimated(false);
+                lineChart.setCreateSymbols(false);
+                lineChart.setPrefSize(1000, 700);
+                new javafx.scene.Scene(new javafx.scene.Group(lineChart));
+                lineChart.applyCss();
+                lineChart.layout();
+                WritableImage writableImage = lineChart.snapshot(null, null);
                 RenderedImage renderedImage = SwingFXUtils.fromFXImage(writableImage, null);
 
                 logger.info("Saving Training Graph to {}", trainingGraphFile.getName());
@@ -199,8 +179,7 @@ public class AstraCellpose2D extends Cellpose2D {
                 try {
                     ImageIO.write(renderedImage, "png", trainingGraphFile);
                 } catch (IOException e) {
-                    logger.error("Could not write training graph image {} in {}.", trainingGraphFile.getName(), trainingGraphFile.getParent());
-                    logger.error("Error Message", e);
+                    throw new IllegalStateException("Could not write ASTRA training graph image.", e);
                 }
             }
         });
@@ -212,8 +191,8 @@ public class AstraCellpose2D extends Cellpose2D {
     }
 
     private void runCellposeOnValidationImagesAstra() {
-        String qcModelPath = AstraHooks.resolveQcModelPathForValidation(this);
-        String qcModelName = AstraHooks.resolveQcModelNameForQc(this);
+        String qcModelPath = resolveExplicitModelPath(this);
+        String qcModelName = resolveExplicitModelName(this);
 
         logger.info("Running the model {} on the validation images to obtain labels for QC", qcModelName);
 
@@ -225,10 +204,7 @@ public class AstraCellpose2D extends Cellpose2D {
             writeRequiredField(this, "model", qcModelPath);
             invokePrivateVoid(this, "runCellpose", new Class<?>[]{List.class}, (Object) null);
         } catch (IOException | InterruptedException e) {
-            if (AstraHooks.enabled()) {
-                throw new IllegalStateException("ASTRA QC prediction on validation images failed.", e);
-            }
-            logger.error(e.getMessage(), e);
+            throw new IllegalStateException("ASTRA QC prediction on validation images failed.", e);
         } finally {
             writeRequiredField(this, "tempDirectory", tmpDirectory);
             writeRequiredField(this, "model", tmpModel);
@@ -237,73 +213,33 @@ public class AstraCellpose2D extends Cellpose2D {
 
     private ResultsTable runCellposeQCAstra() throws IOException, InterruptedException {
         File qcFolder = getQCFolderAstra();
-        if (!qcFolder.exists() && !qcFolder.mkdirs()) {
-            throw new IOException("Could not create QC directory: " + qcFolder.getAbsolutePath());
-        }
+        ensureDirectoryExists(qcFolder);
 
-        String cellposeVersion = getExtensionVersionReflectively();
-        List<File> extensionDirList = QuPathGUI.getExtensionCatalogManager()
-                .getCatalogManagedInstalledJars()
-                .parallelStream()
-                .filter(e -> AstraHooks.matchesInstalledExtensionJar(e.toString(), cellposeVersion))
-                .map(Path::getParent)
-                .map(Path::toString)
-                .map(File::new)
-                .collect(Collectors.toList());
-
-        if (extensionDirList.isEmpty()) {
-            if (AstraHooks.enabled()) {
-                throw new IOException("ASTRA QC could not locate the installed extension directory.");
-            }
-            logger.warn("Cellpose extension not installed ; cannot find QC script");
-            return null;
-        }
-
-        File qcPythonFile = AstraHooks.resolveQcPythonFile(extensionDirList.get(0));
-        if (!qcPythonFile.exists()) {
-            if (AstraHooks.enabled()) {
-                throw new IOException("ASTRA QC script was not found: " + qcPythonFile.getAbsolutePath());
-            }
-            logger.warn("File {} was not found in {}.\nPlease download it from {}",
-                    qcPythonFile.getName(),
-                    extensionDirList.get(0).getAbsolutePath(),
-                    new AstraCellposeExtension().getRepository().getUrlString());
-            return null;
+        File extensionRoot = resolveInstalledExtensionRoot();
+        File qcPythonFile = resolveQcPythonFile(extensionRoot);
+        if (!qcPythonFile.isFile()) {
+            throw new IOException("ASTRA QC script was not found: " + qcPythonFile.getAbsolutePath());
         }
 
         VirtualEnvironmentRunner qcRunner = (VirtualEnvironmentRunner) invokePrivate(this, "getVirtualEnvironmentRunner", new Class<?>[0]);
+        String qcModelName = resolveExplicitModelName(this);
 
-        String qcModelName = AstraHooks.resolveQcModelNameForQc(this);
         List<String> qcArguments = new ArrayList<>(Arrays.asList(
                 qcPythonFile.getAbsolutePath(),
                 getValidationDirectory().getAbsolutePath(),
-                qcModelName
+                qcModelName,
+                qcFolder.getAbsolutePath()
         ));
-        if (AstraHooks.enabled()) {
-            qcArguments.add(qcFolder.getAbsolutePath());
-        }
 
         qcRunner.setArguments(qcArguments);
         qcRunner.runCommand(true);
 
-        File qcResultsFile = AstraHooks.resolveQcResultsFile(getValidationDirectory(), qcModelName, qcFolder);
-        if (!qcResultsFile.exists()) {
-            if (AstraHooks.enabled()) {
-                throw new IOException("ASTRA QC results file was not produced: " + qcResultsFile.getAbsolutePath());
-            }
-            logger.warn("No QC results file named {} found in {}\nCheck the logger for a potential reason",
-                    qcResultsFile.getName(),
-                    qcResultsFile.getParent());
-            logger.warn("In case you are missing the 'skimage' module, simply run 'pip install scikit-image' in your cellpose environment");
-            return null;
+        File qcResultsFile = resolveQcResultsFile(qcFolder);
+        if (!qcResultsFile.isFile()) {
+            throw new IOException("ASTRA QC results file was not produced: " + qcResultsFile.getAbsolutePath());
         }
 
-        File finalQCResultFile = AstraHooks.resolveFinalQcResultFile(qcFolder, qcResultsFile);
-        if (!qcResultsFile.getAbsoluteFile().equals(finalQCResultFile.getAbsoluteFile())) {
-            FileUtils.moveFile(qcResultsFile, finalQCResultFile);
-        }
-
-        return ResultsTable.open(finalQCResultFile.getAbsolutePath());
+        return ResultsTable.open(qcResultsFile.getAbsolutePath());
     }
 
     private ResultsTable parseTrainingResultsAstra() throws IOException {
@@ -331,13 +267,9 @@ public class AstraCellpose2D extends Cellpose2D {
             }
         }
 
-        if (AstraHooks.allowLegacyTrainingResultsSave(this)) {
-            String trainingModelName = safeModelDisplayName();
-            File trainingResultsFile = AstraHooks.resolveTrainingResultsFile(getTrainingResultsFolderAstra(), trainingModelName);
-            logger.info("Saving Training Results to {}", trainingResultsFile.getParent());
-            trainingResults.save(trainingResultsFile.getAbsolutePath());
-        }
-
+        File trainingResultsFile = resolveTrainingResultsFile(getTrainingResultsFolderAstra());
+        logger.info("Saving Training Results to {}", trainingResultsFile.getAbsolutePath());
+        trainingResults.save(trainingResultsFile.getAbsolutePath());
         return trainingResults;
     }
 
@@ -347,9 +279,8 @@ public class AstraCellpose2D extends Cellpose2D {
             throw new IllegalStateException("ASTRA training graph save requires parsed training results.");
         }
 
-        String trainingModelName = safeModelDisplayName();
         File trainingResultsFolder = getTrainingResultsFolderAstra();
-        File trainingGraphFile = AstraHooks.resolveTrainingGraphFile(trainingResultsFolder, trainingModelName);
+        File trainingGraphFile = resolveTrainingGraphFile(trainingResultsFolder);
 
         RuntimeException[] runtimeError = new RuntimeException[1];
         IOException[] ioError = new IOException[1];
@@ -428,29 +359,19 @@ public class AstraCellpose2D extends Cellpose2D {
         }
     }
 
-    private String safeModelDisplayName() {
-        try {
-            return AstraHooks.resolveModelDisplayName(this);
-        } catch (IllegalStateException e) {
-            return "training";
-        }
-    }
+
 
     private File getQCFolderAstra() {
-        return AstraHooks.resolveQcFolder(this.modelDirectory, astraResultsDirectory);
+        return resolveQcFolder(astraResultsDirectory);
     }
 
     private File getTrainingResultsFolderAstra() {
-        return AstraHooks.resolveTrainingResultsFolder(this.modelDirectory, astraResultsDirectory);
+        return resolveTrainingResultsFolder(astraResultsDirectory);
     }
 
-    private File getModelFile() {
-        return readOptionalFileField(this, "modelFile");
-    }
 
-    private void setModelFile(File file) {
-        writeRequiredField(this, "modelFile", file);
-    }
+
+
 
     private void setTrainingResults(ResultsTable resultsTable) {
         writeRequiredField(this, "trainingResults", resultsTable);
@@ -474,15 +395,7 @@ public class AstraCellpose2D extends Cellpose2D {
         }
     }
 
-    private static String getExtensionVersionReflectively() {
-        try {
-            Method method = CellposeExtension.class.getDeclaredMethod("getExtensionVersion");
-            method.setAccessible(true);
-            return (String) method.invoke(null);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("Unable to determine installed Cellpose extension version.", e);
-        }
-    }
+
 
     private static Object invokePrivate(Object target, String methodName, Class<?>[] parameterTypes, Object... args)
             throws IOException, InterruptedException {
@@ -601,5 +514,171 @@ public class AstraCellpose2D extends Cellpose2D {
             }
         }
         return null;
+    }
+
+
+    private static File requireNonNullDirectory(File directory, String message) {
+        if (directory == null) {
+            throw new IllegalStateException(message);
+        }
+        return directory;
+    }
+
+    private static File ensureSubdirectoryExists(File parent, String childName) {
+        File child = new File(parent, childName);
+        if (!child.exists() && !child.mkdirs()) {
+            throw new IllegalStateException("Could not create directory: " + child.getAbsolutePath());
+        }
+        return child;
+    }
+
+    private static boolean isUpstreamDefaultTrainingDirectory(File directory) {
+        return directory != null && "cellpose-training".equals(directory.getName());
+    }
+
+    private static String explicitModel(Cellpose2D cp) {
+        try {
+            Field modelField = Cellpose2D.class.getDeclaredField("model");
+            modelField.setAccessible(true);
+            String explicit = (String) modelField.get(cp);
+            return explicit != null && !explicit.isBlank() ? explicit.trim() : null;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Unable to resolve the explicit ASTRA model.", e);
+        }
+    }
+
+    private static String basename(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        int slash = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
+        if (slash >= 0 && slash < value.length() - 1) {
+            return value.substring(slash + 1);
+        }
+        return value;
+    }
+
+    static File resolveModelDirectory(File rootDirectory, File modelDirectory) {
+        Objects.requireNonNull(rootDirectory, "rootDirectory");
+        return modelDirectory != null ? modelDirectory : new File(rootDirectory, "models");
+    }
+
+    static File resolveTrainingRootDirectory(File rootDirectory, File trainingDirectory) {
+        Objects.requireNonNull(rootDirectory, "rootDirectory");
+        if (trainingDirectory == null || isUpstreamDefaultTrainingDirectory(trainingDirectory)) {
+            return new File(rootDirectory, "training");
+        }
+        return trainingDirectory;
+    }
+
+    static File resolveQcDirectory(File rootDirectory, File qcDirectory) {
+        Objects.requireNonNull(rootDirectory, "rootDirectory");
+        return qcDirectory != null ? qcDirectory : new File(rootDirectory, "qc");
+    }
+
+    static File resolveResultsDirectory(File rootDirectory, File resultsDirectory) {
+        Objects.requireNonNull(rootDirectory, "rootDirectory");
+        return resultsDirectory != null ? resultsDirectory : new File(rootDirectory, "results");
+    }
+
+    static File ensureDirectoryExists(File directory) throws IOException {
+        Objects.requireNonNull(directory, "directory");
+        if (!directory.exists() && !directory.mkdirs()) {
+            throw new IOException("Could not create directory: " + directory.getAbsolutePath());
+        }
+        return directory;
+    }
+
+    static File resolveTrainingDirectory(File groundTruthDirectory) {
+        Objects.requireNonNull(groundTruthDirectory, "groundTruthDirectory");
+        return groundTruthDirectory;
+    }
+
+    static File resolveValidationDirectory(File qcDirectory) {
+        return requireNonNullDirectory(
+                qcDirectory,
+                "ASTRA validation/QC directory resolution requires qcDirectory."
+        );
+    }
+
+    static File trainingArtifactReturnValue(File trainingDirectory) {
+        return new File(trainingDirectory, "models");
+    }
+
+    static File resolveQcFolder(File resultsDirectory) {
+        File root = requireNonNullDirectory(
+                resultsDirectory,
+                "ASTRA QC results routing requires resultsDirectory."
+        );
+        return ensureSubdirectoryExists(root, "qc");
+    }
+
+    static File resolveTrainingResultsFolder(File resultsDirectory) {
+        File root = requireNonNullDirectory(
+                resultsDirectory,
+                "ASTRA training-results routing requires resultsDirectory."
+        );
+        return ensureSubdirectoryExists(root, "training");
+    }
+
+    static File resolveQcPythonFile(File extensionDir) {
+        Objects.requireNonNull(extensionDir, "extensionDir");
+        return new File(extensionDir, "QC/run-cellpose-qc.py");
+    }
+
+    private static File resolveInstalledExtensionRoot() throws IOException {
+        List<File> extensionDirList = QuPathGUI.getExtensionCatalogManager()
+                .getCatalogManagedInstalledJars()
+                .parallelStream()
+                .map(Path::getParent)
+                .filter(Objects::nonNull)
+                .map(Path::toString)
+                .map(File::new)
+                .distinct()
+                .sorted(Comparator.comparing(File::getAbsolutePath))
+                .filter(dir -> new File(dir, "QC/run-cellpose-qc.py").isFile())
+                .collect(Collectors.toList());
+
+        if (extensionDirList.isEmpty()) {
+            throw new IOException("ASTRA QC could not locate an installed extension directory containing QC/run-cellpose-qc.py.");
+        }
+        if (extensionDirList.size() > 1) {
+            throw new IOException("ASTRA QC found multiple installed extension directories containing QC/run-cellpose-qc.py: " + extensionDirList);
+        }
+        return extensionDirList.get(0);
+    }
+
+    private static void requireExplicitModel(Cellpose2D cp) {
+        resolveExplicitModelPath(cp);
+    }
+
+    static String resolveExplicitModelPath(Cellpose2D cp) {
+        Objects.requireNonNull(cp, "cp");
+        String explicit = explicitModel(cp);
+        if (explicit == null) {
+            throw new IllegalStateException(
+                    "ASTRA methods require an explicit model path or model name passed to the builder. modelFile is not used."
+            );
+        }
+        return explicit;
+    }
+
+    static String resolveExplicitModelName(Cellpose2D cp) {
+        return basename(resolveExplicitModelPath(cp));
+    }
+
+    static File resolveQcResultsFile(File qcOutputDirectory) {
+        Objects.requireNonNull(qcOutputDirectory, "qcOutputDirectory");
+        return new File(qcOutputDirectory, "qc_results.csv");
+    }
+
+    static File resolveTrainingResultsFile(File trainingResultsFolder) {
+        Objects.requireNonNull(trainingResultsFolder, "trainingResultsFolder");
+        return new File(trainingResultsFolder, "training_results.csv");
+    }
+
+    static File resolveTrainingGraphFile(File trainingResultsFolder) {
+        Objects.requireNonNull(trainingResultsFolder, "trainingResultsFolder");
+        return new File(trainingResultsFolder, "training_graph.png");
     }
 }

@@ -1,11 +1,13 @@
 package qupath.ext.astra;
 
+import com.google.gson.Gson;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.ext.biop.cellpose.Cellpose2D;
 import qupath.ext.biop.cellpose.CellposeBuilder;
 import qupath.ext.biop.cellpose.OpCreators.TileOpCreator;
 import qupath.lib.analysis.features.ObjectMeasurements.Compartments;
+import qupath.lib.io.GsonTools;
 import qupath.lib.analysis.features.ObjectMeasurements.Measurements;
 import qupath.lib.images.servers.ColorTransforms.ColorTransform;
 import qupath.lib.objects.PathObject;
@@ -15,10 +17,15 @@ import qupath.lib.scripting.QP;
 import qupath.opencv.ops.ImageOp;
 
 import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -42,6 +49,7 @@ public class AstraCellposeBuilder extends CellposeBuilder {
 
     public AstraCellposeBuilder(File builderFile) {
         super(builderFile);
+        hydrateFromFile(builderFile);
     }
 
     @Override
@@ -412,16 +420,18 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         File configuredModelDir = (File) readBuilderField("modelDirectory");
         File configuredTrainingRoot = (File) readBuilderField("groundTruthDirectory");
         File configuredTempDir = (File) readBuilderField("tempDirectory");
+        boolean shouldSaveBuilder = Boolean.TRUE.equals(readBuilderField("saveBuilder"));
+        String builderName = (String) readBuilderField("builderName");
 
         try {
-            File resolvedModelDir = AstraHooks.ensureDirectoryExists(
-                    AstraHooks.resolveModelDirectory(projectDir, configuredModelDir));
-            File resolvedTrainingRoot = AstraHooks.ensureDirectoryExists(
-                    AstraHooks.resolveTrainingRootDirectory(projectDir, configuredTrainingRoot));
-            File resolvedQcDir = AstraHooks.ensureDirectoryExists(
-                    AstraHooks.resolveQcDirectory(projectDir, astraQcDirectory));
-            File resolvedResultsDir = AstraHooks.ensureDirectoryExists(
-                    AstraHooks.resolveResultsDirectory(projectDir, astraResultsDirectory));
+            File resolvedModelDir = AstraCellpose2D.ensureDirectoryExists(
+                    AstraCellpose2D.resolveModelDirectory(projectDir, configuredModelDir));
+            File resolvedTrainingRoot = AstraCellpose2D.ensureDirectoryExists(
+                    AstraCellpose2D.resolveTrainingRootDirectory(projectDir, configuredTrainingRoot));
+            File resolvedQcDir = AstraCellpose2D.ensureDirectoryExists(
+                    AstraCellpose2D.resolveQcDirectory(projectDir, astraQcDirectory));
+            File resolvedResultsDir = AstraCellpose2D.ensureDirectoryExists(
+                    AstraCellpose2D.resolveResultsDirectory(projectDir, astraResultsDirectory));
 
             writeBuilderField("modelDirectory", resolvedModelDir);
             writeBuilderField("groundTruthDirectory", resolvedTrainingRoot);
@@ -430,6 +440,10 @@ public class AstraCellposeBuilder extends CellposeBuilder {
 
             if (configuredTempDir == null) {
                 writeBuilderField("tempDirectory", new File(projectDir, "cellpose-temp"));
+            }
+
+            if (shouldSaveBuilder) {
+                writeBuilderField("saveBuilder", false);
             }
 
             Cellpose2D base = super.build();
@@ -441,9 +455,81 @@ public class AstraCellposeBuilder extends CellposeBuilder {
                     resolvedQcDir,
                     resolvedResultsDir
             );
+
+            if (shouldSaveBuilder) {
+                saveAstraBuilder(resolvedModelDir, builderName);
+            }
+
             return astra;
         } catch (IOException e) {
             throw new RuntimeException("Failed to prepare ASTRA builder directories.", e);
+        } finally {
+            if (shouldSaveBuilder) {
+                writeBuilderField("saveBuilder", true);
+            }
+        }
+    }
+
+    private void hydrateFromFile(File builderFile) {
+        Gson gson = GsonTools.getInstance();
+        try (FileReader reader = new FileReader(builderFile)) {
+            AstraCellposeBuilder loaded = gson.fromJson(reader, AstraCellposeBuilder.class);
+            if (loaded == null) {
+                throw new IllegalStateException("Serialized ASTRA builder file produced no builder state: " + builderFile.getAbsolutePath());
+            }
+            copyBuilderState(loaded, this);
+            logger.info("ASTRA builder parameters loaded from {}", builderFile);
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not load ASTRA builder from " + builderFile.getAbsolutePath(), e);
+        }
+    }
+
+    private void saveAstraBuilder(File modelDirectory, String builderName) {
+        Gson gson = GsonTools.getInstance(true);
+
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH'h'mm");
+        LocalDateTime now = LocalDateTime.now();
+        String safeBuilderName = builderName == null || builderName.isBlank() ? "builder" : builderName;
+        File savePath = new File(modelDirectory, safeBuilderName + "_" + dtf.format(now) + ".json");
+
+        try (FileWriter fw = new FileWriter(savePath)) {
+            gson.toJson(this, AstraCellposeBuilder.class, fw);
+            fw.flush();
+            logger.info("Serialized ASTRA builder saved to {}", savePath);
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to save serialized ASTRA builder to " + savePath.getAbsolutePath(), e);
+        }
+    }
+
+    private static void copyBuilderState(AstraCellposeBuilder source, AstraCellposeBuilder target) {
+        copyFields(source, target, AstraCellposeBuilder.class);
+        copyFields(source, target, CellposeBuilder.class);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void copyFields(Object source, Object target, Class<?> owner) {
+        for (Field field : owner.getDeclaredFields()) {
+            if (Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+            try {
+                field.setAccessible(true);
+                Object value = field.get(source);
+                if (Modifier.isFinal(field.getModifiers())) {
+                    Object existing = field.get(target);
+                    if (existing instanceof Collection existingCollection && value instanceof Collection valueCollection) {
+                        existingCollection.clear();
+                        existingCollection.addAll(valueCollection);
+                    } else if (existing instanceof Map existingMap && value instanceof Map valueMap) {
+                        existingMap.clear();
+                        existingMap.putAll(valueMap);
+                    }
+                    continue;
+                }
+                field.set(target, value);
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException("Unable to copy field '" + field.getName() + "' from " + owner.getName(), e);
+            }
         }
     }
 
