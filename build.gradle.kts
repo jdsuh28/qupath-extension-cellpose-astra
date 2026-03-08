@@ -1,10 +1,3 @@
-/*
- * ASTRA:
- * - Override extension metadata so QuPath loads ASTRA as a distinct extension.
- * - The version shown in QuPath is ASTRA-authoritative and is updated by the ASTRA workflow.
- * - The placeholder below is intentionally non-authoritative until the workflow performs a release.
- */
-
 plugins {
     id("maven-publish")
     // QuPath Gradle extension convention plugin
@@ -16,16 +9,13 @@ plugins {
  * Version number shown in QuPath should be ASTRA version number
  */
 qupathExtension {
-    // name = "qupath-extension-cellpose"
-    // group = "io.github.qupath"
-    // version = "0.12.0"
-    // description = "QuPath extension to use Cellpose"
-    // automaticModule = "qupath.ext.biop.cellpose"
+    // ASTRA START
     name = "qupath-extension-cellpose-astra"
     group = "io.github.jdsuh28"
     version = "0.0.0-astra-dev"
     description = "ASTRA fork of the BIOP Cellpose extension for QuPath"
     automaticModule = "qupath.ext.astra.cellpose"
+    // ASTRA END
 }
 
 dependencies {

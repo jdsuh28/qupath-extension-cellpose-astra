@@ -19,6 +19,9 @@ package qupath.ext.biop.cellpose;
 import com.google.gson.Gson;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+// ASTRA START
+import qupath.ext.astra.AstraHooks;
+// ASTRA END
 import qupath.lib.analysis.features.ObjectMeasurements.Compartments;
 import qupath.lib.analysis.features.ObjectMeasurements.Measurements;
 import qupath.lib.images.servers.ColorTransforms;
@@ -70,6 +73,10 @@ public class CellposeBuilder {
     private String modelNameOrPath;
     // Cellpose Training options
     private transient File modelDirectory = null;
+    // ASTRA START
+    private transient File qcDirectory = null;
+    private transient File resultsDirectory = null;
+    // ASTRA END
     // QuPath Object handling options
     private ColorTransform[] channels = new ColorTransform[0];
     private Map<String, Map<String, Double>> normalizePercentilesGlobalMap = new HashMap<>();
@@ -751,6 +758,22 @@ public class CellposeBuilder {
         return this;
     }
 
+    // ASTRA START
+    public CellposeBuilder qcDirectory(File qcDir) {
+        this.qcDirectory = qcDir;
+        return this;
+    }
+
+    public File getQcDirectory() {
+        return qcDirectory;
+    }
+
+    public CellposeBuilder resultsDirectory(File resultsDir) {
+        this.resultsDirectory = resultsDir;
+        return this;
+    }
+    // ASTRA END
+
     /**
      * Defines the number of epochs for training
      *
@@ -910,16 +933,30 @@ public class CellposeBuilder {
 
         // Prepare training directory in case it was not set
         if (this.groundTruthDirectory == null) {
-            this.groundTruthDirectory = new File(quPathProjectDir, "cellpose-training");
+            this.groundTruthDirectory = new File(quPathProjectDir, "training");
         }
 
-        if (this.modelDirectory == null) {
-            this.modelDirectory = new File(quPathProjectDir, "models");
-            this.modelDirectory.mkdirs();
+        // ASTRA START
+        try {
+            this.modelDirectory = AstraHooks.ensureDirectoryExists(
+                    AstraHooks.resolveModelDirectory(quPathProjectDir, this.modelDirectory));
+            this.groundTruthDirectory = AstraHooks.ensureDirectoryExists(
+                    AstraHooks.resolveTrainingRootDirectory(quPathProjectDir, this.groundTruthDirectory));
+            this.qcDirectory = AstraHooks.ensureDirectoryExists(
+                    AstraHooks.resolveQcDirectory(quPathProjectDir, this.qcDirectory));
+            this.resultsDirectory = AstraHooks.ensureDirectoryExists(
+                    AstraHooks.resolveResultsDirectory(quPathProjectDir, this.resultsDirectory));
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to prepare ASTRA directories", e);
         }
+        // ASTRA END
 
         cellpose.outputModelName = this.outputModelName;
         cellpose.modelDirectory = this.modelDirectory;
+        // ASTRA START
+        cellpose.qcDirectory = this.qcDirectory;
+        cellpose.resultsDirectory = this.resultsDirectory;
+        // ASTRA END
         cellpose.groundTruthDirectory = this.groundTruthDirectory;
         cellpose.tempDirectory = this.tempDirectory;
         cellpose.doReadResultsAsynchronously = this.doReadResultsAsynchronously;

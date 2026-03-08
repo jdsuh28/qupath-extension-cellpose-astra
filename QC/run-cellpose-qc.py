@@ -12,8 +12,9 @@ from scipy.optimize import linear_sum_assignment
 parser = argparse.ArgumentParser(description='Get Quality Metrics from Cellpose Run. Needs a folder with Raw Data, Ground Truth and Cellpose Labels')
 parser.add_argument('dir', nargs=1, help='a directory containing the resulting images for QC (Raw, GT and Model Results)')
 parser.add_argument('model', nargs=1, help='The name of the model being tested')
-# ASTRA: optional deterministic output directory for qc_results.csv
+# ASTRA START
 parser.add_argument('out_dir', nargs='?', default=None, help='optional output directory for deterministic qc_results.csv')
+# ASTRA END
 
 args = parser.parse_args()
 data_folder = args.dir[0]
@@ -21,7 +22,9 @@ print (data_folder)
 
 model_name = args.model[0]
 print(model_name)
+# ASTRA START
 out_dir = args.out_dir
+# ASTRA END
 matching_criteria = dict()
 
 ## All functions to do the work
@@ -314,8 +317,7 @@ def compareLabels( model_name, image_folder, out_dir=None ):
     # Grab all tif images
     raw_images = [x for x in Path(image_folder).glob("*.tif") if not ( "masks" in x.name or "flows" in x.name )]
 
-    # ASTRA: optional deterministic output path.
-    # ASTRA: if out_dir is provided, write qc_results.csv there and refuse overwrites.
+    # ASTRA START
     if out_dir is not None and str(out_dir).strip() != "":
         results_path = Path(out_dir)
         results_path.mkdir(parents=True, exist_ok=True)
@@ -323,11 +325,10 @@ def compareLabels( model_name, image_folder, out_dir=None ):
         if file_path.exists():
             raise FileExistsError(f"Refusing to overwrite existing QC results: {file_path}")
     else:
-        # ASTRA: backward-compatible fallback (legacy BIOP behavior)
         results_path = image_folder / "QC-Results"
-        # Make the directory if it's missing
         results_path.absolute().mkdir( exist_ok=True )
         file_path = results_path / ( "Quality_Control for "+model_name+".csv" )
+    # ASTRA END
 
     with open(file_path, "w", newline='') as file:
         writer = csv.writer(file, delimiter=",")
@@ -370,4 +371,6 @@ def compareLabels( model_name, image_folder, out_dir=None ):
 
 
 # Finally running the check on the given inputs
+# ASTRA START
 compareLabels(model_name, data_folder, out_dir)
+# ASTRA END
