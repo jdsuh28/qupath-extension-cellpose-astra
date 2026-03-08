@@ -22,9 +22,7 @@ print (data_folder)
 
 model_name = args.model[0]
 print(model_name)
-# ASTRA START
 out_dir = args.out_dir
-# ASTRA END
 matching_criteria = dict()
 
 ## All functions to do the work
@@ -326,6 +324,7 @@ def compareLabels( model_name, image_folder, out_dir=None ):
             raise FileExistsError(f"Refusing to overwrite existing QC results: {file_path}")
     else:
         results_path = image_folder / "QC-Results"
+        # Make the directory if it's missing
         results_path.absolute().mkdir( exist_ok=True )
         file_path = results_path / ( "Quality_Control for "+model_name+".csv" )
     # ASTRA END
@@ -371,6 +370,4 @@ def compareLabels( model_name, image_folder, out_dir=None ):
 
 
 # Finally running the check on the given inputs
-# ASTRA START
 compareLabels(model_name, data_folder, out_dir)
-# ASTRA END

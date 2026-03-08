@@ -34,3 +34,10 @@
   - Updated service entry to `qupath.ext.astra.AstraCellposeExtension`.
 - `build.gradle.kts`
   - Updated extension metadata for ASTRA identity and ASTRA-controlled versioning.
+
+Additional corrective edits in this rebuild:
+- Fixed ASTRA training artifact filenames to `training_results.csv` and `training_graph.png` while preserving legacy naming when ASTRA hooks are disabled.
+- Added overloaded `resolveResultsDirectory(...)` hook to match builder usage.
+- Corrected QuPath service registration to `qupath.ext.astra.AstraCellposeExtension`.
+- Added the missing `GitHubRepo` import for `AstraCellposeExtension.java`.
+- Normalized remaining edited-file comment markers to `ASTRA START` / `ASTRA END` in non-Java edited files.
