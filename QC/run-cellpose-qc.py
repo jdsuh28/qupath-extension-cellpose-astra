@@ -22,7 +22,9 @@ print (data_folder)
 
 model_name = args.model[0]
 print(model_name)
+# ASTRA START
 out_dir = args.out_dir
+# ASTRA END
 matching_criteria = dict()
 
 ## All functions to do the work
@@ -370,4 +372,6 @@ def compareLabels( model_name, image_folder, out_dir=None ):
 
 
 # Finally running the check on the given inputs
+# ASTRA START
 compareLabels(model_name, data_folder, out_dir)
+# ASTRA END

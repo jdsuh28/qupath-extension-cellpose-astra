@@ -1015,31 +1015,22 @@ public class Cellpose2D {
             runTraining();
 
             // ASTRA START
-            File trainingArtifact;
-            if (AstraHooks.skipModelMove(this)) {
-                trainingArtifact = AstraHooks.trainingArtifactReturnValue(this, getTrainingDirectory());
-            } else {
-                this.modelFile = moveRenameAndReturnModelFile();
-                trainingArtifact = this.modelFile;
-            }
-
-            // Get the training results before overwriting the log with a new run
             this.trainingResults = parseTrainingResults();
             AstraHooks.onTrainingResultsParsed(this, this.trainingResults);
 
-            if (AstraHooks.skipAutomaticQc(this)) {
-                return trainingArtifact;
+            if (AstraHooks.skipModelMove(this) || AstraHooks.skipAutomaticQc(this)) {
+                return AstraHooks.trainingArtifactReturnValue(this, getTrainingDirectory());
             }
             // ASTRA END
+
+            this.modelFile = moveRenameAndReturnModelFile();
 
             // Get cellpose masks from the validation
             runCellposeOnValidationImages();
 
             this.qcResults = runCellposeQC();
 
-            // ASTRA START
-            return trainingArtifact;
-            // ASTRA END
+            return modelFile;
 
         } catch (IOException | InterruptedException e) {
             logger.error("Error while running cellpose training: {}", e.getMessage(), e);
@@ -1049,7 +1040,11 @@ public class Cellpose2D {
 
     // ASTRA START
     /**
-     * Run QC explicitly (without training).
+     * Run QC explicitly as a separate ASTRA step.
+     *
+     * @return the QC results table
+     * @throws IOException if QC prerequisites are not satisfied or the QC script cannot be found
+     * @throws InterruptedException if the QC run is interrupted
      */
     public ResultsTable runQC() throws IOException, InterruptedException {
         AstraHooks.requireQcDirectory(this);
@@ -1152,13 +1147,7 @@ public class Cellpose2D {
         List<File> extensionDirList = QuPathGUI.getExtensionCatalogManager()
                 .getCatalogManagedInstalledJars()
                 .parallelStream()
-                // ASTRA START
-                .filter(e -> {
-                    String name = e.toString();
-                    return name.contains("qupath-extension-cellpose-astra-" + cellposeVersion)
-                            || name.contains("qupath-extension-cellpose-" + cellposeVersion);
-                })
-                // ASTRA END
+                .filter(e->e.toString().contains("qupath-extension-cellpose-"+cellposeVersion))
                 .map(Path::getParent)
                 .map(Path::toString)
                 .map(File::new)
@@ -1196,6 +1185,7 @@ public class Cellpose2D {
         qcRunner.setArguments(qcArguments);
 
         qcRunner.runCommand(true);
+
 
         // ASTRA START
         File qcResults = AstraHooks.resolveQcResultsFile(getValidationDirectory(), qcModelName, qcFolder);
@@ -1282,13 +1272,9 @@ public class Cellpose2D {
 
         // ASTRA START
         if (AstraHooks.allowLegacyTrainingResultsSave(this)) {
-            File trainingResultsFolder = getTrainingResultsFolder();
-            trainingResultsFolder.mkdirs();
             String trainingModelName = AstraHooks.resolveModelDisplayName(this);
-            File trainingResultsFile = AstraHooks.resolveTrainingResultsFile(trainingResultsFolder, trainingModelName);
-
+            File trainingResultsFile = AstraHooks.resolveTrainingResultsFile(getTrainingResultsFolder(), trainingModelName);
             logger.info("Saving Training Results to {}", trainingResultsFile.getParent());
-
             trainingResults.save(trainingResultsFile.getAbsolutePath());
         }
         // ASTRA END
@@ -1305,7 +1291,6 @@ public class Cellpose2D {
         ResultsTable output = this.trainingResults;
         // ASTRA START
         File trainingResultsFolder = getTrainingResultsFolder();
-        trainingResultsFolder.mkdirs();
         // ASTRA END
 
         final NumberAxis xAxis = new NumberAxis();
