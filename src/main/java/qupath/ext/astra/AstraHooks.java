@@ -6,28 +6,9 @@
  * - Preserve future mergeability by limiting edits in upstream-owned files to small hook calls.
  * - Centralize ASTRA policy decisions in one place.
  *
- * This class currently provides hooks used by:
- * - qupath.ext.biop.cellpose.Cellpose2D
- * - qupath.ext.biop.cellpose.CellposeBuilder
- *
  * Configuration:
  * - Optional classpath resource: /astra/astra.properties
  * - If the properties file is absent, the hardcoded defaults in this class are used.
- *
- * Notes:
- * - This class is ASTRA-forward by default.
- * - Legacy BIOP behavior is preserved only through explicit, deterministic fallbacks.
- * - Reflection is used only where ASTRA must read upstream Cellpose2D fields without widening
- *   the upstream API surface.
- *
- * Supported properties (all optional):
- *   enabled=true|false
- *   skipModelMove=true|false
- *   skipAutomaticQc=true|false
- *   allowLegacyTrainingResultsSave=true|false
- *   trainingDirMode=flat|nested
- *   qcScriptRelativePath=run-cellpose-qc.py
- *   resultsRelativePath=results
  */
 
 package qupath.ext.astra;
@@ -47,24 +28,17 @@ public final class AstraHooks {
     private AstraHooks() {
     }
 
-
-    /**
-     * Classpath location for the optional ASTRA properties resource.
-     * Place the file at:
-     *   src/main/resources/astra/astra.properties
-     */
     private static final String PROPS_PATH = "/astra/astra.properties";
-
     private static final Properties PROPS = loadProps();
 
     private static Properties loadProps() {
-        var props = new Properties();
+        Properties props = new Properties();
         try (InputStream in = AstraHooks.class.getResourceAsStream(PROPS_PATH)) {
             if (in != null) {
                 props.load(in);
             }
         } catch (IOException ignored) {
-            // Intentionally ignore load failures; hardcoded defaults apply.
+            // Hard-coded defaults apply.
         }
         return props;
     }
@@ -83,58 +57,92 @@ public final class AstraHooks {
         return v == null ? def : v.trim();
     }
 
-    /**
-     * Master enable switch for ASTRA hooks.
-     *
-     * Resolution order:
-     * 1) JVM system property: -Dastra.hooks.disabled=true  -> disables all hooks
-     * 2) astra.properties: enabled=...
-     * 3) hardcoded default: true
-     */
     public static boolean enabled() {
         if (Boolean.getBoolean("astra.hooks.disabled")) return false;
         return propBool("enabled", true);
     }
 
-    /**
-     * Resolve the default ASTRA model directory when the builder did not provide one.
-     */
+    private static boolean hookEnabled(String key) {
+        return enabled() && propBool(key, true);
+    }
+
+    private static File requireNonNullDirectory(File directory, String message) {
+        if (directory == null) {
+            throw new IllegalStateException(message);
+        }
+        return directory;
+    }
+
+    private static File ensureSubdirectoryExists(File parent, String childName) {
+        File child = new File(parent, childName);
+        if (!child.exists() && !child.mkdirs()) {
+            throw new IllegalStateException("Could not create directory: " + child.getAbsolutePath());
+        }
+        return child;
+    }
+
+    private static boolean isUpstreamDefaultTrainingDirectory(File directory) {
+        return directory != null && "cellpose-training".equals(directory.getName());
+    }
+
+    private static String explicitModel(Cellpose2D cp) {
+        try {
+            var modelField = Cellpose2D.class.getDeclaredField("model");
+            modelField.setAccessible(true);
+            String explicit = (String) modelField.get(cp);
+            return explicit != null && !explicit.isBlank() ? explicit.trim() : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static File modelFile(Cellpose2D cp) {
+        try {
+            var field = Cellpose2D.class.getDeclaredField("modelFile");
+            field.setAccessible(true);
+            return (File) field.get(cp);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static String basename(String value) {
+        if (value == null || value.isBlank()) return null;
+        int slash = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
+        if (slash >= 0 && slash < value.length() - 1) return value.substring(slash + 1);
+        return value;
+    }
+
     public static File resolveModelDirectory(File rootDirectory, File modelDirectory) {
         Objects.requireNonNull(rootDirectory, "rootDirectory");
         if (modelDirectory != null) return modelDirectory;
         return new File(rootDirectory, "models");
     }
 
-    /**
-     * Resolve the default ASTRA training directory when the builder did not provide one.
-     */
     public static File resolveTrainingRootDirectory(File rootDirectory, File trainingDirectory) {
         Objects.requireNonNull(rootDirectory, "rootDirectory");
+        if (hookEnabled("useAstraTrainingRootDirectory")) {
+            if (trainingDirectory == null || isUpstreamDefaultTrainingDirectory(trainingDirectory)) {
+                return new File(rootDirectory, "training");
+            }
+            return trainingDirectory;
+        }
         if (trainingDirectory != null) return trainingDirectory;
-        return new File(rootDirectory, "training");
+        return new File(rootDirectory, "cellpose-training");
     }
 
-    /**
-     * Resolve the default ASTRA QC directory when the builder did not provide one.
-     */
     public static File resolveQcRootDirectory(File rootDirectory, File qcDirectory) {
         Objects.requireNonNull(rootDirectory, "rootDirectory");
         if (qcDirectory != null) return qcDirectory;
-        return new File(rootDirectory, "qc");
+        return new File(rootDirectory, hookEnabled("useAstraQcRootDirectory") ? "qc" : "test");
     }
 
-    /**
-     * Resolve the default ASTRA results directory when the builder did not provide one.
-     */
     public static File resolveResultsRootDirectory(File rootDirectory, File resultsDirectory) {
         Objects.requireNonNull(rootDirectory, "rootDirectory");
         if (resultsDirectory != null) return resultsDirectory;
         return new File(rootDirectory, propStr("resultsRelativePath", "results"));
     }
 
-    /**
-     * Ensure a directory exists, creating it when necessary.
-     */
     public static File ensureDirectoryExists(File directory) throws IOException {
         Objects.requireNonNull(directory, "directory");
         if (!directory.exists() && !directory.mkdirs()) {
@@ -143,156 +151,85 @@ public final class AstraHooks {
         return directory;
     }
 
-    /**
-     * Resolve the directory used for Cellpose training data.
-     *
-     * BIOP baseline:
-     *   <groundTruthDirectory>/train
-     *
-     * ASTRA default:
-     *   <groundTruthDirectory>
-     *
-     * Controlled by:
-     *   trainingDirMode=flat|nested
-     */
     public static File resolveTrainingDirectory(File groundTruthDirectory) {
         Objects.requireNonNull(groundTruthDirectory, "groundTruthDirectory");
-        if (enabled() && propStr("trainingDirMode", "flat").equalsIgnoreCase("flat")) {
+        if (hookEnabled("useAstraTrainingDirectory") && propStr("trainingDirMode", "flat").equalsIgnoreCase("flat")) {
             return groundTruthDirectory;
         }
         return new File(groundTruthDirectory, "train");
     }
 
-    /**
-     * Resolve the directory used for validation/QC inputs.
-     *
-     * BIOP baseline:
-     *   <groundTruthDirectory>/test
-     *
-     * ASTRA default:
-     *   qcDirectory if provided, otherwise preserve baseline
-     */
     public static File resolveValidationDirectory(File groundTruthDirectory, File qcDirectory) {
         Objects.requireNonNull(groundTruthDirectory, "groundTruthDirectory");
-        if (enabled() && qcDirectory != null) {
-            return qcDirectory;
+        if (hookEnabled("useAstraValidationDirectory")) {
+            return requireNonNullDirectory(
+                    qcDirectory,
+                    "ASTRA validation/QC directory resolution requires qcDirectory when ASTRA behavior is enabled."
+            );
         }
         return new File(groundTruthDirectory, "test");
     }
 
-    /**
-     * ASTRA default:
-     *   do not automatically promote/move/rename a trained model after training.
-     *
-     * Rationale:
-     *   ASTRA wants the umbrella pipeline to inspect training outputs and select the
-     *   desired checkpoint explicitly rather than letting the extension choose one.
-     */
     public static boolean skipModelMove(Cellpose2D cp) {
-        if (!enabled()) return false;
-        return propBool("skipModelMove", true);
+        return hookEnabled("skipModelMove");
     }
 
-    /**
-     * ASTRA default:
-     *   do not run QC implicitly inside train().
-     *
-     * Rationale:
-     *   ASTRA treats QC as a separate step with an explicit model selection.
-     */
     public static boolean skipAutomaticQc(Cellpose2D cp) {
-        if (!enabled()) return false;
-        return propBool("skipAutomaticQc", true);
+        return hookEnabled("skipAutomaticQc");
     }
 
-    /**
-     * Return value used by train() when ASTRA skips model promotion and/or automatic QC.
-     *
-     * Default:
-     *   <trainingDirectory>/models
-     *
-     * This mirrors Cellpose's native training output location and keeps the return value
-     * concrete even when ASTRA disables downstream legacy actions.
-     */
+    public static boolean saveTrainingGraphAfterTraining(Cellpose2D cp) {
+        return hookEnabled("saveTrainingGraphAfterTraining");
+    }
+
     public static File trainingArtifactReturnValue(Cellpose2D cp, File trainingDirectory) {
         return new File(trainingDirectory, "models");
     }
 
-    /**
-     * Control whether training-results persistence should run.
-     *
-     * ASTRA default:
-     *   true
-     *
-     * Rationale:
-     *   ASTRA routes training-result artifacts into results/training using deterministic naming,
-     *   so saving no longer depends on legacy promoted-model behavior.
-     */
     public static boolean allowLegacyTrainingResultsSave(Cellpose2D cp) {
         if (!enabled()) return true;
-        return propBool("allowLegacyTrainingResultsSave", true);
+        return propBool("saveTrainingResultsAfterTraining", propBool("allowLegacyTrainingResultsSave", true));
     }
 
-    /**
-     * Optional post-parse hook for training results.
-     *
-     * Current behavior:
-     *   no-op
-     *
-     * Reserved for future ASTRA-side handling if training results need to be captured,
-     * redirected, or persisted differently.
-     */
     public static void onTrainingResultsParsed(Cellpose2D cp, ResultsTable results) {
         // no-op by default
     }
 
-    /**
-     * Resolve the final QC destination folder.
-     *
-     * BIOP baseline:
-     *   <modelDirectory>/QC
-     */
     public static File resolveQcFolder(File modelDirectory, File resultsDirectory) {
         Objects.requireNonNull(modelDirectory, "modelDirectory");
-        if (enabled() && resultsDirectory != null) {
-            return new File(resultsDirectory, "qc");
+        if (hookEnabled("useAstraQcFolder")) {
+            File root = requireNonNullDirectory(
+                    resultsDirectory,
+                    "ASTRA QC results routing requires resultsDirectory when ASTRA behavior is enabled."
+            );
+            return ensureSubdirectoryExists(root, "qc");
         }
         return new File(modelDirectory, "QC");
     }
 
-    /**
-     * Resolve the final training-results destination folder.
-     *
-     * BIOP baseline fallback:
-     *   <modelDirectory>/QC
-     *
-     * ASTRA default:
-     *   <resultsDirectory>/training
-     */
     public static File resolveTrainingResultsFolder(File modelDirectory, File resultsDirectory) {
         Objects.requireNonNull(modelDirectory, "modelDirectory");
-        if (enabled() && resultsDirectory != null) {
-            return new File(resultsDirectory, "training");
+        if (hookEnabled("useAstraTrainingResultsFolder")) {
+            File root = requireNonNullDirectory(
+                    resultsDirectory,
+                    "ASTRA training-results routing requires resultsDirectory when ASTRA behavior is enabled."
+            );
+            return ensureSubdirectoryExists(root, "training");
         }
-        return new File(modelDirectory, "QC");
+        return ensureSubdirectoryExists(modelDirectory, "QC");
     }
 
-    /**
-     * Fail-fast guard for ASTRA QC runs.
-     *
-     * Requirement:
-     *   qcDirectory must be present on the Cellpose2D instance when ASTRA QC is used.
-     *
-     * Reflection is used so ASTRA can read the field without expanding the upstream API.
-     */
     public static void requireQcDirectory(Cellpose2D cp) throws IOException {
-        if (!enabled()) return;
+        if (!hookEnabled("useAstraValidationDirectory")) return;
         try {
             var field = Cellpose2D.class.getDeclaredField("qcDirectory");
             field.setAccessible(true);
-            var qcDir = (File) field.get(cp);
+            File qcDir = (File) field.get(cp);
             if (qcDir == null) {
                 throw new IOException("ASTRA QC requires qcDirectory to be set by the builder.");
+            }
+            if (!qcDir.exists() || !qcDir.isDirectory()) {
+                throw new IOException("ASTRA QC requires qcDirectory to exist as a directory: " + qcDir.getAbsolutePath());
             }
         } catch (NoSuchFieldException e) {
             throw new IOException("ASTRA QC requires qcDirectory, but Cellpose2D has no qcDirectory field.", e);
@@ -301,172 +238,89 @@ public final class AstraHooks {
         }
     }
 
-    /**
-     * Locate the QC Python script inside the installed extension resources.
-     *
-     * Preference order:
-     * 1) <extensionDir>/<qcScriptRelativePath>
-     * 2) <extensionDir>/run-cellpose-qc.py
-     *
-     * ASTRA default:
-     *   run-cellpose-qc.py
-     */
     public static File resolveQcPythonFile(File extensionDir) {
         Objects.requireNonNull(extensionDir, "extensionDir");
         String rel = propStr("qcScriptRelativePath", "run-cellpose-qc.py");
         File candidate = new File(extensionDir, rel);
-        if (enabled() && candidate.exists()) return candidate;
+        if (hookEnabled("useAstraQcPythonFile")) {
+            if (!candidate.exists()) {
+                throw new IllegalStateException(
+                        "ASTRA QC script was not found at the configured path: " + candidate.getAbsolutePath());
+            }
+            return candidate;
+        }
         return new File(extensionDir, "run-cellpose-qc.py");
     }
 
-    /**
-     * Resolve the model path argument used when running Cellpose on validation images for QC.
-     *
-     * Deterministic precedence:
-     * 1) Explicit model string provided to the builder (field: "model"), if non-blank
-     * 2) modelFile absolute path, if present (legacy one-shot train()->QC)
-     * 3) fail-fast
-     *
-     * ASTRA intent:
-     *   do not guess a model; use the explicit model when present.
-     */
+    public static boolean matchesInstalledExtensionJar(String installedJarPath, String extensionVersion) {
+        if (installedJarPath == null || extensionVersion == null) return false;
+        String path = installedJarPath.replace('\\', '/');
+        if (hookEnabled("useAstraExtensionJarMatch")) {
+            return path.contains("qupath-extension-cellpose-astra-" + extensionVersion)
+                    || path.contains("qupath-extension-cellpose-" + extensionVersion);
+        }
+        return path.contains("qupath-extension-cellpose-" + extensionVersion);
+    }
+
     public static String resolveQcModelPathForValidation(Cellpose2D cp) {
         Objects.requireNonNull(cp, "cp");
-
-        String explicit = null;
-        try {
-            var modelField = Cellpose2D.class.getDeclaredField("model");
-            modelField.setAccessible(true);
-            explicit = (String) modelField.get(cp);
-        } catch (Exception ignored) {
-            // Intentionally ignored; explicit model simply remains unavailable.
+        String explicit = explicitModel(cp);
+        if (hookEnabled("useAstraModelResolution") && explicit != null) {
+            return explicit;
         }
-
-        if (explicit != null && !explicit.isBlank()) {
-            return explicit.trim();
+        File modelFile = modelFile(cp);
+        if (modelFile != null) return modelFile.getAbsolutePath();
+        if (hookEnabled("useAstraModelResolution")) {
+            throw new IllegalStateException(
+                    "QC requires an explicit model path/name or a populated modelFile when ASTRA behavior is enabled."
+            );
         }
-
-        try {
-            var field = Cellpose2D.class.getDeclaredField("modelFile");
-            field.setAccessible(true);
-            var f = (File) field.get(cp);
-            if (f != null) return f.getAbsolutePath();
-        } catch (Exception ignored) {
-            // Intentionally ignored; fallback simply remains unavailable.
-        }
-
-        throw new IllegalStateException(
-                "QC requires an explicit model path/name when no promoted modelFile is present."
-        );
+        throw new IllegalStateException("QC requires modelFile for baseline behavior.");
     }
 
-    /**
-     * Resolve the model-name token passed to the QC Python script.
-     *
-     * Deterministic precedence:
-     * 1) explicit builder model string:
-     *      - if path-like, use basename
-     *      - otherwise use the token as-is
-     * 2) modelFile.getName(), if present
-     * 3) outputModelName, if present
-     * 4) fail-fast
-     *
-     * This keeps ASTRA QC naming deterministic while still preserving a legacy fallback path.
-     */
     public static String resolveQcModelNameForQc(Cellpose2D cp) {
         Objects.requireNonNull(cp, "cp");
-
-        String explicit = null;
-        try {
-            var modelField = Cellpose2D.class.getDeclaredField("model");
-            modelField.setAccessible(true);
-            explicit = (String) modelField.get(cp);
-        } catch (Exception ignored) {
-            // Intentionally ignored; explicit model simply remains unavailable.
+        String explicit = explicitModel(cp);
+        if (hookEnabled("useAstraModelResolution") && explicit != null) {
+            return basename(explicit);
         }
-
-        if (explicit != null && !explicit.isBlank()) {
-            String s = explicit.trim();
-            int slash = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
-            if (slash >= 0 && slash < s.length() - 1) return s.substring(slash + 1);
-            return s;
+        File modelFile = modelFile(cp);
+        if (modelFile != null) return modelFile.getName();
+        if (hookEnabled("useAstraModelResolution")) {
+            throw new IllegalStateException(
+                    "QC requires an explicit model path/name or a populated modelFile to name outputs deterministically."
+            );
         }
-
-        try {
-            var field = Cellpose2D.class.getDeclaredField("modelFile");
-            field.setAccessible(true);
-            var f = (File) field.get(cp);
-            if (f != null) return f.getName();
-        } catch (Exception ignored) {
-            // Intentionally ignored; fallback simply remains unavailable.
-        }
-
-        try {
-            var outField = Cellpose2D.class.getDeclaredField("outputModelName");
-            outField.setAccessible(true);
-            var outName = (String) outField.get(cp);
-            if (outName != null && !outName.isBlank()) return outName.trim();
-        } catch (Exception ignored) {
-            // Intentionally ignored; fallback simply remains unavailable.
-        }
-
-        throw new IllegalStateException(
-                "QC requires an explicit model name/path (or a populated modelFile/outputModelName) "
-                        + "to name QC outputs deterministically."
-        );
+        throw new IllegalStateException("QC requires modelFile for baseline behavior.");
     }
 
-    /**
-     * Builder-facing hook for qcDirectory resolution.
-     *
-     * BIOP baseline:
-     *   if qcDirectory is null, use <projectDir>/test
-     *
-     * ASTRA behavior:
-     *   if qcDirectory is provided, use it; otherwise preserve the baseline fallback
-     */
     public static File resolveQcDirectory(File quPathProjectDir, File qcDirectory) {
         Objects.requireNonNull(quPathProjectDir, "quPathProjectDir");
-        if (enabled() && qcDirectory != null) return qcDirectory;
-        return new File(quPathProjectDir, "test");
+        if (qcDirectory != null) return qcDirectory;
+        return new File(quPathProjectDir, hookEnabled("useAstraQcRootDirectory") ? "qc" : "test");
     }
 
-    /**
-     * Builder-facing hook for results directory resolution.
-     *
-     * Default:
-     *   <projectDir>/results
-     *
-     * Override:
-     *   resultsRelativePath=...
-     */
     public static File resolveResultsDirectory(File quPathProjectDir) {
         return resolveResultsDirectory(quPathProjectDir, null);
     }
 
-    /**
-     * Builder-facing hook for results directory resolution with an optional explicit directory.
-     */
     public static File resolveResultsDirectory(File quPathProjectDir, File resultsDirectory) {
         Objects.requireNonNull(quPathProjectDir, "quPathProjectDir");
         if (resultsDirectory != null) return resultsDirectory;
-        String rel = propStr("resultsRelativePath", "results");
-        return new File(quPathProjectDir, rel);
+        return new File(quPathProjectDir, propStr("resultsRelativePath", "results"));
     }
 
-    /**
-     * Resolve the QC results CSV emitted by the Python QC script before it is moved.
-     *
-     * BIOP baseline:
-     *   <validationDir>/QC-Results/Quality_Control for <modelName>.csv
-     */
     public static File resolveQcResultsFile(File validationDirectory, String qcModelName, File qcOutputDirectory) {
         Objects.requireNonNull(validationDirectory, "validationDirectory");
+        if (hookEnabled("useAstraQcResultsRouting")) {
+            File root = requireNonNullDirectory(
+                    qcOutputDirectory,
+                    "ASTRA QC results routing requires a QC output directory when ASTRA behavior is enabled."
+            );
+            return new File(root, "qc_results.csv");
+        }
         if (qcModelName == null || qcModelName.isBlank()) {
             throw new IllegalArgumentException("qcModelName must be non-empty");
-        }
-        if (enabled() && qcOutputDirectory != null) {
-            return new File(qcOutputDirectory, "qc_results.csv");
         }
         return new File(
                 validationDirectory,
@@ -474,98 +328,39 @@ public final class AstraHooks {
         );
     }
 
-
-    /**
-     * Resolve a deterministic model display/name token for non-execution artifacts such as
-     * training-result tables and training-graph filenames.
-     *
-     * Deterministic precedence:
-     * 1) explicit builder model string:
-     *      - if path-like, use basename
-     *      - otherwise use the token as-is
-     * 2) modelFile.getName(), if present
-     * 3) outputModelName, if present
-     * 4) fail-fast
-     *
-     * This intentionally mirrors the same precedence philosophy used by ASTRA QC:
-     * explicit model first, legacy modelFile second, otherwise fail.
-     */
     public static String resolveModelDisplayName(Cellpose2D cp) {
         Objects.requireNonNull(cp, "cp");
-
-        String explicit = null;
-        try {
-            var modelField = Cellpose2D.class.getDeclaredField("model");
-            modelField.setAccessible(true);
-            explicit = (String) modelField.get(cp);
-        } catch (Exception ignored) {
-            // Intentionally ignored; explicit model simply remains unavailable.
-        }
-
-        if (explicit != null && !explicit.isBlank()) {
-            String s = explicit.trim();
-            int slash = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
-            if (slash >= 0 && slash < s.length() - 1) return s.substring(slash + 1);
-            return s;
-        }
-
-        try {
-            var field = Cellpose2D.class.getDeclaredField("modelFile");
-            field.setAccessible(true);
-            var f = (File) field.get(cp);
-            if (f != null) return f.getName();
-        } catch (Exception ignored) {
-            // Intentionally ignored; fallback simply remains unavailable.
-        }
-
-        try {
-            var outField = Cellpose2D.class.getDeclaredField("outputModelName");
-            outField.setAccessible(true);
-            var outName = (String) outField.get(cp);
-            if (outName != null && !outName.isBlank()) return outName.trim();
-        } catch (Exception ignored) {
-            // Intentionally ignored; fallback simply remains unavailable.
-        }
-
+        String explicit = explicitModel(cp);
+        if (explicit != null) return basename(explicit);
+        File modelFile = modelFile(cp);
+        if (modelFile != null) return modelFile.getName();
         throw new IllegalStateException(
-                "ASTRA: unable to resolve a model display name; explicit model, modelFile, or outputModelName is required."
+                "Unable to resolve a model display name; explicit model or modelFile is required."
         );
     }
 
-    /**
-     * Resolve the training-results save target for legacy output.
-     */
-    public static File resolveTrainingResultsFile(File qcFolder, String modelDisplayName) {
-        Objects.requireNonNull(qcFolder, "qcFolder");
-        if (enabled()) {
-            return new File(qcFolder, "training_results.csv");
+    public static File resolveTrainingResultsFile(File trainingResultsFolder, String modelDisplayName) {
+        Objects.requireNonNull(trainingResultsFolder, "trainingResultsFolder");
+        if (hookEnabled("useAstraTrainingResultsRouting")) {
+            return new File(trainingResultsFolder, "training_results.csv");
         }
         if (modelDisplayName == null || modelDisplayName.isBlank()) {
             throw new IllegalArgumentException("modelDisplayName must be non-empty");
         }
-        return new File(qcFolder, "Training Result - " + modelDisplayName.trim());
+        return new File(trainingResultsFolder, "Training Result - " + modelDisplayName.trim());
     }
 
-    /**
-     * Resolve the training-graph PNG target.
-     */
-    public static File resolveTrainingGraphFile(File qcFolder, String modelDisplayName) {
-        Objects.requireNonNull(qcFolder, "qcFolder");
-        if (enabled()) {
-            return new File(qcFolder, "training_graph.png");
+    public static File resolveTrainingGraphFile(File trainingResultsFolder, String modelDisplayName) {
+        Objects.requireNonNull(trainingResultsFolder, "trainingResultsFolder");
+        if (hookEnabled("useAstraTrainingResultsRouting")) {
+            return new File(trainingResultsFolder, "training_graph.png");
         }
         if (modelDisplayName == null || modelDisplayName.isBlank()) {
             throw new IllegalArgumentException("modelDisplayName must be non-empty");
         }
-        return new File(qcFolder, "Training Result - " + modelDisplayName.trim() + ".png");
+        return new File(trainingResultsFolder, "Training Result - " + modelDisplayName.trim() + ".png");
     }
 
-    /**
-     * Resolve the final destination of the QC results CSV after any move/copy operation.
-     *
-     * Default:
-     *   <qcFolder>/<originalQcResultsFilename>
-     */
     public static File resolveFinalQcResultFile(File qcFolder, File qcResultsFile) {
         Objects.requireNonNull(qcFolder, "qcFolder");
         Objects.requireNonNull(qcResultsFile, "qcResultsFile");

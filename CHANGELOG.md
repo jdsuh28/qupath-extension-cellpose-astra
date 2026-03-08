@@ -4,40 +4,33 @@
 
 ### Added
 - `src/main/java/qupath/ext/astra/AstraHooks.java`
-  - Centralized ASTRA policy for directory resolution, model resolution, QC script lookup, QC results routing, and training artifact naming.
+  - Centralizes ASTRA policy for directory resolution, model resolution, QC script lookup, QC output routing, installed-jar matching, and deterministic artifact naming.
 - `src/main/java/qupath/ext/astra/AstraCellposeExtension.java`
-  - ASTRA-specific QuPath extension entrypoint.
+  - Provides the ASTRA-specific QuPath extension entrypoint and metadata.
 - `src/main/resources/astra/astra.properties`
-  - Optional ASTRA configuration defaults.
+  - Exposes ASTRA hook booleans and path defaults, including deterministic fail-fast controls for QC and training-result routing.
 
 ### Changed
 - `src/main/java/qupath/ext/biop/cellpose/Cellpose2D.java`
-  - Added ASTRA hook imports and fields for `qcDirectory` and `resultsDirectory`.
-  - Delegated training/validation directory resolution to `AstraHooks`.
-  - Separated explicit `runQC()` from `train()`.
-  - Prevented automatic QC when ASTRA requests it.
-  - Allowed model-promotion skip and deterministic training artifact return.
-  - Routed training results and training graph outputs into `results/training`.
-  - Routed QC outputs into `results/qc/qc_results.csv`.
-  - Resolved QC model identity using explicit model first, `modelFile` second, and fail-fast otherwise.
-  - Looked up the QC Python script through `AstraHooks`.
+  - Keeps all upstream edits inside `ASTRA START` / `ASTRA END` gates.
+  - Separates training, model promotion, and QC decisions deterministically.
+  - Fails fast if ASTRA automatic QC is requested while model promotion is disabled.
+  - Saves `results/training/training_results.csv` after training.
+  - Saves `results/training/training_graph.png` automatically after training.
+  - Resolves QC/training artifact identity with ASTRA precedence: explicit model, then `modelFile`, otherwise fail.
+  - Resolves installed extension jars for both ASTRA and BIOP naming patterns.
 - `src/main/java/qupath/ext/biop/cellpose/CellposeBuilder.java`
-  - Added explicit `qcDirectory(File)` and `resultsDirectory(File)` support.
-  - Ensured model, training, QC, and results directories exist.
-  - Propagated resolved QC/results directories into `Cellpose2D`.
+  - Keeps all upstream edits inside `ASTRA START` / `ASTRA END` gates.
+  - Ensures model, training, QC, and results directories exist.
+  - Uses `<root>/qc` as the ASTRA default QC directory.
+  - Propagates resolved ASTRA QC/results directories into `Cellpose2D`.
 - `QC/run-cellpose-qc.py`
-  - Added optional `out_dir` argument.
-  - Wrote deterministic `qc_results.csv` when `out_dir` is provided.
-  - Refused overwrite of an existing deterministic QC output.
-  - Preserved legacy behavior when `out_dir` is absent.
+  - Keeps all upstream edits inside `ASTRA START` / `ASTRA END` gates.
+  - Accepts an optional deterministic output directory.
+  - Writes `qc_results.csv` when an ASTRA output directory is provided.
+  - Refuses to overwrite an existing deterministic QC results file.
+  - Preserves baseline behavior when no ASTRA output directory is supplied, while refusing silent overwrite in deterministic ASTRA mode.
 - `resources/META-INF/services/qupath.lib.gui.extensions.QuPathExtension`
-  - Updated service entry to `qupath.ext.astra.AstraCellposeExtension`.
+  - Points QuPath to `qupath.ext.astra.AstraCellposeExtension`.
 - `build.gradle.kts`
-  - Updated extension metadata for ASTRA identity and ASTRA-controlled versioning.
-
-Additional corrective edits in this rebuild:
-- Fixed ASTRA training artifact filenames to `training_results.csv` and `training_graph.png` while preserving legacy naming when ASTRA hooks are disabled.
-- Added overloaded `resolveResultsDirectory(...)` hook to match builder usage.
-- Corrected QuPath service registration to `qupath.ext.astra.AstraCellposeExtension`.
-- Added the missing `GitHubRepo` import for `AstraCellposeExtension.java`.
-- Normalized remaining edited-file comment markers to `ASTRA START` / `ASTRA END` in non-Java edited files.
+  - Uses ASTRA-specific extension metadata with a placeholder development version.

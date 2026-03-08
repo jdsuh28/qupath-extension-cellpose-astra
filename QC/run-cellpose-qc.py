@@ -311,7 +311,9 @@ def matching_dataset_lazy(y_gen, thresh=0.5, criterion='iou', by_image=False, sh
 
 
 # Here we start testing the differences between GT and predicted label images
+# ASTRA START
 def compareLabels( model_name, image_folder, out_dir=None ):
+# ASTRA END
     
     image_folder = Path(image_folder)
     # Grab all tif images
@@ -329,9 +331,9 @@ def compareLabels( model_name, image_folder, out_dir=None ):
         # Make the directory if it's missing
         results_path.absolute().mkdir( exist_ok=True )
         file_path = results_path / ( "Quality_Control for "+model_name+".csv" )
-    # ASTRA END
 
     with open(file_path, "w", newline='') as file:
+    # ASTRA END
         writer = csv.writer(file, delimiter=",")
 
         writer.writerow(["model","image","Prediction v. GT Intersection over Union", "false positive", "true positive", "false negative", "precision", "recall", "accuracy", "f1 score", "n_true", "n_pred", "mean_true_score", "mean_matched_score", "panoptic_quality"])  
@@ -369,8 +371,6 @@ def compareLabels( model_name, image_folder, out_dir=None ):
             union = np.logical_or(test_ground_truth_0_to_255, test_prediction_0_to_255)
             iou_score =  np.sum(intersection) / np.sum(union)
             writer.writerow([model_name, raw.name, str(iou_score), str(stats.fp), str(stats.tp), str(stats.fn), str(stats.precision), str(stats.recall), str(stats.accuracy), str(stats.f1), str(stats.n_true), str(stats.n_pred), str(stats.mean_true_score), str(stats.mean_matched_score), str(stats.panoptic_quality)])
-
-
 # Finally running the check on the given inputs
 # ASTRA START
 compareLabels(model_name, data_folder, out_dir)
