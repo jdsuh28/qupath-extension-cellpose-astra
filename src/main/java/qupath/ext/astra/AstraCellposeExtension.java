@@ -5,11 +5,10 @@ import org.controlsfx.control.PropertySheet;
 import org.controlsfx.control.action.Action;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import qupath.ext.biop.cellpose.CellposeExtension;
 import qupath.ext.biop.cellpose.CellposeSetup;
 import qupath.fx.prefs.controlsfx.PropertyItemBuilder;
 import qupath.lib.gui.QuPathGUI;
-import qupath.lib.gui.extensions.GitHubProject;
-import qupath.lib.gui.extensions.QuPathExtension;
 import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.gui.tools.MenuTools;
 
@@ -17,16 +16,10 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 
-public class AstraCellposeExtension implements QuPathExtension, GitHubProject {
+public class AstraCellposeExtension extends CellposeExtension {
 
     private static final Logger logger = LoggerFactory.getLogger(AstraCellposeExtension.class);
     private boolean isInstalled = false;
-
-    private static final String ASTRA_PREF_CATEGORY = "ASTRA/Cellpose";
-    private static final String ASTRA_PREF_CELLPOSE_PATH = "astraCellposePythonPath";
-    private static final String ASTRA_PREF_CELLPOSE_SAM_PATH = "astraCellposeSAMPythonPath";
-    private static final String ASTRA_PREF_OMNIPOSE_PATH = "astraOmniposePythonPath";
-    private static final String ASTRA_PREF_CONDA_PATH = "astraCondaPath";
 
     private static final LinkedHashMap<String, String> ASTRA_SCRIPTS = new LinkedHashMap<>() {{
         put("ASTRA Training", "astra/training/training.groovy");
@@ -34,6 +27,12 @@ public class AstraCellposeExtension implements QuPathExtension, GitHubProject {
         put("ASTRA Tuning", "astra/tuning/tuning.groovy");
         put("ASTRA Analysis", "astra/analysis/analysis.groovy");
     }};
+
+    private static final String ASTRA_PREF_CATEGORY = "ASTRA/Cellpose";
+    private static final String PREF_CELLPOSE = "astraCellposePythonPath";
+    private static final String PREF_CELLPOSE_SAM = "astraCellposeSAMPythonPath";
+    private static final String PREF_OMNIPOSE = "astraOmniposePythonPath";
+    private static final String PREF_CONDA = "astraCondaPath";
 
     @Override
     public String getName() {
@@ -55,7 +54,10 @@ public class AstraCellposeExtension implements QuPathExtension, GitHubProject {
         if (isInstalled)
             return;
 
-        ASTRA_SCRIPTS.forEach((command, resource) -> {
+        ASTRA_SCRIPTS.entrySet().forEach(entry -> {
+            String resource = entry.getValue();
+            String command = entry.getKey();
+
             try (InputStream stream = AstraCellposeExtension.class.getClassLoader().getResourceAsStream(resource)) {
                 if (stream == null) {
                     logger.error("Script not found: {}", resource);
@@ -63,6 +65,7 @@ public class AstraCellposeExtension implements QuPathExtension, GitHubProject {
                 }
 
                 String script = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+
                 MenuTools.addMenuItems(
                         qupath.getMenu("Extensions>ASTRA", true),
                         new Action(command, e -> {
@@ -81,10 +84,10 @@ public class AstraCellposeExtension implements QuPathExtension, GitHubProject {
 
         CellposeSetup options = CellposeSetup.getInstance();
 
-        StringProperty cellposePath = PathPrefs.createPersistentPreference(ASTRA_PREF_CELLPOSE_PATH, "");
-        StringProperty cellposeSAMPath = PathPrefs.createPersistentPreference(ASTRA_PREF_CELLPOSE_SAM_PATH, "");
-        StringProperty omniposePath = PathPrefs.createPersistentPreference(ASTRA_PREF_OMNIPOSE_PATH, "");
-        StringProperty condaPath = PathPrefs.createPersistentPreference(ASTRA_PREF_CONDA_PATH, "");
+        StringProperty cellposePath = PathPrefs.createPersistentPreference(PREF_CELLPOSE, "");
+        StringProperty cellposeSAMPath = PathPrefs.createPersistentPreference(PREF_CELLPOSE_SAM, "");
+        StringProperty omniposePath = PathPrefs.createPersistentPreference(PREF_OMNIPOSE, "");
+        StringProperty condaPath = PathPrefs.createPersistentPreference(PREF_CONDA, "");
 
         options.setCellposePythonPath(cellposePath.get());
         options.setCellposeSAMPythonPath(cellposeSAMPath.get());
@@ -98,28 +101,28 @@ public class AstraCellposeExtension implements QuPathExtension, GitHubProject {
 
         PropertySheet.Item cellposePathItem = new PropertyItemBuilder<>(cellposePath, String.class)
                 .propertyType(PropertyItemBuilder.PropertyType.GENERAL)
-                .name("Cellpose 'python.exe' location")
+                .name("ASTRA Cellpose 'python.exe' location")
                 .category(ASTRA_PREF_CATEGORY)
-                .description("Enter the full path to your cellpose environment, including 'python.exe'\nDo not include quotes (') or double quotes (\") around the path.")
+                .description("Enter the full path to your ASTRA Cellpose environment, including 'python.exe'\nDo not include quotes (') or double quotes (\") around the path.")
                 .build();
 
         PropertySheet.Item cellposeSAMPathItem = new PropertyItemBuilder<>(cellposeSAMPath, String.class)
                 .propertyType(PropertyItemBuilder.PropertyType.GENERAL)
-                .name("Cellpose SAM 'python.exe' location")
+                .name("ASTRA Cellpose SAM 'python.exe' location")
                 .category(ASTRA_PREF_CATEGORY)
-                .description("Enter the full path to your cellposeSAM environment, including 'python.exe'\nDo not include quotes (') or double quotes (\") around the path.")
+                .description("Enter the full path to your ASTRA Cellpose SAM environment, including 'python.exe'\nDo not include quotes (') or double quotes (\") around the path.")
                 .build();
 
         PropertySheet.Item omniposePathItem = new PropertyItemBuilder<>(omniposePath, String.class)
                 .propertyType(PropertyItemBuilder.PropertyType.GENERAL)
-                .name("Omnipose 'python.exe' location")
+                .name("ASTRA Omnipose 'python.exe' location")
                 .category(ASTRA_PREF_CATEGORY)
-                .description("Enter the full path to your omnipose environment, including 'python.exe'\nDo not include quotes (') or double quotes (\") around the path.")
+                .description("Enter the full path to your ASTRA Omnipose environment, including 'python.exe'\nDo not include quotes (') or double quotes (\") around the path.")
                 .build();
 
         PropertySheet.Item condaPathItem = new PropertyItemBuilder<>(condaPath, String.class)
                 .propertyType(PropertyItemBuilder.PropertyType.GENERAL)
-                .name("'Conda/Mamba' script location (optional)")
+                .name("ASTRA 'Conda/Mamba' script location (optional)")
                 .category(ASTRA_PREF_CATEGORY)
                 .description("The full path to your conda/mamba command, in case you want the extension to use the 'conda activate' command.\ne.g. 'C:\\ProgramData\\Miniconda3\\condabin\\mamba.bat'\nDo not include quotes (') or double quotes (\") around the path.")
                 .build();
