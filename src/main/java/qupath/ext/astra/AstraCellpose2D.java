@@ -99,6 +99,7 @@ public class AstraCellpose2D extends Cellpose2D {
             ResultsTable parsedTrainingResults = parseTrainingResultsAstra();
             setTrainingResults(parsedTrainingResults);
             saveTrainingGraphAfterTraining();
+            logger.info("Training completed. Results processed and ready.");
 
             return trainingArtifactReturnValue(getTrainingDirectory());
         } catch (InterruptedException e) {
