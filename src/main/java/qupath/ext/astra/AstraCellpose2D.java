@@ -755,15 +755,14 @@ public class AstraCellpose2D extends Cellpose2D {
 
         double canonicalBatchPixelSize = requireCanonicalBatchPixelSize();
         double nativePixelSize = requireFinitePositivePixelSize(nativeCalibration, "Native image pixel size", context.key());
-        double requestDownsample = canonicalBatchPixelSize / nativePixelSize;
+        double requestedDownsample = canonicalBatchPixelSize / nativePixelSize;
         double expansion = cellExpansion / nativePixelSize;
 
-        PixelCalibration workingResolution = nativeCalibration.createScaledInstance(requestDownsample, requestDownsample);
+        PixelCalibration workingResolution = nativeCalibration.createScaledInstance(requestedDownsample, requestedDownsample);
         ImageDataServer<BufferedImage> opServer = ImageOps.buildServer(imageData, op, workingResolution, tileWidth, tileHeight);
+        double effectiveDownsample = validateCanonicalBatchScaling(context.key(), canonicalBatchPixelSize, nativePixelSize, requestedDownsample, opServer);
 
-        validateCanonicalBatchScaling(context.key(), canonicalBatchPixelSize, nativePixelSize, requestDownsample, opServer);
-
-        return new BatchStagingContext(server, nativeCalibration, opServer, requestDownsample, expansion, canonicalBatchPixelSize);
+        return new BatchStagingContext(server, nativeCalibration, opServer, effectiveDownsample, expansion, canonicalBatchPixelSize);
     }
 
     private double requireCanonicalBatchPixelSize() {
@@ -776,24 +775,14 @@ public class AstraCellpose2D extends Cellpose2D {
         return pixelSize;
     }
 
-    private static void validateCanonicalBatchScaling(
+    private static double validateCanonicalBatchScaling(
             String key,
             double canonicalPixelSize,
             double nativePixelSize,
             double expectedDownsample,
             ImageDataServer<BufferedImage> opServer
     ) {
-        PixelCalibration stagedCalibration = opServer.getPixelCalibration();
-        double actualPixelSize = requireFinitePositivePixelSize(stagedCalibration, "Staged image pixel size", key);
         double actualDownsample = opServer.getDownsampleForResolution(0);
-
-        if (!approximatelyEqual(actualPixelSize, canonicalPixelSize)) {
-            throw new IllegalStateException(
-                    "ASTRA batch inference staging produced the wrong effective pixel size for '" + key + "'. " +
-                            "Expected canonical um/px=" + canonicalPixelSize + ", actual um/px=" + actualPixelSize +
-                            ", native um/px=" + nativePixelSize + '.'
-            );
-        }
 
         if (!Double.isFinite(actualDownsample) || actualDownsample <= 0) {
             throw new IllegalStateException(
@@ -808,6 +797,23 @@ public class AstraCellpose2D extends Cellpose2D {
                             ", native um/px=" + nativePixelSize + ", canonical um/px=" + canonicalPixelSize + '.'
             );
         }
+
+        double realizedPixelSize = nativePixelSize * actualDownsample;
+        if (!Double.isFinite(realizedPixelSize) || realizedPixelSize <= 0) {
+            throw new IllegalStateException(
+                    "ASTRA batch inference staging produced a non-finite realized pixel size for '" + key + "': " + realizedPixelSize
+            );
+        }
+
+        if (!approximatelyEqual(realizedPixelSize, canonicalPixelSize)) {
+            throw new IllegalStateException(
+                    "ASTRA batch inference staging produced the wrong realized effective pixel size for '" + key + "'. " +
+                            "Expected canonical um/px=" + canonicalPixelSize + ", realized um/px=" + realizedPixelSize +
+                            ", native um/px=" + nativePixelSize + ", downsample=" + actualDownsample + '.'
+            );
+        }
+
+        return actualDownsample;
     }
 
     private static boolean approximatelyEqual(double a, double b) {
