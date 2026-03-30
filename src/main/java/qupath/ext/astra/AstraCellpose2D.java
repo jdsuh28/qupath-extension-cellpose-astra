@@ -34,6 +34,7 @@ import qupath.lib.analysis.features.ObjectMeasurements;
 import qupath.lib.common.GeneralTools;
 import qupath.lib.geom.ImmutableDimension;
 import qupath.lib.gui.QuPathGUI;
+import qupath.lib.gui.scripting.QPEx;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.*;
 import qupath.lib.objects.CellTools;
@@ -96,6 +97,9 @@ public class AstraCellpose2D extends Cellpose2D {
 
     private File astraQcDirectory;
     private File astraResultsDirectory;
+    private boolean astraBatchEnabled = true;
+    private boolean astraPixelScalingEnabled = true;
+    private Double astraLastCanonicalPixelSizeUsed = null;
 
     public AstraCellpose2D() {
         super();
@@ -107,6 +111,34 @@ public class AstraCellpose2D extends Cellpose2D {
 
     public static AstraCellposeBuilder builder(File builderPath) {
         return new AstraCellposeBuilder(builderPath);
+    }
+
+    public void setAstraBatchEnabled(boolean enabled) {
+        this.astraBatchEnabled = enabled;
+    }
+
+    public boolean isAstraBatchEnabled() {
+        return astraBatchEnabled;
+    }
+
+    public void setAstraPixelScalingEnabled(boolean enabled) {
+        this.astraPixelScalingEnabled = enabled;
+    }
+
+    public boolean isAstraPixelScalingEnabled() {
+        return astraPixelScalingEnabled;
+    }
+
+    public Double getAstraLastCanonicalPixelSizeUsed() {
+        return astraLastCanonicalPixelSizeUsed;
+    }
+
+    public Double getAstraCanonicalPixelSizeUsed() {
+        return astraLastCanonicalPixelSizeUsed;
+    }
+
+    public void clearAstraLastCanonicalPixelSizeUsed() {
+        astraLastCanonicalPixelSizeUsed = null;
     }
 
     static AstraCellpose2D fromBase(Cellpose2D base) {
@@ -134,6 +166,39 @@ public class AstraCellpose2D extends Cellpose2D {
         return resolveValidationDirectory(astraQcDirectory);
     }
 
+    @Override
+    public void saveTrainingImages() {
+        clearAstraLastCanonicalPixelSizeUsed();
+
+        double previousPixelSize = pixelSize;
+        boolean restorePixelSize = false;
+
+        try {
+            if (!astraPixelScalingEnabled) {
+                pixelSize = Double.NaN;
+                restorePixelSize = true;
+            } else {
+                if ((!Double.isFinite(pixelSize) || pixelSize <= 0) && astraBatchEnabled) {
+                    Double resolvedPixelSize = resolveTrainingCanonicalPixelSizeFromProject();
+                    if (resolvedPixelSize != null && Double.isFinite(resolvedPixelSize) && resolvedPixelSize > 0) {
+                        pixelSize = resolvedPixelSize;
+                        restorePixelSize = true;
+                        logger.info("ASTRA training auto-resolved canonical working pixel size to {} um/px.", resolvedPixelSize);
+                    }
+                }
+
+                if (Double.isFinite(pixelSize) && pixelSize > 0) {
+                    astraLastCanonicalPixelSizeUsed = pixelSize;
+                }
+            }
+
+            super.saveTrainingImages();
+        } finally {
+            if (restorePixelSize) {
+                pixelSize = previousPixelSize;
+            }
+        }
+    }
 
     @Override
     public File train() {
@@ -184,6 +249,10 @@ public class AstraCellpose2D extends Cellpose2D {
     public List<BatchInferenceResult> runBatchInference(List<BatchInferenceRequest> requests) throws IOException, InterruptedException {
         requireExplicitModel(this);
         Objects.requireNonNull(requests, "requests");
+        if (!astraBatchEnabled) {
+            throw new IllegalStateException("ASTRA batch inference was requested while astraBatchEnabled=false.");
+        }
+        clearAstraLastCanonicalPixelSizeUsed();
         if (requests.isEmpty()) {
             return List.of();
         }
@@ -748,21 +817,74 @@ public class AstraCellpose2D extends Cellpose2D {
     }
 
 
+    private Double resolveTrainingCanonicalPixelSizeFromProject() {
+        var qupath = QPEx.getQuPath();
+        if (qupath == null || qupath.getProject() == null) {
+            return null;
+        }
+
+        for (var entry : qupath.getProject().getImageList()) {
+            try {
+                ImageData<BufferedImage> imageData = entry.readImageData();
+                if (imageData == null) {
+                    continue;
+                }
+
+                var hierarchy = imageData.getHierarchy();
+                if (hierarchy == null) {
+                    continue;
+                }
+
+                boolean hasTrainingOrValidation = hierarchy.getAnnotationObjects().stream().anyMatch(annotation -> {
+                    if (annotation == null || annotation.getPathClass() == null) {
+                        return false;
+                    }
+                    String pathClass = annotation.getPathClass().toString();
+                    return "Training".equals(pathClass) || "Validation".equals(pathClass);
+                });
+                if (!hasTrainingOrValidation) {
+                    continue;
+                }
+
+                PixelCalibration calibration = imageData.getServer().getPixelCalibration();
+                double pixelSizeValue = requireFinitePositivePixelSize(calibration, "Training image pixel size", entry.getImageName());
+                return pixelSizeValue;
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IllegalStateException("ASTRA training failed to resolve a canonical working pixel size from the project.", e);
+            }
+        }
+
+        return null;
+    }
+
     private BatchStagingContext createBatchStagingContext(BatchEntryContext context) throws IOException {
         ImageData<BufferedImage> imageData = context.imageData();
         ImageServer<BufferedImage> server = imageData.getServer();
         PixelCalibration nativeCalibration = server.getPixelCalibration();
 
-        double canonicalBatchPixelSize = requireCanonicalBatchPixelSize();
         double nativePixelSize = requireFinitePositivePixelSize(nativeCalibration, "Native image pixel size", context.key());
-        double requestedDownsample = canonicalBatchPixelSize / nativePixelSize;
+        double workingPixelSize = astraPixelScalingEnabled ? requireCanonicalBatchPixelSize() : nativePixelSize;
+        double requestedDownsample = workingPixelSize / nativePixelSize;
         double expansion = cellExpansion / nativePixelSize;
 
         PixelCalibration workingResolution = nativeCalibration.createScaledInstance(requestedDownsample, requestedDownsample);
         ImageDataServer<BufferedImage> opServer = ImageOps.buildServer(imageData, op, workingResolution, tileWidth, tileHeight);
-        double effectiveDownsample = validateCanonicalBatchScaling(context.key(), canonicalBatchPixelSize, nativePixelSize, requestedDownsample, opServer);
+        double effectiveDownsample = validateCanonicalBatchScaling(context.key(), workingPixelSize, nativePixelSize, requestedDownsample, opServer);
 
-        return new BatchStagingContext(server, nativeCalibration, opServer, effectiveDownsample, expansion, canonicalBatchPixelSize);
+        if (astraPixelScalingEnabled) {
+            if (astraLastCanonicalPixelSizeUsed == null) {
+                astraLastCanonicalPixelSizeUsed = workingPixelSize;
+            } else if (!approximatelyEqual(astraLastCanonicalPixelSizeUsed, workingPixelSize)) {
+                throw new IllegalStateException(
+                        "ASTRA batch inference resolved inconsistent canonical pixel sizes across the same batch run. " +
+                                "Previous=" + astraLastCanonicalPixelSizeUsed + ", current=" + workingPixelSize + "."
+                );
+            }
+        }
+
+        return new BatchStagingContext(server, nativeCalibration, opServer, effectiveDownsample, expansion, workingPixelSize);
     }
 
     private double requireCanonicalBatchPixelSize() {
