@@ -2,7 +2,11 @@ package qupath.ext.astra;
 
 import ij.IJ;
 import ij.ImagePlus;
+import ij.gui.PolygonRoi;
+import ij.gui.Roi;
+import ij.gui.Wand;
 import ij.measure.ResultsTable;
+import ij.process.ImageProcessor;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
@@ -10,23 +14,35 @@ import javafx.scene.chart.XYChart;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
 import javafx.scene.image.WritableImage;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.bytedeco.opencv.opencv_core.Mat;
+import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryCollection;
+import org.locationtech.jts.index.strtree.STRtree;
+import org.locationtech.jts.simplify.VWSimplifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.ext.biop.cellpose.Cellpose2D;
+import qupath.ext.biop.cellpose.OpCreators;
 import qupath.ext.biop.cmd.VirtualEnvironmentRunner;
 import qupath.fx.dialogs.Dialogs;
 import qupath.fx.utils.FXUtils;
+import qupath.imagej.tools.IJTools;
 import qupath.lib.analysis.features.ObjectMeasurements;
+import qupath.lib.common.GeneralTools;
 import qupath.lib.geom.ImmutableDimension;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.*;
 import qupath.lib.objects.CellTools;
+import qupath.lib.objects.PathCellObject;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.PathObjects;
+import qupath.lib.regions.ImagePlane;
 import qupath.lib.regions.RegionRequest;
+import qupath.lib.roi.GeometryTools;
 import qupath.lib.roi.ROIs;
 import qupath.lib.roi.RoiTools;
 import qupath.lib.roi.interfaces.ROI;
@@ -44,19 +60,31 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * ASTRA-owned Cellpose2D subclass that carries ASTRA training/QC behavior
@@ -87,13 +115,13 @@ public class AstraCellpose2D extends Cellpose2D {
         return astra;
     }
 
+
     void configureAstraState(File modelDirectory, File trainingRootDirectory, File tempDirectory, File qcDirectory, File resultsDirectory) {
         this.modelDirectory = modelDirectory;
         this.groundTruthDirectory = trainingRootDirectory;
         this.astraQcDirectory = qcDirectory;
         this.astraResultsDirectory = resultsDirectory;
-
-        this.tempDirectory = tempDirectory;
+        setTempDirectoryField(tempDirectory);
     }
 
     @Override
@@ -106,16 +134,17 @@ public class AstraCellpose2D extends Cellpose2D {
         return resolveValidationDirectory(astraQcDirectory);
     }
 
+
     @Override
     public File train() {
         requireExplicitModel(this);
         try {
             if (this.cleanTrainingDir) {
-                cleanDirectory(this.groundTruthDirectory);
+                cleanDirectoryAstra(this.groundTruthDirectory);
                 saveTrainingImages();
             }
 
-            runTraining();
+            runTrainingAstra();
 
             ResultsTable parsedTrainingResults = parseTrainingResultsAstra();
             setTrainingResults(parsedTrainingResults);
@@ -151,6 +180,7 @@ public class AstraCellpose2D extends Cellpose2D {
      * pipelines such as tuning, analysis, or future corpus-level workflows can
      * score or persist results without side effects.
      */
+
     public List<BatchInferenceResult> runBatchInference(List<BatchInferenceRequest> requests) throws IOException, InterruptedException {
         requireExplicitModel(this);
         Objects.requireNonNull(requests, "requests");
@@ -158,19 +188,20 @@ public class AstraCellpose2D extends Cellpose2D {
             return List.of();
         }
 
-        File batchTempDirectory = ensureDirectoryExists(this.tempDirectory);
-        cleanDirectory(batchTempDirectory);
+        File batchTempDirectory = requireConfiguredTempDirectory();
+        cleanDirectoryAstra(batchTempDirectory);
 
         List<BatchEntryContext> contexts = buildBatchContexts(requests);
-        List<TileFile> allTiles = stageBatchTiles(contexts, batchTempDirectory);
+        List<AstraTileFile> allTiles = stageBatchTiles(contexts, batchTempDirectory);
 
         if (allTiles.isEmpty()) {
             return buildEmptyBatchResults(contexts);
         }
 
-        runCellpose(allTiles);
+        runCellposeBatch(batchTempDirectory, allTiles);
         return collectBatchResults(contexts, allTiles);
     }
+
 
     public List<BatchInferenceResult> runBatchInference(BatchInferenceRequest... requests) throws IOException, InterruptedException {
         Objects.requireNonNull(requests, "requests");
@@ -275,26 +306,20 @@ public class AstraCellpose2D extends Cellpose2D {
         showTrainingGraph(true, true);
     }
 
+
     private void runCellposeOnValidationImagesAstra() {
         String qcModelPath = resolveExplicitModelPath(this);
         String qcModelName = resolveExplicitModelName(this);
 
         logger.info("Running the model {} on the validation images to obtain labels for QC", qcModelName);
 
-        File tmpDirectory = this.tempDirectory;
-        String tmpModel = this.model;
-
         try {
-            this.tempDirectory = getValidationDirectory();
-            this.model = qcModelPath;
-            runCellpose(null);
+            runCellposeInDirectory(getValidationDirectory(), qcModelPath, null);
         } catch (IOException | InterruptedException e) {
             throw new IllegalStateException("ASTRA QC prediction on validation images failed.", e);
-        } finally {
-            this.tempDirectory = tmpDirectory;
-            this.model = tmpModel;
         }
     }
+
 
     private ResultsTable runCellposeQCAstra() throws IOException, InterruptedException {
         File qcFolder = getQCFolderAstra();
@@ -306,7 +331,7 @@ public class AstraCellpose2D extends Cellpose2D {
             throw new IOException("ASTRA QC script was not found: " + qcPythonFile.getAbsolutePath());
         }
 
-        VirtualEnvironmentRunner qcRunner = getVirtualEnvironmentRunner();
+        VirtualEnvironmentRunner qcRunner = getVirtualEnvironmentRunnerAstra();
         String qcModelName = resolveExplicitModelName(this);
 
         List<String> qcArguments = new ArrayList<>(Arrays.asList(
@@ -478,37 +503,28 @@ public class AstraCellpose2D extends Cellpose2D {
         return List.copyOf(results);
     }
 
-    private List<TileFile> stageBatchTiles(List<BatchEntryContext> contexts, File batchTempDirectory) throws IOException, InterruptedException {
-        List<TileFile> allTiles = new ArrayList<>();
+
+    private List<AstraTileFile> stageBatchTiles(List<BatchEntryContext> contexts, File batchTempDirectory) throws IOException, InterruptedException {
+        List<AstraTileFile> allTiles = new ArrayList<>();
 
         for (BatchEntryContext context : contexts) {
+            BatchStagingContext stagingContext = createBatchStagingContext(context);
+
             ImageData<BufferedImage> imageData = context.imageData();
-            PixelCalibration resolution = imageData.getServer().getPixelCalibration();
+            ImageDataServer<BufferedImage> opServer = stagingContext.opServer();
+            ImageServer<BufferedImage> server = stagingContext.server();
+            PixelCalibration calibration = stagingContext.nativeCalibration();
+            double requestDownsample = stagingContext.requestDownsample();
 
-            if (Double.isFinite(pixelSize) && pixelSize > 0) {
-                double downsample = pixelSize / resolution.getAveragedPixelSize().doubleValue();
-                resolution = resolution.createScaledInstance(downsample, downsample);
-            }
-
-            ImageDataServer<BufferedImage> opServer = ImageOps.buildServer(imageData, op, resolution, tileWidth, tileHeight);
-            ImageServer<BufferedImage> server = imageData.getServer();
-            PixelCalibration calibration = server.getPixelCalibration();
-
-            double downsample = 1.0;
-            if (Double.isFinite(pixelSize) && pixelSize > 0) {
-                downsample = pixelSize / calibration.getAveragedPixelSize().doubleValue();
-            }
-
-            double expansion = cellExpansion / calibration.getAveragedPixelSize().doubleValue();
             context.setServer(server);
             context.setCalibration(calibration);
-            context.setFinalDownsample(downsample);
-            context.setExpansion(expansion);
+            context.setFinalDownsample(requestDownsample);
+            context.setExpansion(stagingContext.expansion());
 
             int tileSequence = 0;
             for (PathObject realParent : context.parents()) {
                 ROI roi = realParent.getROI();
-                int pad = (int) (padding / calibration.getAveragedPixelSize().doubleValue());
+                int pad = scaledPixelsOrZero(padding, calibration.getAveragedPixelSize().doubleValue());
                 ROI paddedRoi = ROIs.createRectangleROI(
                         roi.getBoundsX() - pad,
                         roi.getBoundsY() - pad,
@@ -519,33 +535,43 @@ public class AstraCellpose2D extends Cellpose2D {
                 PathObject paddedParent = PathObjects.createAnnotationObject(paddedRoi);
                 RegionRequest request = RegionRequest.createInstance(
                         opServer.getPath(),
-                        opServer.getDownsampleForResolution(0),
+                        requestDownsample,
                         paddedParent.getROI()
                 );
 
                 Collection<? extends ROI> tiledRois = RoiTools.computeTiledROIs(
                         paddedParent.getROI(),
-                        ImmutableDimension.getInstance((int) (tileWidth * downsample), (int) (tileWidth * downsample)),
-                        ImmutableDimension.getInstance((int) (tileWidth * downsample * 1.5), (int) (tileHeight * downsample * 1.5)),
+                        ImmutableDimension.getInstance(
+                                scaledDimension(tileWidth, requestDownsample),
+                                scaledDimension(tileHeight, requestDownsample)
+                        ),
+                        ImmutableDimension.getInstance(
+                                scaledDimension(tileWidth * 1.5, requestDownsample),
+                                scaledDimension(tileHeight * 1.5, requestDownsample)
+                        ),
                         true,
-                        (int) (overlap * downsample)
+                        scaledPixelsOrZero(overlap, requestDownsample)
                 );
 
                 List<RegionRequest> tiles = tiledRois.stream()
-                        .map((ROI roiTile) -> RegionRequest.createInstance(opServer.getPath(), opServer.getDownsampleForResolution(0), roiTile))
+                        .map((ROI roiTile) -> RegionRequest.createInstance(opServer.getPath(), requestDownsample, roiTile))
                         .collect(Collectors.toList());
 
                 ImageDataOp opWithPreprocessing = buildPreprocessingOp(imageData, paddedParent, request);
 
                 logger.info("ASTRA batch inference staging {} tiles for {} / {}", tiles.size(), context.key(), realParent);
                 for (RegionRequest tile : tiles) {
-                    allTiles.add(saveBatchTileImage(opWithPreprocessing, imageData, tile, realParent, context.index(), tileSequence++, batchTempDirectory));
+                    AstraTileFile savedTile = saveBatchTileImage(opWithPreprocessing, imageData, tile, realParent, context.index(), tileSequence++, batchTempDirectory);
+                    if (savedTile != null) {
+                        allTiles.add(savedTile);
+                    }
                 }
             }
         }
 
-        return allTiles;
+        return List.copyOf(allTiles);
     }
+
 
     private ImageDataOp buildPreprocessingOp(ImageData<BufferedImage> imageData, PathObject paddedParent, RegionRequest request) throws IOException, InterruptedException {
         ArrayList<ImageOp> fullPreprocess = new ArrayList<>();
@@ -555,7 +581,7 @@ public class AstraCellpose2D extends Cellpose2D {
             if (globalPreprocessingProvidedByUser == null) {
                 List<ImageOp> splitMergeListImageOp = new ArrayList<>();
                 for (var entry : this.normalizeChannelPercentilesGlobalMap.entrySet()) {
-                    splitMergeListImageOp.add(computeNormalizationImageOps(
+                    splitMergeListImageOp.add(computeNormalizationImageOpsAstra(
                             entry.getKey(),
                             entry.getValue(),
                             imageData,
@@ -590,7 +616,8 @@ public class AstraCellpose2D extends Cellpose2D {
         return op.appendOps(fullPreprocess.toArray(ImageOp[]::new));
     }
 
-    private TileFile saveBatchTileImage(
+
+    private AstraTileFile saveBatchTileImage(
             ImageDataOp opWithPreprocessing,
             ImageData<BufferedImage> imageData,
             RegionRequest request,
@@ -616,19 +643,20 @@ public class AstraCellpose2D extends Cellpose2D {
 
         if (imp.getWidth() < 10 || imp.getHeight() < 10) {
             logger.warn("ASTRA batch inference tile {} will not be saved because it is too small: {}", tempFile, imp);
-        } else {
-            IJ.save(imp, tempFile.getAbsolutePath());
+            return null;
         }
 
-        return new TileFile(request, tempFile, parent);
+        IJ.save(imp, tempFile.getAbsolutePath());
+        return new AstraTileFile(request, tempFile, parent);
     }
 
-    private List<BatchInferenceResult> collectBatchResults(List<BatchEntryContext> contexts, List<TileFile> allTiles) {
-        IdentityHashMap<PathObject, List<CandidateObject>> rawCandidatesByParent = new IdentityHashMap<>();
 
-        for (TileFile tile : allTiles) {
+    private List<BatchInferenceResult> collectBatchResults(List<BatchEntryContext> contexts, List<AstraTileFile> allTiles) {
+        IdentityHashMap<PathObject, List<AstraCandidateObject>> rawCandidatesByParent = new IdentityHashMap<>();
+
+        for (AstraTileFile tile : allTiles) {
             PathObject parent = tile.getParent();
-            Collection<CandidateObject> candidates = tile.getCandidates();
+            Collection<AstraCandidateObject> candidates = tile.getCandidates();
             if (candidates != null && !candidates.isEmpty()) {
                 rawCandidatesByParent.computeIfAbsent(parent, ignored -> new ArrayList<>()).addAll(candidates);
             }
@@ -638,7 +666,7 @@ public class AstraCellpose2D extends Cellpose2D {
         for (BatchEntryContext context : contexts) {
             List<BatchParentResult> parentResults = new ArrayList<>();
             for (PathObject parent : context.parents()) {
-                List<CandidateObject> rawCandidates = rawCandidatesByParent.getOrDefault(parent, Collections.emptyList());
+                List<AstraCandidateObject> rawCandidates = rawCandidatesByParent.getOrDefault(parent, Collections.emptyList());
                 List<PathObject> detections = finalizeParentDetections(context, parent, rawCandidates);
                 parentResults.add(new BatchParentResult(parent, List.copyOf(detections)));
             }
@@ -648,15 +676,15 @@ public class AstraCellpose2D extends Cellpose2D {
         return List.copyOf(results);
     }
 
-    private List<PathObject> finalizeParentDetections(BatchEntryContext context, PathObject parent, Collection<CandidateObject> rawCandidates) {
-        List<CandidateObject> filteredDetections = filterDetections(rawCandidates);
+    private List<PathObject> finalizeParentDetections(BatchEntryContext context, PathObject parent, Collection<AstraCandidateObject> rawCandidates) {
+        List<AstraCandidateObject> filteredDetections = filterDetectionsAstra(rawCandidates);
 
         Geometry mask = parent.getROI().getGeometry();
         List<PathObject> finalObjects = new ArrayList<>();
 
-        for (CandidateObject candidate : filteredDetections) {
+        for (AstraCandidateObject candidate : filteredDetections) {
             try {
-                PathObject pathObject = convertToObject(
+                PathObject pathObject = convertToObjectAstra(
                         candidate,
                         parent.getROI().getImagePlane(),
                         context.expansion(),
@@ -675,11 +703,11 @@ public class AstraCellpose2D extends Cellpose2D {
             logger.info("ASTRA batch inference resolving cell overlaps for {}", parent);
             if (creatorFun != null) {
                 List<PathObject> cells = finalObjects.stream()
-                        .map(AstraCellpose2D::objectToCell)
+                        .map(AstraCellpose2D::objectToCellAstra)
                         .collect(Collectors.toList());
                 cells = CellTools.constrainCellOverlaps(cells);
                 finalObjects = cells.stream()
-                        .map(cell -> cellToObject(cell, creatorFun))
+                        .map(cell -> cellToObjectAstra(cell, creatorFun))
                         .collect(Collectors.toList());
             } else {
                 finalObjects = CellTools.constrainCellOverlaps(finalObjects);
@@ -717,6 +745,668 @@ public class AstraCellpose2D extends Cellpose2D {
         }
 
         return finalObjects;
+    }
+
+
+    private BatchStagingContext createBatchStagingContext(BatchEntryContext context) throws IOException {
+        ImageData<BufferedImage> imageData = context.imageData();
+        ImageServer<BufferedImage> server = imageData.getServer();
+        PixelCalibration nativeCalibration = server.getPixelCalibration();
+
+        double canonicalBatchPixelSize = requireCanonicalBatchPixelSize();
+        double nativePixelSize = requireFinitePositivePixelSize(nativeCalibration, "Native image pixel size", context.key());
+        double requestDownsample = canonicalBatchPixelSize / nativePixelSize;
+        double expansion = cellExpansion / nativePixelSize;
+
+        PixelCalibration workingResolution = nativeCalibration.createScaledInstance(requestDownsample, requestDownsample);
+        ImageDataServer<BufferedImage> opServer = ImageOps.buildServer(imageData, op, workingResolution, tileWidth, tileHeight);
+
+        validateCanonicalBatchScaling(context.key(), canonicalBatchPixelSize, nativePixelSize, requestDownsample, opServer);
+
+        return new BatchStagingContext(server, nativeCalibration, opServer, requestDownsample, expansion, canonicalBatchPixelSize);
+    }
+
+    private double requireCanonicalBatchPixelSize() {
+        if (!Double.isFinite(pixelSize) || pixelSize <= 0) {
+            throw new IllegalStateException(
+                    "ASTRA batch inference requires builder.pixelSize(...) to be set explicitly. " +
+                            "That value is the canonical working um/px for the staged batch corpus."
+            );
+        }
+        return pixelSize;
+    }
+
+    private static void validateCanonicalBatchScaling(
+            String key,
+            double canonicalPixelSize,
+            double nativePixelSize,
+            double expectedDownsample,
+            ImageDataServer<BufferedImage> opServer
+    ) {
+        PixelCalibration stagedCalibration = opServer.getPixelCalibration();
+        double actualPixelSize = requireFinitePositivePixelSize(stagedCalibration, "Staged image pixel size", key);
+        double actualDownsample = opServer.getDownsampleForResolution(0);
+
+        if (!approximatelyEqual(actualPixelSize, canonicalPixelSize)) {
+            throw new IllegalStateException(
+                    "ASTRA batch inference staging produced the wrong effective pixel size for '" + key + "'. " +
+                            "Expected canonical um/px=" + canonicalPixelSize + ", actual um/px=" + actualPixelSize +
+                            ", native um/px=" + nativePixelSize + '.'
+            );
+        }
+
+        if (!Double.isFinite(actualDownsample) || actualDownsample <= 0) {
+            throw new IllegalStateException(
+                    "ASTRA batch inference staging produced a non-finite downsample for '" + key + "': " + actualDownsample
+            );
+        }
+
+        if (!approximatelyEqual(actualDownsample, expectedDownsample)) {
+            throw new IllegalStateException(
+                    "ASTRA batch inference staging produced the wrong downsample for '" + key + "'. " +
+                            "Expected=" + expectedDownsample + ", actual=" + actualDownsample +
+                            ", native um/px=" + nativePixelSize + ", canonical um/px=" + canonicalPixelSize + '.'
+            );
+        }
+    }
+
+    private static boolean approximatelyEqual(double a, double b) {
+        double absTolerance = 1e-9;
+        double relativeTolerance = 1e-6;
+        double scale = Math.max(Math.abs(a), Math.abs(b));
+        double tolerance = Math.max(absTolerance, scale * relativeTolerance);
+        return Math.abs(a - b) <= tolerance;
+    }
+
+    private static double requireFinitePositivePixelSize(PixelCalibration calibration, String label, String key) {
+        Objects.requireNonNull(calibration, "calibration");
+        Number averagedPixelSize = calibration.getAveragedPixelSize();
+        double value = averagedPixelSize == null ? Double.NaN : averagedPixelSize.doubleValue();
+        if (!Double.isFinite(value) || value <= 0) {
+            throw new IllegalStateException(label + " must be finite and > 0 for batch entry '" + key + "'. Actual value=" + value);
+        }
+        return value;
+    }
+
+    private static int scaledDimension(double basePixels, double downsample) {
+        return Math.max(1, (int)Math.round(basePixels * downsample));
+    }
+
+    private static int scaledPixelsOrZero(double basePixels, double scale) {
+        return Math.max(0, (int)Math.round(basePixels * scale));
+    }
+
+    private ImageOp computeNormalizationImageOpsAstra(
+            ColorTransforms.ColorTransform channel,
+            Map<String, Double> attributes,
+            ImageData<BufferedImage> imageData,
+            ROI parentROI,
+            ImagePlane imagePlane
+    ) throws IOException {
+        ImageDataOp channelOp = ImageOps.buildImageDataOp(channel);
+        double percentileMin = attributes.get("percentileMin");
+        double percentileMax = attributes.get("percentileMax");
+        double normDownsample = attributes.get("normDownsample");
+        double index = attributes.get("index");
+
+        OpCreators.TileOpCreator normOp = new OpCreators.ImageNormalizationBuilder()
+                .percentiles(percentileMin, percentileMax)
+                .perChannel(true)
+                .downsample(normDownsample)
+                .useMask(true)
+                .build();
+
+        var normalizeOpsTmp = normOp.createOps(channelOp, imageData, parentROI, imagePlane);
+        List<ImageOp> normalizeOps = new ArrayList<>(normalizeOpsTmp);
+        normalizeOps.add(0, ImageOps.Channels.extract((int)index));
+        return ImageOps.Core.sequential(normalizeOps);
+    }
+
+    private void cleanDirectoryAstra(File directory) throws IOException {
+        Objects.requireNonNull(directory, "directory");
+        try {
+            if (directory.exists()) {
+                FileUtils.deleteDirectory(directory);
+            }
+            FileUtils.forceMkdir(directory);
+        } catch (IOException e) {
+            throw new IOException("Failed to reset directory: " + directory.getAbsolutePath(), e);
+        }
+    }
+
+    private void runTrainingAstra() throws IOException, InterruptedException {
+        String runCommand = this.parameters.containsKey("omni") ? "omnipose" : "cellpose";
+        VirtualEnvironmentRunner veRunner = getVirtualEnvironmentRunnerAstra();
+
+        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", runCommand));
+        cellposeArguments.add("--train");
+        cellposeArguments.add("--dir");
+        cellposeArguments.add(getTrainingDirectory().getAbsolutePath());
+
+        if (this.useTestDir) {
+            cellposeArguments.add("--test_dir");
+            cellposeArguments.add(getValidationDirectory().getAbsolutePath());
+        }
+
+        cellposeArguments.add("--pretrained_model");
+        cellposeArguments.add(Objects.requireNonNullElse(model, "None"));
+
+        this.parameters.forEach((parameter, value) -> {
+            cellposeArguments.add("--" + parameter);
+            if (value != null) {
+                cellposeArguments.add(value);
+            }
+        });
+
+        if (!this.disableGPU) {
+            cellposeArguments.add("--use_gpu");
+        }
+
+        cellposeArguments.add("--verbose");
+
+        veRunner.setArguments(cellposeArguments);
+        veRunner.runCommand(true);
+        writeCellpose2DField("theLog", veRunner.getProcessLog());
+    }
+
+    private VirtualEnvironmentRunner getVirtualEnvironmentRunnerAstra() {
+        if (cellposeSetup.getCellposePythonPath().isEmpty() && !this.useCellposeSAM) {
+            throw new IllegalStateException("Cellpose python path is empty. Please set it in Edit > Preferences");
+        }
+
+        if (cellposeSetup.getCellposeSAMPythonPath().isEmpty() && this.useCellposeSAM) {
+            throw new IllegalStateException("CellposeSAM python path is empty. Please set it in Edit > Preferences");
+        }
+
+        VirtualEnvironmentRunner.EnvType type = VirtualEnvironmentRunner.EnvType.EXE;
+        String condaPath = null;
+        if (!cellposeSetup.getCondaPath().isEmpty()) {
+            type = VirtualEnvironmentRunner.EnvType.CONDA;
+            condaPath = cellposeSetup.getCondaPath();
+        }
+
+        String pythonPath = this.useCellposeSAM ? cellposeSetup.getCellposeSAMPythonPath() : cellposeSetup.getCellposePythonPath();
+        if (this.parameters.containsKey("omni") && !cellposeSetup.getOmniposePythonPath().isEmpty()) {
+            pythonPath = cellposeSetup.getOmniposePythonPath();
+        }
+
+        return new VirtualEnvironmentRunner(pythonPath, type, condaPath, this.getClass().getSimpleName());
+    }
+
+    private void runCellposeBatch(File batchDirectory, List<AstraTileFile> allTiles) throws IOException, InterruptedException {
+        runCellposeInDirectory(batchDirectory, resolveExplicitModelPath(this), allTiles);
+    }
+
+    private void runCellposeInDirectory(File inputDirectory, String modelPath, List<AstraTileFile> allTiles) throws IOException, InterruptedException {
+        String runCommand = this.parameters.containsKey("omni") ? "omnipose" : "cellpose";
+        VirtualEnvironmentRunner veRunner = getVirtualEnvironmentRunnerAstra();
+
+        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", runCommand));
+        cellposeArguments.add("--dir");
+        cellposeArguments.add(inputDirectory.getAbsolutePath());
+        cellposeArguments.add("--pretrained_model");
+        cellposeArguments.add(modelPath);
+
+        this.parameters.forEach((parameter, value) -> {
+            cellposeArguments.add("--" + parameter);
+            if (value != null) {
+                cellposeArguments.add(value);
+            }
+        });
+
+        cellposeArguments.add("--save_tif");
+        cellposeArguments.add("--no_npy");
+
+        if (!this.disableGPU) {
+            cellposeArguments.add("--use_gpu");
+        }
+
+        cellposeArguments.add("--verbose");
+
+        veRunner.setArguments(cellposeArguments);
+        veRunner.runCommand(false);
+        processCellposeFilesAstra(veRunner, inputDirectory, allTiles);
+    }
+
+    private void processCellposeFilesAstra(VirtualEnvironmentRunner veRunner, File inputDirectory, List<AstraTileFile> allTiles) throws CancellationException, InterruptedException, IOException {
+        if (allTiles == null) {
+            veRunner.getProcess().waitFor();
+            return;
+        }
+
+        ExecutorService executor = Executors.newFixedThreadPool(5);
+
+        try {
+            if (!this.doReadResultsAsynchronously) {
+                veRunner.getProcess().waitFor();
+                allTiles.forEach(entry -> executor.execute(() -> entry.setCandidates(readObjectsFromTileFileAstra(entry))));
+            } else {
+                LinkedHashMap<File, AstraTileFile> remainingFiles = allTiles.stream()
+                        .map(entry -> new AbstractMap.SimpleEntry<>(entry.getLabelFile(), entry))
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b, LinkedHashMap::new));
+
+                try {
+                    veRunner.startWatchService(inputDirectory.toPath());
+
+                    while (!remainingFiles.isEmpty() && veRunner.getProcess().isAlive()) {
+                        if (!veRunner.getProcess().isAlive()) {
+                            int exitValue = veRunner.getProcess().exitValue();
+                            if (exitValue != 0) {
+                                throw new IOException("Cellpose process exited with value " + exitValue + ". Please check output above for indications of the problem. Will attempt to continue");
+                            }
+                        }
+
+                        List<String> changedFiles = veRunner.getChangedFiles();
+                        if (changedFiles.isEmpty()) {
+                            continue;
+                        }
+
+                        LinkedHashMap<File, AstraTileFile> finishedFiles = remainingFiles.entrySet().stream()
+                                .filter(set -> changedFiles.contains(set.getKey().getName()))
+                                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b, LinkedHashMap::new));
+
+                        finishedFiles.forEach((key, tile) -> executor.execute(() -> tile.setCandidates(readObjectsFromTileFileAstra(tile))));
+                        finishedFiles.forEach((k, v) -> remainingFiles.remove(k));
+                    }
+                } finally {
+                    List<String> changedFiles = veRunner.getChangedFiles();
+                    LinkedHashMap<File, AstraTileFile> finishedFiles = remainingFiles.entrySet().stream()
+                            .filter(set -> changedFiles.contains(set.getKey().getName()))
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b, LinkedHashMap::new));
+
+                    finishedFiles.forEach((key, tile) -> executor.execute(() -> tile.setCandidates(readObjectsFromTileFileAstra(tile))));
+                    veRunner.closeWatchService();
+                }
+            }
+        } finally {
+            executor.shutdown();
+            executor.awaitTermination(10, TimeUnit.MINUTES);
+        }
+    }
+
+    private Collection<AstraCandidateObject> readObjectsFromTileFileAstra(AstraTileFile tileFile) {
+        RegionRequest request = tileFile.getTile();
+
+        logger.info("Reading {}", tileFile.getLabelFile().getName());
+        ImagePlus labelImp = IJ.openImage(tileFile.getLabelFile().getAbsolutePath());
+        if (labelImp == null) {
+            throw new IllegalStateException("Could not open Cellpose label image: " + tileFile.getLabelFile().getAbsolutePath());
+        }
+
+        ImageProcessor ip = labelImp.getProcessor();
+        Wand wand = new Wand(ip);
+
+        int width = ip.getWidth();
+        int height = ip.getHeight();
+
+        int[] pixelWidth = new int[width];
+        int[] pixelHeight = new int[height];
+        IntStream.range(0, width).forEach(val -> pixelWidth[val] = val);
+        IntStream.range(0, height).forEach(val -> pixelHeight[val] = val);
+
+        ip.setColor(0);
+        List<AstraCandidateObject> rois = new ArrayList<>();
+
+        for (int yCoordinate : pixelHeight) {
+            for (int xCoordinate : pixelWidth) {
+                float val = ip.getf(xCoordinate, yCoordinate);
+                if (val > 0.0) {
+                    wand.autoOutline(xCoordinate, yCoordinate, val, val);
+                    if (wand.npoints > 0) {
+                        Roi roi = new PolygonRoi(wand.xpoints, wand.ypoints, wand.npoints, Roi.FREEROI);
+                        Geometry geometry = IJTools.convertToROI(
+                                roi,
+                                -1.0 * request.getX() / request.getDownsample(),
+                                -1.0 * request.getY() / request.getDownsample(),
+                                request.getDownsample(),
+                                request.getImagePlane()
+                        ).getGeometry();
+                        rois.add(new AstraCandidateObject(geometry, tileFile.getParent()));
+                        ip.fill(roi);
+                    }
+                }
+            }
+        }
+
+        labelImp.close();
+        return rois;
+    }
+
+    private Geometry simplifyGeometryAstra(Geometry geom) {
+        if (simplifyDistance <= 0) {
+            return geom;
+        }
+        try {
+            return VWSimplifier.simplify(geom, simplifyDistance);
+        } catch (Exception e) {
+            return geom;
+        }
+    }
+
+    private PathObject convertToObjectAstra(AstraCandidateObject object, ImagePlane plane, double cellExpansion, boolean constrainToParent, Geometry mask) {
+        var geomNucleus = simplifyGeometryAstra(object.geometry());
+        PathObject pathObject;
+        if (cellExpansion > 0) {
+            var geomCell = CellTools.estimateCellBoundary(geomNucleus, cellExpansion, cellConstrainScale);
+            if (constrainToParent) {
+                geomCell = GeometryTools.attemptOperation(geomCell, g -> g.intersection(mask));
+                var geomCell2 = geomCell;
+                geomNucleus = GeometryTools.attemptOperation(geomNucleus, g -> g.intersection(geomCell2));
+                geomNucleus = GeometryTools.ensurePolygonal(geomNucleus);
+            } else if (!geomNucleus.intersects(mask)) {
+                return null;
+            }
+
+            geomCell = simplifyGeometryAstra(geomCell);
+            geomCell = GeometryTools.ensurePolygonal(geomCell);
+
+            if (geomCell.isEmpty()) {
+                logger.warn("Empty cell boundary at {} will be skipped", object.geometry().getCentroid());
+                return null;
+            }
+            if (geomNucleus.isEmpty()) {
+                logger.warn("Empty nucleus at {} will be skipped", object.geometry().getCentroid());
+                return null;
+            }
+
+            var roiCell = GeometryTools.geometryToROI(geomCell, plane);
+            var roiNucleus = GeometryTools.geometryToROI(geomNucleus, plane);
+            if (creatorFun == null) {
+                pathObject = PathObjects.createCellObject(roiCell, roiNucleus, null, null);
+            } else {
+                pathObject = creatorFun.apply(roiCell);
+                if (roiNucleus != null) {
+                    pathObject.addChildObject(creatorFun.apply(roiNucleus));
+                }
+            }
+        } else {
+            if (constrainToParent) {
+                geomNucleus = GeometryTools.attemptOperation(geomNucleus, g -> g.intersection(mask));
+                geomNucleus = GeometryTools.ensurePolygonal(geomNucleus);
+                if (geomNucleus.isEmpty()) {
+                    return null;
+                }
+            } else if (!geomNucleus.intersects(mask)) {
+                return null;
+            }
+
+            var roiNucleus = GeometryTools.geometryToROI(geomNucleus, plane);
+            if (creatorFun == null) {
+                pathObject = PathObjects.createDetectionObject(roiNucleus);
+            } else {
+                pathObject = creatorFun.apply(roiNucleus);
+            }
+        }
+
+        var pathClass = globalPathClass;
+        if (pathClass != null && pathClass.isValid()) {
+            pathObject.setPathClass(pathClass);
+        }
+        return pathObject;
+    }
+
+    private List<AstraCandidateObject> filterDetectionsAstra(Collection<AstraCandidateObject> rawCandidates) {
+        List<AstraCandidateObject> candidateList = new ArrayList<>(rawCandidates);
+        candidateList.sort(Comparator.comparingDouble(o -> -1 * o.area()));
+
+        var retainedObjects = new LinkedHashSet<AstraCandidateObject>();
+        var skippedObjects = new HashSet<AstraCandidateObject>();
+        int skipErrorCount = 0;
+
+        Map<AstraCandidateObject, Envelope> envelopes = new HashMap<>();
+        var tree = new STRtree();
+        for (var det : candidateList) {
+            var env = det.geometry().getEnvelopeInternal();
+            envelopes.put(det, env);
+            tree.insert(env, det);
+        }
+
+        for (AstraCandidateObject currentCandidate : candidateList) {
+            if (skippedObjects.contains(currentCandidate)) {
+                continue;
+            }
+
+            retainedObjects.add(currentCandidate);
+            var envelope = envelopes.get(currentCandidate);
+
+            @SuppressWarnings("unchecked")
+            List<AstraCandidateObject> overlaps = (List<AstraCandidateObject>)tree.query(envelope);
+            for (AstraCandidateObject overlappingCandidate : overlaps) {
+                if (overlappingCandidate == currentCandidate || skippedObjects.contains(overlappingCandidate) || retainedObjects.contains(overlappingCandidate)) {
+                    continue;
+                }
+
+                try {
+                    var env = envelopes.get(overlappingCandidate);
+                    if (envelope.intersects(env) && currentCandidate.geometry().intersects(overlappingCandidate.geometry())) {
+                        var difference = overlappingCandidate.geometry().difference(currentCandidate.geometry());
+
+                        if (difference instanceof GeometryCollection) {
+                            difference = GeometryTools.ensurePolygonal(difference);
+
+                            double maxArea = -1;
+                            int index = -1;
+                            for (int i = 0; i < difference.getNumGeometries(); i++) {
+                                double area = difference.getGeometryN(i).getArea();
+                                if (area > maxArea) {
+                                    maxArea = area;
+                                    index = i;
+                                }
+                            }
+                            if (index < 0) {
+                                skippedObjects.add(overlappingCandidate);
+                                continue;
+                            }
+                            difference = difference.getGeometryN(index);
+                        }
+
+                        if (difference.getArea() > overlappingCandidate.area() / 2.0) {
+                            overlappingCandidate.setGeometry(difference);
+                        } else {
+                            skippedObjects.add(overlappingCandidate);
+                        }
+                    }
+                } catch (Exception e) {
+                    skipErrorCount++;
+                    skippedObjects.add(overlappingCandidate);
+                }
+            }
+        }
+
+        if (skipErrorCount > 0) {
+            int skipCount = skippedObjects.size();
+            logger.warn("Skipped {} object(s) due to error in resolving overlaps ({}% of all skipped)",
+                    skipErrorCount, GeneralTools.formatNumber(skipErrorCount * 100.0 / skipCount, 1));
+        }
+
+        return new ArrayList<>(retainedObjects);
+    }
+
+    private static PathObject objectToCellAstra(PathObject pathObject) {
+        ROI roiNucleus = null;
+        var children = pathObject.getChildObjects();
+        if (children.size() == 1) {
+            roiNucleus = children.iterator().next().getROI();
+        } else if (children.size() > 1) {
+            throw new IllegalArgumentException("Cannot convert object with multiple child objects to a cell!");
+        }
+        return PathObjects.createCellObject(pathObject.getROI(), roiNucleus, pathObject.getPathClass(), pathObject.getMeasurementList());
+    }
+
+    private static PathObject cellToObjectAstra(PathObject cell, java.util.function.Function<ROI, PathObject> creator) {
+        var parent = creator.apply(cell.getROI());
+        var nucleusROI = cell instanceof PathCellObject ? ((PathCellObject) cell).getNucleusROI() : null;
+        if (nucleusROI != null) {
+            var nucleus = creator.apply(nucleusROI);
+            nucleus.setPathClass(cell.getPathClass());
+            parent.addChildObject(nucleus);
+        }
+        parent.setPathClass(cell.getPathClass());
+        var cellMeasurements = cell.getMeasurementList();
+        if (!cellMeasurements.isEmpty()) {
+            try (var ml = parent.getMeasurementList()) {
+                ml.putAll(cellMeasurements);
+            }
+        }
+        return parent;
+    }
+
+    private File requireConfiguredTempDirectory() throws IOException {
+        File directory = (File)readCellpose2DField("tempDirectory");
+        if (directory == null) {
+            throw new IOException("ASTRA batch inference requires tempDirectory to be configured on the builder.");
+        }
+        return ensureDirectoryExists(directory);
+    }
+
+    private void setTempDirectoryField(File tempDirectory) {
+        writeCellpose2DField("tempDirectory", tempDirectory);
+    }
+
+    private Object readCellpose2DField(String fieldName) {
+        try {
+            Field field = Cellpose2D.class.getDeclaredField(fieldName);
+            field.setAccessible(true);
+            return field.get(this);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Unable to read Cellpose2D field '" + fieldName + "'.", e);
+        }
+    }
+
+    private void writeCellpose2DField(String fieldName, Object value) {
+        try {
+            Field field = Cellpose2D.class.getDeclaredField(fieldName);
+            field.setAccessible(true);
+            field.set(this, value);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Unable to write Cellpose2D field '" + fieldName + "'.", e);
+        }
+    }
+
+    private static final class BatchStagingContext {
+        private final ImageServer<BufferedImage> server;
+        private final PixelCalibration nativeCalibration;
+        private final ImageDataServer<BufferedImage> opServer;
+        private final double requestDownsample;
+        private final double expansion;
+        private final double canonicalPixelSize;
+
+        private BatchStagingContext(
+                ImageServer<BufferedImage> server,
+                PixelCalibration nativeCalibration,
+                ImageDataServer<BufferedImage> opServer,
+                double requestDownsample,
+                double expansion,
+                double canonicalPixelSize
+        ) {
+            this.server = server;
+            this.nativeCalibration = nativeCalibration;
+            this.opServer = opServer;
+            this.requestDownsample = requestDownsample;
+            this.expansion = expansion;
+            this.canonicalPixelSize = canonicalPixelSize;
+        }
+
+        public ImageServer<BufferedImage> server() {
+            return server;
+        }
+
+        public PixelCalibration nativeCalibration() {
+            return nativeCalibration;
+        }
+
+        public ImageDataServer<BufferedImage> opServer() {
+            return opServer;
+        }
+
+        public double requestDownsample() {
+            return requestDownsample;
+        }
+
+        public double expansion() {
+            return expansion;
+        }
+
+        public double canonicalPixelSize() {
+            return canonicalPixelSize;
+        }
+    }
+
+    private static final class AstraTileFile {
+        private final RegionRequest request;
+        private final File imageFile;
+        private final PathObject parent;
+        private Collection<AstraCandidateObject> candidates = Collections.emptyList();
+
+        private AstraTileFile(RegionRequest request, File imageFile, PathObject parent) {
+            this.request = request;
+            this.imageFile = imageFile;
+            this.parent = parent;
+        }
+
+        public File getLabelFile() {
+            return new File(FilenameUtils.removeExtension(imageFile.getAbsolutePath()) + "_cp_masks.tif");
+        }
+
+        public RegionRequest getTile() {
+            return request;
+        }
+
+        public PathObject getParent() {
+            return parent;
+        }
+
+        public Collection<AstraCandidateObject> getCandidates() {
+            return candidates;
+        }
+
+        public void setCandidates(Collection<AstraCandidateObject> candidates) {
+            this.candidates = candidates == null ? Collections.emptyList() : candidates;
+        }
+    }
+
+    private static final class AstraCandidateObject {
+        private final double area;
+        private Geometry geometry;
+        private final PathObject parent;
+
+        private AstraCandidateObject(Geometry geometry, PathObject parent) {
+            Objects.requireNonNull(geometry, "geometry");
+            Objects.requireNonNull(parent, "parent");
+            this.geometry = GeometryTools.ensurePolygonal(geometry);
+            this.parent = parent;
+
+            double maxArea = -1;
+            int index = -1;
+            for (int i = 0; i < this.geometry.getNumGeometries(); i++) {
+                double area = this.geometry.getGeometryN(i).getArea();
+                if (area > maxArea) {
+                    maxArea = area;
+                    index = i;
+                }
+            }
+            if (index < 0) {
+                throw new IllegalArgumentException("Candidate geometry contains no polygonal components.");
+            }
+            this.geometry = this.geometry.getGeometryN(index);
+            this.area = this.geometry.getArea();
+        }
+
+        public double area() {
+            return area;
+        }
+
+        public Geometry geometry() {
+            return geometry;
+        }
+
+        public PathObject parent() {
+            return parent;
+        }
+
+        public void setGeometry(Geometry geometry) {
+            this.geometry = geometry;
+        }
     }
 
     public record BatchInferenceRequest(String key, ImageData<BufferedImage> imageData, Collection<? extends PathObject> parents) {
@@ -880,11 +1570,11 @@ public class AstraCellpose2D extends Cellpose2D {
 
 
     private void setTrainingResults(ResultsTable resultsTable) {
-        setTrainingResultsTable(resultsTable);
+        writeCellpose2DField("trainingResults", resultsTable);
     }
 
     private void setQcResults(ResultsTable resultsTable) {
-        setQCResultsTable(resultsTable);
+        writeCellpose2DField("qcResults", resultsTable);
     }
 
     private static void copyCellpose2DState(Cellpose2D source, Cellpose2D target) {
