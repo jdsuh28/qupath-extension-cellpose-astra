@@ -23,9 +23,10 @@ public class AstraCellposeExtension extends CellposeExtension {
 
     private static final LinkedHashMap<String, String> ASTRA_SCRIPTS = new LinkedHashMap<>() {{
         put("ASTRA Training", "astra/training/training.groovy");
-        put("ASTRA QC", "astra/qc/qc.groovy");
+        put("ASTRA Validation", "astra/validation/validation.groovy");
         put("ASTRA Tuning", "astra/tuning/tuning.groovy");
         put("ASTRA Analysis", "astra/analysis/analysis.groovy");
+        put("ASTRA Training Image", "astra/tools/training_image.groovy");
     }};
 
     private static final String ASTRA_PREF_CATEGORY = "ASTRA/Cellpose";
