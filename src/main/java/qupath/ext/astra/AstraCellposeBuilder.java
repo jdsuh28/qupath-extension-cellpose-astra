@@ -1,3 +1,4 @@
+// cspell:ignore qupath Cellpose Omnipose cellprob Gson gson rawtypes
 package qupath.ext.astra;
 
 import com.google.gson.Gson;
@@ -10,9 +11,7 @@ import qupath.lib.analysis.features.ObjectMeasurements.Compartments;
 import qupath.lib.io.GsonTools;
 import qupath.lib.analysis.features.ObjectMeasurements.Measurements;
 import qupath.lib.images.servers.ColorTransforms.ColorTransform;
-import qupath.lib.objects.PathObject;
 import qupath.lib.objects.classes.PathClass;
-import qupath.lib.roi.interfaces.ROI;
 import qupath.lib.scripting.QP;
 import qupath.opencv.ops.ImageOp;
 
@@ -26,8 +25,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Map;
-import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * ASTRA-owned builder that preserves the upstream CellposeBuilder API surface
@@ -506,7 +503,6 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         copyFields(source, target, CellposeBuilder.class);
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
     private static void copyFields(Object source, Object target, Class<?> owner) {
         for (Field field : owner.getDeclaredFields()) {
             if (Modifier.isStatic(field.getModifiers())) {
@@ -517,12 +513,10 @@ public class AstraCellposeBuilder extends CellposeBuilder {
                 Object value = field.get(source);
                 if (Modifier.isFinal(field.getModifiers())) {
                     Object existing = field.get(target);
-                    if (existing instanceof Collection existingCollection && value instanceof Collection valueCollection) {
-                        existingCollection.clear();
-                        existingCollection.addAll(valueCollection);
-                    } else if (existing instanceof Map existingMap && value instanceof Map valueMap) {
-                        existingMap.clear();
-                        existingMap.putAll(valueMap);
+                    if (existing instanceof Collection<?> existingCollection && value instanceof Collection<?> valueCollection) {
+                        copyCollectionContents(existingCollection, valueCollection);
+                    } else if (existing instanceof Map<?, ?> existingMap && value instanceof Map<?, ?> valueMap) {
+                        copyMapContents(existingMap, valueMap);
                     }
                     continue;
                 }
@@ -530,6 +524,24 @@ public class AstraCellposeBuilder extends CellposeBuilder {
             } catch (ReflectiveOperationException e) {
                 throw new IllegalStateException("Unable to copy field '" + field.getName() + "' from " + owner.getName(), e);
             }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void copyCollectionContents(Collection<?> target, Collection<?> source) {
+        Collection<Object> targetObjects = (Collection<Object>) target;
+        targetObjects.clear();
+        for (Object item : source) {
+            targetObjects.add(item);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void copyMapContents(Map<?, ?> target, Map<?, ?> source) {
+        Map<Object, Object> targetMap = (Map<Object, Object>) target;
+        targetMap.clear();
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            targetMap.put(entry.getKey(), entry.getValue());
         }
     }
 

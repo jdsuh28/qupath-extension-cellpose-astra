@@ -31,6 +31,7 @@ import qupath.fx.dialogs.Dialogs;
 import qupath.fx.utils.FXUtils;
 import qupath.imagej.tools.IJTools;
 import qupath.lib.analysis.features.ObjectMeasurements;
+import qupath.lib.common.ColorTools;
 import qupath.lib.common.GeneralTools;
 import qupath.lib.geom.ImmutableDimension;
 import qupath.lib.gui.QuPathGUI;
@@ -41,6 +42,7 @@ import qupath.lib.objects.CellTools;
 import qupath.lib.objects.PathCellObject;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.PathObjects;
+import qupath.lib.objects.classes.PathClass;
 import qupath.lib.regions.ImagePlane;
 import qupath.lib.regions.RegionRequest;
 import qupath.lib.roi.GeometryTools;
@@ -52,6 +54,7 @@ import qupath.opencv.ops.ImageDataServer;
 import qupath.opencv.ops.ImageOp;
 import qupath.opencv.ops.ImageOps;
 import qupath.opencv.tools.OpenCVTools;
+import qupath.lib.images.writers.ImageWriterTools;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -61,8 +64,6 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.file.Path;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -77,8 +78,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -100,6 +99,7 @@ public class AstraCellpose2D extends Cellpose2D {
     private boolean astraBatchEnabled = true;
     private boolean astraPixelScalingEnabled = true;
     private Double astraLastCanonicalPixelSizeUsed = null;
+    private String astraTrainingAnnotationClass = null;
 
     public AstraCellpose2D() {
         super();
@@ -141,6 +141,19 @@ public class AstraCellpose2D extends Cellpose2D {
         astraLastCanonicalPixelSizeUsed = null;
     }
 
+    public void setAstraTrainingAnnotationClass(String pathClassName) {
+        if (pathClassName == null) {
+            this.astraTrainingAnnotationClass = null;
+            return;
+        }
+        String trimmed = pathClassName.trim();
+        this.astraTrainingAnnotationClass = trimmed.isEmpty() ? null : trimmed;
+    }
+
+    public String getAstraTrainingAnnotationClass() {
+        return astraTrainingAnnotationClass;
+    }
+
     static AstraCellpose2D fromBase(Cellpose2D base) {
         AstraCellpose2D astra = new AstraCellpose2D();
         copyCellpose2DState(base, astra);
@@ -172,6 +185,7 @@ public class AstraCellpose2D extends Cellpose2D {
 
         double previousPixelSize = pixelSize;
         boolean restorePixelSize = false;
+        String trainingAnnotationClass = astraTrainingAnnotationClass;
 
         try {
             if (!astraPixelScalingEnabled) {
@@ -192,12 +206,160 @@ public class AstraCellpose2D extends Cellpose2D {
                 }
             }
 
-            super.saveTrainingImages();
+            if (trainingAnnotationClass == null || trainingAnnotationClass.isBlank()) {
+                super.saveTrainingImages();
+                return;
+            }
+
+            saveTrainingImagesForClass(trainingAnnotationClass);
         } finally {
             if (restorePixelSize) {
                 pixelSize = previousPixelSize;
             }
         }
+    }
+
+
+    private void saveTrainingImagesForClass(String trainingAnnotationClass) {
+        File trainDirectory = getTrainingDirectory();
+        trainDirectory.mkdirs();
+        File valDirectory = getValidationDirectory();
+        valDirectory.mkdirs();
+
+        var qupath = QPEx.getQuPath();
+        if (qupath == null || qupath.getProject() == null) {
+            throw new IllegalStateException("ASTRA training image export requires an open QuPath project.");
+        }
+
+        qupath.getProject().getImageList().forEach(entry -> {
+            try {
+                ImageData<BufferedImage> imageData = castImageData(entry.readImageData());
+                if (imageData == null) {
+                    throw new IllegalStateException("Could not read image data for training export.");
+                }
+
+                if (this.extendChannelOp != null) {
+                    ImageServer<BufferedImage> avgServer = new TransformedServerBuilder(imageData.getServer()).averageChannelProject().build();
+                    ImageData<BufferedImage> avgImageData = new ImageData<>(avgServer, imageData.getHierarchy(), ImageData.ImageType.OTHER);
+                    ImageDataOp op2 = ImageOps.buildImageDataOp(ColorTransforms.createMeanChannelTransform());
+                    op2 = op2.appendOps(extendChannelOp);
+                    ImageServer<BufferedImage> opServer = ImageOps.buildServer(avgImageData, op2, imageData.getServer().getPixelCalibration());
+                    ImageServer<BufferedImage> combinedServer = concatChannelsSafely(avgServer, opServer);
+                    imageData = new ImageData<>(combinedServer, imageData.getHierarchy(), ImageData.ImageType.OTHER);
+                }
+
+                String imageName = GeneralTools.stripExtension(imageData.getServer().getMetadata().getName());
+                Collection<PathObject> allAnnotations = imageData.getHierarchy().getAnnotationObjects();
+
+                List<PathObject> trainingAnnotations = allAnnotations.stream()
+                        .filter(a -> hasExactPathClass(a, "Training"))
+                        .collect(Collectors.toList());
+                List<PathObject> validationAnnotations = allAnnotations.stream()
+                        .filter(a -> hasExactPathClass(a, "Validation"))
+                        .collect(Collectors.toList());
+
+                PixelCalibration resolution = imageData.getServer().getPixelCalibration();
+                if (Double.isFinite(pixelSize) && pixelSize > 0) {
+                    double downsample = pixelSize / resolution.getAveragedPixelSize().doubleValue();
+                    resolution = resolution.createScaledInstance(downsample, downsample);
+                }
+
+                logger.info("Found {} Training objects and {} Validation objects in image {}", trainingAnnotations.size(), validationAnnotations.size(), imageName);
+                if (trainingAnnotations.isEmpty() && validationAnnotations.isEmpty()) {
+                    return;
+                }
+
+                ImageDataOp opWithPreprocessing = buildTrainingPreprocessingOp(imageData);
+                ImageServer<BufferedImage> processed = ImageOps.buildServer(imageData, opWithPreprocessing, resolution, tileWidth, tileHeight);
+                LabeledImageServer labelServer = new LabeledImageServer.Builder(imageData)
+                        .backgroundLabel(0, ColorTools.BLACK)
+                        .multichannelOutput(false)
+                        .useInstanceLabels()
+                        .useFilter(o -> hasExactPathClass(o, trainingAnnotationClass))
+                        .build();
+
+                saveImagePairsAstra(trainingAnnotations, imageName, processed, labelServer, trainDirectory);
+                saveImagePairsAstra(validationAnnotations, imageName, processed, labelServer, valDirectory);
+            } catch (Exception ex) {
+                logger.error(ex.getMessage(), ex);
+            }
+        });
+    }
+
+    private ImageDataOp buildTrainingPreprocessingOp(ImageData<BufferedImage> imageData) throws IOException, InterruptedException {
+        ArrayList<ImageOp> fullPreprocess = new ArrayList<>();
+        fullPreprocess.add(ImageOps.Core.ensureType(PixelType.FLOAT32));
+
+        if (globalPreprocess) {
+            if (globalPreprocessingProvidedByUser == null) {
+                List<ImageOp> splitMergeListImageOp = new ArrayList<>();
+                for (Map.Entry<ColorTransforms.ColorTransform, Map<String, Double>> entry : this.normalizeChannelPercentilesGlobalMap.entrySet()) {
+                    splitMergeListImageOp.add(computeNormalizationImageOpsAstra(entry.getKey(), entry.getValue(), imageData, null, null));
+                }
+                fullPreprocess.add(ImageOps.Core.splitMerge(splitMergeListImageOp));
+            } else {
+                Object normalizeOps = globalPreprocessingProvidedByUser.createOps(op, imageData, null, null);
+                if (normalizeOps instanceof Collection<?> normalizeOpCollection) {
+                    for (Object normalizeOp : normalizeOpCollection) {
+                        fullPreprocess.add((ImageOp) normalizeOp);
+                    }
+                } else if (normalizeOps instanceof ImageOp normalizeOp) {
+                    fullPreprocess.add(normalizeOp);
+                } else if (normalizeOps != null) {
+                    throw new IllegalStateException("Unexpected preprocessing op payload type: " + normalizeOps.getClass().getName());
+                }
+            }
+            this.parameters.put("no_norm", null);
+        }
+
+        if (preprocess != null && !preprocess.isEmpty()) {
+            fullPreprocess.addAll(preprocess);
+        }
+
+        if (fullPreprocess.size() > 1) {
+            fullPreprocess.add(ImageOps.Core.ensureType(PixelType.FLOAT32));
+        }
+
+        return op.appendOps(fullPreprocess.toArray(ImageOp[]::new));
+    }
+
+    private void saveImagePairsAstra(List<PathObject> annotations, String imageName, ImageServer<BufferedImage> originalServer, ImageServer<BufferedImage> labelServer, File saveDirectory) {
+        if (annotations == null || annotations.isEmpty()) {
+            return;
+        }
+
+        final double downsample = (Double.isFinite(pixelSize) && pixelSize > 0)
+                ? pixelSize / originalServer.getPixelCalibration().getAveragedPixelSize().doubleValue()
+                : 1.0d;
+
+        for (int i = 0; i < annotations.size(); i++) {
+            PathObject annotation = annotations.get(i);
+            RegionRequest request = RegionRequest.createInstance(originalServer.getPath(), downsample, annotation.getROI());
+            File imageFile = new File(saveDirectory, imageName + "_region_" + i + ".tif");
+            File maskFile = new File(saveDirectory, imageName + "_region_" + i + "_masks.tif");
+            try {
+                if (request.getWidth() < 10 || request.getHeight() < 10) {
+                    throw new IllegalStateException("Tile size too small, ignoring");
+                }
+                ImageWriterTools.writeImageRegion(originalServer, request, imageFile.getAbsolutePath());
+                ImageWriterTools.writeImageRegion(labelServer, request, maskFile.getAbsolutePath());
+                logger.info("Saved image pair: {} | {}", imageFile.getName(), maskFile.getName());
+            } catch (IOException ex) {
+                logger.error(ex.getMessage(), ex);
+                logger.error("Troubleshooting: Check that the channel names are correct in the builder.");
+            } catch (Exception ex) {
+                logger.warn(ex.getMessage());
+                logger.warn("Tile {} too small", request);
+            }
+        }
+    }
+
+    private static boolean hasExactPathClass(PathObject object, String className) {
+        if (object == null || className == null) {
+            return false;
+        }
+        PathClass pathClass = object.getPathClass();
+        return pathClass != null && className.equals(pathClass.toString());
     }
 
     @Override
@@ -884,7 +1046,7 @@ public class AstraCellpose2D extends Cellpose2D {
             }
         }
 
-        return new BatchStagingContext(server, nativeCalibration, opServer, effectiveDownsample, expansion, workingPixelSize);
+        return new BatchStagingContext(server, nativeCalibration, opServer, effectiveDownsample, expansion);
     }
 
     private double requireCanonicalBatchPixelSize() {
@@ -1417,22 +1579,18 @@ public class AstraCellpose2D extends Cellpose2D {
         private final ImageDataServer<BufferedImage> opServer;
         private final double requestDownsample;
         private final double expansion;
-        private final double canonicalPixelSize;
-
         private BatchStagingContext(
                 ImageServer<BufferedImage> server,
                 PixelCalibration nativeCalibration,
                 ImageDataServer<BufferedImage> opServer,
                 double requestDownsample,
-                double expansion,
-                double canonicalPixelSize
+                double expansion
         ) {
             this.server = server;
             this.nativeCalibration = nativeCalibration;
             this.opServer = opServer;
             this.requestDownsample = requestDownsample;
             this.expansion = expansion;
-            this.canonicalPixelSize = canonicalPixelSize;
         }
 
         public ImageServer<BufferedImage> server() {
@@ -1455,9 +1613,6 @@ public class AstraCellpose2D extends Cellpose2D {
             return expansion;
         }
 
-        public double canonicalPixelSize() {
-            return canonicalPixelSize;
-        }
     }
 
     private static final class AstraTileFile {
@@ -1496,13 +1651,10 @@ public class AstraCellpose2D extends Cellpose2D {
     private static final class AstraCandidateObject {
         private final double area;
         private Geometry geometry;
-        private final PathObject parent;
-
         private AstraCandidateObject(Geometry geometry, PathObject parent) {
             Objects.requireNonNull(geometry, "geometry");
             Objects.requireNonNull(parent, "parent");
             this.geometry = GeometryTools.ensurePolygonal(geometry);
-            this.parent = parent;
 
             double maxArea = -1;
             int index = -1;
@@ -1528,9 +1680,6 @@ public class AstraCellpose2D extends Cellpose2D {
             return geometry;
         }
 
-        public PathObject parent() {
-            return parent;
-        }
 
         public void setGeometry(Geometry geometry) {
             this.geometry = geometry;
@@ -1879,4 +2028,15 @@ public class AstraCellpose2D extends Cellpose2D {
         Objects.requireNonNull(trainingResultsFolder, "trainingResultsFolder");
         return new File(trainingResultsFolder, "training_graph.png");
     }
+
+    @SuppressWarnings("unchecked")
+    private static ImageData<BufferedImage> castImageData(ImageData<?> imageData) {
+        return (ImageData<BufferedImage>) imageData;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static ImageServer<BufferedImage> concatChannelsSafely(ImageServer<BufferedImage> baseServer, ImageServer<BufferedImage> extraServer) {
+        return (ImageServer<BufferedImage>) new TransformedServerBuilder(baseServer).concatChannels((ImageServer) extraServer).build();
+    }
+
 }
