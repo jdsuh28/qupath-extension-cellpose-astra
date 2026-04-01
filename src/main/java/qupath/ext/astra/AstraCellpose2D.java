@@ -84,11 +84,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
- * ASTRA-owned Cellpose2D subclass that carries ASTRA training/QC behavior
- * without requiring edits inside the upstream Cellpose2D class.
+ * ASTRA-owned Cellpose2D subclass.
+ *
+ * This class centralizes ASTRA-specific training, QC, and batch-inference
+ * behavior while keeping upstream BIOP runtime code unchanged.
  */
 public class AstraCellpose2D extends Cellpose2D {
 
@@ -100,6 +101,8 @@ public class AstraCellpose2D extends Cellpose2D {
     private boolean astraPixelScalingEnabled = true;
     private Double astraLastCanonicalPixelSizeUsed = null;
     private String astraTrainingAnnotationClass = null;
+
+    // Construction and runtime configuration
 
     public AstraCellpose2D() {
         super();
@@ -132,6 +135,7 @@ public class AstraCellpose2D extends Cellpose2D {
     public Double getAstraLastCanonicalPixelSizeUsed() {
         return astraLastCanonicalPixelSizeUsed;
     }
+
     public void clearAstraLastCanonicalPixelSizeUsed() {
         astraLastCanonicalPixelSizeUsed = null;
     }
@@ -173,6 +177,8 @@ public class AstraCellpose2D extends Cellpose2D {
     public File getValidationDirectory() {
         return resolveValidationDirectory(astraQcDirectory);
     }
+
+    // Training and QC entry points
 
     @Override
     public void saveTrainingImages() {
@@ -217,9 +223,13 @@ public class AstraCellpose2D extends Cellpose2D {
 
     private void saveTrainingImagesForClass(String trainingAnnotationClass) {
         File trainDirectory = getTrainingDirectory();
-        trainDirectory.mkdirs();
-        File valDirectory = getValidationDirectory();
-        valDirectory.mkdirs();
+        File validationDirectory = getValidationDirectory();
+        try {
+            ensureDirectoryExists(trainDirectory);
+            ensureDirectoryExists(validationDirectory);
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not prepare training image export directories.", e);
+        }
 
         var qupath = QPEx.getQuPath();
         if (qupath == null || qupath.getProject() == null) {
@@ -274,7 +284,7 @@ public class AstraCellpose2D extends Cellpose2D {
                         .build();
 
                 saveImagePairsAstra(trainingAnnotations, imageName, processed, labelServer, trainDirectory);
-                saveImagePairsAstra(validationAnnotations, imageName, processed, labelServer, valDirectory);
+                saveImagePairsAstra(validationAnnotations, imageName, processed, labelServer, validationDirectory);
             } catch (Exception ex) {
                 logger.error(ex.getMessage(), ex);
             }
@@ -334,7 +344,7 @@ public class AstraCellpose2D extends Cellpose2D {
             File maskFile = new File(saveDirectory, imageName + "_region_" + i + "_masks.tif");
             try {
                 if (request.getWidth() < 10 || request.getHeight() < 10) {
-                    throw new IllegalStateException("Tile size too small, ignoring");
+                    throw new IllegalStateException("Tile is too small to export.");
                 }
                 ImageWriterTools.writeImageRegion(originalServer, request, imageFile.getAbsolutePath());
                 ImageWriterTools.writeImageRegion(labelServer, request, maskFile.getAbsolutePath());
@@ -344,7 +354,7 @@ public class AstraCellpose2D extends Cellpose2D {
                 logger.error("Troubleshooting: Check that the channel names are correct in the builder.");
             } catch (Exception ex) {
                 logger.warn(ex.getMessage());
-                logger.warn("Tile {} too small", request);
+                logger.warn("Skipped training tile {} because it is too small.", request);
             }
         }
     }
@@ -390,6 +400,8 @@ public class AstraCellpose2D extends Cellpose2D {
         setQcResults(results);
         return results;
     }
+
+    // Batch inference
 
     /**
      * Run ASTRA batch inference across multiple image entries using a single
@@ -459,6 +471,8 @@ public class AstraCellpose2D extends Cellpose2D {
         Objects.requireNonNull(requests, "requests");
         return tune(Arrays.asList(requests));
     }
+
+    // Training graph output
 
     @Override
     public void showTrainingGraph(boolean show, boolean save) {
@@ -974,6 +988,8 @@ public class AstraCellpose2D extends Cellpose2D {
     }
 
 
+    // Internal helpers
+
     private Double resolveTrainingCanonicalPixelSizeFromProject() {
         var qupath = QPEx.getQuPath();
         if (qupath == null || qupath.getProject() == null) {
@@ -1329,16 +1345,11 @@ public class AstraCellpose2D extends Cellpose2D {
         int width = ip.getWidth();
         int height = ip.getHeight();
 
-        int[] pixelWidth = new int[width];
-        int[] pixelHeight = new int[height];
-        IntStream.range(0, width).forEach(val -> pixelWidth[val] = val);
-        IntStream.range(0, height).forEach(val -> pixelHeight[val] = val);
-
         ip.setColor(0);
-        List<AstraCandidateObject> rois = new ArrayList<>();
+        List<AstraCandidateObject> candidateObjects = new ArrayList<>();
 
-        for (int yCoordinate : pixelHeight) {
-            for (int xCoordinate : pixelWidth) {
+        for (int yCoordinate = 0; yCoordinate < height; yCoordinate++) {
+            for (int xCoordinate = 0; xCoordinate < width; xCoordinate++) {
                 float val = ip.getf(xCoordinate, yCoordinate);
                 if (val > 0.0) {
                     wand.autoOutline(xCoordinate, yCoordinate, val, val);
@@ -1351,7 +1362,7 @@ public class AstraCellpose2D extends Cellpose2D {
                                 request.getDownsample(),
                                 request.getImagePlane()
                         ).getGeometry();
-                        rois.add(new AstraCandidateObject(geometry, tileFile.getParent()));
+                        candidateObjects.add(new AstraCandidateObject(geometry));
                         ip.fill(roi);
                     }
                 }
@@ -1359,7 +1370,7 @@ public class AstraCellpose2D extends Cellpose2D {
         }
 
         labelImp.close();
-        return rois;
+        return candidateObjects;
     }
 
     private Geometry simplifyGeometryAstra(Geometry geom) {
@@ -1553,6 +1564,8 @@ public class AstraCellpose2D extends Cellpose2D {
         writeCellpose2DField("tempDirectory", tempDirectory);
     }
 
+    // Reflection and state helpers
+
     private Object readCellpose2DField(String fieldName) {
         try {
             Field field = Cellpose2D.class.getDeclaredField(fieldName);
@@ -1572,6 +1585,8 @@ public class AstraCellpose2D extends Cellpose2D {
             throw new IllegalStateException("Unable to write Cellpose2D field '" + fieldName + "'.", e);
         }
     }
+
+    // Internal data carriers
 
     private static final class BatchStagingContext {
         private final ImageServer<BufferedImage> server;
@@ -1651,9 +1666,8 @@ public class AstraCellpose2D extends Cellpose2D {
     private static final class AstraCandidateObject {
         private final double area;
         private Geometry geometry;
-        private AstraCandidateObject(Geometry geometry, PathObject parent) {
+        private AstraCandidateObject(Geometry geometry) {
             Objects.requireNonNull(geometry, "geometry");
-            Objects.requireNonNull(parent, "parent");
             this.geometry = GeometryTools.ensurePolygonal(geometry);
 
             double maxArea = -1;
@@ -1822,6 +1836,8 @@ public class AstraCellpose2D extends Cellpose2D {
         }
     }
 
+
+    // Directory and model resolution helpers
 
     private void requireAstraQcDirectory() throws IOException {
         if (astraQcDirectory == null) {

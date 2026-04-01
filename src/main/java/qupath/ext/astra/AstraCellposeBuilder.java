@@ -27,11 +27,11 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- * ASTRA-owned builder that preserves the upstream CellposeBuilder API surface
- * while returning an ASTRA-owned Cellpose2D subclass.
+ * ASTRA-owned builder that preserves the upstream fluent API while returning
+ * an ASTRA-owned runtime implementation.
  *
- * This keeps ASTRA behavior out of upstream files and lets ASTRA scripts opt into
- * the ASTRA execution path explicitly.
+ * The builder enforces ASTRA-specific directory resolution and blocks legacy
+ * runtime selectors that would reintroduce ambiguity.
  */
 public class AstraCellposeBuilder extends CellposeBuilder {
 
@@ -39,6 +39,8 @@ public class AstraCellposeBuilder extends CellposeBuilder {
 
     private File astraQcDirectory;
     private File astraResultsDirectory;
+
+    // Construction
 
     public AstraCellposeBuilder(String modelPath) {
         super(modelPath);
@@ -48,6 +50,8 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         super(builderFile);
         hydrateFromFile(builderFile);
     }
+
+    // Fluent overrides
 
     @Override
     public AstraCellposeBuilder extendChannelOp(ImageOp extendChannelOp) {
@@ -396,6 +400,8 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         return this;
     }
 
+    // ASTRA-specific directories
+
     public AstraCellposeBuilder qcDirectory(File qcDir) {
         this.astraQcDirectory = qcDir;
         writeOptionalBuilderField("qcDirectory", qcDir);
@@ -425,11 +431,13 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         }
     }
 
+    // Build and serialization
+
     @Override
     public AstraCellpose2D build() {
         validateUnsupportedRuntimeSelectors();
 
-        File projectDir = QP.getProject().getPath().getParent().toFile();
+        File projectDir = requireProjectDirectory();
 
         File configuredModelDir = (File) readBuilderField("modelDirectory");
         File configuredTrainingRoot = (File) readBuilderField("groundTruthDirectory");
@@ -482,6 +490,13 @@ public class AstraCellposeBuilder extends CellposeBuilder {
                 writeBuilderField("saveBuilder", true);
             }
         }
+    }
+
+    private static File requireProjectDirectory() {
+        if (QP.getProject() == null) {
+            throw new IllegalStateException("ASTRA builder requires an open QuPath project.");
+        }
+        return QP.getProject().getPath().getParent().toFile();
     }
 
     private void hydrateFromFile(File builderFile) {
@@ -561,6 +576,8 @@ public class AstraCellposeBuilder extends CellposeBuilder {
             targetMap.put(entry.getKey(), entry.getValue());
         }
     }
+
+    // Reflection helpers
 
     private Object readBuilderField(String name) {
         return readField(this, CellposeBuilder.class, name, false);

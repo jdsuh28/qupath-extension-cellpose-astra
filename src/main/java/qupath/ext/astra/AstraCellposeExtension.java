@@ -25,6 +25,8 @@ import java.util.Map;
  */
 public class AstraCellposeExtension extends CellposeExtension {
 
+    // Extension metadata and preferences
+
     private static final Logger logger = LoggerFactory.getLogger(AstraCellposeExtension.class);
 
     private static final String ASTRA_PREFERENCE_CATEGORY = "ASTRA/Cellpose";
@@ -37,7 +39,7 @@ public class AstraCellposeExtension extends CellposeExtension {
 
     private static final Map<String, String> ASTRA_SCRIPTS = createAstraScripts();
 
-    private boolean installed;
+    private boolean extensionInstalled;
 
     @Override
     public String getName() {
@@ -54,17 +56,21 @@ public class AstraCellposeExtension extends CellposeExtension {
         return GitHubRepo.create("ASTRA Cellpose 2D QuPath Extension", "jdsuh28", "qupath-extension-cellpose-astra");
     }
 
+    // Extension installation
+
     @Override
     public void installExtension(QuPathGUI qupath) {
-        if (installed) {
+        if (extensionInstalled) {
             return;
         }
 
         installAstraScripts(qupath);
         registerAstraRuntimePreference();
 
-        installed = true;
+        extensionInstalled = true;
     }
+
+    // Internal helpers
 
     private static Map<String, String> createAstraScripts() {
         LinkedHashMap<String, String> scripts = new LinkedHashMap<>();
