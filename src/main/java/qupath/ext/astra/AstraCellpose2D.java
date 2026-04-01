@@ -8,12 +8,17 @@ import ij.gui.Wand;
 import ij.measure.ResultsTable;
 import ij.process.ImageProcessor;
 import javafx.embed.swing.SwingFXUtils;
+import javafx.scene.Group;
+import javafx.scene.Scene;
+import javafx.scene.SnapshotParameters;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
 import javafx.scene.image.WritableImage;
+import javafx.scene.paint.Color;
+import javafx.scene.transform.Transform;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.bytedeco.opencv.opencv_core.Mat;
@@ -88,21 +93,25 @@ import java.util.stream.Collectors;
 /**
  * ASTRA-owned Cellpose2D subclass.
  *
- * This class centralizes ASTRA-specific training, QC, and batch-inference
- * behavior while keeping upstream BIOP runtime code unchanged.
+ * This class centralizes ASTRA-specific training, QC, and batch-inference behavior
+ * while keeping upstream BIOP runtime code unchanged.
  */
 public class AstraCellpose2D extends Cellpose2D {
 
     private static final Logger logger = LoggerFactory.getLogger(AstraCellpose2D.class);
 
-    private File astraQcDirectory;
-    private File astraResultsDirectory;
-    private boolean astraBatchEnabled = true;
-    private boolean astraPixelScalingEnabled = true;
-    private Double astraLastCanonicalPixelSizeUsed = null;
-    private String astraTrainingAnnotationClass = null;
+    private static final int TRAINING_GRAPH_WIDTH = 1600;
+    private static final int TRAINING_GRAPH_HEIGHT = 900;
+    private static final double TRAINING_GRAPH_EXPORT_SCALE = 2.0;
 
-    // Construction and runtime configuration
+    private File qcDirectory;
+    private File resultsDirectory;
+    private boolean batchInferenceEnabled = true;
+    private boolean pixelScalingEnabled = true;
+    private Double lastCanonicalPixelSizeUsed = null;
+    private String trainingAnnotationClassName = null;
+
+    // Construction and configuration
 
     public AstraCellpose2D() {
         super();
@@ -116,41 +125,41 @@ public class AstraCellpose2D extends Cellpose2D {
         return new AstraCellposeBuilder(builderPath);
     }
 
-    public void setAstraBatchEnabled(boolean enabled) {
-        this.astraBatchEnabled = enabled;
+    public void setBatchInferenceEnabled(boolean enabled) {
+        this.batchInferenceEnabled = enabled;
     }
 
-    public boolean isAstraBatchEnabled() {
-        return astraBatchEnabled;
+    public boolean isBatchInferenceEnabled() {
+        return batchInferenceEnabled;
     }
 
-    public void setAstraPixelScalingEnabled(boolean enabled) {
-        this.astraPixelScalingEnabled = enabled;
+    public void setPixelScalingEnabled(boolean enabled) {
+        this.pixelScalingEnabled = enabled;
     }
 
-    public boolean isAstraPixelScalingEnabled() {
-        return astraPixelScalingEnabled;
+    public boolean isPixelScalingEnabled() {
+        return pixelScalingEnabled;
     }
 
-    public Double getAstraLastCanonicalPixelSizeUsed() {
-        return astraLastCanonicalPixelSizeUsed;
+    public Double getLastCanonicalPixelSizeUsed() {
+        return lastCanonicalPixelSizeUsed;
     }
 
-    public void clearAstraLastCanonicalPixelSizeUsed() {
-        astraLastCanonicalPixelSizeUsed = null;
+    public void clearLastCanonicalPixelSizeUsed() {
+        lastCanonicalPixelSizeUsed = null;
     }
 
-    public void setAstraTrainingAnnotationClass(String pathClassName) {
+    public void setTrainingAnnotationClassName(String pathClassName) {
         if (pathClassName == null) {
-            this.astraTrainingAnnotationClass = null;
+            this.trainingAnnotationClassName = null;
             return;
         }
         String trimmed = pathClassName.trim();
-        this.astraTrainingAnnotationClass = trimmed.isEmpty() ? null : trimmed;
+        this.trainingAnnotationClassName = trimmed.isEmpty() ? null : trimmed;
     }
 
-    public String getAstraTrainingAnnotationClass() {
-        return astraTrainingAnnotationClass;
+    public String getTrainingAnnotationClassName() {
+        return trainingAnnotationClassName;
     }
 
     static AstraCellpose2D fromBase(Cellpose2D base) {
@@ -160,11 +169,11 @@ public class AstraCellpose2D extends Cellpose2D {
     }
 
 
-    void configureAstraState(File modelDirectory, File trainingRootDirectory, File tempDirectory, File qcDirectory, File resultsDirectory) {
+    void configureRuntimeState(File modelDirectory, File trainingRootDirectory, File tempDirectory, File qcDirectory, File resultsDirectory) {
         this.modelDirectory = modelDirectory;
         this.groundTruthDirectory = trainingRootDirectory;
-        this.astraQcDirectory = qcDirectory;
-        this.astraResultsDirectory = resultsDirectory;
+        this.qcDirectory = qcDirectory;
+        this.resultsDirectory = resultsDirectory;
         setTempDirectoryField(tempDirectory);
     }
 
@@ -175,25 +184,25 @@ public class AstraCellpose2D extends Cellpose2D {
 
     @Override
     public File getValidationDirectory() {
-        return resolveValidationDirectory(astraQcDirectory);
+        return resolveValidationDirectory(qcDirectory);
     }
 
     // Training and QC entry points
 
     @Override
     public void saveTrainingImages() {
-        clearAstraLastCanonicalPixelSizeUsed();
+        clearLastCanonicalPixelSizeUsed();
 
         double previousPixelSize = pixelSize;
         boolean restorePixelSize = false;
-        String trainingAnnotationClass = astraTrainingAnnotationClass;
+        String trainingAnnotationClass = trainingAnnotationClassName;
 
         try {
-            if (!astraPixelScalingEnabled) {
+            if (!pixelScalingEnabled) {
                 pixelSize = Double.NaN;
                 restorePixelSize = true;
             } else {
-                if ((!Double.isFinite(pixelSize) || pixelSize <= 0) && astraBatchEnabled) {
+                if ((!Double.isFinite(pixelSize) || pixelSize <= 0) && batchInferenceEnabled) {
                     Double resolvedPixelSize = resolveTrainingCanonicalPixelSizeFromProject();
                     if (resolvedPixelSize != null && Double.isFinite(resolvedPixelSize) && resolvedPixelSize > 0) {
                         pixelSize = resolvedPixelSize;
@@ -203,7 +212,7 @@ public class AstraCellpose2D extends Cellpose2D {
                 }
 
                 if (Double.isFinite(pixelSize) && pixelSize > 0) {
-                    astraLastCanonicalPixelSizeUsed = pixelSize;
+                    lastCanonicalPixelSizeUsed = pixelSize;
                 }
             }
 
@@ -283,8 +292,8 @@ public class AstraCellpose2D extends Cellpose2D {
                         .useFilter(o -> hasExactPathClass(o, trainingAnnotationClass))
                         .build();
 
-                saveImagePairsAstra(trainingAnnotations, imageName, processed, labelServer, trainDirectory);
-                saveImagePairsAstra(validationAnnotations, imageName, processed, labelServer, validationDirectory);
+                saveTrainingImagePairs(trainingAnnotations, imageName, processed, labelServer, trainDirectory);
+                saveTrainingImagePairs(validationAnnotations, imageName, processed, labelServer, validationDirectory);
             } catch (Exception ex) {
                 logger.error(ex.getMessage(), ex);
             }
@@ -299,7 +308,7 @@ public class AstraCellpose2D extends Cellpose2D {
             if (globalPreprocessingProvidedByUser == null) {
                 List<ImageOp> splitMergeListImageOp = new ArrayList<>();
                 for (Map.Entry<ColorTransforms.ColorTransform, Map<String, Double>> entry : this.normalizeChannelPercentilesGlobalMap.entrySet()) {
-                    splitMergeListImageOp.add(computeNormalizationImageOpsAstra(entry.getKey(), entry.getValue(), imageData, null, null));
+                    splitMergeListImageOp.add(createNormalizationImageOp(entry.getKey(), entry.getValue(), imageData, null, null));
                 }
                 fullPreprocess.add(ImageOps.Core.splitMerge(splitMergeListImageOp));
             } else {
@@ -328,7 +337,7 @@ public class AstraCellpose2D extends Cellpose2D {
         return op.appendOps(fullPreprocess.toArray(ImageOp[]::new));
     }
 
-    private void saveImagePairsAstra(List<PathObject> annotations, String imageName, ImageServer<BufferedImage> originalServer, ImageServer<BufferedImage> labelServer, File saveDirectory) {
+    private void saveTrainingImagePairs(List<PathObject> annotations, String imageName, ImageServer<BufferedImage> originalServer, ImageServer<BufferedImage> labelServer, File saveDirectory) {
         if (annotations == null || annotations.isEmpty()) {
             return;
         }
@@ -372,13 +381,13 @@ public class AstraCellpose2D extends Cellpose2D {
         requireExplicitModel(this);
         try {
             if (this.cleanTrainingDir) {
-                cleanDirectoryAstra(this.groundTruthDirectory);
+                resetDirectory(this.groundTruthDirectory);
                 saveTrainingImages();
             }
 
-            runTrainingAstra();
+            runTrainingCommand();
 
-            ResultsTable parsedTrainingResults = parseTrainingResultsAstra();
+            ResultsTable parsedTrainingResults = parseTrainingResults();
             setTrainingResults(parsedTrainingResults);
             saveTrainingGraphAfterTraining();
             logger.info("Training completed. Results processed and ready.");
@@ -393,10 +402,10 @@ public class AstraCellpose2D extends Cellpose2D {
     }
 
     public ResultsTable runQC() throws IOException, InterruptedException {
-        requireAstraQcDirectory();
+        requireQcDirectory();
         requireExplicitModel(this);
-        runCellposeOnValidationImagesAstra();
-        ResultsTable results = runCellposeQCAstra();
+        runCellposeOnValidationImages();
+        ResultsTable results = runQcScript();
         setQcResults(results);
         return results;
     }
@@ -418,19 +427,19 @@ public class AstraCellpose2D extends Cellpose2D {
     public List<BatchInferenceResult> runBatchInference(List<BatchInferenceRequest> requests) throws IOException, InterruptedException {
         requireExplicitModel(this);
         Objects.requireNonNull(requests, "requests");
-        if (!astraBatchEnabled) {
-            throw new IllegalStateException("ASTRA batch inference was requested while astraBatchEnabled=false.");
+        if (!batchInferenceEnabled) {
+            throw new IllegalStateException("ASTRA batch inference was requested while batchInferenceEnabled=false.");
         }
-        clearAstraLastCanonicalPixelSizeUsed();
+        clearLastCanonicalPixelSizeUsed();
         if (requests.isEmpty()) {
             return List.of();
         }
 
         File batchTempDirectory = requireConfiguredTempDirectory();
-        cleanDirectoryAstra(batchTempDirectory);
+        resetDirectory(batchTempDirectory);
 
         List<BatchEntryContext> contexts = buildBatchContexts(requests);
-        List<AstraTileFile> allTiles = stageBatchTiles(contexts, batchTempDirectory);
+        List<TileFile> allTiles = stageBatchTiles(contexts, batchTempDirectory);
 
         if (allTiles.isEmpty()) {
             return buildEmptyBatchResults(contexts);
@@ -447,8 +456,7 @@ public class AstraCellpose2D extends Cellpose2D {
     }
 
     /**
-     * Backward-compatible tuning wrapper over the generalized ASTRA batch
-     * inference entrypoint.
+     * Convenience wrapper over the shared ASTRA batch-inference entry point.
      */
     public List<TuningImageResult> tune(List<TuningImageRequest> requests) throws IOException, InterruptedException {
         Objects.requireNonNull(requests, "requests");
@@ -476,64 +484,30 @@ public class AstraCellpose2D extends Cellpose2D {
 
     @Override
     public void showTrainingGraph(boolean show, boolean save) {
-        ResultsTable output = getTrainingResults();
-        if (output == null) {
+        ResultsTable trainingResults = getTrainingResults();
+        if (trainingResults == null) {
             throw new IllegalStateException("ASTRA training graph display requires parsed training results.");
         }
 
-        File trainingResultsFolder = getTrainingResultsFolderAstra();
-
-        final NumberAxis xAxis = new NumberAxis();
-        final NumberAxis yAxis = new NumberAxis();
-        xAxis.setLabel("Epochs");
-        yAxis.setForceZeroInRange(true);
-        yAxis.setAutoRanging(false);
-        yAxis.setLowerBound(0);
-        yAxis.setUpperBound(3.0);
-
-        final LineChart<Number, Number> lineChart = new LineChart<>(xAxis, yAxis);
-        lineChart.setTitle("Cellpose Training");
-
-        XYChart.Series<Number, Number> loss = new XYChart.Series<>();
-        XYChart.Series<Number, Number> lossTest = new XYChart.Series<>();
-        loss.setName("Loss");
-        lossTest.setName("Loss Test");
-
-        for (int i = 0; i < output.getCounter(); i++) {
-            loss.getData().add(new XYChart.Data<>(output.getValue("Epoch", i), output.getValue("Loss", i)));
-            lossTest.getData().add(new XYChart.Data<>(output.getValue("Epoch", i), output.getValue("Validation Loss", i)));
-        }
-
-        lineChart.getData().add(loss);
-        lineChart.getData().add(lossTest);
+        File trainingResultsDirectory = getTrainingResultsDirectory();
 
         FXUtils.runOnApplicationThread(() -> {
-            Dialog<ButtonType> dialog = Dialogs.builder()
-                    .content(lineChart)
-                    .title("Cellpose Training")
-                    .buttons("Close")
-                    .buttons(ButtonType.CLOSE)
-                    .build();
-
             if (show) {
+                LineChart<Number, Number> displayChart = createTrainingLossChart(trainingResults);
+                Dialog<ButtonType> dialog = Dialogs.builder()
+                        .content(displayChart)
+                        .title("ASTRA Cellpose Training")
+                        .buttons(ButtonType.CLOSE)
+                        .build();
                 dialog.show();
             }
 
             if (save) {
-                File trainingGraphFile = resolveTrainingGraphFile(trainingResultsFolder);
-                lineChart.setAnimated(false);
-                lineChart.setCreateSymbols(false);
-                lineChart.setPrefSize(1000, 700);
-                new javafx.scene.Scene(new javafx.scene.Group(lineChart));
-                lineChart.applyCss();
-                lineChart.layout();
-                WritableImage writableImage = lineChart.snapshot(null, null);
-                RenderedImage renderedImage = SwingFXUtils.fromFXImage(writableImage, null);
-
-                logger.info("Saving Training Graph to {}", trainingGraphFile.getName());
-
+                File trainingGraphFile = resolveTrainingGraphFile(trainingResultsDirectory);
+                LineChart<Number, Number> exportChart = createTrainingLossChart(trainingResults);
+                logger.info("Saving training graph to {}", trainingGraphFile.getAbsolutePath());
                 try {
-                    ImageIO.write(renderedImage, "png", trainingGraphFile);
+                    saveTrainingChart(exportChart, trainingGraphFile);
                 } catch (IOException e) {
                     throw new IllegalStateException("Could not write ASTRA training graph image.", e);
                 }
@@ -546,8 +520,163 @@ public class AstraCellpose2D extends Cellpose2D {
         showTrainingGraph(true, true);
     }
 
+    private LineChart<Number, Number> createTrainingLossChart(ResultsTable trainingResults) {
+        NumberAxis epochAxis = createEpochAxis(trainingResults);
+        NumberAxis lossAxis = createLossAxis(trainingResults);
 
-    private void runCellposeOnValidationImagesAstra() {
+        LineChart<Number, Number> chart = new LineChart<>(epochAxis, lossAxis);
+        chart.setTitle("ASTRA Cellpose Training");
+        chart.setAnimated(false);
+        chart.setCreateSymbols(false);
+        chart.setLegendVisible(true);
+        chart.setAlternativeColumnFillVisible(false);
+        chart.setAlternativeRowFillVisible(false);
+        chart.setHorizontalGridLinesVisible(true);
+        chart.setVerticalGridLinesVisible(true);
+        chart.setPrefSize(TRAINING_GRAPH_WIDTH, TRAINING_GRAPH_HEIGHT);
+        chart.setMinSize(TRAINING_GRAPH_WIDTH, TRAINING_GRAPH_HEIGHT);
+        chart.setStyle("-fx-background-color: white; -fx-font-size: 14px;");
+
+        chart.getData().add(createLossSeries(trainingResults, "Training Loss", "Loss"));
+
+        XYChart.Series<Number, Number> validationLossSeries = createLossSeries(trainingResults, "Validation Loss", "Validation Loss");
+        if (!validationLossSeries.getData().isEmpty()) {
+            chart.getData().add(validationLossSeries);
+        }
+
+        return chart;
+    }
+
+    private static NumberAxis createEpochAxis(ResultsTable trainingResults) {
+        double minimumEpoch = Double.POSITIVE_INFINITY;
+        double maximumEpoch = Double.NEGATIVE_INFINITY;
+
+        for (int rowIndex = 0; rowIndex < trainingResults.getCounter(); rowIndex++) {
+            double epoch = trainingResults.getValue("Epoch", rowIndex);
+            if (Double.isFinite(epoch)) {
+                minimumEpoch = Math.min(minimumEpoch, epoch);
+                maximumEpoch = Math.max(maximumEpoch, epoch);
+            }
+        }
+
+        if (!Double.isFinite(minimumEpoch) || !Double.isFinite(maximumEpoch)) {
+            minimumEpoch = 0.0;
+            maximumEpoch = 1.0;
+        }
+
+        if (maximumEpoch <= minimumEpoch) {
+            maximumEpoch = minimumEpoch + 1.0;
+        }
+
+        NumberAxis axis = new NumberAxis(minimumEpoch, maximumEpoch, Math.max(1.0, niceTickUnit(maximumEpoch - minimumEpoch)));
+        axis.setLabel("Epoch");
+        axis.setMinorTickVisible(false);
+        axis.setAutoRanging(false);
+        return axis;
+    }
+
+    private static NumberAxis createLossAxis(ResultsTable trainingResults) {
+        double minimumLoss = Double.POSITIVE_INFINITY;
+        double maximumLoss = Double.NEGATIVE_INFINITY;
+
+        for (int rowIndex = 0; rowIndex < trainingResults.getCounter(); rowIndex++) {
+            minimumLoss = updateMinimum(minimumLoss, trainingResults.getValue("Loss", rowIndex));
+            minimumLoss = updateMinimum(minimumLoss, trainingResults.getValue("Validation Loss", rowIndex));
+            maximumLoss = updateMaximum(maximumLoss, trainingResults.getValue("Loss", rowIndex));
+            maximumLoss = updateMaximum(maximumLoss, trainingResults.getValue("Validation Loss", rowIndex));
+        }
+
+        if (!Double.isFinite(minimumLoss) || !Double.isFinite(maximumLoss)) {
+            minimumLoss = 0.0;
+            maximumLoss = 1.0;
+        }
+
+        double span = maximumLoss - minimumLoss;
+        double padding = span > 0.0 ? span * 0.08 : Math.max(0.1, maximumLoss * 0.1);
+        double lowerBound = Math.max(0.0, minimumLoss - padding);
+        double upperBound = maximumLoss + padding;
+        if (upperBound <= lowerBound) {
+            upperBound = lowerBound + 1.0;
+        }
+
+        NumberAxis axis = new NumberAxis(lowerBound, upperBound, niceTickUnit(upperBound - lowerBound));
+        axis.setLabel("Loss");
+        axis.setForceZeroInRange(lowerBound <= 0.0);
+        axis.setMinorTickVisible(false);
+        axis.setAutoRanging(false);
+        return axis;
+    }
+
+    private static XYChart.Series<Number, Number> createLossSeries(ResultsTable trainingResults, String seriesName, String columnName) {
+        XYChart.Series<Number, Number> series = new XYChart.Series<>();
+        series.setName(seriesName);
+
+        for (int rowIndex = 0; rowIndex < trainingResults.getCounter(); rowIndex++) {
+            double epoch = trainingResults.getValue("Epoch", rowIndex);
+            double value = trainingResults.getValue(columnName, rowIndex);
+            if (Double.isFinite(epoch) && Double.isFinite(value)) {
+                series.getData().add(new XYChart.Data<>(epoch, value));
+            }
+        }
+
+        return series;
+    }
+
+    private static double updateMinimum(double currentMinimum, double candidate) {
+        return Double.isFinite(candidate) ? Math.min(currentMinimum, candidate) : currentMinimum;
+    }
+
+    private static double updateMaximum(double currentMaximum, double candidate) {
+        return Double.isFinite(candidate) ? Math.max(currentMaximum, candidate) : currentMaximum;
+    }
+
+    private static double niceTickUnit(double span) {
+        if (!Double.isFinite(span) || span <= 0.0) {
+            return 0.1;
+        }
+
+        double rawTick = span / 8.0;
+        double magnitude = Math.pow(10.0, Math.floor(Math.log10(rawTick)));
+        double normalized = rawTick / magnitude;
+
+        double niceNormalized;
+        if (normalized <= 1.0) {
+            niceNormalized = 1.0;
+        } else if (normalized <= 2.0) {
+            niceNormalized = 2.0;
+        } else if (normalized <= 5.0) {
+            niceNormalized = 5.0;
+        } else {
+            niceNormalized = 10.0;
+        }
+
+        return niceNormalized * magnitude;
+    }
+
+    private static WritableImage snapshotChart(LineChart<Number, Number> chart) {
+        chart.applyCss();
+        chart.layout();
+
+        SnapshotParameters snapshotParameters = new SnapshotParameters();
+        snapshotParameters.setFill(Color.WHITE);
+        snapshotParameters.setTransform(Transform.scale(TRAINING_GRAPH_EXPORT_SCALE, TRAINING_GRAPH_EXPORT_SCALE));
+
+        int imageWidth = (int) Math.round(chart.getPrefWidth() * TRAINING_GRAPH_EXPORT_SCALE);
+        int imageHeight = (int) Math.round(chart.getPrefHeight() * TRAINING_GRAPH_EXPORT_SCALE);
+        return chart.snapshot(snapshotParameters, new WritableImage(imageWidth, imageHeight));
+    }
+
+    private static void saveTrainingChart(LineChart<Number, Number> chart, File outputFile) throws IOException {
+        new Scene(new Group(chart));
+        WritableImage writableImage = snapshotChart(chart);
+        RenderedImage renderedImage = SwingFXUtils.fromFXImage(writableImage, null);
+        if (!ImageIO.write(renderedImage, "png", outputFile)) {
+            throw new IOException("Could not write training graph image: no PNG writer available.");
+        }
+    }
+
+
+    private void runCellposeOnValidationImages() {
         String qcModelPath = resolveExplicitModelPath(this);
         String qcModelName = resolveExplicitModelName(this);
 
@@ -561,8 +690,8 @@ public class AstraCellpose2D extends Cellpose2D {
     }
 
 
-    private ResultsTable runCellposeQCAstra() throws IOException, InterruptedException {
-        File qcFolder = getQCFolderAstra();
+    private ResultsTable runQcScript() throws IOException, InterruptedException {
+        File qcFolder = getQcResultsDirectory();
         ensureDirectoryExists(qcFolder);
 
         File extensionRoot = resolveInstalledExtensionRoot();
@@ -592,7 +721,7 @@ public class AstraCellpose2D extends Cellpose2D {
         return ResultsTable.open(qcResultsFile.getAbsolutePath());
     }
 
-    private ResultsTable parseTrainingResultsAstra() throws IOException {
+    private ResultsTable parseTrainingResults() throws IOException {
         ResultsTable trainingResults = new ResultsTable();
         List<String> logLines = getOutputLog();
 
@@ -617,7 +746,7 @@ public class AstraCellpose2D extends Cellpose2D {
             }
         }
 
-        File trainingResultsFile = resolveTrainingResultsFile(getTrainingResultsFolderAstra());
+        File trainingResultsFile = resolveTrainingResultsFile(getTrainingResultsDirectory());
         logger.info("Saving Training Results to {}", trainingResultsFile.getAbsolutePath());
         trainingResults.save(trainingResultsFile.getAbsolutePath());
         return trainingResults;
@@ -629,8 +758,7 @@ public class AstraCellpose2D extends Cellpose2D {
             throw new IllegalStateException("ASTRA training graph save requires parsed training results.");
         }
 
-        File trainingResultsFolder = getTrainingResultsFolderAstra();
-        File trainingGraphFile = resolveTrainingGraphFile(trainingResultsFolder);
+        File trainingGraphFile = resolveTrainingGraphFile(getTrainingResultsDirectory());
 
         RuntimeException[] runtimeError = new RuntimeException[1];
         IOException[] ioError = new IOException[1];
@@ -638,41 +766,8 @@ public class AstraCellpose2D extends Cellpose2D {
 
         FXUtils.runOnApplicationThread(() -> {
             try {
-                final NumberAxis xAxis = new NumberAxis();
-                final NumberAxis yAxis = new NumberAxis();
-                xAxis.setLabel("Epochs");
-                yAxis.setForceZeroInRange(true);
-                yAxis.setAutoRanging(false);
-                yAxis.setLowerBound(0);
-                yAxis.setUpperBound(3.0);
-
-                final LineChart<Number, Number> lineChart = new LineChart<>(xAxis, yAxis);
-                lineChart.setTitle("Cellpose Training");
-                lineChart.setAnimated(false);
-                lineChart.setCreateSymbols(false);
-                lineChart.setPrefSize(1000, 700);
-
-                XYChart.Series<Number, Number> loss = new XYChart.Series<>();
-                XYChart.Series<Number, Number> lossTest = new XYChart.Series<>();
-                loss.setName("Loss");
-                lossTest.setName("Loss Test");
-
-                for (int i = 0; i < trainingResults.getCounter(); i++) {
-                    loss.getData().add(new XYChart.Data<>(trainingResults.getValue("Epoch", i), trainingResults.getValue("Loss", i)));
-                    lossTest.getData().add(new XYChart.Data<>(trainingResults.getValue("Epoch", i), trainingResults.getValue("Validation Loss", i)));
-                }
-
-                lineChart.getData().add(loss);
-                lineChart.getData().add(lossTest);
-                new javafx.scene.Scene(new javafx.scene.Group(lineChart));
-                lineChart.applyCss();
-                lineChart.layout();
-
-                WritableImage writableImage = lineChart.snapshot(null, null);
-                RenderedImage renderedImage = SwingFXUtils.fromFXImage(writableImage, null);
-                if (!ImageIO.write(renderedImage, "png", trainingGraphFile)) {
-                    ioError[0] = new IOException("Could not write training graph image: no PNG writer available.");
-                }
+                LineChart<Number, Number> exportChart = createTrainingLossChart(trainingResults);
+                saveTrainingChart(exportChart, trainingGraphFile);
             } catch (IOException e) {
                 ioError[0] = e;
             } catch (RuntimeException e) {
@@ -744,8 +839,8 @@ public class AstraCellpose2D extends Cellpose2D {
     }
 
 
-    private List<AstraTileFile> stageBatchTiles(List<BatchEntryContext> contexts, File batchTempDirectory) throws IOException, InterruptedException {
-        List<AstraTileFile> allTiles = new ArrayList<>();
+    private List<TileFile> stageBatchTiles(List<BatchEntryContext> contexts, File batchTempDirectory) throws IOException, InterruptedException {
+        List<TileFile> allTiles = new ArrayList<>();
 
         for (BatchEntryContext context : contexts) {
             BatchStagingContext stagingContext = createBatchStagingContext(context);
@@ -801,7 +896,7 @@ public class AstraCellpose2D extends Cellpose2D {
 
                 logger.info("ASTRA batch inference staging {} tiles for {} / {}", tiles.size(), context.key(), realParent);
                 for (RegionRequest tile : tiles) {
-                    AstraTileFile savedTile = saveBatchTileImage(opWithPreprocessing, imageData, tile, realParent, context.index(), tileSequence++, batchTempDirectory);
+                    TileFile savedTile = saveBatchTileImage(opWithPreprocessing, imageData, tile, realParent, context.index(), tileSequence++, batchTempDirectory);
                     if (savedTile != null) {
                         allTiles.add(savedTile);
                     }
@@ -821,7 +916,7 @@ public class AstraCellpose2D extends Cellpose2D {
             if (globalPreprocessingProvidedByUser == null) {
                 List<ImageOp> splitMergeListImageOp = new ArrayList<>();
                 for (var entry : this.normalizeChannelPercentilesGlobalMap.entrySet()) {
-                    splitMergeListImageOp.add(computeNormalizationImageOpsAstra(
+                    splitMergeListImageOp.add(createNormalizationImageOp(
                             entry.getKey(),
                             entry.getValue(),
                             imageData,
@@ -857,7 +952,7 @@ public class AstraCellpose2D extends Cellpose2D {
     }
 
 
-    private AstraTileFile saveBatchTileImage(
+    private TileFile saveBatchTileImage(
             ImageDataOp opWithPreprocessing,
             ImageData<BufferedImage> imageData,
             RegionRequest request,
@@ -887,16 +982,16 @@ public class AstraCellpose2D extends Cellpose2D {
         }
 
         IJ.save(imp, tempFile.getAbsolutePath());
-        return new AstraTileFile(request, tempFile, parent);
+        return new TileFile(request, tempFile, parent);
     }
 
 
-    private List<BatchInferenceResult> collectBatchResults(List<BatchEntryContext> contexts, List<AstraTileFile> allTiles) {
-        IdentityHashMap<PathObject, List<AstraCandidateObject>> rawCandidatesByParent = new IdentityHashMap<>();
+    private List<BatchInferenceResult> collectBatchResults(List<BatchEntryContext> contexts, List<TileFile> allTiles) {
+        IdentityHashMap<PathObject, List<CandidateObject>> rawCandidatesByParent = new IdentityHashMap<>();
 
-        for (AstraTileFile tile : allTiles) {
+        for (TileFile tile : allTiles) {
             PathObject parent = tile.getParent();
-            Collection<AstraCandidateObject> candidates = tile.getCandidates();
+            Collection<CandidateObject> candidates = tile.getCandidates();
             if (candidates != null && !candidates.isEmpty()) {
                 rawCandidatesByParent.computeIfAbsent(parent, ignored -> new ArrayList<>()).addAll(candidates);
             }
@@ -906,7 +1001,7 @@ public class AstraCellpose2D extends Cellpose2D {
         for (BatchEntryContext context : contexts) {
             List<BatchParentResult> parentResults = new ArrayList<>();
             for (PathObject parent : context.parents()) {
-                List<AstraCandidateObject> rawCandidates = rawCandidatesByParent.getOrDefault(parent, Collections.emptyList());
+                List<CandidateObject> rawCandidates = rawCandidatesByParent.getOrDefault(parent, Collections.emptyList());
                 List<PathObject> detections = finalizeParentDetections(context, parent, rawCandidates);
                 parentResults.add(new BatchParentResult(parent, List.copyOf(detections)));
             }
@@ -916,15 +1011,15 @@ public class AstraCellpose2D extends Cellpose2D {
         return List.copyOf(results);
     }
 
-    private List<PathObject> finalizeParentDetections(BatchEntryContext context, PathObject parent, Collection<AstraCandidateObject> rawCandidates) {
-        List<AstraCandidateObject> filteredDetections = filterDetectionsAstra(rawCandidates);
+    private List<PathObject> finalizeParentDetections(BatchEntryContext context, PathObject parent, Collection<CandidateObject> rawCandidates) {
+        List<CandidateObject> filteredDetections = resolveDetectionOverlaps(rawCandidates);
 
         Geometry mask = parent.getROI().getGeometry();
         List<PathObject> finalObjects = new ArrayList<>();
 
-        for (AstraCandidateObject candidate : filteredDetections) {
+        for (CandidateObject candidate : filteredDetections) {
             try {
-                PathObject pathObject = convertToObjectAstra(
+                PathObject pathObject = createPathObjectFromCandidate(
                         candidate,
                         parent.getROI().getImagePlane(),
                         context.expansion(),
@@ -943,11 +1038,11 @@ public class AstraCellpose2D extends Cellpose2D {
             logger.info("ASTRA batch inference resolving cell overlaps for {}", parent);
             if (creatorFun != null) {
                 List<PathObject> cells = finalObjects.stream()
-                        .map(AstraCellpose2D::objectToCellAstra)
+                        .map(AstraCellpose2D::convertObjectToCell)
                         .collect(Collectors.toList());
                 cells = CellTools.constrainCellOverlaps(cells);
                 finalObjects = cells.stream()
-                        .map(cell -> cellToObjectAstra(cell, creatorFun))
+                        .map(cell -> convertCellToObject(cell, creatorFun))
                         .collect(Collectors.toList());
             } else {
                 finalObjects = CellTools.constrainCellOverlaps(finalObjects);
@@ -1038,7 +1133,7 @@ public class AstraCellpose2D extends Cellpose2D {
         PixelCalibration nativeCalibration = server.getPixelCalibration();
 
         double nativePixelSize = requireFinitePositivePixelSize(nativeCalibration, "Native image pixel size", context.key());
-        double workingPixelSize = astraPixelScalingEnabled ? requireCanonicalBatchPixelSize() : nativePixelSize;
+        double workingPixelSize = pixelScalingEnabled ? requireCanonicalBatchPixelSize() : nativePixelSize;
         double requestedDownsample = workingPixelSize / nativePixelSize;
         double expansion = cellExpansion / nativePixelSize;
 
@@ -1046,13 +1141,13 @@ public class AstraCellpose2D extends Cellpose2D {
         ImageDataServer<BufferedImage> opServer = ImageOps.buildServer(imageData, op, workingResolution, tileWidth, tileHeight);
         double effectiveDownsample = validateCanonicalBatchScaling(context.key(), workingPixelSize, nativePixelSize, requestedDownsample, opServer);
 
-        if (astraPixelScalingEnabled) {
-            if (astraLastCanonicalPixelSizeUsed == null) {
-                astraLastCanonicalPixelSizeUsed = workingPixelSize;
-            } else if (!approximatelyEqual(astraLastCanonicalPixelSizeUsed, workingPixelSize)) {
+        if (pixelScalingEnabled) {
+            if (lastCanonicalPixelSizeUsed == null) {
+                lastCanonicalPixelSizeUsed = workingPixelSize;
+            } else if (!approximatelyEqual(lastCanonicalPixelSizeUsed, workingPixelSize)) {
                 throw new IllegalStateException(
                         "ASTRA batch inference resolved inconsistent canonical pixel sizes across the same batch run. " +
-                                "Previous=" + astraLastCanonicalPixelSizeUsed + ", current=" + workingPixelSize + "."
+                                "Previous=" + lastCanonicalPixelSizeUsed + ", current=" + workingPixelSize + "."
                 );
             }
         }
@@ -1137,7 +1232,7 @@ public class AstraCellpose2D extends Cellpose2D {
         return Math.max(0, (int)Math.round(basePixels * scale));
     }
 
-    private ImageOp computeNormalizationImageOpsAstra(
+    private ImageOp createNormalizationImageOp(
             ColorTransforms.ColorTransform channel,
             Map<String, Double> attributes,
             ImageData<BufferedImage> imageData,
@@ -1163,7 +1258,7 @@ public class AstraCellpose2D extends Cellpose2D {
         return ImageOps.Core.sequential(normalizeOps);
     }
 
-    private void cleanDirectoryAstra(File directory) throws IOException {
+    private void resetDirectory(File directory) throws IOException {
         Objects.requireNonNull(directory, "directory");
         try {
             if (directory.exists()) {
@@ -1175,7 +1270,7 @@ public class AstraCellpose2D extends Cellpose2D {
         }
     }
 
-    private void runTrainingAstra() throws IOException, InterruptedException {
+    private void runTrainingCommand() throws IOException, InterruptedException {
         VirtualEnvironmentRunner veRunner = createRuntimeRunner();
 
         List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", "cellpose"));
@@ -1240,11 +1335,11 @@ public class AstraCellpose2D extends Cellpose2D {
         }
     }
 
-    private void runCellposeBatch(File batchDirectory, List<AstraTileFile> allTiles) throws IOException, InterruptedException {
+    private void runCellposeBatch(File batchDirectory, List<TileFile> allTiles) throws IOException, InterruptedException {
         runCellposeInDirectory(batchDirectory, resolveExplicitModelPath(this), allTiles);
     }
 
-    private void runCellposeInDirectory(File inputDirectory, String modelPath, List<AstraTileFile> allTiles) throws IOException, InterruptedException {
+    private void runCellposeInDirectory(File inputDirectory, String modelPath, List<TileFile> allTiles) throws IOException, InterruptedException {
         VirtualEnvironmentRunner veRunner = createRuntimeRunner();
 
         List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", "cellpose"));
@@ -1271,10 +1366,10 @@ public class AstraCellpose2D extends Cellpose2D {
 
         veRunner.setArguments(cellposeArguments);
         veRunner.runCommand(false);
-        processCellposeFilesAstra(veRunner, inputDirectory, allTiles);
+        processCellposeOutputFiles(veRunner, inputDirectory, allTiles);
     }
 
-    private void processCellposeFilesAstra(VirtualEnvironmentRunner veRunner, File inputDirectory, List<AstraTileFile> allTiles) throws CancellationException, InterruptedException, IOException {
+    private void processCellposeOutputFiles(VirtualEnvironmentRunner veRunner, File inputDirectory, List<TileFile> allTiles) throws CancellationException, InterruptedException, IOException {
         if (allTiles == null) {
             veRunner.getProcess().waitFor();
             return;
@@ -1285,9 +1380,9 @@ public class AstraCellpose2D extends Cellpose2D {
         try {
             if (!this.doReadResultsAsynchronously) {
                 veRunner.getProcess().waitFor();
-                allTiles.forEach(entry -> executor.execute(() -> entry.setCandidates(readObjectsFromTileFileAstra(entry))));
+                allTiles.forEach(entry -> executor.execute(() -> entry.setCandidates(readObjectsFromTileFile(entry))));
             } else {
-                LinkedHashMap<File, AstraTileFile> remainingFiles = allTiles.stream()
+                LinkedHashMap<File, TileFile> remainingFiles = allTiles.stream()
                         .map(entry -> new AbstractMap.SimpleEntry<>(entry.getLabelFile(), entry))
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b, LinkedHashMap::new));
 
@@ -1295,32 +1390,30 @@ public class AstraCellpose2D extends Cellpose2D {
                     veRunner.startWatchService(inputDirectory.toPath());
 
                     while (!remainingFiles.isEmpty() && veRunner.getProcess().isAlive()) {
-                        if (!veRunner.getProcess().isAlive()) {
-                            int exitValue = veRunner.getProcess().exitValue();
-                            if (exitValue != 0) {
-                                throw new IOException("Cellpose process exited with value " + exitValue + ". Please check output above for indications of the problem. Will attempt to continue");
-                            }
-                        }
-
                         List<String> changedFiles = veRunner.getChangedFiles();
                         if (changedFiles.isEmpty()) {
                             continue;
                         }
 
-                        LinkedHashMap<File, AstraTileFile> finishedFiles = remainingFiles.entrySet().stream()
+                        LinkedHashMap<File, TileFile> finishedFiles = remainingFiles.entrySet().stream()
                                 .filter(set -> changedFiles.contains(set.getKey().getName()))
                                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b, LinkedHashMap::new));
 
-                        finishedFiles.forEach((key, tile) -> executor.execute(() -> tile.setCandidates(readObjectsFromTileFileAstra(tile))));
+                        finishedFiles.forEach((key, tile) -> executor.execute(() -> tile.setCandidates(readObjectsFromTileFile(tile))));
                         finishedFiles.forEach((k, v) -> remainingFiles.remove(k));
+                    }
+
+                    int exitValue = veRunner.getProcess().waitFor();
+                    if (exitValue != 0) {
+                        throw new IOException("Cellpose process exited with value " + exitValue + ". Please check the process log for details.");
                     }
                 } finally {
                     List<String> changedFiles = veRunner.getChangedFiles();
-                    LinkedHashMap<File, AstraTileFile> finishedFiles = remainingFiles.entrySet().stream()
+                    LinkedHashMap<File, TileFile> finishedFiles = remainingFiles.entrySet().stream()
                             .filter(set -> changedFiles.contains(set.getKey().getName()))
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b, LinkedHashMap::new));
 
-                    finishedFiles.forEach((key, tile) -> executor.execute(() -> tile.setCandidates(readObjectsFromTileFileAstra(tile))));
+                    finishedFiles.forEach((key, tile) -> executor.execute(() -> tile.setCandidates(readObjectsFromTileFile(tile))));
                     veRunner.closeWatchService();
                 }
             }
@@ -1330,7 +1423,7 @@ public class AstraCellpose2D extends Cellpose2D {
         }
     }
 
-    private Collection<AstraCandidateObject> readObjectsFromTileFileAstra(AstraTileFile tileFile) {
+    private Collection<CandidateObject> readObjectsFromTileFile(TileFile tileFile) {
         RegionRequest request = tileFile.getTile();
 
         logger.info("Reading {}", tileFile.getLabelFile().getName());
@@ -1346,7 +1439,7 @@ public class AstraCellpose2D extends Cellpose2D {
         int height = ip.getHeight();
 
         ip.setColor(0);
-        List<AstraCandidateObject> candidateObjects = new ArrayList<>();
+        List<CandidateObject> candidateObjects = new ArrayList<>();
 
         for (int yCoordinate = 0; yCoordinate < height; yCoordinate++) {
             for (int xCoordinate = 0; xCoordinate < width; xCoordinate++) {
@@ -1362,7 +1455,7 @@ public class AstraCellpose2D extends Cellpose2D {
                                 request.getDownsample(),
                                 request.getImagePlane()
                         ).getGeometry();
-                        candidateObjects.add(new AstraCandidateObject(geometry));
+                        candidateObjects.add(new CandidateObject(geometry));
                         ip.fill(roi);
                     }
                 }
@@ -1373,7 +1466,7 @@ public class AstraCellpose2D extends Cellpose2D {
         return candidateObjects;
     }
 
-    private Geometry simplifyGeometryAstra(Geometry geom) {
+    private Geometry simplifyGeometry(Geometry geom) {
         if (simplifyDistance <= 0) {
             return geom;
         }
@@ -1384,8 +1477,8 @@ public class AstraCellpose2D extends Cellpose2D {
         }
     }
 
-    private PathObject convertToObjectAstra(AstraCandidateObject object, ImagePlane plane, double cellExpansion, boolean constrainToParent, Geometry mask) {
-        var geomNucleus = simplifyGeometryAstra(object.geometry());
+    private PathObject createPathObjectFromCandidate(CandidateObject object, ImagePlane plane, double cellExpansion, boolean constrainToParent, Geometry mask) {
+        var geomNucleus = simplifyGeometry(object.geometry());
         PathObject pathObject;
         if (cellExpansion > 0) {
             var geomCell = CellTools.estimateCellBoundary(geomNucleus, cellExpansion, cellConstrainScale);
@@ -1398,7 +1491,7 @@ public class AstraCellpose2D extends Cellpose2D {
                 return null;
             }
 
-            geomCell = simplifyGeometryAstra(geomCell);
+            geomCell = simplifyGeometry(geomCell);
             geomCell = GeometryTools.ensurePolygonal(geomCell);
 
             if (geomCell.isEmpty()) {
@@ -1446,15 +1539,15 @@ public class AstraCellpose2D extends Cellpose2D {
         return pathObject;
     }
 
-    private List<AstraCandidateObject> filterDetectionsAstra(Collection<AstraCandidateObject> rawCandidates) {
-        List<AstraCandidateObject> candidateList = new ArrayList<>(rawCandidates);
+    private List<CandidateObject> resolveDetectionOverlaps(Collection<CandidateObject> rawCandidates) {
+        List<CandidateObject> candidateList = new ArrayList<>(rawCandidates);
         candidateList.sort(Comparator.comparingDouble(o -> -1 * o.area()));
 
-        var retainedObjects = new LinkedHashSet<AstraCandidateObject>();
-        var skippedObjects = new HashSet<AstraCandidateObject>();
+        var retainedObjects = new LinkedHashSet<CandidateObject>();
+        var skippedObjects = new HashSet<CandidateObject>();
         int skipErrorCount = 0;
 
-        Map<AstraCandidateObject, Envelope> envelopes = new HashMap<>();
+        Map<CandidateObject, Envelope> envelopes = new HashMap<>();
         var tree = new STRtree();
         for (var det : candidateList) {
             var env = det.geometry().getEnvelopeInternal();
@@ -1462,7 +1555,7 @@ public class AstraCellpose2D extends Cellpose2D {
             tree.insert(env, det);
         }
 
-        for (AstraCandidateObject currentCandidate : candidateList) {
+        for (CandidateObject currentCandidate : candidateList) {
             if (skippedObjects.contains(currentCandidate)) {
                 continue;
             }
@@ -1471,8 +1564,8 @@ public class AstraCellpose2D extends Cellpose2D {
             var envelope = envelopes.get(currentCandidate);
 
             @SuppressWarnings("unchecked")
-            List<AstraCandidateObject> overlaps = (List<AstraCandidateObject>)tree.query(envelope);
-            for (AstraCandidateObject overlappingCandidate : overlaps) {
+            List<CandidateObject> overlaps = (List<CandidateObject>)tree.query(envelope);
+            for (CandidateObject overlappingCandidate : overlaps) {
                 if (overlappingCandidate == currentCandidate || skippedObjects.contains(overlappingCandidate) || retainedObjects.contains(overlappingCandidate)) {
                     continue;
                 }
@@ -1523,7 +1616,7 @@ public class AstraCellpose2D extends Cellpose2D {
         return new ArrayList<>(retainedObjects);
     }
 
-    private static PathObject objectToCellAstra(PathObject pathObject) {
+    private static PathObject convertObjectToCell(PathObject pathObject) {
         ROI roiNucleus = null;
         var children = pathObject.getChildObjects();
         if (children.size() == 1) {
@@ -1534,7 +1627,7 @@ public class AstraCellpose2D extends Cellpose2D {
         return PathObjects.createCellObject(pathObject.getROI(), roiNucleus, pathObject.getPathClass(), pathObject.getMeasurementList());
     }
 
-    private static PathObject cellToObjectAstra(PathObject cell, java.util.function.Function<ROI, PathObject> creator) {
+    private static PathObject convertCellToObject(PathObject cell, java.util.function.Function<ROI, PathObject> creator) {
         var parent = creator.apply(cell.getROI());
         var nucleusROI = cell instanceof PathCellObject ? ((PathCellObject) cell).getNucleusROI() : null;
         if (nucleusROI != null) {
@@ -1553,7 +1646,7 @@ public class AstraCellpose2D extends Cellpose2D {
     }
 
     private File requireConfiguredTempDirectory() throws IOException {
-        File directory = (File)readCellpose2DField("tempDirectory");
+        File directory = (File) readCellpose2DField("tempDirectory");
         if (directory == null) {
             throw new IOException("ASTRA batch inference requires tempDirectory to be configured on the builder.");
         }
@@ -1563,8 +1656,6 @@ public class AstraCellpose2D extends Cellpose2D {
     private void setTempDirectoryField(File tempDirectory) {
         writeCellpose2DField("tempDirectory", tempDirectory);
     }
-
-    // Reflection and state helpers
 
     private Object readCellpose2DField(String fieldName) {
         try {
@@ -1630,13 +1721,13 @@ public class AstraCellpose2D extends Cellpose2D {
 
     }
 
-    private static final class AstraTileFile {
+    private static final class TileFile {
         private final RegionRequest request;
         private final File imageFile;
         private final PathObject parent;
-        private Collection<AstraCandidateObject> candidates = Collections.emptyList();
+        private Collection<CandidateObject> candidates = Collections.emptyList();
 
-        private AstraTileFile(RegionRequest request, File imageFile, PathObject parent) {
+        private TileFile(RegionRequest request, File imageFile, PathObject parent) {
             this.request = request;
             this.imageFile = imageFile;
             this.parent = parent;
@@ -1654,19 +1745,19 @@ public class AstraCellpose2D extends Cellpose2D {
             return parent;
         }
 
-        public Collection<AstraCandidateObject> getCandidates() {
+        public Collection<CandidateObject> getCandidates() {
             return candidates;
         }
 
-        public void setCandidates(Collection<AstraCandidateObject> candidates) {
+        public void setCandidates(Collection<CandidateObject> candidates) {
             this.candidates = candidates == null ? Collections.emptyList() : candidates;
         }
     }
 
-    private static final class AstraCandidateObject {
+    private static final class CandidateObject {
         private final double area;
         private Geometry geometry;
-        private AstraCandidateObject(Geometry geometry) {
+        private CandidateObject(Geometry geometry) {
             Objects.requireNonNull(geometry, "geometry");
             this.geometry = GeometryTools.ensurePolygonal(geometry);
 
@@ -1837,30 +1928,30 @@ public class AstraCellpose2D extends Cellpose2D {
     }
 
 
-    // Directory and model resolution helpers
-
-    private void requireAstraQcDirectory() throws IOException {
-        if (astraQcDirectory == null) {
+    private void requireQcDirectory() throws IOException {
+        if (qcDirectory == null) {
             throw new IOException("ASTRA QC requires qcDirectory to be set by the ASTRA builder.");
         }
-        if (!astraQcDirectory.exists() || !astraQcDirectory.isDirectory()) {
-            throw new IOException("ASTRA QC requires qcDirectory to exist as a directory: " + astraQcDirectory.getAbsolutePath());
+        if (!qcDirectory.exists() || !qcDirectory.isDirectory()) {
+            throw new IOException("ASTRA QC requires qcDirectory to exist as a directory: " + qcDirectory.getAbsolutePath());
         }
     }
 
 
 
-    private File getQCFolderAstra() {
-        return resolveQcFolder(astraResultsDirectory);
+    private File getQcResultsDirectory() {
+        return resolveQcFolder(resultsDirectory);
     }
 
-    private File getTrainingResultsFolderAstra() {
-        return resolveTrainingResultsFolder(astraResultsDirectory);
+    private File getTrainingResultsDirectory() {
+        return resolveTrainingResultsFolder(resultsDirectory);
     }
 
 
 
 
+
+    // Reflection and state helpers
 
     private void setTrainingResults(ResultsTable resultsTable) {
         writeCellpose2DField("trainingResults", resultsTable);
@@ -1885,6 +1976,8 @@ public class AstraCellpose2D extends Cellpose2D {
     }
 
 
+
+    // Directory and model resolution helpers
 
     private static File requireNonNullDirectory(File directory, String message) {
         if (directory == null) {

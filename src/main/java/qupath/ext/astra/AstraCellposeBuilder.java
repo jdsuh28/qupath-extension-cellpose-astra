@@ -37,8 +37,8 @@ public class AstraCellposeBuilder extends CellposeBuilder {
 
     private static final Logger logger = LoggerFactory.getLogger(AstraCellposeBuilder.class);
 
-    private File astraQcDirectory;
-    private File astraResultsDirectory;
+    private File qcDirectory;
+    private File resultsDirectory;
 
     // Construction
 
@@ -48,7 +48,7 @@ public class AstraCellposeBuilder extends CellposeBuilder {
 
     public AstraCellposeBuilder(File builderFile) {
         super(builderFile);
-        hydrateFromFile(builderFile);
+        loadSerializedBuilderState(builderFile);
     }
 
     // Fluent overrides
@@ -403,19 +403,19 @@ public class AstraCellposeBuilder extends CellposeBuilder {
     // ASTRA-specific directories
 
     public AstraCellposeBuilder qcDirectory(File qcDir) {
-        this.astraQcDirectory = qcDir;
+        this.qcDirectory = qcDir;
         writeOptionalBuilderField("qcDirectory", qcDir);
         return this;
     }
 
     public AstraCellposeBuilder resultsDirectory(File resultsDir) {
-        this.astraResultsDirectory = resultsDir;
+        this.resultsDirectory = resultsDir;
         writeOptionalBuilderField("resultsDirectory", resultsDir);
         return this;
     }
 
 
-    private void validateUnsupportedRuntimeSelectors() {
+    private void validateUnsupportedRuntimeConfiguration() {
         Object legacySamSelector = readField(this, CellposeBuilder.class, "useCellposeSAM", true);
         if (Boolean.TRUE.equals(legacySamSelector)) {
             throw new IllegalStateException(
@@ -435,33 +435,33 @@ public class AstraCellposeBuilder extends CellposeBuilder {
 
     @Override
     public AstraCellpose2D build() {
-        validateUnsupportedRuntimeSelectors();
+        validateUnsupportedRuntimeConfiguration();
 
-        File projectDir = requireProjectDirectory();
+        File projectDirectory = requireProjectDirectory();
 
         File configuredModelDir = (File) readBuilderField("modelDirectory");
         File configuredTrainingRoot = (File) readBuilderField("groundTruthDirectory");
-        File configuredTempDir = (File) readBuilderField("tempDirectory");
+        File configuredTempDirectory = (File) readBuilderField("tempDirectory");
         boolean shouldSaveBuilder = Boolean.TRUE.equals(readBuilderField("saveBuilder"));
         String builderName = (String) readBuilderField("builderName");
 
         try {
             File resolvedModelDir = AstraCellpose2D.ensureDirectoryExists(
-                    AstraCellpose2D.resolveModelDirectory(projectDir, configuredModelDir));
+                    AstraCellpose2D.resolveModelDirectory(projectDirectory, configuredModelDir));
             File resolvedTrainingRoot = AstraCellpose2D.ensureDirectoryExists(
-                    AstraCellpose2D.resolveTrainingRootDirectory(projectDir, configuredTrainingRoot));
+                    AstraCellpose2D.resolveTrainingRootDirectory(projectDirectory, configuredTrainingRoot));
             File resolvedQcDir = AstraCellpose2D.ensureDirectoryExists(
-                    AstraCellpose2D.resolveQcDirectory(projectDir, astraQcDirectory));
+                    AstraCellpose2D.resolveQcDirectory(projectDirectory, qcDirectory));
             File resolvedResultsDir = AstraCellpose2D.ensureDirectoryExists(
-                    AstraCellpose2D.resolveResultsDirectory(projectDir, astraResultsDirectory));
+                    AstraCellpose2D.resolveResultsDirectory(projectDirectory, resultsDirectory));
 
             writeBuilderField("modelDirectory", resolvedModelDir);
             writeBuilderField("groundTruthDirectory", resolvedTrainingRoot);
             writeOptionalBuilderField("qcDirectory", resolvedQcDir);
             writeOptionalBuilderField("resultsDirectory", resolvedResultsDir);
 
-            if (configuredTempDir == null) {
-                writeBuilderField("tempDirectory", new File(projectDir, "cellpose-temp"));
+            if (configuredTempDirectory == null) {
+                writeBuilderField("tempDirectory", new File(projectDirectory, "cellpose-temp"));
             }
 
             if (shouldSaveBuilder) {
@@ -470,7 +470,7 @@ public class AstraCellposeBuilder extends CellposeBuilder {
 
             Cellpose2D base = super.build();
             AstraCellpose2D astra = AstraCellpose2D.fromBase(base);
-            astra.configureAstraState(
+            astra.configureRuntimeState(
                     resolvedModelDir,
                     resolvedTrainingRoot,
                     readFileField(base, "tempDirectory"),
@@ -479,7 +479,7 @@ public class AstraCellposeBuilder extends CellposeBuilder {
             );
 
             if (shouldSaveBuilder) {
-                saveAstraBuilder(resolvedModelDir, builderName);
+                saveSerializedBuilderState(resolvedModelDir, builderName);
             }
 
             return astra;
@@ -499,7 +499,7 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         return QP.getProject().getPath().getParent().toFile();
     }
 
-    private void hydrateFromFile(File builderFile) {
+    private void loadSerializedBuilderState(File builderFile) {
         Gson gson = GsonTools.getInstance();
         try (FileReader reader = new FileReader(builderFile)) {
             AstraCellposeBuilder loaded = gson.fromJson(reader, AstraCellposeBuilder.class);
@@ -513,7 +513,7 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         }
     }
 
-    private void saveAstraBuilder(File modelDirectory, String builderName) {
+    private void saveSerializedBuilderState(File modelDirectory, String builderName) {
         Gson gson = GsonTools.getInstance(true);
 
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH'h'mm");
