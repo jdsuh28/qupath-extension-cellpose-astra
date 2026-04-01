@@ -100,13 +100,6 @@ public class AstraCellposeExtension extends CellposeExtension {
         omniposePath.addListener((v, o, n) -> options.setOmniposePythonPath(n));
         condaPath.addListener((v, o, n) -> options.setCondaPath(n));
 
-        PropertySheet.Item cellposePathItem = new PropertyItemBuilder<>(cellposePath, String.class)
-                .propertyType(PropertyItemBuilder.PropertyType.GENERAL)
-                .name("ASTRA Cellpose 'python.exe' location")
-                .category(ASTRA_PREF_CATEGORY)
-                .description("Enter the full path to your ASTRA Cellpose environment, including 'python.exe'\nDo not include quotes (') or double quotes (\") around the path.")
-                .build();
-
         PropertySheet.Item cellposeSAMPathItem = new PropertyItemBuilder<>(cellposeSAMPath, String.class)
                 .propertyType(PropertyItemBuilder.PropertyType.GENERAL)
                 .name("ASTRA Cellpose SAM 'python.exe' location")
@@ -114,22 +107,8 @@ public class AstraCellposeExtension extends CellposeExtension {
                 .description("Enter the full path to your ASTRA Cellpose SAM environment, including 'python.exe'\nDo not include quotes (') or double quotes (\") around the path.")
                 .build();
 
-        PropertySheet.Item omniposePathItem = new PropertyItemBuilder<>(omniposePath, String.class)
-                .propertyType(PropertyItemBuilder.PropertyType.GENERAL)
-                .name("ASTRA Omnipose 'python.exe' location")
-                .category(ASTRA_PREF_CATEGORY)
-                .description("Enter the full path to your ASTRA Omnipose environment, including 'python.exe'\nDo not include quotes (') or double quotes (\") around the path.")
-                .build();
-
-        PropertySheet.Item condaPathItem = new PropertyItemBuilder<>(condaPath, String.class)
-                .propertyType(PropertyItemBuilder.PropertyType.GENERAL)
-                .name("ASTRA 'Conda/Mamba' script location (optional)")
-                .category(ASTRA_PREF_CATEGORY)
-                .description("The full path to your conda/mamba command, in case you want the extension to use the 'conda activate' command.\ne.g. 'C:\\ProgramData\\Miniconda3\\condabin\\mamba.bat'\nDo not include quotes (') or double quotes (\") around the path.")
-                .build();
-
         QuPathGUI.getInstance().getPreferencePane().getPropertySheet().getItems()
-                .addAll(cellposePathItem, cellposeSAMPathItem, omniposePathItem, condaPathItem);
+                .addAll(cellposeSAMPathItem);
 
         isInstalled = true;
     }
