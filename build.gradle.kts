@@ -5,17 +5,14 @@ plugins {
 }
 
 /*
- * Update metadata to be specific to the ASTRA pipeline
- * Version number shown in QuPath should be ASTRA version number
+ * ASTRA-specific extension metadata.
  */
 qupathExtension {
-    // ASTRA START
     name = "qupath-extension-cellpose-astra"
     group = "io.github.jdsuh28"
     version = "0.0.0-astra-dev"
     description = "ASTRA fork of the BIOP Cellpose extension for QuPath"
     automaticModule = "qupath.ext.astra.cellpose"
-    // ASTRA END
 }
 
 dependencies {
