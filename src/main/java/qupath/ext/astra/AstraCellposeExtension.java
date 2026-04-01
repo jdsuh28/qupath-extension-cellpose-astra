@@ -15,25 +15,29 @@ import qupath.lib.gui.tools.MenuTools;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.Map;
 
+/**
+ * ASTRA extension entry point.
+ *
+ * <p>This extension exposes ASTRA scripts and registers the single runtime
+ * Python executable used by all ASTRA Cellpose workflows.</p>
+ */
 public class AstraCellposeExtension extends CellposeExtension {
 
     private static final Logger logger = LoggerFactory.getLogger(AstraCellposeExtension.class);
-    private boolean isInstalled = false;
 
-    private static final LinkedHashMap<String, String> ASTRA_SCRIPTS = new LinkedHashMap<>() {{
-        put("ASTRA Training", "astra/training/training.groovy");
-        put("ASTRA Validation", "astra/validation/validation.groovy");
-        put("ASTRA Tuning", "astra/tuning/tuning.groovy");
-        put("ASTRA Analysis", "astra/analysis/analysis.groovy");
-        put("ASTRA Training Image", "astra/tools/training_image.groovy");
-    }};
+    private static final String ASTRA_PREFERENCE_CATEGORY = "ASTRA/Cellpose";
+    private static final String ASTRA_RUNTIME_PYTHON_PATH_KEY = "astraRuntimePythonPath";
+    private static final String ASTRA_RUNTIME_PYTHON_PATH_NAME = "ASTRA Cellpose 'python.exe' location";
+    private static final String ASTRA_RUNTIME_PYTHON_PATH_DESCRIPTION =
+            "Enter the full path to the ASTRA Cellpose Python executable, including 'python.exe'.\n" +
+            "This is the only runtime environment used by the ASTRA extension.\n" +
+            "Do not include quotes (') or double quotes (\") around the path.";
 
-    private static final String ASTRA_PREF_CATEGORY = "ASTRA/Cellpose";
-    private static final String PREF_CELLPOSE = "astraCellposePythonPath";
-    private static final String PREF_CELLPOSE_SAM = "astraCellposeSAMPythonPath";
-    private static final String PREF_OMNIPOSE = "astraOmniposePythonPath";
-    private static final String PREF_CONDA = "astraCondaPath";
+    private static final Map<String, String> ASTRA_SCRIPTS = createAstraScripts();
+
+    private boolean installed;
 
     @Override
     public String getName() {
@@ -52,64 +56,70 @@ public class AstraCellposeExtension extends CellposeExtension {
 
     @Override
     public void installExtension(QuPathGUI qupath) {
-        if (isInstalled)
+        if (installed) {
             return;
+        }
 
-        ASTRA_SCRIPTS.entrySet().forEach(entry -> {
-            String resource = entry.getValue();
-            String command = entry.getKey();
+        installAstraScripts(qupath);
+        registerAstraRuntimePreference();
 
-            try (InputStream stream = AstraCellposeExtension.class.getClassLoader().getResourceAsStream(resource)) {
+        installed = true;
+    }
+
+    private static Map<String, String> createAstraScripts() {
+        LinkedHashMap<String, String> scripts = new LinkedHashMap<>();
+        scripts.put("ASTRA Training", "astra/training/training.groovy");
+        scripts.put("ASTRA Validation", "astra/validation/validation.groovy");
+        scripts.put("ASTRA Tuning", "astra/tuning/tuning.groovy");
+        scripts.put("ASTRA Analysis", "astra/analysis/analysis.groovy");
+        scripts.put("ASTRA Training Image", "astra/tools/training_image.groovy");
+        return scripts;
+    }
+
+    private void installAstraScripts(QuPathGUI qupath) {
+        ASTRA_SCRIPTS.forEach((commandName, resourcePath) -> {
+            try (InputStream stream = AstraCellposeExtension.class.getClassLoader().getResourceAsStream(resourcePath)) {
                 if (stream == null) {
-                    logger.error("Script not found: {}", resource);
+                    logger.error("Script not found: {}", resourcePath);
                     return;
                 }
 
                 String script = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-
-                MenuTools.addMenuItems(
-                        qupath.getMenu("Extensions>ASTRA", true),
-                        new Action(command, e -> {
-                            var editor = qupath.getScriptEditor();
-                            if (editor == null) {
-                                logger.error("No script editor is available!");
-                                return;
-                            }
-                            editor.showScript(command, script);
-                        })
-                );
+                Action action = new Action(commandName, event -> openScript(qupath, commandName, script));
+                MenuTools.addMenuItems(qupath.getMenu("Extensions>ASTRA", true), action);
             } catch (Exception e) {
-                logger.error(e.getLocalizedMessage(), e);
+                logger.error("Failed to register ASTRA script '{}' from {}.", commandName, resourcePath, e);
             }
         });
+    }
 
-        CellposeSetup options = CellposeSetup.getInstance();
+    private void openScript(QuPathGUI qupath, String scriptName, String scriptText) {
+        var editor = qupath.getScriptEditor();
+        if (editor == null) {
+            logger.error("No script editor is available.");
+            return;
+        }
+        editor.showScript(scriptName, scriptText);
+    }
 
-        StringProperty cellposePath = PathPrefs.createPersistentPreference(PREF_CELLPOSE, "");
-        StringProperty cellposeSAMPath = PathPrefs.createPersistentPreference(PREF_CELLPOSE_SAM, "");
-        StringProperty omniposePath = PathPrefs.createPersistentPreference(PREF_OMNIPOSE, "");
-        StringProperty condaPath = PathPrefs.createPersistentPreference(PREF_CONDA, "");
+    private void registerAstraRuntimePreference() {
+        CellposeSetup cellposeSetup = CellposeSetup.getInstance();
+        StringProperty runtimePythonPath = PathPrefs.createPersistentPreference(ASTRA_RUNTIME_PYTHON_PATH_KEY, "");
 
-        options.setCellposePythonPath(cellposePath.get());
-        options.setCellposeSAMPythonPath(cellposeSAMPath.get());
-        options.setOmniposePythonPath(omniposePath.get());
-        options.setCondaPath(condaPath.get());
+        cellposeSetup.setCellposePythonPath(runtimePythonPath.get());
+        runtimePythonPath.addListener((observable, previousValue, newValue) -> cellposeSetup.setCellposePythonPath(newValue));
 
-        cellposePath.addListener((v, o, n) -> options.setCellposePythonPath(n));
-        cellposeSAMPath.addListener((v, o, n) -> options.setCellposeSAMPythonPath(n));
-        omniposePath.addListener((v, o, n) -> options.setOmniposePythonPath(n));
-        condaPath.addListener((v, o, n) -> options.setCondaPath(n));
-
-        PropertySheet.Item cellposeSAMPathItem = new PropertyItemBuilder<>(cellposeSAMPath, String.class)
+        PropertySheet.Item runtimePythonPathItem = new PropertyItemBuilder<>(runtimePythonPath, String.class)
                 .propertyType(PropertyItemBuilder.PropertyType.GENERAL)
-                .name("ASTRA Cellpose SAM 'python.exe' location")
-                .category(ASTRA_PREF_CATEGORY)
-                .description("Enter the full path to your ASTRA Cellpose SAM environment, including 'python.exe'\nDo not include quotes (') or double quotes (\") around the path.")
+                .name(ASTRA_RUNTIME_PYTHON_PATH_NAME)
+                .category(ASTRA_PREFERENCE_CATEGORY)
+                .description(ASTRA_RUNTIME_PYTHON_PATH_DESCRIPTION)
                 .build();
 
-        QuPathGUI.getInstance().getPreferencePane().getPropertySheet().getItems()
-                .addAll(cellposeSAMPathItem);
-
-        isInstalled = true;
+        QuPathGUI.getInstance()
+                .getPreferencePane()
+                .getPropertySheet()
+                .getItems()
+                .add(runtimePythonPathItem);
     }
 }

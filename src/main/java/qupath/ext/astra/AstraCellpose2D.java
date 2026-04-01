@@ -132,11 +132,6 @@ public class AstraCellpose2D extends Cellpose2D {
     public Double getAstraLastCanonicalPixelSizeUsed() {
         return astraLastCanonicalPixelSizeUsed;
     }
-
-    public Double getAstraCanonicalPixelSizeUsed() {
-        return astraLastCanonicalPixelSizeUsed;
-    }
-
     public void clearAstraLastCanonicalPixelSizeUsed() {
         astraLastCanonicalPixelSizeUsed = null;
     }
@@ -562,7 +557,7 @@ public class AstraCellpose2D extends Cellpose2D {
             throw new IOException("ASTRA QC script was not found: " + qcPythonFile.getAbsolutePath());
         }
 
-        VirtualEnvironmentRunner qcRunner = getVirtualEnvironmentRunnerAstra();
+        VirtualEnvironmentRunner qcRunner = createRuntimeRunner();
         String qcModelName = resolveExplicitModelName(this);
 
         List<String> qcArguments = new ArrayList<>(Arrays.asList(
@@ -1165,10 +1160,9 @@ public class AstraCellpose2D extends Cellpose2D {
     }
 
     private void runTrainingAstra() throws IOException, InterruptedException {
-        String runCommand = this.parameters.containsKey("omni") ? "omnipose" : "cellpose";
-        VirtualEnvironmentRunner veRunner = getVirtualEnvironmentRunnerAstra();
+        VirtualEnvironmentRunner veRunner = createRuntimeRunner();
 
-        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", runCommand));
+        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", "cellpose"));
         cellposeArguments.add("--train");
         cellposeArguments.add("--dir");
         cellposeArguments.add(getTrainingDirectory().getAbsolutePath());
@@ -1199,28 +1193,35 @@ public class AstraCellpose2D extends Cellpose2D {
         writeCellpose2DField("theLog", veRunner.getProcessLog());
     }
 
-    private VirtualEnvironmentRunner getVirtualEnvironmentRunnerAstra() {
-        if (cellposeSetup.getCellposePythonPath().isEmpty() && !this.useCellposeSAM) {
-            throw new IllegalStateException("Cellpose python path is empty. Please set it in Edit > Preferences");
+    private VirtualEnvironmentRunner createRuntimeRunner() {
+        requireSupportedRuntimeConfiguration();
+
+        String pythonPath = cellposeSetup.getCellposePythonPath();
+        if (pythonPath == null || pythonPath.isBlank()) {
+            throw new IllegalStateException(
+                    "ASTRA runtime Python path is empty. Please configure it in Edit > Preferences."
+            );
         }
 
-        if (cellposeSetup.getCellposeSAMPythonPath().isEmpty() && this.useCellposeSAM) {
-            throw new IllegalStateException("CellposeSAM python path is empty. Please set it in Edit > Preferences");
-        }
+        return new VirtualEnvironmentRunner(
+                pythonPath,
+                VirtualEnvironmentRunner.EnvType.EXE,
+                null,
+                this.getClass().getSimpleName()
+        );
+    }
 
-        VirtualEnvironmentRunner.EnvType type = VirtualEnvironmentRunner.EnvType.EXE;
-        String condaPath = null;
-        if (!cellposeSetup.getCondaPath().isEmpty()) {
-            type = VirtualEnvironmentRunner.EnvType.CONDA;
-            condaPath = cellposeSetup.getCondaPath();
+    private void requireSupportedRuntimeConfiguration() {
+        if (useCellposeSAM) {
+            throw new IllegalStateException(
+                    "ASTRA does not support useCellposeSAM(). Remove the legacy selector and use the single ASTRA runtime path."
+            );
         }
-
-        String pythonPath = this.useCellposeSAM ? cellposeSetup.getCellposeSAMPythonPath() : cellposeSetup.getCellposePythonPath();
-        if (this.parameters.containsKey("omni") && !cellposeSetup.getOmniposePythonPath().isEmpty()) {
-            pythonPath = cellposeSetup.getOmniposePythonPath();
+        if (parameters.containsKey("omni")) {
+            throw new IllegalStateException(
+                    "ASTRA does not support Omnipose runtime selection. Remove useOmnipose() or the '--omni' parameter."
+            );
         }
-
-        return new VirtualEnvironmentRunner(pythonPath, type, condaPath, this.getClass().getSimpleName());
     }
 
     private void runCellposeBatch(File batchDirectory, List<AstraTileFile> allTiles) throws IOException, InterruptedException {
@@ -1228,10 +1229,9 @@ public class AstraCellpose2D extends Cellpose2D {
     }
 
     private void runCellposeInDirectory(File inputDirectory, String modelPath, List<AstraTileFile> allTiles) throws IOException, InterruptedException {
-        String runCommand = this.parameters.containsKey("omni") ? "omnipose" : "cellpose";
-        VirtualEnvironmentRunner veRunner = getVirtualEnvironmentRunnerAstra();
+        VirtualEnvironmentRunner veRunner = createRuntimeRunner();
 
-        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", runCommand));
+        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", "cellpose"));
         cellposeArguments.add("--dir");
         cellposeArguments.add(inputDirectory.getAbsolutePath());
         cellposeArguments.add("--pretrained_model");

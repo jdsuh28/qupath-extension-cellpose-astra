@@ -55,11 +55,11 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         return this;
     }
 
-    @Deprecated
     @Override
     public AstraCellposeBuilder useGPU(boolean useGPU) {
-        super.useGPU(useGPU);
-        return this;
+        throw new UnsupportedOperationException(
+                "ASTRA does not support useGPU(boolean). Use disableGPU() only when you explicitly need CPU execution."
+        );
     }
 
     @Override
@@ -74,11 +74,11 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         return this;
     }
 
-    @Deprecated
     @Override
     public AstraCellposeBuilder saveTrainingImages(boolean saveTrainingImages) {
-        super.saveTrainingImages(saveTrainingImages);
-        return this;
+        throw new UnsupportedOperationException(
+                "ASTRA does not support saveTrainingImages(boolean). Use cleanTrainingDir() for deterministic training-image export."
+        );
     }
 
     @Override
@@ -281,14 +281,16 @@ public class AstraCellposeBuilder extends CellposeBuilder {
 
     @Override
     public AstraCellposeBuilder useOmnipose() {
-        super.useOmnipose();
-        return this;
+        throw new UnsupportedOperationException(
+                "ASTRA does not support Omnipose runtime selection."
+        );
     }
 
     @Override
     public AstraCellposeBuilder useCellposeSAM() {
-        super.useCellposeSAM();
-        return this;
+        throw new UnsupportedOperationException(
+                "ASTRA uses a single runtime Python path and does not support useCellposeSAM()."
+        );
     }
 
     @Override
@@ -303,11 +305,11 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         return this;
     }
 
-    @Deprecated
     @Override
     public AstraCellposeBuilder maskThreshold(Double threshold) {
-        super.maskThreshold(threshold);
-        return this;
+        throw new UnsupportedOperationException(
+                "ASTRA does not support maskThreshold(Double). Use cellprobThreshold(Double) instead."
+        );
     }
 
     @Override
@@ -400,18 +402,33 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         return this;
     }
 
-    public File getQcDirectory() {
-        return astraQcDirectory;
-    }
-
     public AstraCellposeBuilder resultsDirectory(File resultsDir) {
         this.astraResultsDirectory = resultsDir;
         writeOptionalBuilderField("resultsDirectory", resultsDir);
         return this;
     }
 
+
+    private void validateUnsupportedRuntimeSelectors() {
+        Object legacySamSelector = readField(this, CellposeBuilder.class, "useCellposeSAM", true);
+        if (Boolean.TRUE.equals(legacySamSelector)) {
+            throw new IllegalStateException(
+                    "ASTRA does not support useCellposeSAM(). Remove the legacy selector from the builder configuration."
+            );
+        }
+
+        Object parameterValue = readField(this, CellposeBuilder.class, "parameters", true);
+        if (parameterValue instanceof Map<?, ?> parameterMap && parameterMap.containsKey("omni")) {
+            throw new IllegalStateException(
+                    "ASTRA does not support Omnipose runtime selection. Remove useOmnipose() or the '--omni' parameter."
+            );
+        }
+    }
+
     @Override
     public AstraCellpose2D build() {
+        validateUnsupportedRuntimeSelectors();
+
         File projectDir = QP.getProject().getPath().getParent().toFile();
 
         File configuredModelDir = (File) readBuilderField("modelDirectory");
