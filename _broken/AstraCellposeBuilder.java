@@ -27,11 +27,11 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- * ASTRA-owned builder that preserves the upstream CellposeBuilder API surface
- * while returning an ASTRA-owned Cellpose2D subclass.
+ * ASTRA-owned builder that preserves the upstream fluent API while returning
+ * an ASTRA-owned runtime implementation.
  *
- * This keeps ASTRA behavior out of upstream files and lets ASTRA scripts opt into
- * the ASTRA execution path explicitly.
+ * The builder enforces ASTRA-specific directory resolution and blocks legacy
+ * runtime selectors that would reintroduce ambiguity.
  */
 public class AstraCellposeBuilder extends CellposeBuilder {
 
@@ -39,6 +39,8 @@ public class AstraCellposeBuilder extends CellposeBuilder {
 
     private File qcDirectory;
     private File resultsDirectory;
+
+    // Construction
 
     public AstraCellposeBuilder(String modelPath) {
         super(modelPath);
@@ -49,17 +51,19 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         loadSerializedBuilderState(builderFile);
     }
 
+    // Fluent overrides
+
     @Override
     public AstraCellposeBuilder extendChannelOp(ImageOp extendChannelOp) {
         super.extendChannelOp(extendChannelOp);
         return this;
     }
 
-    @Deprecated
     @Override
     public AstraCellposeBuilder useGPU(boolean useGPU) {
-        super.useGPU(useGPU);
-        return this;
+        throw new UnsupportedOperationException(
+                "ASTRA does not support useGPU(boolean). Use disableGPU() only when you explicitly need CPU execution."
+        );
     }
 
     @Override
@@ -74,11 +78,11 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         return this;
     }
 
-    @Deprecated
     @Override
     public AstraCellposeBuilder saveTrainingImages(boolean saveTrainingImages) {
-        super.saveTrainingImages(saveTrainingImages);
-        return this;
+        throw new UnsupportedOperationException(
+                "ASTRA does not support saveTrainingImages(boolean). Use cleanTrainingDir() for deterministic training-image export."
+        );
     }
 
     @Override
@@ -281,14 +285,16 @@ public class AstraCellposeBuilder extends CellposeBuilder {
 
     @Override
     public AstraCellposeBuilder useOmnipose() {
-        super.useOmnipose();
-        return this;
+        throw new UnsupportedOperationException(
+                "ASTRA does not support Omnipose runtime selection."
+        );
     }
 
     @Override
     public AstraCellposeBuilder useCellposeSAM() {
-        super.useCellposeSAM();
-        return this;
+        throw new UnsupportedOperationException(
+                "ASTRA uses a single runtime Python path and does not support useCellposeSAM()."
+        );
     }
 
     @Override
@@ -303,11 +309,11 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         return this;
     }
 
-    @Deprecated
     @Override
     public AstraCellposeBuilder maskThreshold(Double threshold) {
-        super.maskThreshold(threshold);
-        return this;
+        throw new UnsupportedOperationException(
+                "ASTRA does not support maskThreshold(Double). Use cellprobThreshold(Double) instead."
+        );
     }
 
     @Override
@@ -394,14 +400,12 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         return this;
     }
 
+    // ASTRA-specific directories
+
     public AstraCellposeBuilder qcDirectory(File qcDir) {
         this.qcDirectory = qcDir;
         writeOptionalBuilderField("qcDirectory", qcDir);
         return this;
-    }
-
-    public File getQcDirectory() {
-        return qcDirectory;
     }
 
     public AstraCellposeBuilder resultsDirectory(File resultsDir) {
@@ -410,33 +414,54 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         return this;
     }
 
+
+    private void validateUnsupportedRuntimeConfiguration() {
+        Object legacySamSelector = readField(this, CellposeBuilder.class, "useCellposeSAM", true);
+        if (Boolean.TRUE.equals(legacySamSelector)) {
+            throw new IllegalStateException(
+                    "ASTRA does not support useCellposeSAM(). Remove the legacy selector from the builder configuration."
+            );
+        }
+
+        Object parameterValue = readField(this, CellposeBuilder.class, "parameters", true);
+        if (parameterValue instanceof Map<?, ?> parameterMap && parameterMap.containsKey("omni")) {
+            throw new IllegalStateException(
+                    "ASTRA does not support Omnipose runtime selection. Remove useOmnipose() or the '--omni' parameter."
+            );
+        }
+    }
+
+    // Build and serialization
+
     @Override
     public AstraCellpose2D build() {
-        File projectDir = QP.getProject().getPath().getParent().toFile();
+        validateUnsupportedRuntimeConfiguration();
+
+        File projectDirectory = requireProjectDirectory();
 
         File configuredModelDir = (File) readBuilderField("modelDirectory");
         File configuredTrainingRoot = (File) readBuilderField("groundTruthDirectory");
-        File configuredTempDir = (File) readBuilderField("tempDirectory");
+        File configuredTempDirectory = (File) readBuilderField("tempDirectory");
         boolean shouldSaveBuilder = Boolean.TRUE.equals(readBuilderField("saveBuilder"));
         String builderName = (String) readBuilderField("builderName");
 
         try {
             File resolvedModelDir = AstraCellpose2D.ensureDirectoryExists(
-                    AstraCellpose2D.resolveModelDirectory(projectDir, configuredModelDir));
+                    AstraCellpose2D.resolveModelDirectory(projectDirectory, configuredModelDir));
             File resolvedTrainingRoot = AstraCellpose2D.ensureDirectoryExists(
-                    AstraCellpose2D.resolveTrainingRootDirectory(projectDir, configuredTrainingRoot));
+                    AstraCellpose2D.resolveTrainingRootDirectory(projectDirectory, configuredTrainingRoot));
             File resolvedQcDir = AstraCellpose2D.ensureDirectoryExists(
-                    AstraCellpose2D.resolveQcDirectory(projectDir, qcDirectory));
+                    AstraCellpose2D.resolveQcDirectory(projectDirectory, qcDirectory));
             File resolvedResultsDir = AstraCellpose2D.ensureDirectoryExists(
-                    AstraCellpose2D.resolveResultsDirectory(projectDir, resultsDirectory));
+                    AstraCellpose2D.resolveResultsDirectory(projectDirectory, resultsDirectory));
 
             writeBuilderField("modelDirectory", resolvedModelDir);
             writeBuilderField("groundTruthDirectory", resolvedTrainingRoot);
             writeOptionalBuilderField("qcDirectory", resolvedQcDir);
             writeOptionalBuilderField("resultsDirectory", resolvedResultsDir);
 
-            if (configuredTempDir == null) {
-                writeBuilderField("tempDirectory", new File(projectDir, "cellpose-temp"));
+            if (configuredTempDirectory == null) {
+                writeBuilderField("tempDirectory", new File(projectDirectory, "cellpose-temp"));
             }
 
             if (shouldSaveBuilder) {
@@ -444,8 +469,8 @@ public class AstraCellposeBuilder extends CellposeBuilder {
             }
 
             Cellpose2D base = super.build();
-            AstraCellpose2D runtime = AstraCellpose2D.fromBase(base);
-            runtime.configureRuntimeState(
+            AstraCellpose2D astra = AstraCellpose2D.fromBase(base);
+            astra.configureAstraState(
                     resolvedModelDir,
                     resolvedTrainingRoot,
                     readFileField(base, "tempDirectory"),
@@ -457,7 +482,7 @@ public class AstraCellposeBuilder extends CellposeBuilder {
                 saveSerializedBuilderState(resolvedModelDir, builderName);
             }
 
-            return runtime;
+            return astra;
         } catch (IOException e) {
             throw new RuntimeException("Failed to prepare ASTRA builder directories.", e);
         } finally {
@@ -465,6 +490,13 @@ public class AstraCellposeBuilder extends CellposeBuilder {
                 writeBuilderField("saveBuilder", true);
             }
         }
+    }
+
+    private static File requireProjectDirectory() {
+        if (QP.getProject() == null) {
+            throw new IllegalStateException("ASTRA builder requires an open QuPath project.");
+        }
+        return QP.getProject().getPath().getParent().toFile();
     }
 
     private void loadSerializedBuilderState(File builderFile) {
@@ -486,7 +518,7 @@ public class AstraCellposeBuilder extends CellposeBuilder {
 
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH'h'mm");
         LocalDateTime now = LocalDateTime.now();
-        String safeBuilderName = builderName == null || builderName.isBlank() ? "builder" : builderName;
+        String safeBuilderName = builderName == null || builderName.isBlank() ? "builder" : builderName.trim();
         File savePath = new File(modelDirectory, safeBuilderName + "_" + dtf.format(now) + ".json");
 
         try (FileWriter fw = new FileWriter(savePath)) {
@@ -544,6 +576,8 @@ public class AstraCellposeBuilder extends CellposeBuilder {
             targetMap.put(entry.getKey(), entry.getValue());
         }
     }
+
+    // Reflection helpers
 
     private Object readBuilderField(String name) {
         return readField(this, CellposeBuilder.class, name, false);
