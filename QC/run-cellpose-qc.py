@@ -12,11 +12,11 @@ from scipy.optimize import linear_sum_assignment
 parser = argparse.ArgumentParser(
     description='Get Quality Metrics from Cellpose Run. Needs a folder with Raw Data, Ground Truth and Cellpose Labels')
 parser.add_argument(
-    'dir', nargs=1, help='a directory containing the resulting images for QC (Raw, GT and Model Results)')
+    'dir', nargs=1, help='a directory containing the resulting images for validation (Raw, GT and Model Results)')
 parser.add_argument(
     'model', nargs=1, help='The name of the model being tested')
 parser.add_argument('out_dir', nargs='?', default=None,
-                    help='Optional output directory for deterministic qc_results.csv')
+                    help='Optional output directory for deterministic validation_results.csv')
 
 args = parser.parse_args()
 data_folder = args.dir[0]
@@ -346,15 +346,15 @@ def compareLabels(model_name, image_folder, out_dir=None):
     if out_dir is not None and str(out_dir).strip() != "":
         results_path = Path(out_dir)
         results_path.mkdir(parents=True, exist_ok=True)
-        file_path = results_path / "qc_results.csv"
+        file_path = results_path / "validation_results.csv"
         if file_path.exists():
             raise FileExistsError(
-                f"Refusing to overwrite existing QC results: {file_path}")
+                f"Refusing to overwrite existing validation results: {file_path}")
     else:
-        results_path = image_folder / "QC-Results"
+        results_path = image_folder / "Validation-Results"
         # Make the directory if it's missing
         results_path.absolute().mkdir(exist_ok=True)
-        file_path = results_path / ("Quality_Control for "+model_name+".csv")
+        file_path = results_path / ("Validation for "+model_name+".csv")
 
     with open(file_path, "w", newline='') as file:
         writer = csv.writer(file, delimiter=",")
