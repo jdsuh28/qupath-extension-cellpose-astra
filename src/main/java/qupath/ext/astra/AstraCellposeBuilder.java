@@ -1,4 +1,3 @@
-// cspell:ignore qupath Cellpose Omnipose cellprob Gson gson rawtypes
 package qupath.ext.astra;
 
 import com.google.gson.Gson;
@@ -6,14 +5,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.ext.biop.cellpose.Cellpose2D;
 import qupath.ext.biop.cellpose.CellposeBuilder;
-import qupath.ext.biop.cellpose.OpCreators.TileOpCreator;
-import qupath.lib.analysis.features.ObjectMeasurements.Compartments;
 import qupath.lib.io.GsonTools;
-import qupath.lib.analysis.features.ObjectMeasurements.Measurements;
-import qupath.lib.images.servers.ColorTransforms.ColorTransform;
-import qupath.lib.objects.classes.PathClass;
 import qupath.lib.scripting.QP;
-import qupath.opencv.ops.ImageOp;
 
 import java.io.File;
 import java.io.FileReader;
@@ -27,21 +20,27 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- * ASTRA-owned builder that preserves the upstream CellposeBuilder API surface
- * while returning an ASTRA-owned Cellpose2D subclass.
+ * Minimal ASTRA-owned builder surface required by the current training,
+ * tuning, and validation stacks.
  *
- * This keeps ASTRA behavior out of upstream files and lets ASTRA scripts opt into
- * the ASTRA execution path explicitly.
+ * This builder preserves the fluent methods the ASTRA stacks call,
+ * resolves ASTRA-owned directories deterministically, and rejects runtime
+ * selectors that violate the single-runtime-path contract.
+ *
+ * Downstream Groovy stacks own MODEL_SOURCE / BASE_MODEL policy.
+ * By the time control reaches this builder, model selection has already been
+ * resolved to one explicit execution model reference: either a promoted model
+ * path or a shipped base-model name.
  */
 public class AstraCellposeBuilder extends CellposeBuilder {
 
     private static final Logger logger = LoggerFactory.getLogger(AstraCellposeBuilder.class);
 
-    private File qcDirectory;
+    private File validationDirectory;
     private File resultsDirectory;
 
-    public AstraCellposeBuilder(String modelPath) {
-        super(modelPath);
+    public AstraCellposeBuilder(String executionModelReference) {
+        super(executionModelReference);
     }
 
     public AstraCellposeBuilder(File builderFile) {
@@ -50,287 +49,8 @@ public class AstraCellposeBuilder extends CellposeBuilder {
     }
 
     @Override
-    public AstraCellposeBuilder extendChannelOp(ImageOp extendChannelOp) {
-        super.extendChannelOp(extendChannelOp);
-        return this;
-    }
-
-    @Deprecated
-    @Override
-    public AstraCellposeBuilder useGPU(boolean useGPU) {
-        super.useGPU(useGPU);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder disableGPU() {
-        super.disableGPU();
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder useTestDir(boolean useTestDir) {
-        super.useTestDir(useTestDir);
-        return this;
-    }
-
-    @Deprecated
-    @Override
-    public AstraCellposeBuilder saveTrainingImages(boolean saveTrainingImages) {
-        super.saveTrainingImages(saveTrainingImages);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder cleanTrainingDir() {
-        super.cleanTrainingDir();
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder groundTruthDirectory(File groundTruthDirectory) {
-        super.groundTruthDirectory(groundTruthDirectory);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder tempDirectory(File trainingDirectory) {
-        super.tempDirectory(trainingDirectory);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder nThreads(int nThreads) {
-        super.nThreads(nThreads);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder readResultsAsynchronously() {
-        super.readResultsAsynchronously();
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder pixelSize(double pixelSize) {
-        super.pixelSize(pixelSize);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder preprocess(ImageOp... ops) {
-        super.preprocess(ops);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder preprocessGlobal(TileOpCreator global) {
-        super.preprocessGlobal(global);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder simplify(double distance) {
-        super.simplify(distance);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder channels(int... channels) {
-        super.channels(channels);
-        return this;
-    }
-
-    @Override
     public AstraCellposeBuilder channels(String... channels) {
         super.channels(channels);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder channels(ColorTransform... channels) {
-        super.channels(channels);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder cellExpansion(double distance) {
-        super.cellExpansion(distance);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder cellConstrainScale(double scale) {
-        super.cellConstrainScale(scale);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder createAnnotations() {
-        super.createAnnotations();
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder classify(PathClass pathClass) {
-        super.classify(pathClass);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder classify(String pathClassName) {
-        super.classify(pathClassName);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder ignoreCellOverlaps(boolean ignore) {
-        super.ignoreCellOverlaps(ignore);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder constrainToParent(boolean constrainToParent) {
-        super.constrainToParent(constrainToParent);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder constrainToParent(boolean constrainToParent, double padding) {
-        super.constrainToParent(constrainToParent, padding);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder measureIntensity() {
-        super.measureIntensity();
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder measureIntensity(Collection<Measurements> measurements) {
-        super.measureIntensity(measurements);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder measureShape() {
-        super.measureShape();
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder compartments(Compartments... compartments) {
-        super.compartments(compartments);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder tileSize(int tileSize) {
-        super.tileSize(tileSize);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder tileSize(int tileWidth, int tileHeight) {
-        super.tileSize(tileWidth, tileHeight);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder normalizePercentiles(double min, double max) {
-        super.normalizePercentiles(min, max);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder normalizePercentiles(double min, double max, boolean perChannel, double eps) {
-        super.normalizePercentiles(min, max, perChannel, eps);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder inputAdd(double... values) {
-        super.inputAdd(values);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder inputSubtract(double... values) {
-        super.inputSubtract(values);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder inputScale(double... values) {
-        super.inputScale(values);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder addParameter(String flagName, String flagValue) {
-        super.addParameter(flagName, flagValue);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder addParameter(String flagName) {
-        super.addParameter(flagName);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder useOmnipose() {
-        super.useOmnipose();
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder useCellposeSAM() {
-        super.useCellposeSAM();
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder excludeEdges() {
-        super.excludeEdges();
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder cellposeChannels(Integer channel1, Integer channel2) {
-        super.cellposeChannels(channel1, channel2);
-        return this;
-    }
-
-    @Deprecated
-    @Override
-    public AstraCellposeBuilder maskThreshold(Double threshold) {
-        super.maskThreshold(threshold);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder cellprobThreshold(Double threshold) {
-        super.cellprobThreshold(threshold);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder flowThreshold(Double threshold) {
-        super.flowThreshold(threshold);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder diameter(Double diameter) {
-        super.diameter(diameter);
-        return this;
-    }
-
-    @Override
-    public AstraCellposeBuilder modelDirectory(File modelDir) {
-        super.modelDirectory(modelDir);
         return this;
     }
 
@@ -347,6 +67,18 @@ public class AstraCellposeBuilder extends CellposeBuilder {
     }
 
     @Override
+    public AstraCellposeBuilder addParameter(String flagName, String flagValue) {
+        super.addParameter(flagName, flagValue);
+        return this;
+    }
+
+    @Override
+    public AstraCellposeBuilder addParameter(String flagName) {
+        super.addParameter(flagName);
+        return this;
+    }
+
+    @Override
     public AstraCellposeBuilder batchSize(Integer batchSize) {
         super.batchSize(batchSize);
         return this;
@@ -359,8 +91,26 @@ public class AstraCellposeBuilder extends CellposeBuilder {
     }
 
     @Override
-    public AstraCellposeBuilder saveBuilder(String name) {
-        super.saveBuilder(name);
+    public AstraCellposeBuilder groundTruthDirectory(File groundTruthDirectory) {
+        super.groundTruthDirectory(groundTruthDirectory);
+        return this;
+    }
+
+    @Override
+    public AstraCellposeBuilder tempDirectory(File tempDirectory) {
+        super.tempDirectory(tempDirectory);
+        return this;
+    }
+
+    @Override
+    public AstraCellposeBuilder useTestDir(boolean useTestDir) {
+        super.useTestDir(useTestDir);
+        return this;
+    }
+
+    @Override
+    public AstraCellposeBuilder cleanTrainingDir() {
+        super.cleanTrainingDir();
         return this;
     }
 
@@ -371,39 +121,96 @@ public class AstraCellposeBuilder extends CellposeBuilder {
     }
 
     @Override
-    public AstraCellposeBuilder normalizePercentilesGlobal(double percentileMin, double percentileMax, double normDownsample) {
-        super.normalizePercentilesGlobal(percentileMin, percentileMax, normDownsample);
+    public AstraCellposeBuilder nThreads(int nThreads) {
+        super.nThreads(nThreads);
         return this;
     }
 
     @Override
-    public AstraCellposeBuilder normalizePercentilesGlobal(String channelName, double percentileMin, double percentileMax, double normDownsample) {
-        super.normalizePercentilesGlobal(channelName, percentileMin, percentileMax, normDownsample);
+    public AstraCellposeBuilder modelDirectory(File modelDir) {
+        super.modelDirectory(modelDir);
         return this;
     }
 
     @Override
-    public AstraCellposeBuilder noCellposeNormalization() {
-        super.noCellposeNormalization();
+    public AstraCellposeBuilder readResultsAsynchronously() {
+        super.readResultsAsynchronously();
         return this;
     }
 
     @Override
-    public AstraCellposeBuilder setOutputModelName(String outputName) {
-        super.setOutputModelName(outputName);
+    public AstraCellposeBuilder pixelSize(double pixelSize) {
+        super.pixelSize(pixelSize);
         return this;
     }
 
-    public AstraCellposeBuilder qcDirectory(File qcDir) {
-        this.qcDirectory = qcDir;
-        writeOptionalBuilderField("qcDirectory", qcDir);
+    @Override
+    public AstraCellposeBuilder constrainToParent(boolean constrainToParent) {
+        super.constrainToParent(constrainToParent);
         return this;
     }
 
-    public File getQcDirectory() {
-        return qcDirectory;
+    @Override
+    public AstraCellposeBuilder diameter(Double diameter) {
+        super.diameter(diameter);
+        return this;
     }
 
+    @Override
+    public AstraCellposeBuilder cellprobThreshold(Double threshold) {
+        super.cellprobThreshold(threshold);
+        return this;
+    }
+
+    @Override
+    public AstraCellposeBuilder flowThreshold(Double threshold) {
+        super.flowThreshold(threshold);
+        return this;
+    }
+
+    @Override
+    public AstraCellposeBuilder simplify(double distance) {
+        super.simplify(distance);
+        return this;
+    }
+
+    @Override
+    public AstraCellposeBuilder normalizePercentiles(double min, double max) {
+        super.normalizePercentiles(min, max);
+        return this;
+    }
+
+    @Override
+    public AstraCellposeBuilder useGPU(boolean useGPU) {
+        super.useGPU(useGPU);
+        return this;
+    }
+
+    @Override
+    public AstraCellposeBuilder useCellposeSAM() {
+        throw new UnsupportedOperationException(
+                "ASTRA uses a single runtime path and does not support useCellposeSAM()."
+        );
+    }
+
+    @Override
+    public AstraCellposeBuilder useOmnipose() {
+        throw new UnsupportedOperationException(
+                "ASTRA uses a single runtime path and does not support Omnipose selection."
+        );
+    }
+
+    /**
+     * Configure the ASTRA validation input directory.
+     */
+    public AstraCellposeBuilder validationDirectory(File validationDir) {
+        this.validationDirectory = validationDir;
+        return this;
+    }
+
+    /**
+     * Configure the ASTRA results root directory.
+     */
     public AstraCellposeBuilder resultsDirectory(File resultsDir) {
         this.resultsDirectory = resultsDir;
         writeOptionalBuilderField("resultsDirectory", resultsDir);
@@ -412,32 +219,33 @@ public class AstraCellposeBuilder extends CellposeBuilder {
 
     @Override
     public AstraCellpose2D build() {
-        File projectDir = QP.getProject().getPath().getParent().toFile();
+        File projectDirectory = requireProjectDirectory();
 
-        File configuredModelDir = (File) readBuilderField("modelDirectory");
+        File configuredModelDirectory = (File) readBuilderField("modelDirectory");
         File configuredTrainingRoot = (File) readBuilderField("groundTruthDirectory");
-        File configuredTempDir = (File) readBuilderField("tempDirectory");
+        File configuredTempDirectory = (File) readBuilderField("tempDirectory");
         boolean shouldSaveBuilder = Boolean.TRUE.equals(readBuilderField("saveBuilder"));
         String builderName = (String) readBuilderField("builderName");
 
         try {
-            File resolvedModelDir = AstraCellpose2D.ensureDirectoryExists(
-                    AstraCellpose2D.resolveModelDirectory(projectDir, configuredModelDir));
+            File resolvedModelDirectory = AstraCellpose2D.ensureDirectoryExists(
+                    AstraCellpose2D.resolveModelDirectory(projectDirectory, configuredModelDirectory));
             File resolvedTrainingRoot = AstraCellpose2D.ensureDirectoryExists(
-                    AstraCellpose2D.resolveTrainingRootDirectory(projectDir, configuredTrainingRoot));
-            File resolvedQcDir = AstraCellpose2D.ensureDirectoryExists(
-                    AstraCellpose2D.resolveQcDirectory(projectDir, qcDirectory));
-            File resolvedResultsDir = AstraCellpose2D.ensureDirectoryExists(
-                    AstraCellpose2D.resolveResultsDirectory(projectDir, resultsDirectory));
+                    AstraCellpose2D.resolveTrainingRootDirectory(projectDirectory, configuredTrainingRoot));
+            File resolvedTempDirectory = AstraCellpose2D.ensureDirectoryExists(
+                    configuredTempDirectory != null ? configuredTempDirectory : new File(projectDirectory, "cellpose-temp"));
+            File resolvedValidationDirectory = AstraCellpose2D.ensureDirectoryExists(
+                    AstraCellpose2D.resolveValidationInputDirectory(projectDirectory, validationDirectory));
+            File resolvedResultsDirectory = AstraCellpose2D.ensureDirectoryExists(
+                    AstraCellpose2D.resolveResultsDirectory(projectDirectory, resultsDirectory));
 
-            writeBuilderField("modelDirectory", resolvedModelDir);
+            this.validationDirectory = resolvedValidationDirectory;
+            this.resultsDirectory = resolvedResultsDirectory;
+
+            writeBuilderField("modelDirectory", resolvedModelDirectory);
             writeBuilderField("groundTruthDirectory", resolvedTrainingRoot);
-            writeOptionalBuilderField("qcDirectory", resolvedQcDir);
-            writeOptionalBuilderField("resultsDirectory", resolvedResultsDir);
-
-            if (configuredTempDir == null) {
-                writeBuilderField("tempDirectory", new File(projectDir, "cellpose-temp"));
-            }
+            writeBuilderField("tempDirectory", resolvedTempDirectory);
+            writeOptionalBuilderField("resultsDirectory", resolvedResultsDirectory);
 
             if (shouldSaveBuilder) {
                 writeBuilderField("saveBuilder", false);
@@ -446,25 +254,36 @@ public class AstraCellposeBuilder extends CellposeBuilder {
             Cellpose2D base = super.build();
             AstraCellpose2D runtime = AstraCellpose2D.fromBase(base);
             runtime.configureRuntimeState(
-                    resolvedModelDir,
+                    resolvedModelDirectory,
                     resolvedTrainingRoot,
-                    readFileField(base, "tempDirectory"),
-                    resolvedQcDir,
-                    resolvedResultsDir
+                    resolvedTempDirectory,
+                    resolvedValidationDirectory,
+                    resolvedResultsDirectory
             );
 
             if (shouldSaveBuilder) {
-                saveSerializedBuilderState(resolvedModelDir, builderName);
+                saveSerializedBuilderState(resolvedModelDirectory, builderName);
             }
 
             return runtime;
         } catch (IOException e) {
-            throw new RuntimeException("Failed to prepare ASTRA builder directories.", e);
+            throw new IllegalStateException("Failed to prepare ASTRA builder directories.", e);
         } finally {
             if (shouldSaveBuilder) {
                 writeBuilderField("saveBuilder", true);
             }
         }
+    }
+
+
+    private static File requireProjectDirectory() {
+        if (QP.getProject() == null) {
+            throw new IllegalStateException("ASTRA builder requires an open QuPath project.");
+        }
+        if (QP.getProject().getPath() == null || QP.getProject().getPath().getParent() == null) {
+            throw new IllegalStateException("ASTRA builder could not resolve the project directory.");
+        }
+        return QP.getProject().getPath().getParent().toFile();
     }
 
     private void loadSerializedBuilderState(File builderFile) {
@@ -486,7 +305,7 @@ public class AstraCellposeBuilder extends CellposeBuilder {
 
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH'h'mm");
         LocalDateTime now = LocalDateTime.now();
-        String safeBuilderName = builderName == null || builderName.isBlank() ? "builder" : builderName;
+        String safeBuilderName = builderName == null || builderName.isBlank() ? "builder" : builderName.trim();
         File savePath = new File(modelDirectory, safeBuilderName + "_" + dtf.format(now) + ".json");
 
         try (FileWriter fw = new FileWriter(savePath)) {
@@ -531,9 +350,7 @@ public class AstraCellposeBuilder extends CellposeBuilder {
     private static void copyCollectionContents(Collection<?> target, Collection<?> source) {
         Collection<Object> targetObjects = (Collection<Object>) target;
         targetObjects.clear();
-        for (Object item : source) {
-            targetObjects.add(item);
-        }
+        targetObjects.addAll(source);
     }
 
     @SuppressWarnings("unchecked")
