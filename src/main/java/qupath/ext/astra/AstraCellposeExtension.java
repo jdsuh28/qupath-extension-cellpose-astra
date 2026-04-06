@@ -73,11 +73,11 @@ public class AstraCellposeExtension extends CellposeExtension {
 
     private static Map<String, String> createScriptResources() {
         LinkedHashMap<String, String> scripts = new LinkedHashMap<>();
-        scripts.put("ASTRA Training", "astra/training/training.groovy");
-        scripts.put("ASTRA Validation", "astra/validation/validation.groovy");
-        scripts.put("ASTRA Tuning", "astra/tuning/tuning.groovy");
-        scripts.put("ASTRA Analysis", "astra/analysis/analysis.groovy");
-        scripts.put("ASTRA Training Image", "astra/tools/training_image.groovy");
+        scripts.put("ASTRA Training", "training/src/main/groovy/training.groovy");
+        scripts.put("ASTRA Validation", "validation/src/main/groovy/validation.groovy");
+        scripts.put("ASTRA Tuning", "tuning/src/main/groovy/tuning.groovy");
+        scripts.put("ASTRA Analysis", "analysis/src/main/groovy/analysis.groovy");
+        scripts.put("ASTRA Training Image", "tools/src/main/groovy/training_image.groovy");
         return Collections.unmodifiableMap(scripts);
     }
 
