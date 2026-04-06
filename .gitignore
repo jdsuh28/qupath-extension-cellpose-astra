@@ -1,39 +1,55 @@
-# Maven
-deploy/
+# ================================
+# ASTRA Extension .gitignore
+# ================================
+
+# ----------------
+# Build outputs
+# ----------------
+build/
 target/
+out/
+bin/
+deploy/
 log/
 data/
-
-# IntelliJ
-.idea/
-*.iml
-out/
-
-# Gradle
-# Use local properties (e.g. to set a specific JDK)
-gradle.properties
-build/
 .gradle/
 
+# ----------------
+# IntelliJ / JetBrains
+# ----------------
+.idea/
+*.iml
+
+# ----------------
+# VS Code
+# ----------------
+.vscode/
+
+# ----------------
 # Eclipse
+# ----------------
 .settings/
 .project
 .classpath
 
-# Mac
+# ----------------
+# macOS / Windows artifacts
+# ----------------
 .DS_Store
+._*
+Thumbs.db
+desktop.ini
 
-# Java
+# ----------------
+# Java crash logs
+# ----------------
 hs_err*.log
 
-# Other
+# ----------------
+# Temporary / backup files
+# ----------------
 *.tmp
 *.bak
 *.swp
-*~.nib
-*thumbs.db
-bin/
-/data/
-
-# Python path settings
-.vscode
+*~
+*.nib
