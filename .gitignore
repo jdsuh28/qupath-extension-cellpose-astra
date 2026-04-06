@@ -1,39 +1,14 @@
 # ================================
-# ASTRA Extension .gitignore
+# ASTRA extension fork .gitignore
 # ================================
+# Purpose:
+# Exclude OS artifacts, IDE/editor metadata, build outputs, local runtime noise,
+# and local Python environment artifacts.
+# Keep extension source, vendored ASTRA resources, workflows, Python source,
+# and Gradle wrapper files tracked.
 
 # ----------------
-# Build outputs
-# ----------------
-build/
-target/
-out/
-bin/
-deploy/
-log/
-data/
-.gradle/
-
-# ----------------
-# IntelliJ / JetBrains
-# ----------------
-.idea/
-*.iml
-
-# ----------------
-# VS Code
-# ----------------
-.vscode/
-
-# ----------------
-# Eclipse
-# ----------------
-.settings/
-.project
-.classpath
-
-# ----------------
-# macOS / Windows artifacts
+# OS artifacts
 # ----------------
 .DS_Store
 ._*
@@ -41,15 +16,62 @@ Thumbs.db
 desktop.ini
 
 # ----------------
-# Java crash logs
+# IDE / editor metadata
 # ----------------
-hs_err*.log
+.idea/
+*.iml
+*.iws
+out/
+.vscode/
+.settings/
+.project
+.classpath
 
 # ----------------
-# Temporary / backup files
+# Gradle / build artifacts
 # ----------------
+.gradle/
+build/
+target/
+bin/
+deploy/
+out/
+
+# ----------------
+# Keep tracked Gradle wrapper files
+# ----------------
+!gradlew
+!gradlew.bat
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# ----------------
+# Logs / temp / crash files
+# ----------------
+log/
+logs/
+*.log
+hs_err*.log
 *.tmp
+*.temp
 *.bak
 *.swp
 *~
-*.nib
+
+# ----------------
+# Local runtime / scratch data
+# ----------------
+data/
+/data/
+
+# ----------------
+# Python local artifacts
+# Keep .py source files tracked.
+# ----------------
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+env/
