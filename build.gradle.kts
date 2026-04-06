@@ -5,6 +5,15 @@ plugins {
 }
 
 /*
+ * ASTRA-specific extension toolchain.
+ */
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
+}
+
+/*
  * ASTRA-specific extension metadata.
  */
 qupathExtension {
@@ -27,7 +36,7 @@ dependencies {
  */
 tasks.withType<Javadoc> {
     (options as StandardJavadocDocletOptions).addBooleanOption("html5", true)
-    setDestinationDir(File(project.rootDir,"docs"))
+    setDestinationDir(File(project.rootDir, "docs"))
 }
 
 /*
