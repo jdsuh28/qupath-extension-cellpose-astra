@@ -32,10 +32,11 @@ dependencies {
 }
 
 /*
- * Set HTML language for generated Javadocs.
+ * Set HTML language and destination folder
  */
 tasks.withType<Javadoc> {
     (options as StandardJavadocDocletOptions).addBooleanOption("html5", true)
+    setDestinationDir(File(project.rootDir, "docs"))
 }
 
 /*
