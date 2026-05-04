@@ -76,7 +76,8 @@ public class AstraCellposeExtension extends CellposeExtension {
         scripts.put("ASTRA Training", "astra/training/src/main/groovy/training.groovy");
         scripts.put("ASTRA Validation", "astra/validation/src/main/groovy/validation.groovy");
         scripts.put("ASTRA Tuning", "astra/tuning/src/main/groovy/tuning.groovy");
-        scripts.put("ASTRA Analysis", "astra/analysis/src/main/groovy/analysis.groovy");
+        scripts.put("Analysis>Vascular", "astra/analysis/src/main/groovy/vascular/vascular.groovy");
+        scripts.put("Analysis>Colocalization", "astra/analysis/src/main/groovy/colocalization/colocalization.groovy");
         scripts.put("ASTRA Generate Regions", "astra/tools/src/main/groovy/generateRegions.groovy");
         return Collections.unmodifiableMap(scripts);
     }
@@ -90,8 +91,17 @@ public class AstraCellposeExtension extends CellposeExtension {
                 }
 
                 String script = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-                Action action = new Action(commandName, event -> openScript(qupath, commandName, script));
-                MenuTools.addMenuItems(qupath.getMenu("Extensions>ASTRA", true), action);
+                String menuPath = "Extensions>ASTRA";
+                String actionName = commandName;
+                int submenuIndex = commandName.lastIndexOf('>');
+                if (submenuIndex >= 0) {
+                    menuPath = menuPath + ">" + commandName.substring(0, submenuIndex);
+                    actionName = commandName.substring(submenuIndex + 1);
+                }
+
+                final String scriptName = actionName;
+                Action action = new Action(scriptName, event -> openScript(qupath, scriptName, script));
+                MenuTools.addMenuItems(qupath.getMenu(menuPath, true), action);
             } catch (Exception e) {
                 logger.error("Failed to register ASTRA script '{}' from {}.", commandName, resourcePath, e);
             }
