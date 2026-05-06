@@ -27,10 +27,10 @@ import java.util.Map;
  * resolves ASTRA-owned directories deterministically, and rejects runtime
  * selectors that violate the single-runtime-path contract.
  *
- * Downstream Groovy stacks own MODEL_SOURCE / BASE_MODEL policy.
+ * Downstream Groovy stacks own MODEL_SOURCE / MODEL_NAME policy.
  * By the time control reaches this builder, model selection has already been
  * resolved to one explicit execution model reference: either a promoted model
- * path or a shipped base-model name.
+ * path or a shipped model name.
  */
 public class AstraCellposeBuilder extends CellposeBuilder {
 

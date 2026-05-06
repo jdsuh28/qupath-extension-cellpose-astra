@@ -1299,7 +1299,7 @@ public class AstraCellpose2D extends Cellpose2D {
         cellposeArguments.add(inputDirectory.getAbsolutePath());
         cellposeArguments.add("--pretrained_model");
         // Unified model handoff: this single argument accepts either a promoted model path
-        // or a shipped base-model name resolved upstream by the Groovy stack.
+        // or a shipped model name resolved upstream by the Groovy stack.
         cellposeArguments.add(executionModelReference);
 
         this.parameters.forEach((parameter, value) -> {
@@ -2086,7 +2086,7 @@ public class AstraCellpose2D extends Cellpose2D {
         if (executionModelReference == null) {
             throw new IllegalStateException(
                     "ASTRA methods require an explicit execution model reference passed to the builder. " +
-                            "That reference may be either a promoted model path or a shipped base-model name. modelFile is not used."
+                            "That reference may be either a promoted model path or a shipped model name. modelFile is not used."
             );
         }
         return executionModelReference;

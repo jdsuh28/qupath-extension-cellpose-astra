@@ -24,8 +24,9 @@ import java.util.Objects;
  *
  * <p>This extension exposes ASTRA scripts and registers the single runtime
  * Python executable used by all ASTRA Cellpose workflows.
- * Downstream script stacks resolve saved-model vs base-model selection before
- * handing one explicit execution model reference to the Java runtime.</p>
+ * Downstream script stacks resolve {@code MODEL_SOURCE}/{@code MODEL_NAME}
+ * selection before handing one explicit execution model reference to the Java
+ * runtime.</p>
  */
 public class AstraCellposeExtension extends CellposeExtension {
 

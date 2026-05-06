@@ -102,8 +102,9 @@ loadScripts(document, 'script');</script>
 
  <p>This extension exposes ASTRA scripts and registers the single runtime
  Python executable used by all ASTRA Cellpose workflows.
- Downstream script stacks resolve saved-model vs base-model selection before
- handing one explicit execution model reference to the Java runtime.</p></div>
+ Downstream script stacks resolve <code>MODEL_SOURCE</code>/<code>MODEL_NAME</code>
+ selection before handing one explicit execution model reference to the Java
+ runtime.</p></div>
 </section>
 <section class="summary">
 <ul class="summary-list">
