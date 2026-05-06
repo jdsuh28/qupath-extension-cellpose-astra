@@ -1,39 +1,57 @@
-# QuPath Cellpose Extension — ASTRA (Deterministic TRAIN/QC Separation)
+# QuPath Cellpose Extension — ASTRA
 
-This repository is the ASTRA fork of the QuPath Cellpose extension. It is a *sub-repo* within the broader **astra** tool, and it is designed to remain self-contained, deterministic, and minimal while enforcing a clean, non-overlapping separation between TRAIN and QC inside the extension.
+This repository is the ASTRA fork of the QuPath Cellpose extension. It is a
+sub-repository within the broader **astra** project and provides the Java-side
+QuPath interface used by ASTRA's Groovy pipeline scripts.
 
 ## What this repo is (and is not)
 
-- This repo *is* the QuPath extension code (Java + bundled scripts) implementing deterministic TRAIN/QC behavior.
-- This repo is *not* responsible for installing Cellpose or creating Python environments.
-- This repo is *not* published through the upstream BIOP catalog.
+- This repo **is** the QuPath extension code that exposes ASTRA scripts in the
+  QuPath menu and provides the ASTRA-owned `AstraCellpose2D`,
+  `AstraCellposeBuilder`, and QC figure-rendering surfaces.
+- This repo **is** responsible for Cellpose-adjacent runtime behavior:
+  training image export, batch inference, validation metrics, and QC figure
+  rendering.
+- This repo **is not** responsible for biological pipeline orchestration,
+  vascular/colocalization logic, model/parameter source policy, or
+  manuscript-facing analysis decisions. Those live in the base `astra` repo.
+- This repo **is not** published through the upstream BIOP catalog.
 
-ASTRA provides a separate fork/repo for the Python side (**cellpose-astra**). Installation and environment provisioning is handled there (or by the umbrella **astra** tool).
+ASTRA provides a separate fork/repo for the Python side
+(**cellpose-astra**). Installation and environment provisioning is handled
+there or by ASTRA-level documentation.
 
-## Locked behavioral guarantees
+## Active ASTRA Surfaces
 
-- Training and QC use separate builders
-- QC does NOT create models
-- QC only consumes the model explicitly passed to the QC builder
-- No runtime model discovery (no filename globbing)
-- No extension-side model movement
-- No training-time QC artifacts
-- No QC-time model artifacts
+- `src/main/java/qupath/ext/astra/AstraCellposeExtension.java`
+  - Registers the ASTRA menu entries and the single ASTRA runtime Python
+    preference.
+- `src/main/java/qupath/ext/astra/AstraCellposeBuilder.java`
+  - Provides the ASTRA builder surface used by base pipeline scripts.
+- `src/main/java/qupath/ext/astra/AstraCellpose2D.java`
+  - Owns ASTRA Cellpose runtime behavior, including batch inference,
+    training export, validation metrics, and deterministic result routing.
+- `src/main/java/qupath/ext/astra/AstraQcFigures.java`
+  - Renders publication-oriented training, tuning, and validation QC figures.
 
-## Locked directory architecture
+The upstream BIOP Java package remains present to preserve fork structure and
+future mergeability. ASTRA-specific behavior is implemented in the ASTRA
+package where possible.
 
-All results go under a single deterministic root:
+## QuPath Menu Contract
 
-ProjectRoot/
-    results/
-        training/
-        qc/
+The installed ASTRA extension registers only ASTRA scripts:
 
-- TRAIN results: `results/training`
-- QC results: `results/qc`
-- QC metrics file (deterministic): `results/qc/qc_results.csv`
-- `modelDirectory` is for final/promoted models only, and QC never touches it
-- The legacy `/training/test` concept is removed
+- `Extensions > ASTRA > ASTRA Training`
+- `Extensions > ASTRA > ASTRA Validation`
+- `Extensions > ASTRA > ASTRA Tuning`
+- `Extensions > ASTRA > Analysis > Vascular`
+- `Extensions > ASTRA > Analysis > Colocalization`
+- `Extensions > ASTRA > ASTRA Generate Regions`
+
+BIOP example scripts remain in `src/main/resources/scripts/` as upstream
+resources, but the ASTRA extension entrypoint does not expose them in the ASTRA
+menu.
 
 ## Installation (ASTRA)
 
@@ -47,14 +65,24 @@ High-level flow:
 4) In QuPath preferences, point the extension to the Python executable from the **cellpose-astra** environment (and any other required paths as defined by ASTRA’s docs).
 
 Notes:
-- This extension assumes the required Python dependencies are already present in the target environment (including `scikit-image` for QC).
-- This extension intentionally avoids enforcing ASTRA pipeline policies (preflight checks, overwrite policies, promotion rules, etc.). Those belong in ASTRA’s pipeline layer, not in the extension.
+- This extension assumes required Python dependencies are already present in
+  the target environment, including `scikit-image` for validation QC.
+- Base ASTRA pipeline scripts enforce model/parameter source policy,
+  overwrite policy, biological analysis logic, and publication-facing
+  preflight checks.
 
 ## Building from source
 
-gradlew clean build
+```bash
+./gradlew clean build
+```
 
 The output JAR will be placed under `build/libs`.
+
+## Archive
+
+Non-active comparison files live under `_archive/`. They are retained for
+provenance only and are not referenced by the active build or QuPath menu.
 
 ## License
 

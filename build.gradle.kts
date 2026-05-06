@@ -29,6 +29,12 @@ dependencies {
     implementation(libs.qupath.fxtras)
     implementation(libs.extensionmanager)
     implementation("commons-io:commons-io:2.15.0")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
 }
 
 /*
