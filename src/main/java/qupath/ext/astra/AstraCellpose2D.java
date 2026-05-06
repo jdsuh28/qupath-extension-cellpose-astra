@@ -11,11 +11,16 @@ import javafx.embed.swing.SwingFXUtils;
 import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.SnapshotParameters;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
 import javafx.scene.image.WritableImage;
 import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.scene.text.TextAlignment;
 import javafx.scene.transform.Transform;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -402,6 +407,7 @@ public class AstraCellpose2D extends Cellpose2D {
         generateValidationPredictions();
         ResultsTable results = computeValidationMetricsWithHelper();
         setValidationResults(results);
+        saveValidationQcFigureAfterValidation(results);
         return results;
     }
 
@@ -555,7 +561,7 @@ public class AstraCellpose2D extends Cellpose2D {
         chart.setVerticalGridLinesVisible(true);
         chart.setPrefSize(1600, 900);
         chart.setMinSize(1600, 900);
-        chart.setStyle("-fx-background-color: white; -fx-font-size: 14px;");
+        chart.setStyle("-fx-background-color: white; -fx-font-size: 16px; -fx-font-family: 'Arial';");
 
         chart.getData().add(createLossSeries(trainingResults, "Training Loss", "Loss"));
 
@@ -695,6 +701,199 @@ public class AstraCellpose2D extends Cellpose2D {
         }
     }
 
+    private Canvas createValidationQcCanvas(ResultsTable results) {
+        final double width = 1600.0;
+        final double height = 900.0;
+        Canvas canvas = new Canvas(width, height);
+        GraphicsContext g = canvas.getGraphicsContext2D();
+
+        g.setFill(Color.WHITE);
+        g.fillRect(0, 0, width, height);
+
+        drawValidationTitle(g);
+
+        LinkedHashMap<String, Double> metrics = new LinkedHashMap<>();
+        metrics.put("IoU", meanColumn(results, "Prediction v. GT Intersection over Union"));
+        metrics.put("Precision", meanColumn(results, "precision"));
+        metrics.put("Recall", meanColumn(results, "recall"));
+        metrics.put("F1", meanColumn(results, "f1 score"));
+        metrics.put("Panoptic Quality", meanColumn(results, "panoptic_quality"));
+
+        drawMetricBars(g, metrics, 110.0, 190.0, 920.0, 540.0);
+        drawCountPanel(g, results, 1080.0, 190.0, 380.0, 540.0);
+        drawValidationFooter(g, results, 110.0, 810.0);
+        return canvas;
+    }
+
+    private static void drawValidationTitle(GraphicsContext g) {
+        g.setFill(Color.rgb(24, 34, 45));
+        g.setFont(Font.font("Arial", FontWeight.BOLD, 42.0));
+        g.fillText("ASTRA Validation QC", 110.0, 92.0);
+        g.setFill(Color.rgb(86, 96, 108));
+        g.setFont(Font.font("Arial", FontWeight.NORMAL, 22.0));
+        g.fillText("Cellpose-SAM prediction quality against validation masks", 112.0, 128.0);
+    }
+
+    private static void drawMetricBars(GraphicsContext g,
+                                       LinkedHashMap<String, Double> metrics,
+                                       double x,
+                                       double y,
+                                       double width,
+                                       double height) {
+        g.setStroke(Color.rgb(216, 222, 230));
+        g.setLineWidth(1.5);
+        g.strokeRect(x, y, width, height);
+
+        g.setFill(Color.rgb(24, 34, 45));
+        g.setFont(Font.font("Arial", FontWeight.BOLD, 24.0));
+        g.fillText("Mean Per-Image Metrics", x + 34.0, y + 48.0);
+
+        double plotX = x + 78.0;
+        double plotY = y + 105.0;
+        double plotW = width - 130.0;
+        double plotH = height - 185.0;
+
+        g.setStroke(Color.rgb(225, 230, 236));
+        g.setLineWidth(1.0);
+        for (int i = 0; i <= 4; i++) {
+            double yy = plotY + plotH - (plotH * i / 4.0);
+            g.strokeLine(plotX, yy, plotX + plotW, yy);
+            g.setFill(Color.rgb(104, 113, 124));
+            g.setFont(Font.font("Arial", FontWeight.NORMAL, 15.0));
+            g.fillText(String.format("%.2f", i / 4.0), plotX - 48.0, yy + 5.0);
+        }
+
+        int count = metrics.size();
+        double gap = 28.0;
+        double barW = (plotW - gap * (count - 1)) / count;
+        Color[] palette = new Color[]{
+                Color.rgb(42, 111, 151),
+                Color.rgb(46, 125, 99),
+                Color.rgb(195, 124, 53),
+                Color.rgb(132, 86, 164),
+                Color.rgb(190, 75, 75)
+        };
+
+        int index = 0;
+        for (Map.Entry<String, Double> entry : metrics.entrySet()) {
+            double value = sanitizeUnitMetric(entry.getValue());
+            double barH = plotH * value;
+            double bx = plotX + index * (barW + gap);
+            double by = plotY + plotH - barH;
+
+            g.setFill(palette[index % palette.length]);
+            g.fillRect(bx, by, barW, barH);
+            g.setStroke(Color.WHITE);
+            g.strokeRect(bx, by, barW, barH);
+
+            g.setFill(Color.rgb(24, 34, 45));
+            g.setFont(Font.font("Arial", FontWeight.BOLD, 18.0));
+            g.setTextAlign(TextAlignment.CENTER);
+            g.fillText(Double.isNaN(entry.getValue()) ? "NA" : String.format("%.3f", entry.getValue()), bx + barW / 2.0, by - 12.0);
+            g.setFont(Font.font("Arial", FontWeight.NORMAL, 15.0));
+            g.fillText(entry.getKey(), bx + barW / 2.0, plotY + plotH + 34.0);
+            g.setTextAlign(TextAlignment.LEFT);
+            index++;
+        }
+    }
+
+    private static void drawCountPanel(GraphicsContext g, ResultsTable results, double x, double y, double width, double height) {
+        g.setStroke(Color.rgb(216, 222, 230));
+        g.setLineWidth(1.5);
+        g.strokeRect(x, y, width, height);
+
+        g.setFill(Color.rgb(24, 34, 45));
+        g.setFont(Font.font("Arial", FontWeight.BOLD, 24.0));
+        g.fillText("Object Counts", x + 34.0, y + 48.0);
+
+        long truePositive = Math.round(sumColumn(results, "true positive"));
+        long falsePositive = Math.round(sumColumn(results, "false positive"));
+        long falseNegative = Math.round(sumColumn(results, "false negative"));
+        long groundTruth = Math.round(sumColumn(results, "n_true"));
+        long predicted = Math.round(sumColumn(results, "n_pred"));
+
+        double rowY = y + 118.0;
+        rowY = drawCountRow(g, "True positive", truePositive, Color.rgb(46, 125, 99), x + 34.0, rowY);
+        rowY = drawCountRow(g, "False positive", falsePositive, Color.rgb(195, 124, 53), x + 34.0, rowY);
+        rowY = drawCountRow(g, "False negative", falseNegative, Color.rgb(190, 75, 75), x + 34.0, rowY);
+
+        g.setStroke(Color.rgb(225, 230, 236));
+        g.strokeLine(x + 34.0, rowY + 18.0, x + width - 34.0, rowY + 18.0);
+        rowY += 70.0;
+        rowY = drawCountRow(g, "GT objects", groundTruth, Color.rgb(78, 88, 98), x + 34.0, rowY);
+        drawCountRow(g, "Predicted objects", predicted, Color.rgb(78, 88, 98), x + 34.0, rowY);
+    }
+
+    private static double drawCountRow(GraphicsContext g, String label, long value, Color color, double x, double y) {
+        g.setFill(color);
+        g.fillRoundRect(x, y - 25.0, 16.0, 42.0, 6.0, 6.0);
+        g.setFill(Color.rgb(86, 96, 108));
+        g.setFont(Font.font("Arial", FontWeight.NORMAL, 18.0));
+        g.fillText(label, x + 32.0, y);
+        g.setFill(Color.rgb(24, 34, 45));
+        g.setFont(Font.font("Arial", FontWeight.BOLD, 30.0));
+        g.setTextAlign(TextAlignment.RIGHT);
+        g.fillText(Long.toString(value), x + 310.0, y + 3.0);
+        g.setTextAlign(TextAlignment.LEFT);
+        return y + 64.0;
+    }
+
+    private static void drawValidationFooter(GraphicsContext g, ResultsTable results, double x, double y) {
+        g.setFill(Color.rgb(86, 96, 108));
+        g.setFont(Font.font("Arial", FontWeight.NORMAL, 18.0));
+        g.fillText("Rows: " + results.getCounter() + " validation image(s). Metrics are computed from validation_results.csv.", x, y);
+    }
+
+    private static double meanColumn(ResultsTable table, String columnName) {
+        double sum = 0.0;
+        int count = 0;
+        for (int row = 0; row < table.getCounter(); row++) {
+            double value = getNumericValue(table, columnName, row);
+            if (Double.isFinite(value)) {
+                sum += value;
+                count++;
+            }
+        }
+        return count == 0 ? Double.NaN : sum / count;
+    }
+
+    private static double sumColumn(ResultsTable table, String columnName) {
+        double sum = 0.0;
+        for (int row = 0; row < table.getCounter(); row++) {
+            double value = getNumericValue(table, columnName, row);
+            if (Double.isFinite(value)) {
+                sum += value;
+            }
+        }
+        return sum;
+    }
+
+    private static double sanitizeUnitMetric(double value) {
+        if (!Double.isFinite(value)) {
+            return 0.0;
+        }
+        return Math.max(0.0, Math.min(1.0, value));
+    }
+
+    private static double getNumericValue(ResultsTable table, String columnName, int row) {
+        try {
+            return table.getValue(columnName, row);
+        } catch (RuntimeException ignored) {
+            return Double.NaN;
+        }
+    }
+
+    private static void saveCanvasPng(Canvas canvas, File outputFile) throws IOException {
+        new Scene(new Group(canvas));
+        SnapshotParameters snapshotParameters = new SnapshotParameters();
+        snapshotParameters.setFill(Color.WHITE);
+        WritableImage writableImage = canvas.snapshot(snapshotParameters, null);
+        RenderedImage renderedImage = SwingFXUtils.fromFXImage(writableImage, null);
+        if (!ImageIO.write(renderedImage, "png", outputFile)) {
+            throw new IOException("Could not write QC figure image: no PNG writer available.");
+        }
+    }
+
     private void saveTrainingGraphAfterTraining() throws IOException {
         ResultsTable trainingResults = getTrainingResults();
         if (trainingResults == null) {
@@ -727,6 +926,47 @@ public class AstraCellpose2D extends Cellpose2D {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted while saving ASTRA training graph.", e);
+        }
+
+        if (runtimeError[0] != null) {
+            throw runtimeError[0];
+        }
+        if (ioError[0] != null) {
+            throw ioError[0];
+        }
+    }
+
+    private void saveValidationQcFigureAfterValidation(ResultsTable results) throws IOException {
+        if (results == null) {
+            throw new IllegalStateException("ASTRA validation QC figure requires validation results.");
+        }
+
+        File qcFigureFile = resolveValidationQcFigureFile(getValidationResultsDirectory());
+
+        RuntimeException[] runtimeError = new RuntimeException[1];
+        IOException[] ioError = new IOException[1];
+        CountDownLatch latch = new CountDownLatch(1);
+
+        FXUtils.runOnApplicationThread(() -> {
+            try {
+                Canvas canvas = createValidationQcCanvas(results);
+                saveCanvasPng(canvas, qcFigureFile);
+            } catch (IOException e) {
+                ioError[0] = e;
+            } catch (RuntimeException e) {
+                runtimeError[0] = e;
+            } finally {
+                latch.countDown();
+            }
+        });
+
+        try {
+            if (!latch.await(30, TimeUnit.SECONDS)) {
+                throw new IOException("Timed out while saving ASTRA validation QC figure.");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while saving ASTRA validation QC figure.", e);
         }
 
         if (runtimeError[0] != null) {
@@ -2109,6 +2349,11 @@ public class AstraCellpose2D extends Cellpose2D {
     static File resolveTrainingGraphFile(File trainingResultsFolder) {
         Objects.requireNonNull(trainingResultsFolder, "trainingResultsFolder");
         return new File(trainingResultsFolder, "training_graph.png");
+    }
+
+    static File resolveValidationQcFigureFile(File validationOutputDirectory) {
+        Objects.requireNonNull(validationOutputDirectory, "validationOutputDirectory");
+        return new File(validationOutputDirectory, "validation_qc.png");
     }
 
     @SuppressWarnings("unchecked")
