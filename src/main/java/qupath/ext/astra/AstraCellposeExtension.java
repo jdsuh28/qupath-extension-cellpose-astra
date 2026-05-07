@@ -43,6 +43,7 @@ public class AstraCellposeExtension extends CellposeExtension {
     private static final Map<String, String> SCRIPT_RESOURCES = createScriptResources();
 
     private boolean installed;
+    private StringProperty runtimePythonPath;
 
     @Override
     public String getName() {
@@ -68,6 +69,7 @@ public class AstraCellposeExtension extends CellposeExtension {
 
         installScripts(qupath);
         registerRuntimePreference(qupath);
+        installSetupActions(qupath);
 
         installed = true;
     }
@@ -120,7 +122,7 @@ public class AstraCellposeExtension extends CellposeExtension {
 
     private void registerRuntimePreference(QuPathGUI qupath) {
         CellposeSetup cellposeSetup = CellposeSetup.getInstance();
-        StringProperty runtimePythonPath = PathPrefs.createPersistentPreference(ASTRA_RUNTIME_PYTHON_PATH_KEY, "");
+        runtimePythonPath = PathPrefs.createPersistentPreference(ASTRA_RUNTIME_PYTHON_PATH_KEY, "");
         String normalizedInitialPath = normalizePythonPath(runtimePythonPath.get());
         if (!normalizedInitialPath.equals(runtimePythonPath.get())) {
             runtimePythonPath.set(normalizedInitialPath);
@@ -146,6 +148,12 @@ public class AstraCellposeExtension extends CellposeExtension {
                 .build();
 
         propertySheet.getItems().add(runtimePythonPathItem);
+    }
+
+    private void installSetupActions(QuPathGUI qupath) {
+        Action installRuntime = new Action("Install/Repair Python Runtime", event ->
+                AstraRuntimeInstaller.installOrRepairAsync(runtimePythonPath));
+        MenuTools.addMenuItems(qupath.getMenu("Extensions>ASTRA>Setup", true), installRuntime);
     }
 
     private static String normalizePythonPath(String rawPath) {

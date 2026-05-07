@@ -58,6 +58,19 @@ class AstraExtensionContractTest {
     }
 
     /**
+     * Verifies the ASTRA runtime installer uses the pinned public fork and a
+     * deterministic user-local runtime path.
+     */
+    @Test
+    void runtimeInstallerUsesDeterministicAstraRuntime() {
+        assertEquals("v4.0.8+astra.2", AstraRuntimeInstaller.DEFAULT_CELLPOSE_REF);
+        assertEquals("git+https://github.com/jdsuh28/cellpose-astra.git@v4.0.8+astra.2",
+                AstraRuntimeInstaller.cellposePackageSpec());
+        assertEquals("cellpose-runtime", AstraRuntimeInstaller.runtimeDirectory().getName());
+        assertTrue(AstraRuntimeInstaller.runtimePythonExecutable(new File("runtime")).getPath().contains("runtime"));
+    }
+
+    /**
      * Verifies the extension archive is quarantined away from active source and
      * resource roots.
      */
