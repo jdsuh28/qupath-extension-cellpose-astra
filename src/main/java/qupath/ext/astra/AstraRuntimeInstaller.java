@@ -37,7 +37,7 @@ final class AstraRuntimeInstaller {
     static final String DEFAULT_CELLPOSE_REF = "v4.0.8+astra.2";
 
     private static final String RUNTIME_FOLDER_NAME = "cellpose-runtime";
-    private static final String RELEASE_PROPERTIES_RESOURCE = "astra/release/runtime.properties";
+    private static final String RELEASE_PROPERTIES_RESOURCE = "qupath/ext/astra/release/runtime.properties";
     private static final Duration COMMAND_TIMEOUT = Duration.ofMinutes(45);
 
     private AstraRuntimeInstaller() {
