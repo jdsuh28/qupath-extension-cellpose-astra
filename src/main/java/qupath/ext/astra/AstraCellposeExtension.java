@@ -103,8 +103,11 @@ public class AstraCellposeExtension extends CellposeExtension {
                 }
 
                 final String scriptName = actionName;
-                Action action = new Action(scriptName, event -> openScript(qupath, scriptName, script));
-                MenuTools.addMenuItems(qupath.getMenu(menuPath, true), action);
+                Action runAction = new Action(scriptName, event ->
+                        AstraPipelineLauncher.configureAndRun(qupath, scriptName, script));
+                Action openAction = new Action(scriptName, event -> openScript(qupath, scriptName, script));
+                MenuTools.addMenuItems(qupath.getMenu(menuPath, true), runAction);
+                MenuTools.addMenuItems(qupath.getMenu(scriptArchiveMenuPath(menuPath), true), openAction);
             } catch (Exception e) {
                 logger.error("Failed to register ASTRA script '{}' from {}.", commandName, resourcePath, e);
             }
@@ -118,6 +121,13 @@ public class AstraCellposeExtension extends CellposeExtension {
             return;
         }
         editor.showScript(scriptName, scriptText);
+    }
+
+    private static String scriptArchiveMenuPath(String runtimeMenuPath) {
+        String suffix = runtimeMenuPath.substring("Extensions>ASTRA".length());
+        return suffix.isBlank()
+                ? "Extensions>ASTRA>Scripts"
+                : "Extensions>ASTRA>Scripts" + suffix;
     }
 
     private void registerRuntimePreference(QuPathGUI qupath) {
