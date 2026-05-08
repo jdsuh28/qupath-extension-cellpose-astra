@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>io.github.qupath</groupId>
+  <artifactId>qupath-gui-fx</artifactId>
+  <version>0.6.0</version>
+  <dependencies>
+    <dependency><groupId>io.github.qupath</groupId><artifactId>qupath-core</artifactId><version>0.6.0</version></dependency>
+    <dependency><groupId>io.github.qupath</groupId><artifactId>qupath-core-processing</artifactId><version>0.6.0</version></dependency>
+    <dependency><groupId>org.controlsfx</groupId><artifactId>controlsfx</artifactId><version>11.2.2</version></dependency>
+  </dependencies>
+</project>
