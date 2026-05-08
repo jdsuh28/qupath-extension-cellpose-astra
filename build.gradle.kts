@@ -19,7 +19,7 @@ java {
 qupathExtension {
     name = "qupath-extension-cellpose-astra"
     group = "io.github.jdsuh28"
-    version = "0.1.36"
+    version = "0.1.37"
     description = "ASTRA fork of the BIOP Cellpose extension for QuPath"
     automaticModule = "qupath.ext.astra.cellpose"
 }
