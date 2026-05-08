@@ -1,7 +1,7 @@
 plugins {
-    id("maven-publish")
-    // QuPath Gradle extension convention plugin
-    id("qupath-conventions")
+    `java-library`
+    `maven-publish`
+    id("org.openjfx.javafxplugin") version "0.1.0"
 }
 
 /*
@@ -11,23 +11,33 @@ java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(21))
     }
+    withSourcesJar()
+    withJavadocJar()
 }
 
 /*
  * ASTRA-specific extension metadata.
  */
-qupathExtension {
-    name = "qupath-extension-cellpose-astra"
-    group = "io.github.jdsuh28"
-    version = "0.1.41"
-    description = "ASTRA fork of the BIOP Cellpose extension for QuPath"
-    automaticModule = "qupath.ext.astra.cellpose"
+group = "io.github.jdsuh28"
+version = "0.1.43"
+description = "ASTRA fork of the BIOP Cellpose extension for QuPath"
+
+val extensionName = "qupath-extension-cellpose-astra"
+val automaticModuleName = "qupath.ext.astra.cellpose"
+
+base {
+    archivesName.set(extensionName)
+}
+
+javafx {
+    version = "21.0.5"
+    modules = listOf("javafx.controls", "javafx.swing")
 }
 
 dependencies {
-    implementation(libs.qupath.gui.fx)
-    implementation(libs.qupath.fxtras)
-    implementation(libs.extensionmanager)
+    implementation("io.github.qupath:qupath-gui-fx:0.6.0")
+    implementation("io.github.qupath:qupath-fxtras:0.2.0")
+    implementation("io.github.qupath:extensionmanager:1.0.0")
     implementation("commons-io:commons-io:2.15.0")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -37,20 +47,40 @@ tasks.withType<Test>().configureEach {
     useJUnitPlatform()
 }
 
+tasks.withType<ProcessResources>().configureEach {
+    from("${projectDir}/LICENSE") {
+        into("META-INF/licenses/")
+    }
+}
+
+tasks.register<Sync>("copyResources") {
+    description = "Copy dependencies into the build directory for use elsewhere"
+    group = "QuPath"
+    from(configurations.default)
+    into("build/libs")
+}
+
 /*
- * Set HTML language and destination folder
+ * Set HTML language and destination folder.
  */
-tasks.withType<Javadoc> {
+tasks.withType<Javadoc>().configureEach {
+    (options as StandardJavadocDocletOptions).addStringOption("Xdoclint:none", "-quiet")
     (options as StandardJavadocDocletOptions).addBooleanOption("html5", true)
     setDestinationDir(File(project.rootDir, "docs"))
 }
 
 /*
- * Avoid "Entry .gitkeep is a duplicate but no duplicate handling strategy has been set."
- * when using withSourcesJar()
+ * Avoid duplicate resource failures when building source or runtime jars.
  */
-tasks.withType<org.gradle.jvm.tasks.Jar> {
+tasks.withType<Jar>().configureEach {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    manifest {
+        attributes(
+            "Implementation-Title" to extensionName,
+            "Implementation-Version" to project.version,
+            "Automatic-Module-Name" to automaticModuleName
+        )
+    }
 }
 
 publishing {
