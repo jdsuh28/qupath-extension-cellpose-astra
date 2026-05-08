@@ -104,7 +104,7 @@ public class AstraCellposeExtension extends CellposeExtension {
 
                 final String scriptName = actionName;
                 Action runAction = new Action(scriptName, event ->
-                        AstraPipelineLauncher.configureAndRun(qupath, scriptName, script));
+                        openScript(qupath, scriptName, AstraPipelineLauncher.createWrapperScript(scriptName, resourcePath)));
                 Action openAction = new Action(scriptName, event -> openScript(qupath, scriptName, script));
                 MenuTools.addMenuItems(qupath.getMenu(menuPath, true), runAction);
                 MenuTools.addMenuItems(qupath.getMenu(scriptArchiveMenuPath(menuPath), true), openAction);

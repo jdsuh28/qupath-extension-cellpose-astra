@@ -16,32 +16,35 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import qupath.fx.dialogs.Dialogs;
+import qupath.lib.common.ColorTools;
 import qupath.lib.gui.QuPathGUI;
-import qupath.lib.gui.scripting.languages.GroovyLanguage;
-import qupath.lib.gui.scripting.QPEx;
-import qupath.lib.scripting.ScriptParameters;
+import qupath.lib.images.ImageData;
+import qupath.lib.images.servers.ImageChannel;
 
-import javax.script.ScriptException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Presents a lightweight ASTRA configuration dialog and executes the selected
- * bundled pipeline script with the user's edited constants.
+ * Presents ASTRA script configuration in a QuPath dialog and returns an edited
+ * script for execution by the standard QuPath script editor.
  *
- * <p>The launcher deliberately treats the base ASTRA Groovy script as the
- * source of truth.  It extracts editable top-level {@code final} declarations,
- * edits only those declaration values, and then executes the resulting script
- * through QuPath's Groovy scripting runtime.  This keeps the extension-side GUI
- * generic while avoiding a second divergent configuration schema.</p>
+ * <p>The base ASTRA Groovy script remains the source of truth.  This launcher
+ * extracts editable top-level {@code final} declarations, renders them in a
+ * small GUI, rewrites only those declarations, and gives the configured script
+ * back to the wrapper running inside QuPath's normal script editor.  That keeps
+ * output, errors, and cancellation behavior anchored to the familiar QuPath
+ * script console while avoiding hand-editing long parameter blocks.</p>
  */
-final class AstraPipelineLauncher {
+public final class AstraPipelineLauncher {
 
     private static final Logger logger = LoggerFactory.getLogger(AstraPipelineLauncher.class);
     private static final Pattern DECLARATION_PATTERN = Pattern.compile(
@@ -53,51 +56,87 @@ final class AstraPipelineLauncher {
     }
 
     /**
-     * Opens the configuration dialog and executes the configured pipeline when
-     * the user confirms.
+     * Creates the small wrapper script opened by ASTRA menu actions.
+     *
+     * @param scriptName user-facing script name.
+     * @param resourcePath bundled full pipeline script resource.
+     * @return Groovy wrapper script.
+     */
+    public static String createWrapperScript(String scriptName, String resourcePath) {
+        String safeName = scriptName.replace("'", "\\'");
+        return "import qupath.ext.astra.AstraPipelineLauncher\n\n" +
+                "def configuredScript = AstraPipelineLauncher.promptForConfiguredScript(getQuPath(), " +
+                quote(scriptName) + ", " + quote(resourcePath) + ")\n" +
+                "if (configuredScript == null) {\n" +
+                "    println 'ASTRA " + safeName + " cancelled.'\n" +
+                "    return\n" +
+                "}\n\n" +
+                "println 'ASTRA " + safeName + " started.'\n" +
+                "evaluate(configuredScript)\n";
+    }
+
+    /**
+     * Loads a bundled pipeline script, shows the configuration dialog, and
+     * returns the edited script.
      *
      * @param qupath active QuPath GUI.
      * @param scriptName user-facing script name.
-     * @param scriptText bundled script text.
+     * @param resourcePath bundled full pipeline script resource.
+     * @return configured script text, or null when cancelled.
      */
-    static void configureAndRun(QuPathGUI qupath, String scriptName, String scriptText) {
+    public static String promptForConfiguredScript(QuPathGUI qupath, String scriptName, String resourcePath) {
+        Objects.requireNonNull(resourcePath, "resourcePath");
+        try (InputStream stream = AstraPipelineLauncher.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (stream == null) {
+                throw new IllegalArgumentException("Missing ASTRA pipeline resource: " + resourcePath);
+            }
+            String script = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            return promptForConfiguredScript(qupath, scriptName, script, resourcePath);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to load ASTRA pipeline resource '" + resourcePath + "': " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Shows the configuration dialog and returns the edited script.
+     *
+     * @param qupath active QuPath GUI.
+     * @param scriptName user-facing script name.
+     * @param scriptText full pipeline script text.
+     * @param sourceLabel label used in diagnostics.
+     * @return configured script text, or null when cancelled.
+     */
+    public static String promptForConfiguredScript(QuPathGUI qupath, String scriptName, String scriptText, String sourceLabel) {
         Objects.requireNonNull(qupath, "qupath");
         Objects.requireNonNull(scriptName, "scriptName");
         Objects.requireNonNull(scriptText, "scriptText");
 
-        if (!Platform.isFxApplicationThread()) {
-            Platform.runLater(() -> configureAndRun(qupath, scriptName, scriptText));
-            return;
+        if (Platform.isFxApplicationThread()) {
+            return promptOnApplicationThread(qupath, scriptName, scriptText, sourceLabel);
         }
 
-        List<EditableConstant> constants = extractEditableConstants(scriptText);
-        if (constants.isEmpty()) {
-            Dialogs.showErrorMessage("ASTRA " + scriptName, "No editable ASTRA configuration constants were found.");
-            return;
-        }
-
-        Dialog<ButtonType> dialog = new Dialog<>();
-        dialog.initOwner(qupath.getStage());
-        dialog.setTitle("ASTRA " + scriptName);
-        dialog.setHeaderText("Configure " + scriptName);
-        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-        dialog.getDialogPane().setContent(createContent(constants));
-        dialog.setResizable(true);
-
-        ButtonType result = dialog.showAndWait().orElse(ButtonType.CANCEL);
-        if (result != ButtonType.OK) {
-            return;
-        }
-
-        String configuredScript;
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<String> result = new AtomicReference<>();
+        AtomicReference<RuntimeException> failure = new AtomicReference<>();
+        Platform.runLater(() -> {
+            try {
+                result.set(promptOnApplicationThread(qupath, scriptName, scriptText, sourceLabel));
+            } catch (RuntimeException e) {
+                failure.set(e);
+            } finally {
+                latch.countDown();
+            }
+        });
         try {
-            configuredScript = applyConstants(scriptText, constants);
-        } catch (RuntimeException e) {
-            Dialogs.showErrorMessage("ASTRA " + scriptName, e.getMessage());
-            return;
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for ASTRA configuration dialog.", e);
         }
-
-        executeAsync(qupath, scriptName, configuredScript);
+        if (failure.get() != null) {
+            throw failure.get();
+        }
+        return result.get();
     }
 
     /**
@@ -195,10 +234,33 @@ final class AstraPipelineLauncher {
         return out.toString();
     }
 
-    private static Node createContent(List<EditableConstant> constants) {
+    private static String promptOnApplicationThread(QuPathGUI qupath, String scriptName, String scriptText, String sourceLabel) {
+        List<EditableConstant> constants = extractEditableConstants(scriptText);
+        if (constants.isEmpty()) {
+            throw new IllegalStateException("No editable ASTRA configuration constants were found in " + sourceLabel + ".");
+        }
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.initOwner(qupath.getStage());
+        dialog.setTitle("ASTRA " + scriptName);
+        dialog.setHeaderText("Configure " + scriptName);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        dialog.getDialogPane().setContent(createContent(qupath, constants));
+        dialog.setResizable(true);
+
+        ButtonType result = dialog.showAndWait().orElse(ButtonType.CANCEL);
+        if (result != ButtonType.OK) {
+            return null;
+        }
+
+        return applyConstants(scriptText, constants);
+    }
+
+    private static Node createContent(QuPathGUI qupath, List<EditableConstant> constants) {
         VBox box = new VBox(10.0);
         box.setPadding(new Insets(12.0));
-        box.getChildren().add(new Label("Review or adjust the values below, then press OK to run."));
+        box.getChildren().add(new Label("Review or adjust the values below, then press OK to run. Output will appear in this script editor tab."));
+        box.getChildren().add(createChannelSummary(qupath));
 
         GridPane grid = new GridPane();
         grid.setHgap(10.0);
@@ -229,38 +291,53 @@ final class AstraPipelineLauncher {
 
         ScrollPane scroll = new ScrollPane(grid);
         scroll.setFitToWidth(true);
-        scroll.setPrefViewportWidth(900.0);
+        scroll.setPrefViewportWidth(940.0);
         scroll.setPrefViewportHeight(650.0);
         box.getChildren().add(scroll);
         VBox.setVgrow(scroll, Priority.ALWAYS);
         return box;
     }
 
-    private static void executeAsync(QuPathGUI qupath, String scriptName, String configuredScript) {
-        qupath.getThreadPoolManager().getSingleThreadExecutor(AstraPipelineLauncher.class).submit(() -> {
-            try {
-                logger.info("ASTRA {} started from configuration dialog.", scriptName);
-                ScriptParameters params = ScriptParameters.builder()
-                        .setScript(configuredScript)
-                        .setProject(qupath.getProject())
-                        .setImageData(qupath.getImageData())
-                        .setDefaultImports(QPEx.getCoreClasses())
-                        .setDefaultStaticImports(Collections.singletonList(QPEx.class))
-                        .useLogWriters(logger)
-                        .build();
-                Object result = GroovyLanguage.getInstance().execute(params);
-                if (result != null) {
-                    logger.info("ASTRA {} result: {}", scriptName, result);
-                }
-                Platform.runLater(() -> Dialogs.showInfoNotification("ASTRA " + scriptName, "Run completed."));
-            } catch (ScriptException e) {
-                logger.error("ASTRA {} failed.", scriptName, e);
-                Platform.runLater(() -> Dialogs.showErrorMessage("ASTRA " + scriptName, String.valueOf(e.getMessage())));
-            } catch (Throwable t) {
-                logger.error("ASTRA {} failed.", scriptName, t);
-                Platform.runLater(() -> Dialogs.showErrorMessage("ASTRA " + scriptName, t.getClass().getSimpleName() + ": " + t.getMessage()));
+    private static Node createChannelSummary(QuPathGUI qupath) {
+        VBox box = new VBox(4.0);
+        box.setPadding(new Insets(8.0));
+        box.setStyle("-fx-border-color: #b8c0cc; -fx-border-radius: 4; -fx-background-color: #f7f9fc;");
+        Label title = new Label("Current image channels");
+        title.setStyle("-fx-font-weight: bold;");
+        box.getChildren().add(title);
+
+        ImageData<?> imageData = qupath.getImageData();
+        if (imageData == null || imageData.getServer() == null || imageData.getServer().getMetadata() == null) {
+            box.getChildren().add(new Label("No image is currently open. Channel names cannot be previewed."));
+            return box;
+        }
+
+        List<ImageChannel> channels = imageData.getServer().getMetadata().getChannels();
+        if (channels == null || channels.isEmpty()) {
+            box.getChildren().add(new Label("No channel metadata found for the current image."));
+            return box;
+        }
+
+        for (int i = 0; i < channels.size(); i++) {
+            ImageChannel channel = channels.get(i);
+            Integer color = channel.getColor();
+            String colorText = color == null ? "none" : String.format(
+                    "#%02X%02X%02X",
+                    ColorTools.red(color),
+                    ColorTools.green(color),
+                    ColorTools.blue(color)
+            );
+            Label label = new Label((i + 1) + ". " + channel.getName() + "  " + colorText);
+            if (color != null) {
+                label.setStyle("-fx-text-fill: " + colorText + "; -fx-font-weight: bold;");
             }
-        });
+            box.getChildren().add(label);
+        }
+        return box;
+    }
+
+    private static String quote(String value) {
+        return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
     private static int bracketBalance(String line) {
@@ -386,7 +463,7 @@ final class AstraPipelineLauncher {
         private String renderFieldValue(String raw) {
             String value = raw == null ? "" : raw.trim();
             if ("String".equals(type)) {
-                return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+                return quote(value);
             }
             if (value.isBlank()) {
                 throw new IllegalArgumentException(name + " must not be blank.");
