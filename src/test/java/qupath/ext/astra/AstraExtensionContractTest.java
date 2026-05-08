@@ -71,6 +71,23 @@ class AstraExtensionContractTest {
     }
 
     /**
+     * Verifies menu actions open a wrapper script that launches the ASTRA
+     * parameter dialog and then evaluates the configured pipeline script inside
+     * the QuPath script editor.
+     */
+    @Test
+    void pipelineLauncherCreatesScriptEditorWrapper() {
+        String wrapper = AstraPipelineLauncher.createWrapperScript(
+                "Colocalization",
+                "astra/analysis/src/main/groovy/colocalization/colocalization.groovy"
+        );
+
+        assertTrue(wrapper.contains("AstraPipelineLauncher.promptForConfiguredScript"));
+        assertTrue(wrapper.contains("evaluate(configuredScript)"));
+        assertTrue(wrapper.contains("astra/analysis/src/main/groovy/colocalization/colocalization.groovy"));
+    }
+
+    /**
      * Verifies the extension archive is quarantined away from active source and
      * resource roots.
      */
