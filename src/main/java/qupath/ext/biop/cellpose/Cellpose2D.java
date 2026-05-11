@@ -100,9 +100,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -892,15 +894,16 @@ public class Cellpose2D {
 
         // Build a thread pool to process reading the images in parallel
         ExecutorService executor = Executors.newFixedThreadPool(5);
+        List<Future<?>> readerTasks = new ArrayList<>();
 
         if (!this.doReadResultsAsynchronously) {
             // We need to wait for the process to finish
             veRunner.getProcess().waitFor();
             allTiles.forEach(entry -> {
-                executor.execute(() -> {
+                readerTasks.add(executor.submit(() -> {
                     // Read the objects from the file
                     entry.setCandidates(readObjectsFromTileFile(entry));
-                });
+                }));
 
             });
         } else { // Experimental file listening and running
@@ -939,10 +942,10 @@ public class Cellpose2D {
                     }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b, LinkedHashMap::new));
 
                     // Announce that these files are done
-                    finishedFiles.forEach((key, tile) -> executor.execute(() -> {
+                    finishedFiles.forEach((key, tile) -> readerTasks.add(executor.submit(() -> {
                         // Read the objects from the file
                         tile.setCandidates(readObjectsFromTileFile(tile));
-                    }));
+                    })));
 
                     // Remove from the queue
                     finishedFiles.forEach((k, v) -> {
@@ -966,10 +969,10 @@ public class Cellpose2D {
 
                 // Announce that these files are done
                 finishedFiles.forEach((key, tile) -> {
-                    executor.execute(() -> {
+                    readerTasks.add(executor.submit(() -> {
                         // Read the objects from the file
                         tile.setCandidates(readObjectsFromTileFile(tile));
-                    });
+                    }));
                 });
                 // Remove them from the list of remaining files
 
@@ -980,6 +983,14 @@ public class Cellpose2D {
 
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.MINUTES);
+        for (Future<?> task : readerTasks) {
+            try {
+                task.get();
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause() == null ? e : e.getCause();
+                throw new IOException("Failed to read Cellpose output tile: " + cause.getMessage(), cause);
+            }
+        }
     }
 
     /**
@@ -1504,6 +1515,12 @@ public class Cellpose2D {
         logger.info("Reading {}", tileFile.getLabelFile().getName());
         // Open the image
         ImagePlus label_imp = IJ.openImage(tileFile.getLabelFile().getAbsolutePath());
+        if (label_imp == null) {
+            File labelFile = tileFile.getLabelFile();
+            throw new IllegalStateException("Cellpose did not produce a readable label image: " +
+                    labelFile.getAbsolutePath() + " (exists=" + labelFile.exists() + ", bytes=" +
+                    (labelFile.exists() ? labelFile.length() : 0) + ")");
+        }
         ImageProcessor ip = label_imp.getProcessor();
 
         Wand wand = new Wand(ip);
