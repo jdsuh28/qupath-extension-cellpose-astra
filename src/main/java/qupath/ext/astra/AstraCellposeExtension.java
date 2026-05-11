@@ -76,12 +76,12 @@ public class AstraCellposeExtension extends CellposeExtension {
 
     private static Map<String, String> createScriptResources() {
         LinkedHashMap<String, String> scripts = new LinkedHashMap<>();
-        scripts.put("ASTRA Training", "astra/training/src/main/groovy/training.groovy");
-        scripts.put("ASTRA Validation", "astra/validation/src/main/groovy/validation.groovy");
-        scripts.put("ASTRA Tuning", "astra/tuning/src/main/groovy/tuning.groovy");
+        scripts.put("Training", "astra/training/src/main/groovy/training.groovy");
+        scripts.put("Tuning", "astra/tuning/src/main/groovy/tuning.groovy");
+        scripts.put("Validation", "astra/validation/src/main/groovy/validation.groovy");
         scripts.put("Analysis>Vascular", "astra/analysis/src/main/groovy/vascular/vascular.groovy");
         scripts.put("Analysis>Colocalization", "astra/analysis/src/main/groovy/colocalization/colocalization.groovy");
-        scripts.put("ASTRA Generate Regions", "astra/tools/src/main/groovy/generateRegions.groovy");
+        scripts.put("Analysis>Generate Regions", "astra/tools/src/main/groovy/generateRegions.groovy");
         return Collections.unmodifiableMap(scripts);
     }
 
@@ -163,7 +163,7 @@ public class AstraCellposeExtension extends CellposeExtension {
     private void installSetupActions(QuPathGUI qupath) {
         Action installRuntime = new Action("Install/Repair Python Runtime", event ->
                 AstraRuntimeInstaller.installOrRepairAsync(runtimePythonPath));
-        MenuTools.addMenuItems(qupath.getMenu("Extensions>ASTRA>Setup", true), installRuntime);
+        MenuTools.addMenuItems(qupath.getMenu("Extensions>ASTRA", true), installRuntime);
     }
 
     private static String normalizePythonPath(String rawPath) {

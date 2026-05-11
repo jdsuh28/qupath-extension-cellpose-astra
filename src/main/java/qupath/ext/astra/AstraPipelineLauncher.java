@@ -2,16 +2,19 @@ package qupath.ext.astra;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
-import javafx.scene.control.TitledPane;
 import javafx.scene.control.Tooltip;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
@@ -30,9 +33,12 @@ import qupath.lib.scripting.ScriptParameters;
 
 import javax.script.ScriptException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -54,6 +60,17 @@ final class AstraPipelineLauncher {
     private static final Pattern DECLARATION_PATTERN = Pattern.compile(
             "^final\\s+(String|boolean|int|double|List|Map)\\s+([A-Z][A-Z0-9_]*)\\s*=\\s*(.*)$"
     );
+    private static final String FONT_STACK = "\"Aptos Display\", \"Segoe UI\", \"Inter\", \"Helvetica Neue\", Arial, sans-serif";
+    private static final String MONO_FONT_STACK = "\"JetBrains Mono\", \"SF Mono\", Consolas, monospace";
+    private static final String INK = "#172431";
+    private static final String MUTED = "#5f7080";
+    private static final String PAPER = "#f4f7f8";
+    private static final String PANEL = "#ffffff";
+    private static final String TEAL = "#1f7a7a";
+    private static final String TEAL_DARK = "#0d4f55";
+    private static final String CORAL = "#d9604c";
+    private static final String GOLD = "#d4a72c";
+    private static final Map<String, List<String>> OPTIONS = createOptions();
 
     private AstraPipelineLauncher() {
         throw new AssertionError("No instances");
@@ -85,11 +102,11 @@ final class AstraPipelineLauncher {
 
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.initOwner(qupath.getStage());
-        dialog.setTitle("ASTRA " + scriptName);
+        dialog.setTitle(scriptName);
         dialog.setHeaderText(null);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants));
-        dialog.getDialogPane().setStyle("-fx-background-color: #f6f8fb;");
+        dialog.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
         dialog.setResizable(true);
 
         ButtonType result = dialog.showAndWait().orElse(ButtonType.CANCEL);
@@ -206,24 +223,23 @@ final class AstraPipelineLauncher {
     private static Node createContent(QuPathGUI qupath, String scriptName, List<EditableConstant> constants) {
         VBox root = new VBox(14.0);
         root.setPadding(new Insets(0));
-        root.setStyle("-fx-background-color: #f6f8fb;");
+        root.setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
 
-        VBox header = new VBox(6.0);
+        VBox header = new VBox(12.0);
         header.setPadding(new Insets(22.0, 24.0, 20.0, 24.0));
-        header.setStyle("-fx-background-color: linear-gradient(to right, #123047, #1f6f78);");
-        Label title = new Label("ASTRA " + scriptName);
-        title.setStyle("-fx-font-size: 22px; -fx-font-weight: 700; -fx-text-fill: white;");
-        Label subtitle = new Label("Review the essentials, confirm channel names, and expand advanced settings only when needed.");
+        header.setStyle("-fx-background-color: linear-gradient(to right, #102a3a, #1f7a7a 62%, #d9604c);");
+        Label title = new Label(scriptName);
+        title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 24px; -fx-font-weight: 800; -fx-text-fill: white;");
+        Label subtitle = new Label(descriptionFor(scriptName));
         subtitle.setWrapText(true);
-        subtitle.setStyle("-fx-font-size: 12px; -fx-text-fill: #d9f2f2;");
-        header.getChildren().addAll(title, subtitle);
+        subtitle.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-text-fill: #e3f4f1;");
+        header.getChildren().addAll(title, subtitle, createPipelineFlow(scriptName));
 
         VBox body = new VBox(14.0);
         body.setPadding(new Insets(0, 18.0, 18.0, 18.0));
         body.getChildren().add(createChannelPanel(qupath));
 
-        VBox basic = new VBox(10.0);
-        basic.getChildren().add(sectionHeader("Basic setup", "Only the controls most users should touch for a normal run."));
+        VBox basic = sectionShell("Basic", "Start here. These are the normal run controls: target, scope, channels, model source, thresholds, and outputs.");
         for (String group : orderedGroups(constants, false)) {
             List<EditableConstant> groupConstants = constants.stream()
                     .filter(c -> !c.advanced && group.equals(groupFor(c.name)))
@@ -231,60 +247,87 @@ final class AstraPipelineLauncher {
             basic.getChildren().add(createSection(group, groupConstants, true));
         }
 
-        VBox advancedContent = new VBox(8.0);
+        VBox advanced = sectionShell("Advanced", "Defaults are intentionally conservative. Open these only for deliberate tuning, diagnostics, or publication-specific overrides.");
         for (String group : orderedGroups(constants, true)) {
             List<EditableConstant> groupConstants = constants.stream()
                     .filter(c -> c.advanced && group.equals(groupFor(c.name)))
                     .toList();
-            advancedContent.getChildren().add(createSection(group, groupConstants, false));
+            advanced.getChildren().add(createSection(group, groupConstants, false));
         }
-        TitledPane advancedPane = new TitledPane("Advanced settings", advancedContent);
-        advancedPane.setExpanded(false);
-        advancedPane.setStyle("-fx-font-size: 13px; -fx-font-weight: 700; -fx-text-fill: #153243;");
 
-        body.getChildren().addAll(basic, advancedPane);
+        body.getChildren().addAll(basic, advanced);
 
         ScrollPane scroll = new ScrollPane(body);
         scroll.setFitToWidth(true);
         scroll.setPrefViewportWidth(980.0);
         scroll.setPrefViewportHeight(700.0);
-        scroll.setStyle("-fx-background: #f6f8fb; -fx-background-color: #f6f8fb;");
+        scroll.setStyle("-fx-background: " + PAPER + "; -fx-background-color: " + PAPER + ";");
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
         root.getChildren().addAll(header, scroll);
         return root;
     }
 
-    private static Node sectionHeader(String titleText, String subtitleText) {
-        VBox box = new VBox(2.0);
+    private static VBox sectionShell(String titleText, String subtitleText) {
+        VBox box = new VBox(9.0);
+        box.setPadding(new Insets(14.0));
+        box.setStyle("-fx-background-color: " + PANEL + "; -fx-border-color: #cfdce1; -fx-border-radius: 7; -fx-background-radius: 7;");
         Label title = new Label(titleText);
-        title.setStyle("-fx-font-size: 15px; -fx-font-weight: 700; -fx-text-fill: #153243;");
+        title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 18px; -fx-font-weight: 800; -fx-text-fill: " + INK + ";");
         Label subtitle = new Label(subtitleText);
-        subtitle.setStyle("-fx-font-size: 11px; -fx-text-fill: #536a76;");
+        subtitle.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + MUTED + ";");
         subtitle.setWrapText(true);
         box.getChildren().addAll(title, subtitle);
         return box;
     }
 
-    private static TitledPane createSection(String title, List<EditableConstant> constants, boolean expanded) {
+    private static Node createPipelineFlow(String scriptName) {
+        HBox flow = new HBox(8.0);
+        flow.setAlignment(Pos.CENTER_LEFT);
+        List<String> stages = List.of("Training", "Tuning", "Validation", "Analysis");
+        String active = pipelineStage(scriptName);
+        for (int i = 0; i < stages.size(); i++) {
+            String stage = stages.get(i);
+            Label chip = new Label(stage);
+            boolean isActive = stage.equals(active);
+            chip.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 800; -fx-padding: 7 12; " +
+                    "-fx-background-radius: 16; -fx-border-radius: 16; " +
+                    (isActive
+                            ? "-fx-background-color: white; -fx-text-fill: " + TEAL_DARK + "; -fx-border-color: white;"
+                            : "-fx-background-color: rgba(255,255,255,0.18); -fx-text-fill: #bfd3d4; -fx-border-color: rgba(255,255,255,0.22);"));
+            flow.getChildren().add(chip);
+            if (i < stages.size() - 1) {
+                Label arrow = new Label(">");
+                arrow.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 14px; -fx-font-weight: 800; -fx-text-fill: #d9e7e8;");
+                flow.getChildren().add(arrow);
+            }
+        }
+        return flow;
+    }
+
+    private static CollapsibleSection createSection(String title, List<EditableConstant> constants, boolean expanded) {
         GridPane grid = new GridPane();
         grid.setPadding(new Insets(14.0));
         grid.setHgap(12.0);
         grid.setVgap(10.0);
-        grid.setStyle("-fx-background-color: white; -fx-border-color: #d9e2e7; -fx-border-radius: 6; -fx-background-radius: 6;");
+        grid.setStyle("-fx-background-color: " + PANEL + "; -fx-border-color: #d7e2e6; -fx-border-radius: 0 0 6 6; -fx-background-radius: 0 0 6 6;");
 
         int row = 0;
         for (EditableConstant constant : constants) {
-            HBox labelBox = new HBox(6.0);
+            HBox labelBox = new HBox(7.0);
+            labelBox.setAlignment(Pos.CENTER_LEFT);
             Label label = new Label(prettyName(constant.name));
             label.setMinWidth(220.0);
             label.setWrapText(true);
-            label.setStyle("-fx-font-size: 12px; -fx-font-weight: 600; -fx-text-fill: #233642;");
-            Label info = new Label("i");
+            label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 800; -fx-text-fill: " + INK + ";");
+            Button info = new Button("?");
             info.setMinSize(18.0, 18.0);
             info.setMaxSize(18.0, 18.0);
-            info.setStyle("-fx-alignment: center; -fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: #1f6f78; -fx-border-color: #78aeb4; -fx-border-radius: 9; -fx-background-radius: 9; -fx-background-color: #e9f5f5;");
-            Tooltip.install(info, new Tooltip(helpFor(constant.name)));
+            info.setFocusTraversable(false);
+            info.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-padding: 0; -fx-font-size: 11px; -fx-font-weight: 900; -fx-text-fill: white; -fx-border-color: " + TEAL + "; -fx-border-radius: 9; -fx-background-radius: 9; -fx-background-color: " + TEAL + ";");
+            Tooltip tooltip = new Tooltip(helpFor(constant.name));
+            tooltip.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px;");
+            info.setTooltip(tooltip);
             labelBox.getChildren().addAll(label, info);
             grid.add(labelBox, 0, row);
 
@@ -293,25 +336,22 @@ final class AstraPipelineLauncher {
             grid.add(editor, 1, row++);
         }
 
-        TitledPane pane = new TitledPane(title, grid);
-        pane.setExpanded(expanded);
-        pane.setStyle("-fx-font-size: 13px; -fx-font-weight: 700; -fx-text-fill: #153243;");
-        return pane;
+        return new CollapsibleSection(title, grid, expanded);
     }
 
     private static Node createChannelPanel(QuPathGUI qupath) {
         VBox panel = new VBox(8.0);
         panel.setPadding(new Insets(14.0));
-        panel.setStyle("-fx-background-color: #fffaf0; -fx-border-color: #e4c66f; -fx-border-radius: 6; -fx-background-radius: 6;");
+        panel.setStyle("-fx-background-color: #fff8df; -fx-border-color: " + GOLD + "; -fx-border-radius: 7; -fx-background-radius: 7;");
 
         Label title = new Label("Open image channels");
-        title.setStyle("-fx-font-size: 14px; -fx-font-weight: 700; -fx-text-fill: #6b4e00;");
+        title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 14px; -fx-font-weight: 800; -fx-text-fill: #6f5200;");
 
         FlowPane chips = new FlowPane(8.0, 8.0);
         chips.setStyle("-fx-padding: 2 0 0 0;");
         if (qupath.getImageData() == null || qupath.getImageData().getServer() == null) {
             Label empty = new Label("No image is open. Channel-dependent fields still use the script defaults.");
-            empty.setStyle("-fx-font-size: 12px; -fx-text-fill: #725f2a;");
+            empty.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: #725f2a;");
             panel.getChildren().addAll(title, empty);
             return panel;
         }
@@ -319,13 +359,14 @@ final class AstraPipelineLauncher {
         List<ImageChannel> channels = qupath.getImageData().getServer().getMetadata().getChannels();
         if (channels.isEmpty()) {
             Label empty = new Label("The current image did not report channel metadata.");
-            empty.setStyle("-fx-font-size: 12px; -fx-text-fill: #725f2a;");
+            empty.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: #725f2a;");
             panel.getChildren().addAll(title, empty);
             return panel;
         }
 
         for (ImageChannel channel : channels) {
             HBox chip = new HBox(6.0);
+            chip.setAlignment(Pos.CENTER_LEFT);
             chip.setPadding(new Insets(5.0, 8.0, 5.0, 8.0));
             chip.setStyle("-fx-background-color: white; -fx-border-color: #e1d2a1; -fx-border-radius: 14; -fx-background-radius: 14;");
             Rectangle swatch = new Rectangle(12.0, 12.0);
@@ -333,7 +374,7 @@ final class AstraPipelineLauncher {
             swatch.setArcWidth(4.0);
             swatch.setStyle("-fx-fill: " + channelColor(channel) + "; -fx-stroke: #31404a; -fx-stroke-width: 0.5;");
             Label name = new Label(channel.getName());
-            name.setStyle("-fx-font-size: 12px; -fx-font-weight: 600; -fx-text-fill: #24323a;");
+            name.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 800; -fx-text-fill: #24323a;");
             chip.getChildren().addAll(swatch, name);
             chips.getChildren().add(chip);
         }
@@ -430,6 +471,57 @@ final class AstraPipelineLauncher {
             }
         }
         return groups;
+    }
+
+    private static Map<String, List<String>> createOptions() {
+        Map<String, List<String>> out = new LinkedHashMap<>();
+        List<String> targets = List.of("NUCLEUS", "CELL", "BOTH");
+        out.put("TRAIN_TARGET", targets);
+        out.put("TUNE_TARGET", targets);
+        out.put("VALIDATE_TARGET", targets);
+        List<String> modes = List.of("TEST", "FAST", "BALANCED", "FULL", "ULTRA");
+        out.put("TRAINING_MODE", modes);
+        out.put("SEARCH_MODE", modes);
+        out.put("VALIDATION_MODE", modes);
+        out.put("SEARCH_STYLE", List.of("STAGED", "JOINT"));
+        out.put("SCORE_METRIC", List.of("DICE_PQ", "DICE", "IOU_PQ"));
+        out.put("MODEL_SOURCE", List.of("MODEL_NAME", "SAVED", "FILE"));
+        out.put("NUC_MODEL_SOURCE", List.of("", "MODEL_NAME", "SAVED", "FILE"));
+        out.put("CELL_MODEL_SOURCE", List.of("", "MODEL_NAME", "SAVED", "FILE"));
+        out.put("PARAM_SOURCE", List.of("MANUAL", "BEST_PARAMS_FILE"));
+        out.put("NUC_PARAM_SOURCE", List.of("", "MANUAL", "BEST_PARAMS_FILE"));
+        out.put("CELL_PARAM_SOURCE", List.of("", "MANUAL", "BEST_PARAMS_FILE"));
+        out.put("IMAGE_SCOPE", List.of("ALL_IMAGES", "CURRENT_IMAGE", "SELECTED_IMAGES_BY_NAME"));
+        out.put("POSITIVITY_METHOD", List.of("MEAN_INTENSITY"));
+        out.put("THRESHOLD_MODE", List.of("LOG_GAUSSIAN_MIXTURE", "GAUSSIAN_MIXTURE", "KDE_VALLEY", "AUTO_OTSU_PER_CHANNEL", "RANGE_PERCENT", "MANUAL"));
+        out.put("BACKGROUND_MODE", List.of("MANUAL_OFFSET", "NONE"));
+        out.put("WALL_MARKER_OVERLAP_COMPARTMENT", List.of("cytoplasm", "cell", "nucleus"));
+        out.put("ENDOTHELIUM_MARKER_OVERLAP_COMPARTMENT", List.of("cell", "cytoplasm", "nucleus"));
+        out.put("PRINT_PARAM_MODE", List.of("ALL_TAGGED", "BEST_ONLY", "NONE"));
+        out.put("ASSIGN_METHOD_DEFAULT", List.of("AUTO", "GREEDY", "OPTIMAL"));
+        return Collections.unmodifiableMap(out);
+    }
+
+    private static String descriptionFor(String scriptName) {
+        return switch (pipelineStage(scriptName)) {
+            case "Training" -> "Build Cellpose-SAM models from curated QuPath training annotations.";
+            case "Tuning" -> "Search parameter sets against validation annotations and save auditable best parameters.";
+            case "Validation" -> "Measure trained model performance on validation regions before analysis use.";
+            case "Analysis" -> scriptName.toLowerCase(Locale.ROOT).contains("vascular")
+                    ? "Run vascular region generation, detection, and quantification workflows."
+                    : scriptName.toLowerCase(Locale.ROOT).contains("colocalization")
+                    ? "Detect cells, measure channels, and call marker colocalization with explicit thresholds."
+                    : "Run downstream ASTRA analysis utilities.";
+            default -> "Configure and run an ASTRA pipeline.";
+        };
+    }
+
+    private static String pipelineStage(String scriptName) {
+        String lower = scriptName.toLowerCase(Locale.ROOT);
+        if (lower.contains("training")) return "Training";
+        if (lower.contains("tuning")) return "Tuning";
+        if (lower.contains("validation")) return "Validation";
+        return "Analysis";
     }
 
     private static boolean isAdvanced(String name) {
@@ -565,6 +657,45 @@ final class AstraPipelineLauncher {
         return String.format("#%02x%02x%02x", rgb[0], rgb[1], rgb[2]);
     }
 
+    private static final class CollapsibleSection extends VBox {
+
+        private final Node content;
+        private final Label arrow;
+
+        private CollapsibleSection(String title, Node content, boolean expanded) {
+            super(0.0);
+            this.content = content;
+            this.arrow = new Label(expanded ? "v" : ">");
+
+            Button header = new Button();
+            header.setMaxWidth(Double.MAX_VALUE);
+            header.setFocusTraversable(false);
+            header.setPadding(new Insets(0));
+            header.setStyle("-fx-background-color: #173747; -fx-border-color: #173747; -fx-background-radius: 6 6 0 0; -fx-border-radius: 6 6 0 0;");
+
+            Label titleLabel = new Label(title);
+            titleLabel.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: white;");
+            arrow.setMinWidth(18.0);
+            arrow.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: #dcebed;");
+            BorderPane headerContent = new BorderPane();
+            headerContent.setPadding(new Insets(9.0, 12.0, 9.0, 12.0));
+            headerContent.setLeft(titleLabel);
+            headerContent.setRight(arrow);
+            header.setGraphic(headerContent);
+            headerContent.prefWidthProperty().bind(header.widthProperty().subtract(10.0));
+
+            header.setOnAction(event -> setExpanded(!this.content.isVisible()));
+            getChildren().addAll(header, content);
+            setExpanded(expanded);
+        }
+
+        private void setExpanded(boolean expanded) {
+            content.setVisible(expanded);
+            content.setManaged(expanded);
+            arrow.setText(expanded ? "v" : ">");
+        }
+    }
+
     /**
      * Editable top-level Groovy constant.
      */
@@ -592,39 +723,60 @@ final class AstraPipelineLauncher {
 
         private Node createEditor() {
             if (editor == null) {
-                editor = createEditor(type, value);
+                editor = buildEditor();
             }
             return editor;
         }
 
-        private static Node createEditor(String type, String value) {
+        private Node buildEditor() {
+            List<String> options = OPTIONS.get(name);
+            if (options != null) {
+                ComboBox<String> comboBox = new ComboBox<>();
+                comboBox.getItems().addAll(options);
+                comboBox.setValue(stripStringQuotes(type, value));
+                comboBox.setMaxWidth(Double.MAX_VALUE);
+                comboBox.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-background-color: #fbfdff;");
+                return comboBox;
+            }
             if ("boolean".equals(type)) {
                 CheckBox checkBox = new CheckBox();
                 checkBox.setSelected(Boolean.parseBoolean(value));
+                checkBox.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-text-fill: " + INK + ";");
                 return checkBox;
+            }
+            if ("List".equals(type) && isSimpleListField(name, value)) {
+                TextField field = new TextField(simpleListToCsv(value));
+                field.setPromptText("comma-separated values");
+                field.setPrefColumnCount(48);
+                field.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-control-inner-background: #fbfdff;");
+                return field;
             }
             if ("List".equals(type) || "Map".equals(type)) {
                 TextArea area = new TextArea(value);
                 area.setPrefRowCount(Math.max(3, Math.min(12, value.split("\\R", -1).length + 1)));
                 area.setWrapText(false);
-                area.setStyle("-fx-font-family: monospace; -fx-font-size: 12px; -fx-control-inner-background: #fbfdff;");
+                area.setStyle("-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 12px; -fx-control-inner-background: #fbfdff; -fx-text-fill: " + INK + ";");
                 return area;
             }
             TextField field = new TextField(stripStringQuotes(type, value));
             field.setPrefColumnCount(48);
-            field.setStyle("-fx-font-size: 12px; -fx-control-inner-background: #fbfdff;");
+            field.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-control-inner-background: #fbfdff; -fx-text-fill: " + INK + ";");
             return field;
         }
 
         private String renderDeclaration() {
             Node activeEditor = createEditor();
             String value;
-            if (activeEditor instanceof CheckBox checkBox) {
+            if (activeEditor instanceof ComboBox<?> comboBox) {
+                value = renderOptionValue(String.valueOf(comboBox.getValue()));
+            } else if (activeEditor instanceof CheckBox checkBox) {
                 value = Boolean.toString(checkBox.isSelected());
             } else if (activeEditor instanceof TextArea area) {
                 value = area.getText().trim();
             } else if (activeEditor instanceof TextField field) {
-                value = renderFieldValue(field.getText());
+                value = "List".equals(type) && isSimpleListField(name, this.value)
+                        ? renderSimpleListValue(field.getText())
+                        : renderFieldValue(field.getText());
             } else {
                 throw new IllegalStateException("Unsupported editor for " + name);
             }
@@ -641,6 +793,68 @@ final class AstraPipelineLauncher {
             }
             if (value.isBlank()) {
                 throw new IllegalArgumentException(name + " must not be blank.");
+            }
+            return value;
+        }
+
+        private String renderOptionValue(String raw) {
+            String value = raw == null ? "" : raw.trim();
+            if ("String".equals(type)) {
+                return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+            }
+            return value;
+        }
+
+        private static boolean isSimpleListField(String name, String value) {
+            String trimmed = value.trim();
+            if (!trimmed.startsWith("[") || !trimmed.endsWith("]") || trimmed.contains(":")) {
+                return false;
+            }
+            return name.contains("CHANNELS")
+                    || name.contains("IMAGE_NAMES")
+                    || "MODES_TO_RUN".equals(name)
+                    || "TIERS_TO_RUN".equals(name);
+        }
+
+        private static String simpleListToCsv(String value) {
+            String inner = value.trim();
+            if (inner.length() >= 2) {
+                inner = inner.substring(1, inner.length() - 1).trim();
+            }
+            if (inner.isBlank()) {
+                return "";
+            }
+            return Arrays.stream(inner.split(","))
+                    .map(String::trim)
+                    .map(EditableConstant::stripOuterQuotes)
+                    .reduce((a, b) -> a + ", " + b)
+                    .orElse("");
+        }
+
+        private String renderSimpleListValue(String raw) {
+            String value = raw == null ? "" : raw.trim();
+            if (value.isBlank()) {
+                return "[]";
+            }
+            boolean numeric = "TIERS_TO_RUN".equals(name);
+            List<String> tokens = Arrays.stream(value.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isBlank())
+                    .toList();
+            if (numeric) {
+                return "[" + String.join(", ", tokens) + "]";
+            }
+            return "[" + tokens.stream()
+                    .map(s -> "\"" + stripOuterQuotes(s).replace("\\", "\\\\").replace("\"", "\\\"") + "\"")
+                    .reduce((a, b) -> a + ", " + b)
+                    .orElse("") + "]";
+        }
+
+        private static String stripOuterQuotes(String raw) {
+            String value = raw.trim();
+            if (value.length() >= 2 &&
+                    ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'")))) {
+                return value.substring(1, value.length() - 1);
             }
             return value;
         }
