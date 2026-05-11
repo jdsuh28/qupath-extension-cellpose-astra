@@ -130,6 +130,23 @@ class AstraExtensionContractTest {
     }
 
     /**
+     * Verifies GUI edits do not concatenate adjacent Groovy declarations.
+     */
+    @Test
+    void launcherPreservesDeclarationLineBreaks() {
+        String script = """
+                final String CLASS_ANALYSIS_REGION = "ROI"
+                final boolean USE_WHOLE_IMAGE_IF_NO_REGION = true
+                final Map cfg = [:]
+                """;
+
+        String configured = AstraPipelineLauncher.applyConstants(script, AstraPipelineLauncher.extractEditableConstants(script));
+
+        assertTrue(configured.contains("\"ROI\"\nfinal boolean USE_WHOLE_IMAGE_IF_NO_REGION"));
+        assertFalse(configured.contains("\"ROI\"final boolean"));
+    }
+
+    /**
      * Verifies the extension archive is quarantined away from active source and
      * resource roots.
      */

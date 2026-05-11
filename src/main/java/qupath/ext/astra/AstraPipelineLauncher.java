@@ -3,6 +3,7 @@ package qupath.ext.astra;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.event.ActionEvent;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
@@ -73,6 +74,7 @@ final class AstraPipelineLauncher {
     private static final String GOLD = "#d4a72c";
     private static final String CONTROL_BORDER = "#7fa3ad";
     private static final Map<String, List<String>> OPTIONS = createOptions();
+    private static final Map<String, String> LAST_CONFIGURED_SCRIPTS = new LinkedHashMap<>();
 
     private AstraPipelineLauncher() {
         throw new AssertionError("No instances");
@@ -101,30 +103,36 @@ final class AstraPipelineLauncher {
             Dialogs.showErrorMessage("ASTRA " + scriptName, "No editable ASTRA configuration constants were found.");
             return;
         }
+        String savedScript = LAST_CONFIGURED_SCRIPTS.get(scriptName);
+        if (savedScript != null) {
+            applySavedConstantValues(constants, extractEditableConstants(savedScript));
+        }
 
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.initOwner(qupath.getStage());
         dialog.setTitle(scriptName);
         dialog.setHeaderText(null);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-        dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants));
+        dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants, savedScript == null));
         dialog.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
         dialog.setResizable(true);
 
-        ButtonType result = dialog.showAndWait().orElse(ButtonType.CANCEL);
-        if (result != ButtonType.OK) {
-            return;
-        }
+        Button runButton = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
+        runButton.setText("Run");
+        runButton.addEventFilter(ActionEvent.ACTION, event -> {
+            event.consume();
+            String configuredScript;
+            try {
+                configuredScript = applyConstants(scriptText, constants);
+            } catch (RuntimeException e) {
+                Dialogs.showErrorMessage("ASTRA " + scriptName, e.getMessage());
+                return;
+            }
+            LAST_CONFIGURED_SCRIPTS.put(scriptName, configuredScript);
+            executeAsync(qupath, scriptName, configuredScript);
+        });
 
-        String configuredScript;
-        try {
-            configuredScript = applyConstants(scriptText, constants);
-        } catch (RuntimeException e) {
-            Dialogs.showErrorMessage("ASTRA " + scriptName, e.getMessage());
-            return;
-        }
-
-        executeAsync(qupath, scriptName, configuredScript);
+        dialog.showAndWait();
     }
 
     /**
@@ -222,9 +230,23 @@ final class AstraPipelineLauncher {
         return out.toString();
     }
 
-    private static Node createContent(QuPathGUI qupath, String scriptName, List<EditableConstant> constants) {
+    private static void applySavedConstantValues(List<EditableConstant> constants, List<EditableConstant> savedConstants) {
+        Map<String, EditableConstant> savedByName = new LinkedHashMap<>();
+        savedConstants.forEach(c -> savedByName.put(c.name, c));
+        constants.forEach(c -> {
+            EditableConstant saved = savedByName.get(c.name);
+            if (saved != null) {
+                c.setDisplayValue(saved.displayValue);
+            }
+        });
+    }
+
+    private static Node createContent(QuPathGUI qupath, String scriptName, List<EditableConstant> constants, boolean applyChannelDefaults) {
         List<ImageChannel> imageChannels = imageChannels(qupath);
-        applyImageChannelDefaults(constants, imageChannels);
+        if (applyChannelDefaults) {
+            applyImageChannelDefaults(constants, imageChannels);
+        }
+        constants.forEach(EditableConstant::markDefault);
 
         VBox root = new VBox(14.0);
         root.setPadding(new Insets(0));
@@ -233,12 +255,19 @@ final class AstraPipelineLauncher {
         VBox header = new VBox(12.0);
         header.setPadding(new Insets(22.0, 24.0, 20.0, 24.0));
         header.setStyle("-fx-background-color: linear-gradient(to right, #102a3a, #1f7a7a 62%, #d9604c);");
+        HBox titleRow = new HBox(12.0);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
         Label title = new Label(scriptName);
         title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 24px; -fx-font-weight: 800; -fx-text-fill: white;");
+        Button reset = new Button("Reset settings");
+        reset.setFocusTraversable(false);
+        reset.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; -fx-background-color: rgba(255,255,255,0.92); -fx-text-fill: " + TEAL_DARK + "; -fx-border-color: white; -fx-border-radius: 5; -fx-background-radius: 5;");
+        reset.setOnAction(event -> constants.forEach(EditableConstant::resetEditor));
+        titleRow.getChildren().addAll(title, reset);
         Label subtitle = new Label(descriptionFor(scriptName));
         subtitle.setWrapText(true);
         subtitle.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-text-fill: #e3f4f1;");
-        header.getChildren().addAll(title, subtitle, createPipelineFlow(scriptName));
+        header.getChildren().addAll(titleRow, subtitle, createPipelineFlow(scriptName));
 
         VBox body = new VBox(14.0);
         body.setPadding(new Insets(0, 18.0, 18.0, 18.0));
@@ -820,6 +849,10 @@ final class AstraPipelineLauncher {
         private String text() {
             return field.getText();
         }
+
+        private void setText(String text) {
+            field.setText(text);
+        }
     }
 
     private static final class CodeEditor extends VBox {
@@ -845,6 +878,10 @@ final class AstraPipelineLauncher {
         private String text() {
             return area.getText().trim();
         }
+
+        private void setText(String text) {
+            area.setText(text);
+        }
     }
 
     /**
@@ -856,6 +893,7 @@ final class AstraPipelineLauncher {
         private final String name;
         private final String value;
         private String displayValue;
+        private String defaultDisplayValue;
         private final String suffix;
         private final int start;
         private final int end;
@@ -872,6 +910,7 @@ final class AstraPipelineLauncher {
             this.editor = null;
             this.value = value;
             this.displayValue = value;
+            this.defaultDisplayValue = value;
         }
 
         private Node createEditor() {
@@ -910,8 +949,13 @@ final class AstraPipelineLauncher {
         }
 
         private String renderDeclaration() {
-            Node activeEditor = createEditor();
             String value;
+            if (editor == null) {
+                value = renderStoredValue();
+                return "final " + type + " " + name + " = " + value + (suffix.isBlank() ? "" : " " + suffix) + "\n";
+            }
+            Node activeEditor = editor;
+            value = null;
             if (activeEditor instanceof ComboBox<?> comboBox) {
                 value = renderOptionValue(String.valueOf(comboBox.getValue()));
             } else if (activeEditor instanceof CheckBox checkBox) {
@@ -932,7 +976,44 @@ final class AstraPipelineLauncher {
             if (value.isBlank()) {
                 value = "String".equals(type) ? "\"\"" : value;
             }
-            return "final " + type + " " + name + " = " + value + (suffix.isBlank() ? "" : " " + suffix);
+            return "final " + type + " " + name + " = " + value + (suffix.isBlank() ? "" : " " + suffix) + "\n";
+        }
+
+        private String renderStoredValue() {
+            if ("String".equals(type)) {
+                return renderFieldValue(stripStringQuotes(type, displayValue));
+            }
+            return displayValue.trim();
+        }
+
+        private void markDefault() {
+            defaultDisplayValue = displayValue;
+        }
+
+        private void setDisplayValue(String displayValue) {
+            this.displayValue = displayValue;
+        }
+
+        private void resetEditor() {
+            displayValue = defaultDisplayValue;
+            if (editor == null) {
+                return;
+            }
+            if (editor instanceof ComboBox<?> comboBox) {
+                @SuppressWarnings("unchecked")
+                ComboBox<String> typed = (ComboBox<String>) comboBox;
+                typed.setValue(stripStringQuotes(type, displayValue));
+            } else if (editor instanceof CheckBox checkBox) {
+                checkBox.setSelected(Boolean.parseBoolean(displayValue));
+            } else if (editor instanceof ListEditor listEditor) {
+                listEditor.setText(EditableConstant.simpleListToCsv(displayValue));
+            } else if (editor instanceof CodeEditor codeEditor) {
+                codeEditor.setText(displayValue);
+            } else if (editor instanceof TextArea area) {
+                area.setText(displayValue);
+            } else if (editor instanceof TextField field) {
+                field.setText(stripStringQuotes(type, displayValue));
+            }
         }
 
         private void setDisplayString(String channelName) {
