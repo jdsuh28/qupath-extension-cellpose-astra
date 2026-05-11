@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -47,12 +48,14 @@ class AstraExtensionContractTest {
 
         Map<String, String> scripts = (Map<String, String>) method.invoke(null);
 
-        assertEquals("astra/training/src/main/groovy/training.groovy", scripts.get("ASTRA Training"));
-        assertEquals("astra/tuning/src/main/groovy/tuning.groovy", scripts.get("ASTRA Tuning"));
-        assertEquals("astra/validation/src/main/groovy/validation.groovy", scripts.get("ASTRA Validation"));
+        assertEquals(List.of("Training", "Tuning", "Validation", "Analysis>Vascular", "Analysis>Colocalization", "Analysis>Generate Regions"),
+                new ArrayList<>(scripts.keySet()));
+        assertEquals("astra/training/src/main/groovy/training.groovy", scripts.get("Training"));
+        assertEquals("astra/tuning/src/main/groovy/tuning.groovy", scripts.get("Tuning"));
+        assertEquals("astra/validation/src/main/groovy/validation.groovy", scripts.get("Validation"));
         assertEquals("astra/analysis/src/main/groovy/vascular/vascular.groovy", scripts.get("Analysis>Vascular"));
         assertEquals("astra/analysis/src/main/groovy/colocalization/colocalization.groovy", scripts.get("Analysis>Colocalization"));
-        assertEquals("astra/tools/src/main/groovy/generateRegions.groovy", scripts.get("ASTRA Generate Regions"));
+        assertEquals("astra/tools/src/main/groovy/generateRegions.groovy", scripts.get("Analysis>Generate Regions"));
 
         scripts.values().forEach(path -> assertTrue(path.startsWith("astra/"), path));
         scripts.values().forEach(path -> assertFalse(path.contains("Cellpose_"), path));
