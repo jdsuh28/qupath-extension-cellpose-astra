@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -71,6 +72,61 @@ class AstraExtensionContractTest {
     }
 
     /**
+     * Verifies the launcher keeps common setup fields in the default view while
+     * moving specialist tuning controls behind the advanced section.
+     *
+     * @throws Exception if launcher internals cannot be inspected.
+     */
+    @Test
+    void launcherSeparatesBasicAndAdvancedConfiguration() throws Exception {
+        String script = """
+                final String CLASS_ANALYSIS_REGION = "ROI"
+                final String MODEL_SOURCE = "MODEL_NAME"
+                final String CHANNEL_DAPI = "DAPI"
+                final List CELLPOSE_CELL_CHANNELS = ["AF488", "DAPI"]
+                final List COLOCALIZATION_CHECKS = []
+                final String THRESHOLD_MODE = "LOG_GAUSSIAN_MIXTURE"
+                final String TRAIN_TARGET = "NUCLEUS"
+                final String SEARCH_MODE = "TEST"
+                final String VALIDATION_MODE = "FULL"
+                final List CHANNELS_FOR_NUCLEUS = ["DAPI"]
+                final double NUC_DIAMETER_UM = 2.5d
+                final boolean LOG_VIEWER_PROGRESS_FAILURES = false
+                final Map cfg = [:]
+                """;
+
+        List<?> constants = AstraPipelineLauncher.extractEditableConstants(script);
+
+        assertFalse(isAdvanced(constants, "CLASS_ANALYSIS_REGION"));
+        assertFalse(isAdvanced(constants, "CHANNEL_DAPI"));
+        assertFalse(isAdvanced(constants, "CELLPOSE_CELL_CHANNELS"));
+        assertFalse(isAdvanced(constants, "COLOCALIZATION_CHECKS"));
+        assertFalse(isAdvanced(constants, "THRESHOLD_MODE"));
+        assertFalse(isAdvanced(constants, "TRAIN_TARGET"));
+        assertFalse(isAdvanced(constants, "SEARCH_MODE"));
+        assertFalse(isAdvanced(constants, "VALIDATION_MODE"));
+        assertFalse(isAdvanced(constants, "CHANNELS_FOR_NUCLEUS"));
+        assertTrue(isAdvanced(constants, "NUC_DIAMETER_UM"));
+        assertTrue(isAdvanced(constants, "LOG_VIEWER_PROGRESS_FAILURES"));
+    }
+
+    /**
+     * Verifies field help exists for channel-sensitive controls instead of a
+     * context-free flat form.
+     *
+     * @throws Exception if the launcher help method cannot be inspected.
+     */
+    @Test
+    void launcherProvidesChannelFieldHelp() throws Exception {
+        Method method = AstraPipelineLauncher.class.getDeclaredMethod("helpFor", String.class);
+        method.setAccessible(true);
+
+        String help = (String) method.invoke(null, "CELLPOSE_CELL_CHANNELS");
+
+        assertTrue(help.contains("match QuPath channel metadata exactly"));
+    }
+
+    /**
      * Verifies the extension archive is quarantined away from active source and
      * resource roots.
      */
@@ -113,5 +169,20 @@ class AstraExtensionContractTest {
                 throw new AssertionError("Failed to inspect " + file.getPath(), e);
             }
         }
+    }
+
+    private static boolean isAdvanced(List<?> constants, String name) throws Exception {
+        for (Object constant : constants) {
+            var type = constant.getClass();
+            var nameField = type.getDeclaredField("name");
+            nameField.setAccessible(true);
+            if (!name.equals(nameField.get(constant))) {
+                continue;
+            }
+            var advancedField = type.getDeclaredField("advanced");
+            advancedField.setAccessible(true);
+            return advancedField.getBoolean(constant);
+        }
+        throw new AssertionError("Missing extracted constant: " + name);
     }
 }
