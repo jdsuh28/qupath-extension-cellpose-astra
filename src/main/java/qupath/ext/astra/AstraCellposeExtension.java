@@ -67,9 +67,9 @@ public class AstraCellposeExtension extends CellposeExtension {
             return;
         }
 
-        installScripts(qupath);
         registerRuntimePreference(qupath);
         installSetupActions(qupath);
+        installScripts(qupath);
 
         installed = true;
     }
@@ -86,6 +86,7 @@ public class AstraCellposeExtension extends CellposeExtension {
     }
 
     private void installScripts(QuPathGUI qupath) {
+        Map<String, String> scriptTexts = new LinkedHashMap<>();
         SCRIPT_RESOURCES.forEach((commandName, resourcePath) -> {
             try (InputStream stream = AstraCellposeExtension.class.getClassLoader().getResourceAsStream(resourcePath)) {
                 if (stream == null) {
@@ -93,25 +94,38 @@ public class AstraCellposeExtension extends CellposeExtension {
                     return;
                 }
 
-                String script = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-                String menuPath = "Extensions>ASTRA";
-                String actionName = commandName;
-                int submenuIndex = commandName.lastIndexOf('>');
-                if (submenuIndex >= 0) {
-                    menuPath = menuPath + ">" + commandName.substring(0, submenuIndex);
-                    actionName = commandName.substring(submenuIndex + 1);
-                }
-
-                final String scriptName = actionName;
-                Action runAction = new Action(scriptName, event ->
-                        AstraPipelineLauncher.configureAndRun(qupath, scriptName, script));
-                Action openAction = new Action(scriptName, event -> openScript(qupath, scriptName, script));
-                MenuTools.addMenuItems(qupath.getMenu(menuPath, true), runAction);
-                MenuTools.addMenuItems(qupath.getMenu(scriptArchiveMenuPath(menuPath), true), openAction);
+                scriptTexts.put(commandName, new String(stream.readAllBytes(), StandardCharsets.UTF_8));
             } catch (Exception e) {
                 logger.error("Failed to register ASTRA script '{}' from {}.", commandName, resourcePath, e);
             }
         });
+
+        scriptTexts.forEach((commandName, script) -> {
+            String menuPath = menuPath(commandName);
+            String scriptName = actionName(commandName);
+            Action runAction = new Action(scriptName, event ->
+                    AstraPipelineLauncher.configureAndRun(qupath, scriptName, script));
+            MenuTools.addMenuItems(qupath.getMenu(menuPath, true), runAction);
+        });
+
+        scriptTexts.forEach((commandName, script) -> {
+            String menuPath = menuPath(commandName);
+            String scriptName = actionName(commandName);
+            Action openAction = new Action(scriptName, event -> openScript(qupath, scriptName, script));
+            MenuTools.addMenuItems(qupath.getMenu(scriptArchiveMenuPath(menuPath), true), openAction);
+        });
+    }
+
+    private static String menuPath(String commandName) {
+        int submenuIndex = commandName.lastIndexOf('>');
+        return submenuIndex < 0
+                ? "Extensions>ASTRA"
+                : "Extensions>ASTRA>" + commandName.substring(0, submenuIndex);
+    }
+
+    private static String actionName(String commandName) {
+        int submenuIndex = commandName.lastIndexOf('>');
+        return submenuIndex < 0 ? commandName : commandName.substring(submenuIndex + 1);
     }
 
     private void openScript(QuPathGUI qupath, String scriptName, String scriptText) {

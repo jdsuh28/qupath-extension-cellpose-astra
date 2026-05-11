@@ -14,6 +14,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.FlowPane;
@@ -70,6 +71,7 @@ final class AstraPipelineLauncher {
     private static final String TEAL_DARK = "#0d4f55";
     private static final String CORAL = "#d9604c";
     private static final String GOLD = "#d4a72c";
+    private static final String CONTROL_BORDER = "#7fa3ad";
     private static final Map<String, List<String>> OPTIONS = createOptions();
 
     private AstraPipelineLauncher() {
@@ -221,6 +223,9 @@ final class AstraPipelineLauncher {
     }
 
     private static Node createContent(QuPathGUI qupath, String scriptName, List<EditableConstant> constants) {
+        List<ImageChannel> imageChannels = imageChannels(qupath);
+        applyImageChannelDefaults(constants, imageChannels);
+
         VBox root = new VBox(14.0);
         root.setPadding(new Insets(0));
         root.setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
@@ -237,7 +242,7 @@ final class AstraPipelineLauncher {
 
         VBox body = new VBox(14.0);
         body.setPadding(new Insets(0, 18.0, 18.0, 18.0));
-        body.getChildren().add(createChannelPanel(qupath));
+        body.getChildren().add(createChannelPanel(imageChannels));
 
         VBox basic = sectionShell("Basic", "Start here. These are the normal run controls: target, scope, channels, model source, thresholds, and outputs.");
         for (String group : orderedGroups(constants, false)) {
@@ -313,6 +318,7 @@ final class AstraPipelineLauncher {
         grid.setStyle("-fx-background-color: " + PANEL + "; -fx-border-color: #d7e2e6; -fx-border-radius: 0 0 6 6; -fx-background-radius: 0 0 6 6;");
 
         int row = 0;
+        Map<String, RowNodes> rows = new LinkedHashMap<>();
         for (EditableConstant constant : constants) {
             HBox labelBox = new HBox(7.0);
             labelBox.setAlignment(Pos.CENTER_LEFT);
@@ -328,18 +334,21 @@ final class AstraPipelineLauncher {
             Tooltip tooltip = new Tooltip(helpFor(constant.name));
             tooltip.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px;");
             info.setTooltip(tooltip);
+            installReliableTooltip(info, tooltip);
             labelBox.getChildren().addAll(label, info);
             grid.add(labelBox, 0, row);
 
             Node editor = constant.createEditor();
             GridPane.setHgrow(editor, Priority.ALWAYS);
             grid.add(editor, 1, row++);
+            rows.put(constant.name, new RowNodes(labelBox, editor));
         }
+        installConditionalVisibility(constants, rows);
 
         return new CollapsibleSection(title, grid, expanded);
     }
 
-    private static Node createChannelPanel(QuPathGUI qupath) {
+    private static Node createChannelPanel(List<ImageChannel> channels) {
         VBox panel = new VBox(8.0);
         panel.setPadding(new Insets(14.0));
         panel.setStyle("-fx-background-color: #fff8df; -fx-border-color: " + GOLD + "; -fx-border-radius: 7; -fx-background-radius: 7;");
@@ -349,16 +358,8 @@ final class AstraPipelineLauncher {
 
         FlowPane chips = new FlowPane(8.0, 8.0);
         chips.setStyle("-fx-padding: 2 0 0 0;");
-        if (qupath.getImageData() == null || qupath.getImageData().getServer() == null) {
-            Label empty = new Label("No image is open. Channel-dependent fields still use the script defaults.");
-            empty.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: #725f2a;");
-            panel.getChildren().addAll(title, empty);
-            return panel;
-        }
-
-        List<ImageChannel> channels = qupath.getImageData().getServer().getMetadata().getChannels();
         if (channels.isEmpty()) {
-            Label empty = new Label("The current image did not report channel metadata.");
+            Label empty = new Label("No image is open. Channel-dependent fields still use the script defaults.");
             empty.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: #725f2a;");
             panel.getChildren().addAll(title, empty);
             return panel;
@@ -381,6 +382,103 @@ final class AstraPipelineLauncher {
 
         panel.getChildren().addAll(title, chips);
         return panel;
+    }
+
+    private static List<ImageChannel> imageChannels(QuPathGUI qupath) {
+        if (qupath.getImageData() == null || qupath.getImageData().getServer() == null) {
+            return List.of();
+        }
+        return qupath.getImageData().getServer().getMetadata().getChannels();
+    }
+
+    private static void applyImageChannelDefaults(List<EditableConstant> constants, List<ImageChannel> channels) {
+        if (channels.isEmpty()) {
+            return;
+        }
+        List<String> names = channels.stream().map(ImageChannel::getName).filter(Objects::nonNull).toList();
+        if (names.isEmpty()) {
+            return;
+        }
+        for (EditableConstant constant : constants) {
+            switch (constant.name) {
+                case "CHANNEL_DAPI" -> constant.setDisplayString(preferredChannel(names, "DAPI", "Hoechst", "DAPI"));
+                case "CHANNEL_WGA" -> constant.setDisplayString(preferredChannel(names, "AF488", "FITC", "WGA"));
+                case "CHANNEL_ASMA" -> constant.setDisplayString(preferredChannel(names, "AF555", "Cy3", "aSMA", "ASMA"));
+                case "CHANNEL_CD31" -> constant.setDisplayString(preferredChannel(names, "AF647", "Cy5", "CD31"));
+                case "CHANNELS_FOR_NUCLEUS" -> constant.setDisplayList(List.of(preferredChannel(names, "DAPI", "Hoechst", "DAPI")));
+                case "CHANNELS_FOR_CELL", "CELLPOSE_CELL_CHANNELS" -> constant.setDisplayList(names);
+                default -> {
+                }
+            }
+        }
+    }
+
+    private static String preferredChannel(List<String> names, String... candidates) {
+        for (String candidate : candidates) {
+            for (String name : names) {
+                if (name.equalsIgnoreCase(candidate)) {
+                    return name;
+                }
+            }
+        }
+        for (String candidate : candidates) {
+            for (String name : names) {
+                if (name.toLowerCase(Locale.ROOT).contains(candidate.toLowerCase(Locale.ROOT))) {
+                    return name;
+                }
+            }
+        }
+        return names.get(0);
+    }
+
+    private static void installReliableTooltip(Button info, Tooltip tooltip) {
+        info.addEventHandler(MouseEvent.MOUSE_ENTERED, event -> {
+            var point = info.localToScreen(info.getWidth() + 8.0, info.getHeight() / 2.0);
+            if (point != null) {
+                tooltip.show(info, point.getX(), point.getY());
+            }
+        });
+        info.addEventHandler(MouseEvent.MOUSE_EXITED, event -> tooltip.hide());
+    }
+
+    private static void installConditionalVisibility(List<EditableConstant> constants, Map<String, RowNodes> rows) {
+        Map<String, EditableConstant> byName = new LinkedHashMap<>();
+        constants.forEach(c -> byName.put(c.name, c));
+        Runnable update = () -> {
+            setVisible(rows, "MODEL_NAME", isSelected(byName, "MODEL_SOURCE", "MODEL_NAME"));
+            setVisible(rows, "MODEL_FILE", isSelected(byName, "MODEL_SOURCE", "FILE"));
+            setVisible(rows, "NUC_MODEL_NAME", isSelected(byName, "NUC_MODEL_SOURCE", "MODEL_NAME"));
+            setVisible(rows, "NUC_MODEL_FILE", isSelected(byName, "NUC_MODEL_SOURCE", "FILE"));
+            setVisible(rows, "CELL_MODEL_NAME", isSelected(byName, "CELL_MODEL_SOURCE", "MODEL_NAME"));
+            setVisible(rows, "CELL_MODEL_FILE", isSelected(byName, "CELL_MODEL_SOURCE", "FILE"));
+            setVisible(rows, "BEST_PARAMS_FILE", isSelected(byName, "PARAM_SOURCE", "BEST_PARAMS_FILE"));
+            setVisible(rows, "NUC_BEST_PARAMS_FILE", isSelected(byName, "NUC_PARAM_SOURCE", "BEST_PARAMS_FILE"));
+            setVisible(rows, "CELL_BEST_PARAMS_FILE", isSelected(byName, "CELL_PARAM_SOURCE", "BEST_PARAMS_FILE"));
+            setVisible(rows, "SELECTED_IMAGE_NAMES", isSelected(byName, "IMAGE_SCOPE", "SELECTED_IMAGES_BY_NAME"));
+            setVisible(rows, "MATCH_SELECTED_IMAGE_NAMES_AGAINST_ORIGINAL", isSelected(byName, "IMAGE_SCOPE", "SELECTED_IMAGES_BY_NAME"));
+            setVisible(rows, "MANUAL_INTENSITY_THRESHOLDS", isSelected(byName, "THRESHOLD_MODE", "MANUAL"));
+            setVisible(rows, "THRESHOLD_PROVENANCE_BY_MARKER", isSelected(byName, "THRESHOLD_MODE", "MANUAL"));
+            setVisible(rows, "RANGE_THRESHOLD_FRACTION_BY_MARKER", isSelected(byName, "THRESHOLD_MODE", "RANGE_PERCENT"));
+            setVisible(rows, "BACKGROUND_SUBTRACTION_BY_CHANNEL", isSelected(byName, "BACKGROUND_MODE", "MANUAL_OFFSET"));
+        };
+        byName.values().forEach(c -> c.addOptionListener(update));
+        update.run();
+    }
+
+    private static boolean isSelected(Map<String, EditableConstant> constants, String name, String expected) {
+        EditableConstant constant = constants.get(name);
+        return constant == null || expected.equals(constant.optionValue());
+    }
+
+    private static void setVisible(Map<String, RowNodes> rows, String name, boolean visible) {
+        RowNodes row = rows.get(name);
+        if (row == null) {
+            return;
+        }
+        row.label.setVisible(visible);
+        row.label.setManaged(visible);
+        row.editor.setVisible(visible);
+        row.editor.setManaged(visible);
     }
 
     private static void executeAsync(QuPathGUI qupath, String scriptName, String configuredScript) {
@@ -696,6 +794,59 @@ final class AstraPipelineLauncher {
         }
     }
 
+    private record RowNodes(Node label, Node editor) {
+    }
+
+    private static final class ListEditor extends VBox {
+
+        private final TextField field;
+
+        private ListEditor(String example) {
+            super(5.0);
+            field = new TextField(EditableConstant.simpleListToCsv(example));
+            field.setPromptText("comma-separated values");
+            field.setPrefColumnCount(48);
+            field.setStyle(EditableConstant.controlStyle());
+            Label hint = new Label("Enter plain values separated by commas. ASTRA will write the required Groovy list syntax.");
+            hint.setWrapText(true);
+            hint.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-text-fill: " + MUTED + ";");
+            Button restore = new Button("Restore example");
+            restore.setFocusTraversable(false);
+            restore.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 800; -fx-background-color: #e6f0f2; -fx-text-fill: " + TEAL_DARK + "; -fx-border-color: #b5cbd2; -fx-border-radius: 4; -fx-background-radius: 4;");
+            restore.setOnAction(event -> field.setText(EditableConstant.simpleListToCsv(example)));
+            getChildren().addAll(field, hint, restore);
+        }
+
+        private String text() {
+            return field.getText();
+        }
+    }
+
+    private static final class CodeEditor extends VBox {
+
+        private final TextArea area;
+
+        private CodeEditor(String example) {
+            super(5.0);
+            area = new TextArea(example);
+            area.setPrefRowCount(Math.max(3, Math.min(12, example.split("\\R", -1).length + 1)));
+            area.setWrapText(false);
+            area.setStyle("-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 12px; -fx-control-inner-background: #fbfdff; -fx-text-fill: " + INK + "; -fx-border-color: " + CONTROL_BORDER + "; -fx-border-radius: 4; -fx-background-radius: 4;");
+            Label hint = new Label("Structured advanced value. Keep keys, brackets, commas, and quotes intact. Use Restore example if the structure is damaged.");
+            hint.setWrapText(true);
+            hint.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-text-fill: " + MUTED + ";");
+            Button restore = new Button("Restore example");
+            restore.setFocusTraversable(false);
+            restore.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 800; -fx-background-color: #e6f0f2; -fx-text-fill: " + TEAL_DARK + "; -fx-border-color: #b5cbd2; -fx-border-radius: 4; -fx-background-radius: 4;");
+            restore.setOnAction(event -> area.setText(example));
+            getChildren().addAll(area, hint, restore);
+        }
+
+        private String text() {
+            return area.getText().trim();
+        }
+    }
+
     /**
      * Editable top-level Groovy constant.
      */
@@ -704,6 +855,7 @@ final class AstraPipelineLauncher {
         private final String type;
         private final String name;
         private final String value;
+        private String displayValue;
         private final String suffix;
         private final int start;
         private final int end;
@@ -719,6 +871,7 @@ final class AstraPipelineLauncher {
             this.advanced = advanced;
             this.editor = null;
             this.value = value;
+            this.displayValue = value;
         }
 
         private Node createEditor() {
@@ -733,34 +886,26 @@ final class AstraPipelineLauncher {
             if (options != null) {
                 ComboBox<String> comboBox = new ComboBox<>();
                 comboBox.getItems().addAll(options);
-                comboBox.setValue(stripStringQuotes(type, value));
+                comboBox.setValue(stripStringQuotes(type, displayValue));
                 comboBox.setMaxWidth(Double.MAX_VALUE);
-                comboBox.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-background-color: #fbfdff;");
+                comboBox.setStyle(controlStyle());
                 return comboBox;
             }
             if ("boolean".equals(type)) {
                 CheckBox checkBox = new CheckBox();
-                checkBox.setSelected(Boolean.parseBoolean(value));
+                checkBox.setSelected(Boolean.parseBoolean(displayValue));
                 checkBox.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-text-fill: " + INK + ";");
                 return checkBox;
             }
-            if ("List".equals(type) && isSimpleListField(name, value)) {
-                TextField field = new TextField(simpleListToCsv(value));
-                field.setPromptText("comma-separated values");
-                field.setPrefColumnCount(48);
-                field.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-control-inner-background: #fbfdff;");
-                return field;
+            if ("List".equals(type) && isSimpleListField(name, displayValue)) {
+                return new ListEditor(displayValue);
             }
             if ("List".equals(type) || "Map".equals(type)) {
-                TextArea area = new TextArea(value);
-                area.setPrefRowCount(Math.max(3, Math.min(12, value.split("\\R", -1).length + 1)));
-                area.setWrapText(false);
-                area.setStyle("-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 12px; -fx-control-inner-background: #fbfdff; -fx-text-fill: " + INK + ";");
-                return area;
+                return new CodeEditor(displayValue);
             }
-            TextField field = new TextField(stripStringQuotes(type, value));
+            TextField field = new TextField(stripStringQuotes(type, displayValue));
             field.setPrefColumnCount(48);
-            field.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-control-inner-background: #fbfdff; -fx-text-fill: " + INK + ";");
+            field.setStyle(controlStyle());
             return field;
         }
 
@@ -771,6 +916,10 @@ final class AstraPipelineLauncher {
                 value = renderOptionValue(String.valueOf(comboBox.getValue()));
             } else if (activeEditor instanceof CheckBox checkBox) {
                 value = Boolean.toString(checkBox.isSelected());
+            } else if (activeEditor instanceof ListEditor listEditor) {
+                value = renderSimpleListValue(listEditor.text());
+            } else if (activeEditor instanceof CodeEditor codeEditor) {
+                value = codeEditor.text();
             } else if (activeEditor instanceof TextArea area) {
                 value = area.getText().trim();
             } else if (activeEditor instanceof TextField field) {
@@ -784,6 +933,45 @@ final class AstraPipelineLauncher {
                 value = "String".equals(type) ? "\"\"" : value;
             }
             return "final " + type + " " + name + " = " + value + (suffix.isBlank() ? "" : " " + suffix);
+        }
+
+        private void setDisplayString(String channelName) {
+            if (!"String".equals(type) || channelName == null || channelName.isBlank()) {
+                return;
+            }
+            displayValue = "\"" + channelName.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+        }
+
+        private void setDisplayList(List<String> channels) {
+            if (!"List".equals(type) || channels == null || channels.isEmpty()) {
+                return;
+            }
+            displayValue = "[" + channels.stream()
+                    .filter(s -> s != null && !s.isBlank())
+                    .map(s -> "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"")
+                    .reduce((a, b) -> a + ", " + b)
+                    .orElse("") + "]";
+        }
+
+        private String optionValue() {
+            Node activeEditor = createEditor();
+            if (activeEditor instanceof ComboBox<?> comboBox) {
+                return String.valueOf(comboBox.getValue());
+            }
+            return stripStringQuotes(type, displayValue);
+        }
+
+        private void addOptionListener(Runnable listener) {
+            Node activeEditor = createEditor();
+            if (activeEditor instanceof ComboBox<?> comboBox) {
+                comboBox.valueProperty().addListener((obs, oldValue, newValue) -> listener.run());
+            }
+        }
+
+        private static String controlStyle() {
+            return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-background-color: #fbfdff; " +
+                    "-fx-border-color: " + CONTROL_BORDER + "; -fx-border-radius: 4; -fx-background-radius: 4; " +
+                    "-fx-control-inner-background: #fbfdff; -fx-text-fill: " + INK + ";";
         }
 
         private String renderFieldValue(String raw) {
