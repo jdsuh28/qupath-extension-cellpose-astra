@@ -11,6 +11,7 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
@@ -34,6 +35,8 @@ import qupath.lib.images.servers.ImageChannel;
 import qupath.lib.scripting.ScriptParameters;
 
 import javax.script.ScriptException;
+import java.io.IOException;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -43,6 +46,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.prefs.BackingStoreException;
+import java.util.prefs.Preferences;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -75,6 +80,7 @@ final class AstraPipelineLauncher {
     private static final String CONTROL_BORDER = "#7fa3ad";
     private static final Map<String, List<String>> OPTIONS = createOptions();
     private static final Map<String, String> LAST_CONFIGURED_SCRIPTS = new LinkedHashMap<>();
+    private static final Preferences SETTINGS = Preferences.userNodeForPackage(AstraPipelineLauncher.class).node("pipeline-settings");
 
     private AstraPipelineLauncher() {
         throw new AssertionError("No instances");
@@ -104,7 +110,8 @@ final class AstraPipelineLauncher {
             return;
         }
         String savedScript = LAST_CONFIGURED_SCRIPTS.get(scriptName);
-        if (savedScript != null) {
+        boolean restoredSettings = applyPersistentSettings(scriptName, constants);
+        if (!restoredSettings && savedScript != null) {
             applySavedConstantValues(constants, extractEditableConstants(savedScript));
         }
 
@@ -113,7 +120,8 @@ final class AstraPipelineLauncher {
         dialog.setTitle(scriptName);
         dialog.setHeaderText(null);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-        dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants, savedScript == null));
+        RunFeedback feedback = new RunFeedback(scriptName);
+        dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants, !restoredSettings && savedScript == null, feedback));
         dialog.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
         dialog.setResizable(true);
 
@@ -129,7 +137,8 @@ final class AstraPipelineLauncher {
                 return;
             }
             LAST_CONFIGURED_SCRIPTS.put(scriptName, configuredScript);
-            executeAsync(qupath, scriptName, configuredScript);
+            savePersistentSettings(scriptName, constants);
+            executeAsync(qupath, scriptName, configuredScript, feedback, runButton);
         });
 
         dialog.showAndWait();
@@ -241,7 +250,43 @@ final class AstraPipelineLauncher {
         });
     }
 
-    private static Node createContent(QuPathGUI qupath, String scriptName, List<EditableConstant> constants, boolean applyChannelDefaults) {
+    private static boolean applyPersistentSettings(String scriptName, List<EditableConstant> constants) {
+        Preferences node = settingsNode(scriptName);
+        boolean restored = false;
+        for (EditableConstant constant : constants) {
+            String value = node.get(constant.name, null);
+            if (value != null) {
+                constant.setDisplayValue(value);
+                restored = true;
+            }
+        }
+        return restored;
+    }
+
+    private static void savePersistentSettings(String scriptName, List<EditableConstant> constants) {
+        Preferences node = settingsNode(scriptName);
+        for (EditableConstant constant : constants) {
+            try {
+                node.put(constant.name, constant.currentDisplayValue());
+            } catch (RuntimeException e) {
+                logger.debug("Skipping invalid in-progress ASTRA setting {} for {}", constant.name, scriptName);
+            }
+        }
+    }
+
+    private static void clearPersistentSettings(String scriptName) {
+        try {
+            settingsNode(scriptName).clear();
+        } catch (BackingStoreException e) {
+            logger.warn("Unable to clear ASTRA settings for {}", scriptName, e);
+        }
+    }
+
+    private static Preferences settingsNode(String scriptName) {
+        return SETTINGS.node(scriptName.replaceAll("[^A-Za-z0-9_.-]", "_"));
+    }
+
+    private static Node createContent(QuPathGUI qupath, String scriptName, List<EditableConstant> constants, boolean applyChannelDefaults, RunFeedback feedback) {
         List<ImageChannel> imageChannels = imageChannels(qupath);
         if (applyChannelDefaults) {
             applyImageChannelDefaults(constants, imageChannels);
@@ -262,7 +307,11 @@ final class AstraPipelineLauncher {
         Button reset = new Button("Reset settings");
         reset.setFocusTraversable(false);
         reset.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; -fx-background-color: rgba(255,255,255,0.92); -fx-text-fill: " + TEAL_DARK + "; -fx-border-color: white; -fx-border-radius: 5; -fx-background-radius: 5;");
-        reset.setOnAction(event -> constants.forEach(EditableConstant::resetEditor));
+        reset.setOnAction(event -> {
+            constants.forEach(EditableConstant::resetEditor);
+            clearPersistentSettings(scriptName);
+            feedback.info("Settings reset to the current image-aware defaults.");
+        });
         titleRow.getChildren().addAll(title, reset);
         Label subtitle = new Label(descriptionFor(scriptName));
         subtitle.setWrapText(true);
@@ -278,7 +327,7 @@ final class AstraPipelineLauncher {
             List<EditableConstant> groupConstants = constants.stream()
                     .filter(c -> !c.advanced && group.equals(groupFor(c.name)))
                     .toList();
-            basic.getChildren().add(createSection(group, groupConstants, true));
+            basic.getChildren().add(createSection(scriptName, group, groupConstants, true, constants));
         }
 
         VBox advanced = sectionShell("Advanced", "Defaults are intentionally conservative. Open these only for deliberate tuning, diagnostics, or publication-specific overrides.");
@@ -286,10 +335,10 @@ final class AstraPipelineLauncher {
             List<EditableConstant> groupConstants = constants.stream()
                     .filter(c -> c.advanced && group.equals(groupFor(c.name)))
                     .toList();
-            advanced.getChildren().add(createSection(group, groupConstants, false));
+            advanced.getChildren().add(createSection(scriptName, group, groupConstants, false, constants));
         }
 
-        body.getChildren().addAll(basic, advanced);
+        body.getChildren().addAll(basic, advanced, feedback.node());
 
         ScrollPane scroll = new ScrollPane(body);
         scroll.setFitToWidth(true);
@@ -339,7 +388,7 @@ final class AstraPipelineLauncher {
         return flow;
     }
 
-    private static CollapsibleSection createSection(String title, List<EditableConstant> constants, boolean expanded) {
+    private static CollapsibleSection createSection(String scriptName, String title, List<EditableConstant> constants, boolean expanded, List<EditableConstant> allConstants) {
         GridPane grid = new GridPane();
         grid.setPadding(new Insets(14.0));
         grid.setHgap(12.0);
@@ -368,6 +417,7 @@ final class AstraPipelineLauncher {
             grid.add(labelBox, 0, row);
 
             Node editor = constant.createEditor();
+            constant.addChangeListener(() -> savePersistentSettings(scriptName, allConstants));
             GridPane.setHgrow(editor, Priority.ALWAYS);
             grid.add(editor, 1, row++);
             rows.put(constant.name, new RowNodes(labelBox, editor));
@@ -510,29 +560,39 @@ final class AstraPipelineLauncher {
         row.editor.setManaged(visible);
     }
 
-    private static void executeAsync(QuPathGUI qupath, String scriptName, String configuredScript) {
+    private static void executeAsync(QuPathGUI qupath, String scriptName, String configuredScript, RunFeedback feedback, Button runButton) {
+        feedback.start();
+        runButton.setDisable(true);
         qupath.getThreadPoolManager().getSingleThreadExecutor(AstraPipelineLauncher.class).submit(() -> {
             try {
                 logger.info("ASTRA {} started from configuration dialog.", scriptName);
+                feedback.info("Started " + scriptName + ".");
                 ScriptParameters params = ScriptParameters.builder()
                         .setScript(configuredScript)
                         .setProject(qupath.getProject())
                         .setImageData(qupath.getImageData())
                         .setDefaultImports(QPEx.getCoreClasses())
                         .setDefaultStaticImports(Collections.singletonList(QPEx.class))
-                        .useLogWriters(logger)
+                        .setWriter(new FeedbackWriter(feedback, false))
+                        .setErrorWriter(new FeedbackWriter(feedback, true))
                         .build();
                 Object result = GroovyLanguage.getInstance().execute(params);
                 if (result != null) {
                     logger.info("ASTRA {} result: {}", scriptName, result);
+                    feedback.info("Result: " + result);
                 }
+                feedback.success("Run completed.");
                 Platform.runLater(() -> Dialogs.showInfoNotification("ASTRA " + scriptName, "Run completed."));
             } catch (ScriptException e) {
                 logger.error("ASTRA {} failed.", scriptName, e);
+                feedback.error(String.valueOf(e.getMessage()));
                 Platform.runLater(() -> Dialogs.showErrorMessage("ASTRA " + scriptName, String.valueOf(e.getMessage())));
             } catch (Throwable t) {
                 logger.error("ASTRA {} failed.", scriptName, t);
+                feedback.error(t.getClass().getSimpleName() + ": " + t.getMessage());
                 Platform.runLater(() -> Dialogs.showErrorMessage("ASTRA " + scriptName, t.getClass().getSimpleName() + ": " + t.getMessage()));
+            } finally {
+                Platform.runLater(() -> runButton.setDisable(false));
             }
         });
     }
@@ -784,6 +844,138 @@ final class AstraPipelineLauncher {
         return String.format("#%02x%02x%02x", rgb[0], rgb[1], rgb[2]);
     }
 
+    private static final class RunFeedback {
+
+        private final VBox box;
+        private final Label status;
+        private final ProgressIndicator progress;
+        private final TextArea output;
+
+        private RunFeedback(String scriptName) {
+            box = new VBox(8.0);
+            box.setPadding(new Insets(14.0));
+            box.setStyle("-fx-background-color: #102a3a; -fx-border-color: #284f60; -fx-border-radius: 7; -fx-background-radius: 7;");
+
+            HBox header = new HBox(10.0);
+            header.setAlignment(Pos.CENTER_LEFT);
+            progress = new ProgressIndicator();
+            progress.setPrefSize(18.0, 18.0);
+            progress.setVisible(false);
+            progress.setManaged(false);
+
+            status = new Label("Ready to run " + scriptName + ".");
+            status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: white;");
+            header.getChildren().addAll(progress, status);
+
+            output = new TextArea();
+            output.setEditable(false);
+            output.setWrapText(true);
+            output.setPrefRowCount(7);
+            output.setStyle("-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 11.5px; -fx-control-inner-background: #071923; -fx-text-fill: #eaf7f4; -fx-highlight-fill: #1f7a7a; -fx-border-color: #4d7583; -fx-border-radius: 4; -fx-background-radius: 4;");
+            VBox.setVgrow(output, Priority.ALWAYS);
+
+            box.getChildren().addAll(header, output);
+        }
+
+        private Node node() {
+            return box;
+        }
+
+        private void start() {
+            Platform.runLater(() -> {
+                output.clear();
+                status.setText("Running...");
+                status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: white;");
+                progress.setVisible(true);
+                progress.setManaged(true);
+                appendLine("ASTRA run started.");
+            });
+        }
+
+        private void info(String message) {
+            append("[INFO] " + message + "\n");
+        }
+
+        private void success(String message) {
+            Platform.runLater(() -> {
+                status.setText(message);
+                status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: #bdf2d0;");
+                progress.setVisible(false);
+                progress.setManaged(false);
+                appendLine("[DONE] " + message);
+            });
+        }
+
+        private void error(String message) {
+            Platform.runLater(() -> {
+                status.setText("Run failed.");
+                status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: #ffb8aa;");
+                progress.setVisible(false);
+                progress.setManaged(false);
+                appendLine("[ERROR] " + message);
+            });
+        }
+
+        private void append(String text) {
+            Platform.runLater(() -> {
+                output.appendText(text);
+                output.positionCaret(output.getLength());
+            });
+        }
+
+        private void appendLine(String text) {
+            append(text + "\n");
+        }
+    }
+
+    private static final class FeedbackWriter extends Writer {
+
+        private final RunFeedback feedback;
+        private final boolean error;
+        private final StringBuilder buffer = new StringBuilder();
+
+        private FeedbackWriter(RunFeedback feedback, boolean error) {
+            this.feedback = feedback;
+            this.error = error;
+        }
+
+        @Override
+        public synchronized void write(char[] cbuf, int off, int len) {
+            buffer.append(cbuf, off, len);
+            flushCompleteLines();
+        }
+
+        @Override
+        public synchronized void flush() throws IOException {
+            if (!buffer.isEmpty()) {
+                emit(buffer.toString());
+                buffer.setLength(0);
+            }
+        }
+
+        @Override
+        public synchronized void close() throws IOException {
+            flush();
+        }
+
+        private void flushCompleteLines() {
+            int newline;
+            while ((newline = buffer.indexOf("\n")) >= 0) {
+                String line = buffer.substring(0, newline + 1);
+                buffer.delete(0, newline + 1);
+                emit(line);
+            }
+        }
+
+        private void emit(String text) {
+            if (error) {
+                feedback.append("[ERR] " + text);
+            } else {
+                feedback.append(text);
+            }
+        }
+    }
+
     private static final class CollapsibleSection extends VBox {
 
         private final Node content;
@@ -853,6 +1045,10 @@ final class AstraPipelineLauncher {
         private void setText(String text) {
             field.setText(text);
         }
+
+        private void addChangeListener(Runnable listener) {
+            field.textProperty().addListener((obs, oldValue, newValue) -> listener.run());
+        }
     }
 
     private static final class CodeEditor extends VBox {
@@ -881,6 +1077,10 @@ final class AstraPipelineLauncher {
 
         private void setText(String text) {
             area.setText(text);
+        }
+
+        private void addChangeListener(Runnable listener) {
+            area.textProperty().addListener((obs, oldValue, newValue) -> listener.run());
         }
     }
 
@@ -994,6 +1194,29 @@ final class AstraPipelineLauncher {
             this.displayValue = displayValue;
         }
 
+        private String currentDisplayValue() {
+            if (editor == null) {
+                return displayValue;
+            }
+            Node activeEditor = editor;
+            if (activeEditor instanceof ComboBox<?> comboBox) {
+                return renderOptionValue(String.valueOf(comboBox.getValue()));
+            } else if (activeEditor instanceof CheckBox checkBox) {
+                return Boolean.toString(checkBox.isSelected());
+            } else if (activeEditor instanceof ListEditor listEditor) {
+                return renderSimpleListValue(listEditor.text());
+            } else if (activeEditor instanceof CodeEditor codeEditor) {
+                return codeEditor.text();
+            } else if (activeEditor instanceof TextArea area) {
+                return area.getText().trim();
+            } else if (activeEditor instanceof TextField field) {
+                return "List".equals(type) && isSimpleListField(name, this.value)
+                        ? renderSimpleListValue(field.getText())
+                        : renderFieldValue(field.getText());
+            }
+            throw new IllegalStateException("Unsupported editor for " + name);
+        }
+
         private void resetEditor() {
             displayValue = defaultDisplayValue;
             if (editor == null) {
@@ -1046,6 +1269,23 @@ final class AstraPipelineLauncher {
             Node activeEditor = createEditor();
             if (activeEditor instanceof ComboBox<?> comboBox) {
                 comboBox.valueProperty().addListener((obs, oldValue, newValue) -> listener.run());
+            }
+        }
+
+        private void addChangeListener(Runnable listener) {
+            Node activeEditor = createEditor();
+            if (activeEditor instanceof ComboBox<?> comboBox) {
+                comboBox.valueProperty().addListener((obs, oldValue, newValue) -> listener.run());
+            } else if (activeEditor instanceof CheckBox checkBox) {
+                checkBox.selectedProperty().addListener((obs, oldValue, newValue) -> listener.run());
+            } else if (activeEditor instanceof ListEditor listEditor) {
+                listEditor.addChangeListener(listener);
+            } else if (activeEditor instanceof CodeEditor codeEditor) {
+                codeEditor.addChangeListener(listener);
+            } else if (activeEditor instanceof TextArea area) {
+                area.textProperty().addListener((obs, oldValue, newValue) -> listener.run());
+            } else if (activeEditor instanceof TextField field) {
+                field.textProperty().addListener((obs, oldValue, newValue) -> listener.run());
             }
         }
 
