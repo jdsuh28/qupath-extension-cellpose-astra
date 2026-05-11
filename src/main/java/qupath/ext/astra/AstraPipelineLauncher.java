@@ -338,16 +338,23 @@ final class AstraPipelineLauncher {
             advanced.getChildren().add(createSection(scriptName, group, groupConstants, false, constants));
         }
 
-        body.getChildren().addAll(basic, advanced, feedback.node());
+        body.getChildren().addAll(basic, advanced);
 
         ScrollPane scroll = new ScrollPane(body);
         scroll.setFitToWidth(true);
-        scroll.setPrefViewportWidth(980.0);
+        scroll.setPrefViewportWidth(720.0);
         scroll.setPrefViewportHeight(700.0);
         scroll.setStyle("-fx-background: " + PAPER + "; -fx-background-color: " + PAPER + ";");
-        VBox.setVgrow(scroll, Priority.ALWAYS);
+        HBox.setHgrow(scroll, Priority.ALWAYS);
 
-        root.getChildren().addAll(header, scroll);
+        HBox workspace = new HBox(14.0);
+        workspace.setPadding(new Insets(0, 18.0, 18.0, 18.0));
+        workspace.setStyle("-fx-background-color: " + PAPER + ";");
+        Node feedbackNode = feedback.node();
+        workspace.getChildren().addAll(scroll, feedbackNode);
+        VBox.setVgrow(workspace, Priority.ALWAYS);
+
+        root.getChildren().addAll(header, workspace);
         return root;
     }
 
@@ -855,6 +862,10 @@ final class AstraPipelineLauncher {
             box = new VBox(8.0);
             box.setPadding(new Insets(14.0));
             box.setStyle("-fx-background-color: #102a3a; -fx-border-color: #284f60; -fx-border-radius: 7; -fx-background-radius: 7;");
+            box.setPrefWidth(430.0);
+            box.setMinWidth(360.0);
+            box.setMaxWidth(520.0);
+            HBox.setHgrow(box, Priority.NEVER);
 
             HBox header = new HBox(10.0);
             header.setAlignment(Pos.CENTER_LEFT);
@@ -870,11 +881,12 @@ final class AstraPipelineLauncher {
             output = new TextArea();
             output.setEditable(false);
             output.setWrapText(true);
-            output.setPrefRowCount(7);
+            output.setPrefRowCount(32);
             output.setStyle("-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 11.5px; -fx-control-inner-background: #071923; -fx-text-fill: #eaf7f4; -fx-highlight-fill: #1f7a7a; -fx-border-color: #4d7583; -fx-border-radius: 4; -fx-background-radius: 4;");
             VBox.setVgrow(output, Priority.ALWAYS);
 
             box.getChildren().addAll(header, output);
+            info("Script print output appears here. QuPath/Cellpose worker-thread logs still appear in QuPath's log/output system.");
         }
 
         private Node node() {
