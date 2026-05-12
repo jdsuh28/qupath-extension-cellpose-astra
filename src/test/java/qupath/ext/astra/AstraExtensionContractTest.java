@@ -3,6 +3,7 @@ package qupath.ext.astra;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -84,11 +85,14 @@ class AstraExtensionContractTest {
     void launcherSeparatesBasicAndAdvancedConfiguration() throws Exception {
         String script = """
                 final String CLASS_ANALYSIS_REGION = "ROI"
+                final List MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
                 final String MODEL_SOURCE = "MODEL_NAME"
                 final String CHANNEL_DAPI = "DAPI"
                 final List CELLPOSE_CELL_CHANNELS = ["AF488", "DAPI"]
                 final List COLOCALIZATION_CHECKS = []
+                final List THRESHOLD_MODE_OPTIONS = ["LOG_GAUSSIAN_MIXTURE", "MANUAL"]
                 final String THRESHOLD_MODE = "LOG_GAUSSIAN_MIXTURE"
+                final List TRAIN_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
                 final String TRAIN_TARGET = "NUCLEUS"
                 final String SEARCH_MODE = "TEST"
                 final String VALIDATION_MODE = "FULL"
@@ -111,6 +115,30 @@ class AstraExtensionContractTest {
         assertFalse(isAdvanced(constants, "CHANNELS_FOR_NUCLEUS"));
         assertTrue(isAdvanced(constants, "NUC_DIAMETER_UM"));
         assertTrue(isAdvanced(constants, "LOG_VIEWER_PROGRESS_FAILURES"));
+    }
+
+    /**
+     * Verifies finite choices come from script-owned metadata constants, not a
+     * launcher-side variable-name table.
+     *
+     * @throws Exception if launcher internals cannot be inspected.
+     */
+    @Test
+    void launcherUsesScriptDeclaredOptions() throws Exception {
+        String script = """
+                final List MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
+                final String MODEL_SOURCE = "MODEL_NAME"
+                final List CUSTOM_MODE_OPTIONS = ["ALPHA", "BETA"]
+                final String CUSTOM_MODE = "ALPHA"
+                final Map cfg = [:]
+                """;
+
+        List<?> constants = AstraPipelineLauncher.extractEditableConstants(script);
+
+        assertEquals(2, constants.size());
+        assertFalse(hasConstant(constants, "MODEL_SOURCE_OPTIONS"));
+        assertEquals(List.of("MODEL_NAME", "SAVED", "FILE"), optionsFor(constants, "MODEL_SOURCE"));
+        assertEquals(List.of("ALPHA", "BETA"), optionsFor(constants, "CUSTOM_MODE"));
     }
 
     /**
@@ -189,6 +217,32 @@ class AstraExtensionContractTest {
                 throw new AssertionError("Failed to inspect " + file.getPath(), e);
             }
         }
+    }
+
+    private static boolean hasConstant(List<?> constants, String name) throws Exception {
+        for (Object constant : constants) {
+            Field field = constant.getClass().getDeclaredField("name");
+            field.setAccessible(true);
+            if (name.equals(field.get(constant))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> optionsFor(List<?> constants, String name) throws Exception {
+        for (Object constant : constants) {
+            Field nameField = constant.getClass().getDeclaredField("name");
+            nameField.setAccessible(true);
+            if (!name.equals(nameField.get(constant))) {
+                continue;
+            }
+            Field optionsField = constant.getClass().getDeclaredField("options");
+            optionsField.setAccessible(true);
+            return (List<String>) optionsField.get(constant);
+        }
+        return List.of();
     }
 
     private static boolean isAdvanced(List<?> constants, String name) throws Exception {
