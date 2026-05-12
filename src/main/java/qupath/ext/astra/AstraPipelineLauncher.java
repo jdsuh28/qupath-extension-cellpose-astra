@@ -78,7 +78,6 @@ final class AstraPipelineLauncher {
     private static final String CORAL = "#d9604c";
     private static final String GOLD = "#d4a72c";
     private static final String CONTROL_BORDER = "#7fa3ad";
-    private static final Map<String, List<String>> OPTIONS = createOptions();
     private static final Map<String, String> LAST_CONFIGURED_SCRIPTS = new LinkedHashMap<>();
     private static final Preferences SETTINGS = Preferences.userNodeForPackage(AstraPipelineLauncher.class).node("pipeline-settings");
 
@@ -153,6 +152,7 @@ final class AstraPipelineLauncher {
     static List<EditableConstant> extractEditableConstants(String scriptText) {
         String[] lines = scriptText.split("\\R", -1);
         List<EditableConstant> out = new ArrayList<>();
+        Map<String, List<String>> scriptOptions = new LinkedHashMap<>();
         int offset = 0;
 
         for (int i = 0; i < lines.length; i++) {
@@ -209,7 +209,12 @@ final class AstraPipelineLauncher {
                 end = scriptText.length();
             }
 
-            out.add(new EditableConstant(type, name, value, suffix, start, end, isAdvanced(name)));
+            if ("List".equals(type) && name.endsWith("_OPTIONS")) {
+                String targetName = name.substring(0, name.length() - "_OPTIONS".length());
+                scriptOptions.put(targetName, parseStringOptions(value));
+            } else {
+                out.add(new EditableConstant(type, name, value, suffix, start, end, isAdvanced(name), scriptOptions.get(name)));
+            }
             for (int j = i; j <= endLine; j++) {
                 if (j > i) {
                     offset += lines[j].length() + 1;
@@ -220,6 +225,37 @@ final class AstraPipelineLauncher {
         }
 
         return out;
+    }
+
+    private static List<String> parseStringOptions(String value) {
+        String text = value == null ? "" : value.trim();
+        if (!text.startsWith("[") || !text.endsWith("]")) {
+            return List.of();
+        }
+        List<String> options = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean inString = false;
+        char quote = 0;
+        for (int i = 1; i < text.length() - 1; i++) {
+            char ch = text.charAt(i);
+            if (inString) {
+                if (ch == '\\' && i + 1 < text.length() - 1) {
+                    current.append(text.charAt(i + 1));
+                    i++;
+                } else if (ch == quote) {
+                    options.add(current.toString());
+                    current.setLength(0);
+                    inString = false;
+                    quote = 0;
+                } else {
+                    current.append(ch);
+                }
+            } else if (ch == '"' || ch == '\'') {
+                inString = true;
+                quote = ch;
+            }
+        }
+        return options;
     }
 
     /**
@@ -667,35 +703,6 @@ final class AstraPipelineLauncher {
         return groups;
     }
 
-    private static Map<String, List<String>> createOptions() {
-        Map<String, List<String>> out = new LinkedHashMap<>();
-        List<String> targets = List.of("NUCLEUS", "CELL", "BOTH");
-        out.put("TRAIN_TARGET", targets);
-        out.put("TUNE_TARGET", targets);
-        out.put("VALIDATE_TARGET", targets);
-        List<String> modes = List.of("TEST", "FAST", "BALANCED", "FULL", "ULTRA");
-        out.put("TRAINING_MODE", modes);
-        out.put("SEARCH_MODE", modes);
-        out.put("VALIDATION_MODE", modes);
-        out.put("SEARCH_STYLE", List.of("STAGED", "JOINT"));
-        out.put("SCORE_METRIC", List.of("DICE_PQ", "DICE", "IOU_PQ"));
-        out.put("MODEL_SOURCE", List.of("MODEL_NAME", "SAVED", "FILE"));
-        out.put("NUC_MODEL_SOURCE", List.of("", "MODEL_NAME", "SAVED", "FILE"));
-        out.put("CELL_MODEL_SOURCE", List.of("", "MODEL_NAME", "SAVED", "FILE"));
-        out.put("PARAM_SOURCE", List.of("MANUAL", "BEST_PARAMS_FILE"));
-        out.put("NUC_PARAM_SOURCE", List.of("", "MANUAL", "BEST_PARAMS_FILE"));
-        out.put("CELL_PARAM_SOURCE", List.of("", "MANUAL", "BEST_PARAMS_FILE"));
-        out.put("IMAGE_SCOPE", List.of("ALL_IMAGES", "CURRENT_IMAGE", "SELECTED_IMAGES_BY_NAME"));
-        out.put("POSITIVITY_METHOD", List.of("MEAN_INTENSITY"));
-        out.put("THRESHOLD_MODE", List.of("LOG_GAUSSIAN_MIXTURE", "GAUSSIAN_MIXTURE", "KDE_VALLEY", "AUTO_OTSU_PER_CHANNEL", "RANGE_PERCENT", "MANUAL"));
-        out.put("BACKGROUND_MODE", List.of("MANUAL_OFFSET", "NONE"));
-        out.put("WALL_MARKER_OVERLAP_COMPARTMENT", List.of("cytoplasm", "cell", "nucleus"));
-        out.put("ENDOTHELIUM_MARKER_OVERLAP_COMPARTMENT", List.of("cell", "cytoplasm", "nucleus"));
-        out.put("PRINT_PARAM_MODE", List.of("ALL_TAGGED", "BEST_ONLY", "NONE"));
-        out.put("ASSIGN_METHOD_DEFAULT", List.of("AUTO", "GREEDY", "OPTIMAL"));
-        return Collections.unmodifiableMap(out);
-    }
-
     private static String descriptionFor(String scriptName) {
         return switch (pipelineStage(scriptName)) {
             case "Training" -> "Build Cellpose-SAM models from curated QuPath training annotations.";
@@ -1110,15 +1117,17 @@ final class AstraPipelineLauncher {
         private final int start;
         private final int end;
         private final boolean advanced;
+        private final List<String> options;
         private Node editor;
 
-        private EditableConstant(String type, String name, String value, String suffix, int start, int end, boolean advanced) {
+        private EditableConstant(String type, String name, String value, String suffix, int start, int end, boolean advanced, List<String> options) {
             this.type = type;
             this.name = name;
             this.suffix = suffix == null ? "" : suffix;
             this.start = start;
             this.end = end;
             this.advanced = advanced;
+            this.options = options == null ? List.of() : List.copyOf(options);
             this.editor = null;
             this.value = value;
             this.displayValue = value;
@@ -1133,8 +1142,7 @@ final class AstraPipelineLauncher {
         }
 
         private Node buildEditor() {
-            List<String> options = OPTIONS.get(name);
-            if (options != null) {
+            if (!options.isEmpty()) {
                 ComboBox<String> comboBox = new ComboBox<>();
                 comboBox.getItems().addAll(options);
                 comboBox.setValue(stripStringQuotes(type, displayValue));
