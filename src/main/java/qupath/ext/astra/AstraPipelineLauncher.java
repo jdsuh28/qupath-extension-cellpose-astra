@@ -30,6 +30,8 @@ import org.slf4j.LoggerFactory;
 import qupath.fx.dialogs.Dialogs;
 import qupath.lib.common.ColorTools;
 import qupath.lib.gui.QuPathGUI;
+import qupath.lib.gui.logging.LogManager;
+import qupath.lib.gui.logging.TextAppendable;
 import qupath.lib.gui.scripting.languages.GroovyLanguage;
 import qupath.lib.gui.scripting.QPEx;
 import qupath.lib.images.servers.ImageChannel;
@@ -54,6 +56,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 import java.util.regex.Matcher;
@@ -143,8 +146,12 @@ final class AstraPipelineLauncher {
                 Dialogs.showErrorMessage("ASTRA " + scriptName, e.getMessage());
                 return;
             }
-            if (isAllImagesRun(constants) && !confirmAllImagesRun(qupath, scriptName)) {
+            if (requiresAllImagesConfirmation(constants) && !confirmAllImagesRun(qupath, scriptName)) {
                 feedback.warn("Project-wide run cancelled before execution.");
+                return;
+            }
+            if (requiresProvisionalVascularConfirmation(constants) && !confirmProvisionalVascularAutomation(qupath, scriptName)) {
+                feedback.warn("Provisional vascular automation cancelled before execution.");
                 return;
             }
             savePersistentSettings(scriptName, schemaId, constants);
@@ -291,7 +298,7 @@ final class AstraPipelineLauncher {
         return out.toString();
     }
 
-    private static PersistentApplyResult applyPersistentSettings(String scriptName, String schemaId, List<EditableConstant> constants) {
+    static PersistentApplyResult applyPersistentSettings(String scriptName, String schemaId, List<EditableConstant> constants) {
         Preferences node = settingsNode(scriptName);
         String storedSchemaId = node.get(PREF_SCHEMA_ID, null);
         if (storedSchemaId != null && !storedSchemaId.equals(schemaId)) {
@@ -334,7 +341,7 @@ final class AstraPipelineLauncher {
         }
     }
 
-    private static void clearPersistentSettings(String scriptName) {
+    static void clearPersistentSettings(String scriptName) {
         try {
             settingsNode(scriptName).clear();
         } catch (BackingStoreException e) {
@@ -342,7 +349,7 @@ final class AstraPipelineLauncher {
         }
     }
 
-    private static Preferences settingsNode(String scriptName) {
+    static Preferences settingsNode(String scriptName) {
         return SETTINGS.node(scriptName.replaceAll("[^A-Za-z0-9_.-]", "_"));
     }
 
@@ -399,10 +406,20 @@ final class AstraPipelineLauncher {
         }
     }
 
-    private static boolean isAllImagesRun(List<EditableConstant> constants) {
+    static boolean requiresAllImagesConfirmation(List<EditableConstant> constants) {
         for (EditableConstant constant : constants) {
             if ("IMAGE_SCOPE".equals(constant.name)) {
                 return "ALL_IMAGES".equals(constant.optionValue());
+            }
+        }
+        return false;
+    }
+
+    static boolean requiresProvisionalVascularConfirmation(List<EditableConstant> constants) {
+        for (EditableConstant constant : constants) {
+            if ("MODES_TO_RUN".equals(constant.name)) {
+                List<String> modes = EditableConstant.csvValues(constant.currentDisplayValue());
+                return modes.contains("AUTO_BUILD_CLASSIFIERS") || modes.contains("AUTO_SELECT_ROIS");
             }
         }
         return false;
@@ -415,6 +432,19 @@ final class AstraPipelineLauncher {
         alert.setTitle("ASTRA " + scriptName);
         alert.setHeaderText("Run across the full project?");
         alert.setContentText("IMAGE_SCOPE is ALL_IMAGES. ASTRA will run this pipeline on " + imageCount + " project entries.");
+        alert.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
+        return alert.showAndWait().filter(ButtonType.OK::equals).isPresent();
+    }
+
+    private static boolean confirmProvisionalVascularAutomation(QuPathGUI qupath, String scriptName) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.initOwner(qupath.getStage());
+        alert.setTitle("ASTRA " + scriptName);
+        alert.setHeaderText("Run provisional vascular automation?");
+        alert.setContentText("""
+                These vascular automation modes are provisional and review-required.
+                They are not equivalent to the validated manual ROI/Trace baseline workflow.
+                Proceed only if this is intentional.""");
         alert.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
         return alert.showAndWait().filter(ButtonType.OK::equals).isPresent();
     }
@@ -615,6 +645,10 @@ final class AstraPipelineLauncher {
             return;
         }
         List<String> names = channels.stream().map(ImageChannel::getName).filter(Objects::nonNull).toList();
+        applyImageChannelDefaultNames(constants, names);
+    }
+
+    static void applyImageChannelDefaultNames(List<EditableConstant> constants, List<String> names) {
         if (names.isEmpty()) {
             return;
         }
@@ -710,7 +744,7 @@ final class AstraPipelineLauncher {
         feedback.start();
         runButton.setDisable(true);
         Future<?> future = qupath.getThreadPoolManager().getSingleThreadExecutor(AstraPipelineLauncher.class).submit(() -> {
-            try {
+            try (RunLogCapture ignored = RunLogCapture.attach(feedback::appendLogText)) {
                 logger.info("ASTRA {} started from configuration dialog.", scriptName);
                 feedback.info("Started " + scriptName + ".");
                 ScriptParameters params = ScriptParameters.builder()
@@ -959,7 +993,7 @@ final class AstraPipelineLauncher {
             VBox.setVgrow(output, Priority.ALWAYS);
 
             box.getChildren().addAll(header, output);
-            info("Script print output appears here. QuPath/Cellpose worker-thread logs still appear in QuPath's log/output system.");
+            info("Script output and run-scoped QuPath/Cellpose logs appear here.");
         }
 
         private Node node() {
@@ -992,8 +1026,8 @@ final class AstraPipelineLauncher {
             Future<?> future = currentRun.get();
             boolean requested = future != null && future.cancel(true);
             appendLine(requested
-                    ? "[CANCELLED] Cancellation requested; waiting for QuPath/Groovy execution to stop."
-                    : "[CANCELLED] Cancellation marked; the current QuPath/Groovy task could not be interrupted directly.");
+                    ? "[CANCELLED] Cancellation requested. Java/Groovy task interruption was requested. Native Cellpose process may continue until the current operation exits."
+                    : "[CANCELLED] Cancellation marked. The current Java/Groovy task could not be interrupted directly. Native Cellpose process may continue until the current operation exits.");
             Platform.runLater(() -> {
                 status.setText("Cancellation requested.");
                 status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: #ffe0a3;");
@@ -1047,6 +1081,13 @@ final class AstraPipelineLauncher {
                 output.appendText(text);
                 output.positionCaret(output.getLength());
             });
+        }
+
+        private void appendLogText(String text) {
+            append("[LOG] " + text);
+            if (!text.endsWith("\n")) {
+                append("\n");
+            }
         }
 
         private void appendLine(String text) {
@@ -1144,7 +1185,45 @@ final class AstraPipelineLauncher {
     private record RowNodes(Node label, Node editor) {
     }
 
-    private record PersistentApplyResult(boolean restored, boolean schemaReset) {
+    record PersistentApplyResult(boolean restored, boolean schemaReset) {
+    }
+
+    static final class RunLogCapture implements TextAppendable, AutoCloseable {
+
+        private final Consumer<String> sink;
+        private final AtomicBoolean closed = new AtomicBoolean(false);
+        private boolean registered;
+
+        private RunLogCapture(Consumer<String> sink) {
+            this.sink = Objects.requireNonNull(sink, "sink");
+        }
+
+        static RunLogCapture attach(Consumer<String> sink) {
+            RunLogCapture capture = new RunLogCapture(sink);
+            LogManager.addTextAppendableFX(capture);
+            capture.registered = true;
+            return capture;
+        }
+
+        static RunLogCapture forTest(Consumer<String> sink) {
+            return new RunLogCapture(sink);
+        }
+
+        @Override
+        public void appendText(String text) {
+            if (!closed.get() && text != null && !text.isBlank()) {
+                sink.accept(text);
+            }
+        }
+
+        @Override
+        public void close() {
+            if (closed.compareAndSet(false, true)) {
+                if (registered) {
+                    LogManager.removeTextAppendableFX(this);
+                }
+            }
+        }
     }
 
     private static final class ListEditor extends VBox {
@@ -1248,7 +1327,11 @@ final class AstraPipelineLauncher {
             this.defaultDisplayValue = value;
         }
 
-        private String helpText() {
+        String name() {
+            return name;
+        }
+
+        String helpText() {
             return help;
         }
 
@@ -1396,7 +1479,7 @@ final class AstraPipelineLauncher {
         }
 
         private String optionValue() {
-            Node activeEditor = createEditor();
+            Node activeEditor = editor;
             if (activeEditor instanceof ComboBox<?> comboBox) {
                 return String.valueOf(comboBox.getValue());
             }
@@ -1479,6 +1562,17 @@ final class AstraPipelineLauncher {
                     .map(EditableConstant::stripOuterQuotes)
                     .reduce((a, b) -> a + ", " + b)
                     .orElse("");
+        }
+
+        private static List<String> csvValues(String value) {
+            String csv = simpleListToCsv(value);
+            if (csv.isBlank()) {
+                return List.of();
+            }
+            return Arrays.stream(csv.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isBlank())
+                    .toList();
         }
 
         private String renderSimpleListValue(String raw) {
