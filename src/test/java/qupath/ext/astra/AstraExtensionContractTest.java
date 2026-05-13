@@ -141,20 +141,41 @@ class AstraExtensionContractTest {
         assertEquals(List.of("ALPHA", "BETA"), optionsFor(constants, "CUSTOM_MODE"));
     }
 
-    /**
-     * Verifies field help exists for channel-sensitive controls instead of a
-     * context-free flat form.
-     *
-     * @throws Exception if the launcher help method cannot be inspected.
-     */
     @Test
-    void launcherProvidesChannelFieldHelp() throws Exception {
-        Method method = AstraPipelineLauncher.class.getDeclaredMethod("helpFor", String.class);
-        method.setAccessible(true);
+    void launcherReadsScriptDeclaredHelp() throws Exception {
+        String script = """
+                final String CELLPOSE_CELL_CHANNELS_HELP = "Segmentation channels defined by ASTRA script metadata."
+                final List CELLPOSE_CELL_CHANNELS = ["AF488"]
+                final String FALLBACK_VALUE = "default"
+                final Map cfg = [:]
+                """;
 
-        String help = (String) method.invoke(null, "CELLPOSE_CELL_CHANNELS");
+        List<?> constants = AstraPipelineLauncher.extractEditableConstants(script);
 
-        assertTrue(help.contains("match QuPath channel metadata exactly"));
+        assertFalse(hasConstant(constants, "CELLPOSE_CELL_CHANNELS_HELP"));
+        assertTrue(helpFor(constants, "CELLPOSE_CELL_CHANNELS").contains("Segmentation channels"));
+        assertTrue(helpFor(constants, "FALLBACK_VALUE").contains("did not provide help metadata"));
+    }
+
+    @Test
+    void launcherSchemaIdentityChangesWithScriptContract() {
+        String first = """
+                final List MODE_OPTIONS = ["A", "B"]
+                final String MODE_HELP = "Choose a mode."
+                final String MODE = "A"
+                final Map cfg = [:]
+                """;
+        String second = """
+                final List MODE_OPTIONS = ["A", "B", "C"]
+                final String MODE_HELP = "Choose a mode."
+                final String MODE = "A"
+                final Map cfg = [:]
+                """;
+
+        String firstSchema = AstraPipelineLauncher.schemaIdentity(AstraPipelineLauncher.extractEditableConstants(first));
+        String secondSchema = AstraPipelineLauncher.schemaIdentity(AstraPipelineLauncher.extractEditableConstants(second));
+
+        assertFalse(firstSchema.equals(secondSchema));
     }
 
     /**
@@ -256,6 +277,20 @@ class AstraExtensionContractTest {
             var advancedField = type.getDeclaredField("advanced");
             advancedField.setAccessible(true);
             return advancedField.getBoolean(constant);
+        }
+        throw new AssertionError("Missing extracted constant: " + name);
+    }
+
+    private static String helpFor(List<?> constants, String name) throws Exception {
+        for (Object constant : constants) {
+            Field nameField = constant.getClass().getDeclaredField("name");
+            nameField.setAccessible(true);
+            if (!name.equals(nameField.get(constant))) {
+                continue;
+            }
+            Method method = constant.getClass().getDeclaredMethod("helpText");
+            method.setAccessible(true);
+            return (String) method.invoke(constant);
         }
         throw new AssertionError("Missing extracted constant: " + name);
     }

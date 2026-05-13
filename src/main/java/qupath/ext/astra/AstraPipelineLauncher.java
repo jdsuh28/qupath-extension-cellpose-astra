@@ -5,6 +5,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.event.ActionEvent;
 import javafx.scene.Node;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
@@ -37,6 +38,9 @@ import qupath.lib.scripting.ScriptParameters;
 import javax.script.ScriptException;
 import java.io.IOException;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,6 +50,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 import java.util.regex.Matcher;
@@ -78,7 +86,7 @@ final class AstraPipelineLauncher {
     private static final String CORAL = "#d9604c";
     private static final String GOLD = "#d4a72c";
     private static final String CONTROL_BORDER = "#7fa3ad";
-    private static final Map<String, String> LAST_CONFIGURED_SCRIPTS = new LinkedHashMap<>();
+    private static final String PREF_SCHEMA_ID = "__schema_id";
     private static final Preferences SETTINGS = Preferences.userNodeForPackage(AstraPipelineLauncher.class).node("pipeline-settings");
 
     private AstraPipelineLauncher() {
@@ -108,11 +116,8 @@ final class AstraPipelineLauncher {
             Dialogs.showErrorMessage("ASTRA " + scriptName, "No editable ASTRA configuration constants were found.");
             return;
         }
-        String savedScript = LAST_CONFIGURED_SCRIPTS.get(scriptName);
-        boolean restoredSettings = applyPersistentSettings(scriptName, constants);
-        if (!restoredSettings && savedScript != null) {
-            applySavedConstantValues(constants, extractEditableConstants(savedScript));
-        }
+        String schemaId = schemaIdentity(constants);
+        PersistentApplyResult persisted = applyPersistentSettings(scriptName, schemaId, constants);
 
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.initOwner(qupath.getStage());
@@ -120,7 +125,10 @@ final class AstraPipelineLauncher {
         dialog.setHeaderText(null);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         RunFeedback feedback = new RunFeedback(scriptName);
-        dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants, !restoredSettings && savedScript == null, feedback));
+        dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants, !persisted.restored(), feedback, schemaId));
+        if (persisted.schemaReset()) {
+            feedback.warn("Saved settings were reset because this script schema changed.");
+        }
         dialog.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
         dialog.setResizable(true);
 
@@ -135,8 +143,12 @@ final class AstraPipelineLauncher {
                 Dialogs.showErrorMessage("ASTRA " + scriptName, e.getMessage());
                 return;
             }
-            LAST_CONFIGURED_SCRIPTS.put(scriptName, configuredScript);
-            savePersistentSettings(scriptName, constants);
+            if (isAllImagesRun(constants) && !confirmAllImagesRun(qupath, scriptName)) {
+                feedback.warn("Project-wide run cancelled before execution.");
+                return;
+            }
+            savePersistentSettings(scriptName, schemaId, constants);
+            feedback.info(finalConfigSummary(scriptName, schemaId, constants));
             executeAsync(qupath, scriptName, configuredScript, feedback, runButton);
         });
 
@@ -153,6 +165,7 @@ final class AstraPipelineLauncher {
         String[] lines = scriptText.split("\\R", -1);
         List<EditableConstant> out = new ArrayList<>();
         Map<String, List<String>> scriptOptions = new LinkedHashMap<>();
+        Map<String, String> scriptHelp = new LinkedHashMap<>();
         int offset = 0;
 
         for (int i = 0; i < lines.length; i++) {
@@ -212,8 +225,11 @@ final class AstraPipelineLauncher {
             if ("List".equals(type) && name.endsWith("_OPTIONS")) {
                 String targetName = name.substring(0, name.length() - "_OPTIONS".length());
                 scriptOptions.put(targetName, parseStringOptions(value));
+            } else if ("String".equals(type) && name.endsWith("_HELP")) {
+                String targetName = name.substring(0, name.length() - "_HELP".length());
+                scriptHelp.put(targetName, EditableConstant.stripStringQuotes("String", value));
             } else {
-                out.add(new EditableConstant(type, name, value, suffix, start, end, isAdvanced(name), scriptOptions.get(name)));
+                out.add(new EditableConstant(type, name, value, suffix, start, end, isAdvanced(name), scriptOptions.get(name), scriptHelp.get(name)));
             }
             for (int j = i; j <= endLine; j++) {
                 if (j > i) {
@@ -275,19 +291,17 @@ final class AstraPipelineLauncher {
         return out.toString();
     }
 
-    private static void applySavedConstantValues(List<EditableConstant> constants, List<EditableConstant> savedConstants) {
-        Map<String, EditableConstant> savedByName = new LinkedHashMap<>();
-        savedConstants.forEach(c -> savedByName.put(c.name, c));
-        constants.forEach(c -> {
-            EditableConstant saved = savedByName.get(c.name);
-            if (saved != null) {
-                c.setDisplayValue(saved.displayValue);
-            }
-        });
-    }
-
-    private static boolean applyPersistentSettings(String scriptName, List<EditableConstant> constants) {
+    private static PersistentApplyResult applyPersistentSettings(String scriptName, String schemaId, List<EditableConstant> constants) {
         Preferences node = settingsNode(scriptName);
+        String storedSchemaId = node.get(PREF_SCHEMA_ID, null);
+        if (storedSchemaId != null && !storedSchemaId.equals(schemaId)) {
+            clearPersistentSettings(scriptName);
+            return new PersistentApplyResult(false, true);
+        }
+        if (storedSchemaId == null && hasStoredValues(node, constants)) {
+            clearPersistentSettings(scriptName);
+            return new PersistentApplyResult(false, true);
+        }
         boolean restored = false;
         for (EditableConstant constant : constants) {
             String value = node.get(constant.name, null);
@@ -296,11 +310,21 @@ final class AstraPipelineLauncher {
                 restored = true;
             }
         }
-        return restored;
+        return new PersistentApplyResult(restored, false);
     }
 
-    private static void savePersistentSettings(String scriptName, List<EditableConstant> constants) {
+    private static boolean hasStoredValues(Preferences node, List<EditableConstant> constants) {
+        for (EditableConstant constant : constants) {
+            if (node.get(constant.name, null) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void savePersistentSettings(String scriptName, String schemaId, List<EditableConstant> constants) {
         Preferences node = settingsNode(scriptName);
+        node.put(PREF_SCHEMA_ID, schemaId);
         for (EditableConstant constant : constants) {
             try {
                 node.put(constant.name, constant.currentDisplayValue());
@@ -322,7 +346,80 @@ final class AstraPipelineLauncher {
         return SETTINGS.node(scriptName.replaceAll("[^A-Za-z0-9_.-]", "_"));
     }
 
-    private static Node createContent(QuPathGUI qupath, String scriptName, List<EditableConstant> constants, boolean applyChannelDefaults, RunFeedback feedback) {
+    static String schemaIdentity(List<EditableConstant> constants) {
+        StringBuilder schema = new StringBuilder();
+        for (EditableConstant constant : constants) {
+            schema.append(constant.name).append('\t')
+                    .append(constant.type).append('\t')
+                    .append(constant.value).append('\t')
+                    .append(String.join(",", constant.options)).append('\t')
+                    .append(constant.helpText()).append('\n');
+        }
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(schema.toString().getBytes(StandardCharsets.UTF_8));
+            StringBuilder out = new StringBuilder(bytes.length * 2);
+            for (byte b : bytes) {
+                out.append(String.format("%02x", b));
+            }
+            return out.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable for ASTRA GUI schema identity.", e);
+        }
+    }
+
+    private static String finalConfigSummary(String scriptName, String schemaId, List<EditableConstant> constants) {
+        Map<String, EditableConstant> byName = new LinkedHashMap<>();
+        constants.forEach(c -> byName.put(c.name, c));
+        List<String> lines = new ArrayList<>();
+        lines.add("Resolved configuration:");
+        lines.add("  pipeline: " + scriptName);
+        lines.add("  schema: " + schemaId.substring(0, Math.min(12, schemaId.length())));
+        appendSummary(lines, byName, "IMAGE_SCOPE", "  image scope");
+        appendSummary(lines, byName, "SELECTED_IMAGE_NAMES", "  selected images");
+        appendSummary(lines, byName, "DETECTION_TARGET", "  detection target");
+        appendSummary(lines, byName, "NUC_MODEL_SOURCE", "  nucleus model source");
+        appendSummary(lines, byName, "NUC_MODEL_NAME", "  nucleus model");
+        appendSummary(lines, byName, "CELL_MODEL_SOURCE", "  cell model source");
+        appendSummary(lines, byName, "CELL_MODEL_NAME", "  cell model");
+        appendSummary(lines, byName, "CHANNELS_FOR_NUCLEUS", "  nucleus channels");
+        appendSummary(lines, byName, "CELLPOSE_CELL_CHANNELS", "  cell channels");
+        appendSummary(lines, byName, "COLOCALIZATION_CHECKS", "  colocalization checks");
+        appendSummary(lines, byName, "THRESHOLD_MODE", "  threshold mode");
+        appendSummary(lines, byName, "THRESHOLD_EXCLUDE_MARKERS", "  threshold exclusions");
+        appendSummary(lines, byName, "EXPORT_RESULTS", "  export results");
+        appendSummary(lines, byName, "RESULTS_FOLDER", "  results folder");
+        return String.join("\n", lines);
+    }
+
+    private static void appendSummary(List<String> lines, Map<String, EditableConstant> constants, String name, String label) {
+        EditableConstant constant = constants.get(name);
+        if (constant != null) {
+            lines.add(label + ": " + constant.currentDisplayValue());
+        }
+    }
+
+    private static boolean isAllImagesRun(List<EditableConstant> constants) {
+        for (EditableConstant constant : constants) {
+            if ("IMAGE_SCOPE".equals(constant.name)) {
+                return "ALL_IMAGES".equals(constant.optionValue());
+            }
+        }
+        return false;
+    }
+
+    private static boolean confirmAllImagesRun(QuPathGUI qupath, String scriptName) {
+        int imageCount = qupath.getProject() == null ? 0 : qupath.getProject().getImageList().size();
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.initOwner(qupath.getStage());
+        alert.setTitle("ASTRA " + scriptName);
+        alert.setHeaderText("Run across the full project?");
+        alert.setContentText("IMAGE_SCOPE is ALL_IMAGES. ASTRA will run this pipeline on " + imageCount + " project entries.");
+        alert.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
+        return alert.showAndWait().filter(ButtonType.OK::equals).isPresent();
+    }
+
+    private static Node createContent(QuPathGUI qupath, String scriptName, List<EditableConstant> constants, boolean applyChannelDefaults, RunFeedback feedback, String schemaId) {
         List<ImageChannel> imageChannels = imageChannels(qupath);
         if (applyChannelDefaults) {
             applyImageChannelDefaults(constants, imageChannels);
@@ -363,7 +460,7 @@ final class AstraPipelineLauncher {
             List<EditableConstant> groupConstants = constants.stream()
                     .filter(c -> !c.advanced && group.equals(groupFor(c.name)))
                     .toList();
-            basic.getChildren().add(createSection(scriptName, group, groupConstants, true, constants));
+            basic.getChildren().add(createSection(scriptName, group, groupConstants, true, constants, schemaId));
         }
 
         VBox advanced = sectionShell("Advanced", "Defaults are intentionally conservative. Open these only for deliberate tuning, diagnostics, or publication-specific overrides.");
@@ -371,7 +468,7 @@ final class AstraPipelineLauncher {
             List<EditableConstant> groupConstants = constants.stream()
                     .filter(c -> c.advanced && group.equals(groupFor(c.name)))
                     .toList();
-            advanced.getChildren().add(createSection(scriptName, group, groupConstants, false, constants));
+            advanced.getChildren().add(createSection(scriptName, group, groupConstants, false, constants, schemaId));
         }
 
         body.getChildren().addAll(basic, advanced);
@@ -431,7 +528,7 @@ final class AstraPipelineLauncher {
         return flow;
     }
 
-    private static CollapsibleSection createSection(String scriptName, String title, List<EditableConstant> constants, boolean expanded, List<EditableConstant> allConstants) {
+    private static CollapsibleSection createSection(String scriptName, String title, List<EditableConstant> constants, boolean expanded, List<EditableConstant> allConstants, String schemaId) {
         GridPane grid = new GridPane();
         grid.setPadding(new Insets(14.0));
         grid.setHgap(12.0);
@@ -452,7 +549,7 @@ final class AstraPipelineLauncher {
             info.setMaxSize(18.0, 18.0);
             info.setFocusTraversable(false);
             info.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-padding: 0; -fx-font-size: 11px; -fx-font-weight: 900; -fx-text-fill: white; -fx-border-color: " + TEAL + "; -fx-border-radius: 9; -fx-background-radius: 9; -fx-background-color: " + TEAL + ";");
-            Tooltip tooltip = new Tooltip(helpFor(constant.name));
+            Tooltip tooltip = new Tooltip(constant.helpText());
             tooltip.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px;");
             info.setTooltip(tooltip);
             installReliableTooltip(info, tooltip);
@@ -460,7 +557,7 @@ final class AstraPipelineLauncher {
             grid.add(labelBox, 0, row);
 
             Node editor = constant.createEditor();
-            constant.addChangeListener(() -> savePersistentSettings(scriptName, allConstants));
+            constant.addChangeListener(() -> savePersistentSettings(scriptName, schemaId, allConstants));
             GridPane.setHgrow(editor, Priority.ALWAYS);
             grid.add(editor, 1, row++);
             rows.put(constant.name, new RowNodes(labelBox, editor));
@@ -528,7 +625,6 @@ final class AstraPipelineLauncher {
                 case "CHANNEL_ASMA" -> constant.setDisplayString(preferredChannel(names, "AF555", "Cy3", "aSMA", "ASMA"));
                 case "CHANNEL_CD31" -> constant.setDisplayString(preferredChannel(names, "AF647", "Cy5", "CD31"));
                 case "CHANNELS_FOR_NUCLEUS" -> constant.setDisplayList(List.of(preferredChannel(names, "DAPI", "Hoechst", "DAPI")));
-                case "CHANNELS_FOR_CELL", "CELLPOSE_CELL_CHANNELS" -> constant.setDisplayList(names);
                 default -> {
                 }
             }
@@ -582,14 +678,21 @@ final class AstraPipelineLauncher {
             setVisible(rows, "THRESHOLD_PROVENANCE_BY_MARKER", isSelected(byName, "THRESHOLD_MODE", "MANUAL"));
             setVisible(rows, "RANGE_THRESHOLD_FRACTION_BY_MARKER", isSelected(byName, "THRESHOLD_MODE", "RANGE_PERCENT"));
             setVisible(rows, "BACKGROUND_SUBTRACTION_BY_CHANNEL", isSelected(byName, "BACKGROUND_MODE", "MANUAL_OFFSET"));
+            setVisible(rows, "MODES_TO_RUN", !isChecked(byName, "RESET_BASELINE"));
         };
         byName.values().forEach(c -> c.addOptionListener(update));
+        byName.values().forEach(c -> c.addChangeListener(update));
         update.run();
     }
 
     private static boolean isSelected(Map<String, EditableConstant> constants, String name, String expected) {
         EditableConstant constant = constants.get(name);
         return constant == null || expected.equals(constant.optionValue());
+    }
+
+    private static boolean isChecked(Map<String, EditableConstant> constants, String name) {
+        EditableConstant constant = constants.get(name);
+        return constant != null && Boolean.parseBoolean(constant.optionValue());
     }
 
     private static void setVisible(Map<String, RowNodes> rows, String name, boolean visible) {
@@ -606,7 +709,7 @@ final class AstraPipelineLauncher {
     private static void executeAsync(QuPathGUI qupath, String scriptName, String configuredScript, RunFeedback feedback, Button runButton) {
         feedback.start();
         runButton.setDisable(true);
-        qupath.getThreadPoolManager().getSingleThreadExecutor(AstraPipelineLauncher.class).submit(() -> {
+        Future<?> future = qupath.getThreadPoolManager().getSingleThreadExecutor(AstraPipelineLauncher.class).submit(() -> {
             try {
                 logger.info("ASTRA {} started from configuration dialog.", scriptName);
                 feedback.info("Started " + scriptName + ".");
@@ -624,20 +727,36 @@ final class AstraPipelineLauncher {
                     logger.info("ASTRA {} result: {}", scriptName, result);
                     feedback.info("Result: " + result);
                 }
-                feedback.success("Run completed.");
-                Platform.runLater(() -> Dialogs.showInfoNotification("ASTRA " + scriptName, "Run completed."));
+                if (feedback.isCancellationRequested()) {
+                    feedback.cancelled("Run cancellation was requested.");
+                } else {
+                    feedback.success("Run completed.");
+                    Platform.runLater(() -> Dialogs.showInfoNotification("ASTRA " + scriptName, "Run completed."));
+                }
+            } catch (CancellationException e) {
+                logger.warn("ASTRA {} cancelled.", scriptName);
+                feedback.cancelled("Run cancelled.");
             } catch (ScriptException e) {
                 logger.error("ASTRA {} failed.", scriptName, e);
-                feedback.error(String.valueOf(e.getMessage()));
-                Platform.runLater(() -> Dialogs.showErrorMessage("ASTRA " + scriptName, String.valueOf(e.getMessage())));
+                if (feedback.isCancellationRequested()) {
+                    feedback.cancelled("Run cancellation was requested before the script stopped.");
+                } else {
+                    feedback.error(String.valueOf(e.getMessage()));
+                    Platform.runLater(() -> Dialogs.showErrorMessage("ASTRA " + scriptName, String.valueOf(e.getMessage())));
+                }
             } catch (Throwable t) {
                 logger.error("ASTRA {} failed.", scriptName, t);
-                feedback.error(t.getClass().getSimpleName() + ": " + t.getMessage());
-                Platform.runLater(() -> Dialogs.showErrorMessage("ASTRA " + scriptName, t.getClass().getSimpleName() + ": " + t.getMessage()));
+                if (feedback.isCancellationRequested()) {
+                    feedback.cancelled("Run cancellation was requested before the script stopped.");
+                } else {
+                    feedback.error(t.getClass().getSimpleName() + ": " + t.getMessage());
+                    Platform.runLater(() -> Dialogs.showErrorMessage("ASTRA " + scriptName, t.getClass().getSimpleName() + ": " + t.getMessage()));
+                }
             } finally {
                 Platform.runLater(() -> runButton.setDisable(false));
             }
         });
+        feedback.attachFuture(future);
     }
 
     private static int bracketBalance(String line) {
@@ -751,7 +870,7 @@ final class AstraPipelineLauncher {
                 "BEST_PARAMS_FILE",
                 "IMAGE_SCOPE",
                 "SELECTED_IMAGE_NAMES",
-                "USE_NUCLEI",
+                "DETECTION_TARGET",
                 "CHANNEL_DAPI",
                 "CHANNEL_WGA",
                 "CHANNEL_ASMA",
@@ -760,6 +879,7 @@ final class AstraPipelineLauncher {
                 "CHANNELS_FOR_CELL",
                 "CELLPOSE_CELL_CHANNELS",
                 "COLOCALIZATION_CHECKS",
+                "THRESHOLD_EXCLUDE_MARKERS",
                 "POSITIVITY_METHOD",
                 "THRESHOLD_MODE",
                 "BACKGROUND_MODE",
@@ -786,69 +906,6 @@ final class AstraPipelineLauncher {
         return "General";
     }
 
-    private static String helpFor(String name) {
-        return switch (name) {
-            case "CLASS_ANALYSIS_REGION", "CLASS_ROI" ->
-                    "QuPath annotation class used as the analysis region. This must match the class name in the image exactly.";
-            case "USE_WHOLE_IMAGE_IF_NO_REGION" ->
-                    "When enabled, ASTRA analyzes the whole image if no matching parent region exists.";
-            case "MODEL_SOURCE", "NUC_MODEL_SOURCE", "CELL_MODEL_SOURCE" ->
-                    "Select whether Cellpose uses a built-in model name, a saved model record, or a model file path.";
-            case "MODEL_NAME", "NUC_MODEL_NAME", "CELL_MODEL_NAME" ->
-                    "Cellpose model name. Blank nucleus/cell-specific values inherit the shared model setting.";
-            case "MODEL_FILE", "NUC_MODEL_FILE", "CELL_MODEL_FILE" ->
-                    "Absolute model file path when the matching model source is FILE.";
-            case "PARAM_SOURCE", "NUC_PARAM_SOURCE", "CELL_PARAM_SOURCE" ->
-                    "Select manual parameters or a best-parameters file from tuning.";
-            case "BEST_PARAMS_FILE", "NUC_BEST_PARAMS_FILE", "CELL_BEST_PARAMS_FILE" ->
-                    "Absolute path to the best-parameters file when the matching parameter source uses a file.";
-            case "IMAGE_SCOPE" ->
-                    "Choose whether this run covers all project images, the current image, or selected image names.";
-            case "SELECTED_IMAGE_NAMES" ->
-                    "Image names used only when IMAGE_SCOPE is SELECTED_IMAGES_BY_NAME.";
-            case "CHANNEL_DAPI", "CHANNEL_WGA", "CHANNEL_ASMA", "CHANNEL_CD31" ->
-                    "Channel name expected in the current image. Compare this with the channel chips above.";
-            case "CELLPOSE_CELL_CHANNELS" ->
-                    "Channels passed to whole-cell detection. Names must match QuPath channel metadata exactly.";
-            case "COLOCALIZATION_CHECKS" ->
-                    "Defines each output label, measurement compartment, and the channels that must be positive together.";
-            case "POSITIVITY_METHOD" ->
-                    "Method used to convert channel measurements into positive/negative calls.";
-            case "THRESHOLD_MODE" ->
-                    "Controls whether positivity thresholds are manual, range-based, or computed from the analyzed population.";
-            case "MANUAL_INTENSITY_THRESHOLDS" ->
-                    "Absolute intensity thresholds used only when THRESHOLD_MODE is MANUAL.";
-            case "RANGE_THRESHOLD_FRACTION_BY_MARKER" ->
-                    "Fractions used only when THRESHOLD_MODE is RANGE_PERCENT.";
-            case "THRESHOLD_PROVENANCE_BY_MARKER" ->
-                    "Audit text describing the source of manual thresholds for publication-facing runs.";
-            case "BACKGROUND_MODE" ->
-                    "Optional background subtraction mode applied before thresholding.";
-            case "BACKGROUND_SUBTRACTION_BY_CHANNEL" ->
-                    "Per-channel offsets used when BACKGROUND_MODE is MANUAL_OFFSET.";
-            case "EXPORT_RESULTS" ->
-                    "Writes CSV outputs and run metadata under the project results folder.";
-            case "EXPORT_QC_FIGURES" ->
-                    "Writes threshold quality-control figures when supported by the pipeline.";
-            case "RESULTS_FOLDER" ->
-                    "Project-relative folder where ASTRA writes exported results.";
-            case "RESULTS_BASENAME" ->
-                    "Optional output filename stem. Leave blank to derive it from the image name.";
-            case "OVERWRITE_RESULTS" ->
-                    "Allow ASTRA to replace existing result files with the same name.";
-            case "USE_GPU" ->
-                    "Enable GPU execution for Cellpose when the local runtime supports it.";
-            case "TILE_SIZE" ->
-                    "Tile size in pixels for Cellpose processing.";
-            case "USE_BATCH_MODE" ->
-                    "Run Cellpose in batch mode where supported.";
-            case "SHOW_GUI_NOTIFICATIONS", "SHOW_VIEWER_PROGRESS", "FOCUS_VIEWER_ON_IMAGE", "FOCUS_VIEWER_ON_ROI" ->
-                    "QuPath interface behavior during and after the run.";
-            default ->
-                    "Advanced ASTRA script constant. Keep the default unless you know this run needs a different value.";
-        };
-    }
-
     private static String channelColor(ImageChannel channel) {
         Integer color = channel.getColor();
         if (color == null || channel.isTransparent()) {
@@ -864,6 +921,9 @@ final class AstraPipelineLauncher {
         private final Label status;
         private final ProgressIndicator progress;
         private final TextArea output;
+        private final Button killButton;
+        private final AtomicReference<Future<?>> currentRun = new AtomicReference<>();
+        private final AtomicBoolean cancellationRequested = new AtomicBoolean(false);
 
         private RunFeedback(String scriptName) {
             box = new VBox(8.0);
@@ -883,7 +943,13 @@ final class AstraPipelineLauncher {
 
             status = new Label("Ready to run " + scriptName + ".");
             status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: white;");
-            header.getChildren().addAll(progress, status);
+            killButton = new Button("Kill Run");
+            killButton.setDisable(true);
+            killButton.setFocusTraversable(false);
+            killButton.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; -fx-background-color: #ffddd5; -fx-text-fill: #7c2417; -fx-border-color: #f0a090; -fx-border-radius: 4; -fx-background-radius: 4;");
+            killButton.setOnAction(event -> requestCancellation());
+            HBox.setHgrow(status, Priority.ALWAYS);
+            header.getChildren().addAll(progress, status, killButton);
 
             output = new TextArea();
             output.setEditable(false);
@@ -907,12 +973,40 @@ final class AstraPipelineLauncher {
                 status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: white;");
                 progress.setVisible(true);
                 progress.setManaged(true);
+                killButton.setDisable(false);
+                cancellationRequested.set(false);
                 appendLine("ASTRA run started.");
+            });
+        }
+
+        private void attachFuture(Future<?> future) {
+            currentRun.set(future);
+        }
+
+        private boolean isCancellationRequested() {
+            return cancellationRequested.get();
+        }
+
+        private void requestCancellation() {
+            cancellationRequested.set(true);
+            Future<?> future = currentRun.get();
+            boolean requested = future != null && future.cancel(true);
+            appendLine(requested
+                    ? "[CANCELLED] Cancellation requested; waiting for QuPath/Groovy execution to stop."
+                    : "[CANCELLED] Cancellation marked; the current QuPath/Groovy task could not be interrupted directly.");
+            Platform.runLater(() -> {
+                status.setText("Cancellation requested.");
+                status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: #ffe0a3;");
+                killButton.setDisable(true);
             });
         }
 
         private void info(String message) {
             append("[INFO] " + message + "\n");
+        }
+
+        private void warn(String message) {
+            append("[WARN] " + message + "\n");
         }
 
         private void success(String message) {
@@ -921,6 +1015,7 @@ final class AstraPipelineLauncher {
                 status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: #bdf2d0;");
                 progress.setVisible(false);
                 progress.setManaged(false);
+                killButton.setDisable(true);
                 appendLine("[DONE] " + message);
             });
         }
@@ -931,7 +1026,19 @@ final class AstraPipelineLauncher {
                 status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: #ffb8aa;");
                 progress.setVisible(false);
                 progress.setManaged(false);
+                killButton.setDisable(true);
                 appendLine("[ERROR] " + message);
+            });
+        }
+
+        private void cancelled(String message) {
+            Platform.runLater(() -> {
+                status.setText("Run cancelled.");
+                status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: #ffe0a3;");
+                progress.setVisible(false);
+                progress.setManaged(false);
+                killButton.setDisable(true);
+                appendLine("[CANCELLED] " + message);
             });
         }
 
@@ -1037,6 +1144,9 @@ final class AstraPipelineLauncher {
     private record RowNodes(Node label, Node editor) {
     }
 
+    private record PersistentApplyResult(boolean restored, boolean schemaReset) {
+    }
+
     private static final class ListEditor extends VBox {
 
         private final TextField field;
@@ -1118,9 +1228,10 @@ final class AstraPipelineLauncher {
         private final int end;
         private final boolean advanced;
         private final List<String> options;
+        private final String help;
         private Node editor;
 
-        private EditableConstant(String type, String name, String value, String suffix, int start, int end, boolean advanced, List<String> options) {
+        private EditableConstant(String type, String name, String value, String suffix, int start, int end, boolean advanced, List<String> options, String help) {
             this.type = type;
             this.name = name;
             this.suffix = suffix == null ? "" : suffix;
@@ -1128,10 +1239,17 @@ final class AstraPipelineLauncher {
             this.end = end;
             this.advanced = advanced;
             this.options = options == null ? List.of() : List.copyOf(options);
+            this.help = help == null || help.isBlank()
+                    ? "ASTRA did not provide help metadata for this script constant."
+                    : help;
             this.editor = null;
             this.value = value;
             this.displayValue = value;
             this.defaultDisplayValue = value;
+        }
+
+        private String helpText() {
+            return help;
         }
 
         private Node createEditor() {
@@ -1281,6 +1399,9 @@ final class AstraPipelineLauncher {
             Node activeEditor = createEditor();
             if (activeEditor instanceof ComboBox<?> comboBox) {
                 return String.valueOf(comboBox.getValue());
+            }
+            if (activeEditor instanceof CheckBox checkBox) {
+                return Boolean.toString(checkBox.isSelected());
             }
             return stripStringQuotes(type, displayValue);
         }
