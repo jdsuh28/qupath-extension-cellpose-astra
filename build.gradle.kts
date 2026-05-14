@@ -27,7 +27,7 @@ repositories {
 qupathExtension {
     name = "qupath-extension-cellpose-astra"
     group = "io.github.jdsuh28"
-    version = "0.1.56"
+    version = "0.1.57"
     description = "ASTRA fork of the BIOP Cellpose extension for QuPath"
     automaticModule = "qupath.ext.astra.cellpose"
 }

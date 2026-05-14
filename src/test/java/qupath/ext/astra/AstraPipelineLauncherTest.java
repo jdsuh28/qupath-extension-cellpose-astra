@@ -132,6 +132,52 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
+    void twoOpenedChannelsSynchronizeColocalizationDefaults() {
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
+
+        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("DAPI", "FITC"));
+        String configured = AstraPipelineLauncher.applyConstants(colocalizationDefaultsScript(), constants);
+
+        assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = [\"DAPI\"]"));
+        assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = [\"FITC\"]"));
+        assertTrue(configured.contains("LABEL      : \"DAPI_AND_FITC_nucleus\""));
+        assertTrue(configured.contains("CHANNELS   : [\"DAPI\", \"FITC\"]"));
+        assertTrue(configured.contains("final List THRESHOLD_EXCLUDE_MARKERS = [\"DAPI|Nucleus\"]"));
+        assertTrue(configured.contains("\"FITC|Nucleus\"     : 100.0d"));
+        assertFalse(configured.contains("AF488"));
+    }
+
+    @Test
+    void arbitraryOpenedChannelsDoNotLeaveHardcodedDapiAf488() {
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
+
+        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Channel 1", "Channel 2"));
+        String configured = AstraPipelineLauncher.applyConstants(colocalizationDefaultsScript(), constants);
+
+        assertTrue(configured.contains("LABEL      : \"Channel_1_AND_Channel_2_nucleus\""));
+        assertTrue(configured.contains("CHANNELS   : [\"Channel 1\", \"Channel 2\"]"));
+        assertTrue(configured.contains("final List THRESHOLD_EXCLUDE_MARKERS = [\"Channel 1|Nucleus\"]"));
+        assertTrue(configured.contains("\"Channel 2|Nucleus\"     : 100.0d"));
+        assertFalse(configured.contains("DAPI_AND_AF488"));
+        assertFalse(configured.contains("\"AF488|Nucleus\""));
+    }
+
+    @Test
+    void oneOpenedChannelDoesNotReferenceMissingSecondChannel() {
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
+
+        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Only"));
+        String configured = AstraPipelineLauncher.applyConstants(colocalizationDefaultsScript(), constants);
+
+        assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = [\"Only\"]"));
+        assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = []"));
+        assertTrue(configured.contains("LABEL      : \"Only_nucleus\""));
+        assertTrue(configured.contains("CHANNELS   : [\"Only\"]"));
+        assertTrue(configured.contains("final Map MANUAL_INTENSITY_THRESHOLDS = [:]"));
+        assertFalse(configured.contains("AF488"));
+    }
+
+    @Test
     void detectionTargetAndThresholdExclusionsAreEditable() {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
                 final List DETECTION_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
@@ -164,6 +210,16 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
+    void colocalizationPanelStateFollowsDetectionTarget() {
+        assertEquals(new AstraPipelineLauncher.ColocalizationPanelState(true, false, true, false),
+                AstraPipelineLauncher.colocalizationPanelState("NUCLEUS"));
+        assertEquals(new AstraPipelineLauncher.ColocalizationPanelState(false, true, false, true),
+                AstraPipelineLauncher.colocalizationPanelState("CELL"));
+        assertEquals(new AstraPipelineLauncher.ColocalizationPanelState(true, true, true, true),
+                AstraPipelineLauncher.colocalizationPanelState("BOTH"));
+    }
+
+    @Test
     void markerExclusionKeysComeOnlyFromColocalizationChecks() {
         List<AstraPipelineLauncher.ColocalizationCheck> checks = List.of(
                 new AstraPipelineLauncher.ColocalizationCheck("DAPI_AF488", "Nucleus", List.of("DAPI", "AF488"))
@@ -175,6 +231,47 @@ class AstraPipelineLauncherTest {
         assertTrue(keys.contains("AF488|Nucleus"));
         assertFalse(keys.contains("AF647|Nucleus"));
         assertEquals("[\"DAPI|Nucleus\"]", AstraPipelineLauncher.renderStringList(List.of("DAPI|Nucleus")));
+    }
+
+    @Test
+    void staleThresholdExclusionsAreRemovedWhenChecksChange() {
+        List<String> synchronizedKeys = AstraPipelineLauncher.synchronizedThresholdExclusions(
+                List.of("DAPI|Nucleus", "FITC|Cell"),
+                List.of(new AstraPipelineLauncher.ColocalizationCheck("fitc", "Nucleus", List.of("FITC")))
+        );
+
+        assertEquals(List.of("FITC|Nucleus"), AstraPipelineLauncher.markerKeysFromChecks(List.of(
+                new AstraPipelineLauncher.ColocalizationCheck("fitc", "Nucleus", List.of("FITC"))
+        )));
+        assertEquals(List.of(), synchronizedKeys);
+    }
+
+    @Test
+    void finalSummaryShowsEffectiveInheritedAndTargetSpecificModels() {
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+                final List DETECTION_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
+                final String DETECTION_TARGET = "BOTH"
+                final List MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
+                final String MODEL_SOURCE = "MODEL_NAME"
+                final String MODEL_NAME = "cpsam"
+                final String MODEL_FILE = ""
+                final List NUC_MODEL_SOURCE_OPTIONS = ["", "MODEL_NAME", "SAVED", "FILE"]
+                final String NUC_MODEL_SOURCE = "MODEL_NAME"
+                final String NUC_MODEL_NAME = "nuc-special"
+                final String NUC_MODEL_FILE = ""
+                final List CELL_MODEL_SOURCE_OPTIONS = ["", "MODEL_NAME", "SAVED", "FILE"]
+                final String CELL_MODEL_SOURCE = ""
+                final String CELL_MODEL_NAME = ""
+                final String CELL_MODEL_FILE = ""
+                final Map cfg = [:]
+                """);
+
+        String summary = AstraPipelineLauncher.finalConfigSummary("Colocalization", "123456789012", constants);
+
+        assertTrue(summary.contains("effective nucleus model source: MODEL_NAME (target-specific)"));
+        assertTrue(summary.contains("effective nucleus model: nuc-special"));
+        assertTrue(summary.contains("effective cell model source: MODEL_NAME (inherited)"));
+        assertTrue(summary.contains("effective cell model: cpsam"));
     }
 
     @Test
@@ -273,5 +370,33 @@ class AstraPipelineLauncherTest {
                 final List COLOCALIZATION_CHECKS = []
                 final Map cfg = [:]
                 """.formatted(target);
+    }
+
+    private static String colocalizationDefaultsScript() {
+        return """
+                final String DETECTION_TARGET = "NUCLEUS"
+                final List NUCLEUS_SEGMENTATION_CHANNELS = ["DAPI"]
+                final List CELL_SEGMENTATION_CHANNELS = []
+                final List COLOCALIZATION_CHECKS = [
+                    [
+                        LABEL      : "DAPI_AND_AF488_nucleus",
+                        COMPARTMENT: "Nucleus",
+                        CHANNELS   : ["DAPI", "AF488"]
+                    ]
+                ]
+                final List THRESHOLD_EXCLUDE_MARKERS = ["DAPI|Nucleus"]
+                final Map MANUAL_INTENSITY_THRESHOLDS = [
+                    "AF488|Nucleus": 100.0d
+                ]
+                final Map RANGE_THRESHOLD_FRACTION_BY_MARKER = [
+                    "AF488|Nucleus": 0.50d
+                ]
+                final Map THRESHOLD_PROVENANCE_BY_MARKER = [
+                    "AF488|Nucleus": "EDIT: describe threshold source before publication use"
+                ]
+                final String BACKGROUND_MODE = "NONE"
+                final Map BACKGROUND_SUBTRACTION_BY_CHANNEL = [:]
+                final Map cfg = [:]
+                """;
     }
 }

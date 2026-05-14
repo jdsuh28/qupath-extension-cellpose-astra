@@ -375,7 +375,7 @@ final class AstraPipelineLauncher {
         }
     }
 
-    private static String finalConfigSummary(String scriptName, String schemaId, List<EditableConstant> constants) {
+    static String finalConfigSummary(String scriptName, String schemaId, List<EditableConstant> constants) {
         Map<String, EditableConstant> byName = new LinkedHashMap<>();
         constants.forEach(c -> byName.put(c.name, c));
         List<String> lines = new ArrayList<>();
@@ -385,12 +385,8 @@ final class AstraPipelineLauncher {
         appendSummary(lines, byName, "IMAGE_SCOPE", "  image scope");
         appendSummary(lines, byName, "SELECTED_IMAGE_NAMES", "  selected images");
         appendSummary(lines, byName, "DETECTION_TARGET", "  detection target");
-        appendSummary(lines, byName, "NUC_MODEL_SOURCE", "  nucleus model source");
-        appendSummary(lines, byName, "NUC_MODEL_NAME", "  nucleus model");
-        appendSummary(lines, byName, "NUC_MODEL_FILE", "  nucleus model file");
-        appendSummary(lines, byName, "CELL_MODEL_SOURCE", "  cell model source");
-        appendSummary(lines, byName, "CELL_MODEL_NAME", "  cell model");
-        appendSummary(lines, byName, "CELL_MODEL_FILE", "  cell model file");
+        appendEffectiveModelSummary(lines, byName, "NUCLEUS", "nucleus");
+        appendEffectiveModelSummary(lines, byName, "CELL", "cell");
         appendSummary(lines, byName, "NUCLEUS_SEGMENTATION_CHANNELS", "  nucleus segmentation channels");
         appendSummary(lines, byName, "CELL_SEGMENTATION_CHANNELS", "  cell segmentation channels");
         appendSummary(lines, byName, "CHANNELS_FOR_NUCLEUS", "  nucleus channels");
@@ -402,6 +398,40 @@ final class AstraPipelineLauncher {
         appendSummary(lines, byName, "EXPORT_RESULTS", "  export results");
         appendSummary(lines, byName, "RESULTS_FOLDER", "  results folder");
         return String.join("\n", lines);
+    }
+
+    private static void appendEffectiveModelSummary(List<String> lines, Map<String, EditableConstant> constants, String target, String label) {
+        String detectionTarget = rawString(constants, "DETECTION_TARGET", "BOTH");
+        if ("NUCLEUS".equals(target) && "CELL".equals(detectionTarget)) {
+            lines.add("  effective " + label + " model: not used for DETECTION_TARGET=CELL");
+            return;
+        }
+        if ("CELL".equals(target) && "NUCLEUS".equals(detectionTarget)) {
+            lines.add("  effective " + label + " model: not used for DETECTION_TARGET=NUCLEUS");
+            return;
+        }
+        String prefix = "NUCLEUS".equals(target) ? "NUC_" : "CELL_";
+        String specificSource = rawString(constants, prefix + "MODEL_SOURCE", "");
+        String source = specificSource.isBlank() ? rawString(constants, "MODEL_SOURCE", "") : specificSource;
+        boolean inherited = specificSource.isBlank();
+        String valueName = rawString(constants, prefix + "MODEL_NAME", "");
+        String valueFile = rawString(constants, prefix + "MODEL_FILE", "");
+        String sharedName = rawString(constants, "MODEL_NAME", "");
+        String sharedFile = rawString(constants, "MODEL_FILE", "");
+        String value = "FILE".equals(source)
+                ? (valueFile.isBlank() ? sharedFile : valueFile)
+                : (valueName.isBlank() ? sharedName : valueName);
+        lines.add("  effective " + label + " model source: " + source + (inherited ? " (inherited)" : " (target-specific)"));
+        lines.add("  effective " + label + " model: " + value);
+    }
+
+    private static String rawString(Map<String, EditableConstant> constants, String name, String fallback) {
+        EditableConstant constant = constants.get(name);
+        if (constant == null) {
+            return fallback;
+        }
+        String raw = constant.currentDisplayValue();
+        return EditableConstant.stripOuterQuotes(raw == null ? "" : raw.trim());
     }
 
     private static void appendSummary(List<String> lines, Map<String, EditableConstant> constants, String name, String label) {
@@ -440,6 +470,27 @@ final class AstraPipelineLauncher {
             names.addAll(List.of("CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE"));
         }
         return names;
+    }
+
+    record ColocalizationPanelState(boolean showNucleusModel, boolean showCellModel, boolean showNucleusSegmentation, boolean showCellSegmentation) {
+    }
+
+    static ColocalizationPanelState colocalizationPanelState(String detectionTarget) {
+        String target = detectionTarget == null ? "BOTH" : detectionTarget.trim().toUpperCase(Locale.ROOT);
+        boolean showNucleus = !"CELL".equals(target);
+        boolean showCell = !"NUCLEUS".equals(target);
+        return new ColocalizationPanelState(showNucleus, showCell, showNucleus, showCell);
+    }
+
+    static List<String> synchronizedThresholdExclusions(List<String> selectedExclusions, List<ColocalizationCheck> checks) {
+        List<String> markerKeys = markerKeysFromChecks(checks);
+        if (selectedExclusions == null || selectedExclusions.isEmpty()) {
+            return List.of();
+        }
+        return selectedExclusions.stream()
+                .filter(markerKeys::contains)
+                .distinct()
+                .toList();
     }
 
     private static boolean confirmAllImagesRun(QuPathGUI qupath, String scriptName) {
@@ -628,12 +679,11 @@ final class AstraPipelineLauncher {
 
         Runnable updateTargetVisibility = () -> {
             String target = detectionTarget == null ? "BOTH" : detectionTarget.optionValue();
-            boolean showNucleus = !"CELL".equals(target);
-            boolean showCell = !"NUCLEUS".equals(target);
-            setNodeVisible(nucleusModel, showNucleus);
-            setNodeVisible(nucEditor, showNucleus);
-            setNodeVisible(cellModel, showCell);
-            setNodeVisible(cellEditor, showCell);
+            ColocalizationPanelState state = colocalizationPanelState(target);
+            setNodeVisible(nucleusModel, state.showNucleusModel());
+            setNodeVisible(nucEditor, state.showNucleusSegmentation());
+            setNodeVisible(cellModel, state.showCellModel());
+            setNodeVisible(cellEditor, state.showCellSegmentation());
         };
         if (detectionTarget != null) {
             detectionTarget.addChangeListener(updateTargetVisibility);
@@ -816,6 +866,8 @@ final class AstraPipelineLauncher {
         if (names.isEmpty()) {
             return;
         }
+        Map<String, EditableConstant> byName = new LinkedHashMap<>();
+        constants.forEach(c -> byName.put(c.name, c));
         for (EditableConstant constant : constants) {
             switch (constant.name) {
                 case "CHANNEL_DAPI" -> constant.setDisplayString(preferredChannel(names, "DAPI", "Hoechst", "DAPI"));
@@ -829,6 +881,51 @@ final class AstraPipelineLauncher {
                 }
             }
         }
+        if (isColocalizationConfig(constants)) {
+            applyColocalizationImageDefaults(byName, names);
+        }
+    }
+
+    static void applyColocalizationImageDefaults(Map<String, EditableConstant> constants, List<String> names) {
+        if (names == null || names.isEmpty()) {
+            return;
+        }
+        String first = names.get(0);
+        String second = names.size() > 1 ? names.get(1) : null;
+        String compartment = "Nucleus";
+        List<String> checkChannels = second == null ? List.of(first) : List.of(first, second);
+        String label = safeLabel(String.join("_AND_", checkChannels) + "_nucleus");
+        String firstKey = first + "|" + compartment;
+        String thresholdKey = second == null ? null : second + "|" + compartment;
+
+        setListConstant(constants, "NUCLEUS_SEGMENTATION_CHANNELS", List.of(first));
+        setListConstant(constants, "CELL_SEGMENTATION_CHANNELS", second == null ? List.of() : List.of(second));
+        setRawConstant(constants, "COLOCALIZATION_CHECKS", renderColocalizationChecks(List.of(new ColocalizationCheck(label, compartment, checkChannels))));
+        setListConstant(constants, "THRESHOLD_EXCLUDE_MARKERS", List.of(firstKey));
+        setRawConstant(constants, "MANUAL_INTENSITY_THRESHOLDS", thresholdKey == null ? "[:]" : "[\n        " + quoteGroovy(thresholdKey) + "     : 100.0d\n]");
+        setRawConstant(constants, "RANGE_THRESHOLD_FRACTION_BY_MARKER", thresholdKey == null ? "[:]" : "[\n        " + quoteGroovy(thresholdKey) + "     : 0.50d\n]");
+        setRawConstant(constants, "THRESHOLD_PROVENANCE_BY_MARKER", thresholdKey == null ? "[:]" : "[\n        " + quoteGroovy(thresholdKey) + "     : \"EDIT: describe threshold source before publication use\"\n]");
+        setRawConstant(constants, "BACKGROUND_SUBTRACTION_BY_CHANNEL", "[:]");
+    }
+
+    private static void setListConstant(Map<String, EditableConstant> constants, String name, List<String> values) {
+        EditableConstant constant = constants.get(name);
+        if (constant != null) {
+            constant.setDisplayListAllowEmpty(values);
+        }
+    }
+
+    private static void setRawConstant(Map<String, EditableConstant> constants, String name, String value) {
+        EditableConstant constant = constants.get(name);
+        if (constant != null) {
+            constant.setDisplayValue(value);
+        }
+    }
+
+    private static String safeLabel(String raw) {
+        String label = raw == null ? "" : raw.trim().replaceAll("[^A-Za-z0-9]+", "_");
+        label = label.replaceAll("^_+|_+$", "");
+        return label.isBlank() ? "colocalization_nucleus" : label;
     }
 
     private static List<String> firstChannel(List<String> names) {
@@ -1947,6 +2044,12 @@ final class AstraPipelineLauncher {
                 return;
             }
             displayValue = renderStringList(channels);
+        }
+
+        private void setDisplayListAllowEmpty(List<String> channels) {
+            if ("List".equals(type) && channels != null) {
+                displayValue = renderStringList(channels);
+            }
         }
 
         private void setCustomEditor(Node editor) {
