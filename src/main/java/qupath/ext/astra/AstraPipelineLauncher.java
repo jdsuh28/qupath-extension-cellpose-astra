@@ -387,13 +387,18 @@ final class AstraPipelineLauncher {
         appendSummary(lines, byName, "DETECTION_TARGET", "  detection target");
         appendSummary(lines, byName, "NUC_MODEL_SOURCE", "  nucleus model source");
         appendSummary(lines, byName, "NUC_MODEL_NAME", "  nucleus model");
+        appendSummary(lines, byName, "NUC_MODEL_FILE", "  nucleus model file");
         appendSummary(lines, byName, "CELL_MODEL_SOURCE", "  cell model source");
         appendSummary(lines, byName, "CELL_MODEL_NAME", "  cell model");
+        appendSummary(lines, byName, "CELL_MODEL_FILE", "  cell model file");
+        appendSummary(lines, byName, "NUCLEUS_SEGMENTATION_CHANNELS", "  nucleus segmentation channels");
+        appendSummary(lines, byName, "CELL_SEGMENTATION_CHANNELS", "  cell segmentation channels");
         appendSummary(lines, byName, "CHANNELS_FOR_NUCLEUS", "  nucleus channels");
-        appendSummary(lines, byName, "CELLPOSE_CELL_CHANNELS", "  cell channels");
+        appendSummary(lines, byName, "CHANNELS_FOR_CELL", "  cell channels");
         appendSummary(lines, byName, "COLOCALIZATION_CHECKS", "  colocalization checks");
         appendSummary(lines, byName, "THRESHOLD_MODE", "  threshold mode");
         appendSummary(lines, byName, "THRESHOLD_EXCLUDE_MARKERS", "  threshold exclusions");
+        appendSummary(lines, byName, "BACKGROUND_MODE", "  background mode");
         appendSummary(lines, byName, "EXPORT_RESULTS", "  export results");
         appendSummary(lines, byName, "RESULTS_FOLDER", "  results folder");
         return String.join("\n", lines);
@@ -423,6 +428,18 @@ final class AstraPipelineLauncher {
             }
         }
         return false;
+    }
+
+    static List<String> targetModelControlNames(String detectionTarget) {
+        String target = detectionTarget == null ? "BOTH" : detectionTarget.trim().toUpperCase(Locale.ROOT);
+        List<String> names = new ArrayList<>();
+        if (!"CELL".equals(target)) {
+            names.addAll(List.of("NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE"));
+        }
+        if (!"NUCLEUS".equals(target)) {
+            names.addAll(List.of("CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE"));
+        }
+        return names;
     }
 
     private static boolean confirmAllImagesRun(QuPathGUI qupath, String scriptName) {
@@ -484,21 +501,31 @@ final class AstraPipelineLauncher {
         VBox body = new VBox(14.0);
         body.setPadding(new Insets(0, 18.0, 18.0, 18.0));
         body.getChildren().add(createChannelPanel(imageChannels));
+        boolean colocalization = isColocalizationConfig(constants);
+        if (colocalization) {
+            body.getChildren().add(createColocalizationPanel(scriptName, constants, imageChannels, schemaId));
+        }
 
         VBox basic = sectionShell("Basic", "Start here. These are the normal run controls: target, scope, channels, model source, thresholds, and outputs.");
         for (String group : orderedGroups(constants, false)) {
             List<EditableConstant> groupConstants = constants.stream()
                     .filter(c -> !c.advanced && group.equals(groupFor(c.name)))
+                    .filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))
                     .toList();
-            basic.getChildren().add(createSection(scriptName, group, groupConstants, true, constants, schemaId));
+            if (!groupConstants.isEmpty()) {
+                basic.getChildren().add(createSection(scriptName, group, groupConstants, true, constants, schemaId));
+            }
         }
 
         VBox advanced = sectionShell("Advanced", "Defaults are intentionally conservative. Open these only for deliberate tuning, diagnostics, or publication-specific overrides.");
         for (String group : orderedGroups(constants, true)) {
             List<EditableConstant> groupConstants = constants.stream()
                     .filter(c -> c.advanced && group.equals(groupFor(c.name)))
+                    .filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))
                     .toList();
-            advanced.getChildren().add(createSection(scriptName, group, groupConstants, false, constants, schemaId));
+            if (!groupConstants.isEmpty()) {
+                advanced.getChildren().add(createSection(scriptName, group, groupConstants, false, constants, schemaId));
+            }
         }
 
         body.getChildren().addAll(basic, advanced);
@@ -532,6 +559,143 @@ final class AstraPipelineLauncher {
         subtitle.setWrapText(true);
         box.getChildren().addAll(title, subtitle);
         return box;
+    }
+
+    private static boolean isColocalizationConfig(List<EditableConstant> constants) {
+        return constants.stream().anyMatch(c -> "COLOCALIZATION_CHECKS".equals(c.name))
+                && constants.stream().anyMatch(c -> "DETECTION_TARGET".equals(c.name));
+    }
+
+    private static boolean isHandledByColocalizationPanel(String name, boolean colocalization) {
+        if (!colocalization) {
+            return false;
+        }
+        return Set.of(
+                "NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE",
+                "CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE",
+                "NUCLEUS_SEGMENTATION_CHANNELS", "CELL_SEGMENTATION_CHANNELS",
+                "COLOCALIZATION_CHECKS", "THRESHOLD_EXCLUDE_MARKERS"
+        ).contains(name);
+    }
+
+    private static VBox createColocalizationPanel(String scriptName, List<EditableConstant> constants, List<ImageChannel> imageChannels, String schemaId) {
+        Map<String, EditableConstant> byName = new LinkedHashMap<>();
+        constants.forEach(c -> byName.put(c.name, c));
+        List<String> channelNames = imageChannels.stream().map(ImageChannel::getName).filter(Objects::nonNull).toList();
+
+        VBox box = sectionShell("Colocalization Setup", "Target-specific controls for segmentation models, segmentation channels, marker checks, and threshold exclusions.");
+        EditableConstant detectionTarget = byName.get("DETECTION_TARGET");
+
+        VBox modelPanel = semanticCard("Target Models", "Choose nucleus and cell model initializers independently. Shared MODEL_* values remain available in Advanced only as inheritance defaults.");
+        VBox nucleusModel = targetModelGroup("Nucleus model", byName.get("NUC_MODEL_SOURCE"), byName.get("NUC_MODEL_NAME"), byName.get("NUC_MODEL_FILE"), scriptName, schemaId, constants);
+        VBox cellModel = targetModelGroup("Cell model", byName.get("CELL_MODEL_SOURCE"), byName.get("CELL_MODEL_NAME"), byName.get("CELL_MODEL_FILE"), scriptName, schemaId, constants);
+        modelPanel.getChildren().addAll(nucleusModel, cellModel);
+
+        VBox segmentationPanel = semanticCard("Segmentation Channels", "Checkboxes write explicit Groovy lists into the target-specific segmentation channel constants.");
+        EditableConstant nucChannels = byName.get("NUCLEUS_SEGMENTATION_CHANNELS");
+        EditableConstant cellChannels = byName.get("CELL_SEGMENTATION_CHANNELS");
+        ChannelCheckboxEditor nucEditor = new ChannelCheckboxEditor("Nucleus segmentation channels", channelNames, nucChannels == null ? "[]" : nucChannels.displayValue);
+        ChannelCheckboxEditor cellEditor = new ChannelCheckboxEditor("Cell segmentation channels", channelNames, cellChannels == null ? "[]" : cellChannels.displayValue);
+        if (nucChannels != null) {
+            nucChannels.setCustomEditor(nucEditor);
+            nucEditor.addChangeListener(() -> savePersistentSettings(scriptName, schemaId, constants));
+        }
+        if (cellChannels != null) {
+            cellChannels.setCustomEditor(cellEditor);
+            cellEditor.addChangeListener(() -> savePersistentSettings(scriptName, schemaId, constants));
+        }
+        segmentationPanel.getChildren().addAll(nucEditor, cellEditor);
+
+        VBox checksPanel = semanticCard("Colocalization Checks", "Build each positivity check from a label, one compartment, and the channels that must be positive together.");
+        EditableConstant checksConstant = byName.get("COLOCALIZATION_CHECKS");
+        ColocalizationChecksEditor checksEditor = new ColocalizationChecksEditor(channelNames, checksConstant == null ? "[]" : checksConstant.displayValue);
+        if (checksConstant != null) {
+            checksConstant.setCustomEditor(checksEditor);
+            checksEditor.addChangeListener(() -> savePersistentSettings(scriptName, schemaId, constants));
+        }
+        checksPanel.getChildren().add(checksEditor);
+
+        VBox exclusionPanel = semanticCard("Threshold Exclusions", "Only marker keys used by the checks above can be excluded from thresholding and threshold QC.");
+        EditableConstant exclusionsConstant = byName.get("THRESHOLD_EXCLUDE_MARKERS");
+        ThresholdExclusionEditor exclusionEditor = new ThresholdExclusionEditor(exclusionsConstant == null ? "[]" : exclusionsConstant.displayValue);
+        exclusionEditor.refresh(markerKeysFromChecks(checksEditor.checks()));
+        if (exclusionsConstant != null) {
+            exclusionsConstant.setCustomEditor(exclusionEditor);
+            exclusionEditor.addChangeListener(() -> savePersistentSettings(scriptName, schemaId, constants));
+        }
+        checksEditor.addChangeListener(() -> exclusionEditor.refresh(markerKeysFromChecks(checksEditor.checks())));
+        exclusionPanel.getChildren().add(exclusionEditor);
+
+        Runnable updateTargetVisibility = () -> {
+            String target = detectionTarget == null ? "BOTH" : detectionTarget.optionValue();
+            boolean showNucleus = !"CELL".equals(target);
+            boolean showCell = !"NUCLEUS".equals(target);
+            setNodeVisible(nucleusModel, showNucleus);
+            setNodeVisible(nucEditor, showNucleus);
+            setNodeVisible(cellModel, showCell);
+            setNodeVisible(cellEditor, showCell);
+        };
+        if (detectionTarget != null) {
+            detectionTarget.addChangeListener(updateTargetVisibility);
+        }
+        updateTargetVisibility.run();
+
+        box.getChildren().addAll(modelPanel, segmentationPanel, checksPanel, exclusionPanel);
+        return box;
+    }
+
+    private static VBox semanticCard(String titleText, String subtitleText) {
+        VBox box = new VBox(9.0);
+        box.setPadding(new Insets(12.0));
+        box.setStyle("-fx-background-color: #f9fcfd; -fx-border-color: #c8dce1; -fx-border-radius: 6; -fx-background-radius: 6;");
+        Label title = new Label(titleText);
+        title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 14px; -fx-font-weight: 900; -fx-text-fill: " + TEAL_DARK + ";");
+        Label subtitle = new Label(subtitleText);
+        subtitle.setWrapText(true);
+        subtitle.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + MUTED + ";");
+        box.getChildren().addAll(title, subtitle);
+        return box;
+    }
+
+    private static VBox targetModelGroup(String title, EditableConstant source, EditableConstant name, EditableConstant file, String scriptName, String schemaId, List<EditableConstant> allConstants) {
+        VBox group = new VBox(8.0);
+        group.setPadding(new Insets(10.0));
+        group.setStyle("-fx-background-color: white; -fx-border-color: #d7e2e6; -fx-border-radius: 5; -fx-background-radius: 5;");
+        Label label = new Label(title);
+        label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: " + INK + ";");
+        group.getChildren().add(label);
+        Map<String, RowNodes> rows = new LinkedHashMap<>();
+        for (EditableConstant constant : Arrays.asList(source, name, file)) {
+            if (constant == null) {
+                continue;
+            }
+            HBox row = new HBox(8.0);
+            row.setAlignment(Pos.CENTER_LEFT);
+            Label rowLabel = new Label(prettyName(constant.name));
+            rowLabel.setMinWidth(160.0);
+            rowLabel.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 800; -fx-text-fill: " + INK + ";");
+            Node editor = constant.createEditor();
+            HBox.setHgrow(editor, Priority.ALWAYS);
+            row.getChildren().addAll(rowLabel, editor);
+            group.getChildren().add(row);
+            rows.put(constant.name, new RowNodes(rowLabel, editor));
+            constant.addChangeListener(() -> savePersistentSettings(scriptName, schemaId, allConstants));
+        }
+        Runnable update = () -> {
+            String selected = source == null ? "" : source.optionValue();
+            setVisible(rows, name == null ? "" : name.name, selected.isBlank() || "MODEL_NAME".equals(selected));
+            setVisible(rows, file == null ? "" : file.name, "FILE".equals(selected));
+        };
+        if (source != null) {
+            source.addChangeListener(update);
+        }
+        update.run();
+        return group;
+    }
+
+    private static void setNodeVisible(Node node, boolean visible) {
+        node.setVisible(visible);
+        node.setManaged(visible);
     }
 
     private static Node createPipelineFlow(String scriptName) {
@@ -659,10 +823,20 @@ final class AstraPipelineLauncher {
                 case "CHANNEL_ASMA" -> constant.setDisplayString(preferredChannel(names, "AF555", "Cy3", "aSMA", "ASMA"));
                 case "CHANNEL_CD31" -> constant.setDisplayString(preferredChannel(names, "AF647", "Cy5", "CD31"));
                 case "CHANNELS_FOR_NUCLEUS" -> constant.setDisplayList(List.of(preferredChannel(names, "DAPI", "Hoechst", "DAPI")));
+                case "NUCLEUS_SEGMENTATION_CHANNELS" -> constant.setDisplayList(firstChannel(names));
+                case "CELL_SEGMENTATION_CHANNELS" -> constant.setDisplayList(secondChannel(names));
                 default -> {
                 }
             }
         }
+    }
+
+    private static List<String> firstChannel(List<String> names) {
+        return names.isEmpty() ? List.of() : List.of(names.get(0));
+    }
+
+    private static List<String> secondChannel(List<String> names) {
+        return names.size() < 2 ? List.of() : List.of(names.get(1));
     }
 
     private static String preferredChannel(List<String> names, String... candidates) {
@@ -681,6 +855,79 @@ final class AstraPipelineLauncher {
             }
         }
         return names.get(0);
+    }
+
+    private static String semanticButtonStyle() {
+        return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; " +
+                "-fx-background-color: #e6f0f2; -fx-text-fill: " + TEAL_DARK + "; " +
+                "-fx-border-color: #b5cbd2; -fx-border-radius: 4; -fx-background-radius: 4;";
+    }
+
+    static List<ColocalizationCheck> parseColocalizationChecks(String rawValue) {
+        String raw = rawValue == null ? "" : rawValue;
+        List<ColocalizationCheck> out = new ArrayList<>();
+        Pattern entryPattern = Pattern.compile("(?s)\\[\\s*LABEL\\s*:\\s*\"([^\"]*)\"\\s*,\\s*COMPARTMENT\\s*:\\s*\"([^\"]*)\"\\s*,\\s*CHANNELS\\s*:\\s*\\[(.*?)\\]\\s*\\]");
+        Matcher matcher = entryPattern.matcher(raw);
+        while (matcher.find()) {
+            out.add(new ColocalizationCheck(
+                    matcher.group(1),
+                    matcher.group(2),
+                    EditableConstant.csvValues("[" + matcher.group(3) + "]")
+            ));
+        }
+        return out;
+    }
+
+    static String renderColocalizationChecks(List<ColocalizationCheck> checks) {
+        if (checks == null || checks.isEmpty()) {
+            return "[]";
+        }
+        StringBuilder out = new StringBuilder("[\n");
+        for (ColocalizationCheck check : checks) {
+            out.append("        [\n")
+                    .append("                LABEL      : ").append(quoteGroovy(check.label())).append(",\n")
+                    .append("                COMPARTMENT: ").append(quoteGroovy(check.compartment())).append(",\n")
+                    .append("                CHANNELS   : ").append(renderStringList(check.channels())).append("\n")
+                    .append("        ],\n");
+        }
+        out.append("]");
+        return out.toString();
+    }
+
+    static List<String> markerKeysFromChecks(List<ColocalizationCheck> checks) {
+        List<String> keys = new ArrayList<>();
+        if (checks == null) {
+            return keys;
+        }
+        for (ColocalizationCheck check : checks) {
+            String compartment = check.compartment() == null ? "" : check.compartment().trim();
+            for (String channel : check.channels()) {
+                String marker = channel == null ? "" : channel.trim();
+                if (!marker.isBlank() && !compartment.isBlank()) {
+                    String key = marker + "|" + compartment;
+                    if (!keys.contains(key)) {
+                        keys.add(key);
+                    }
+                }
+            }
+        }
+        return keys;
+    }
+
+    static String renderStringList(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return "[]";
+        }
+        return "[" + values.stream()
+                .filter(s -> s != null && !s.isBlank())
+                .map(AstraPipelineLauncher::quoteGroovy)
+                .reduce((a, b) -> a + ", " + b)
+                .orElse("") + "]";
+    }
+
+    private static String quoteGroovy(String value) {
+        String clean = value == null ? "" : value;
+        return "\"" + clean.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
     private static void installReliableTooltip(Button info, Tooltip tooltip) {
@@ -905,12 +1152,20 @@ final class AstraPipelineLauncher {
                 "IMAGE_SCOPE",
                 "SELECTED_IMAGE_NAMES",
                 "DETECTION_TARGET",
+                "NUC_MODEL_SOURCE",
+                "NUC_MODEL_NAME",
+                "NUC_MODEL_FILE",
+                "CELL_MODEL_SOURCE",
+                "CELL_MODEL_NAME",
+                "CELL_MODEL_FILE",
                 "CHANNEL_DAPI",
                 "CHANNEL_WGA",
                 "CHANNEL_ASMA",
                 "CHANNEL_CD31",
                 "CHANNELS_FOR_NUCLEUS",
                 "CHANNELS_FOR_CELL",
+                "NUCLEUS_SEGMENTATION_CHANNELS",
+                "CELL_SEGMENTATION_CHANNELS",
                 "CELLPOSE_CELL_CHANNELS",
                 "COLOCALIZATION_CHECKS",
                 "THRESHOLD_EXCLUDE_MARKERS",
@@ -993,7 +1248,7 @@ final class AstraPipelineLauncher {
             VBox.setVgrow(output, Priority.ALWAYS);
 
             box.getChildren().addAll(header, output);
-            info("Script output and run-scoped QuPath/Cellpose logs appear here.");
+            info("Script output and run-scoped QuPath/Cellpose logs appear here. Cellpose subprocess stdout/stderr is captured when it is emitted through QuPath logging.");
         }
 
         private Node node() {
@@ -1025,6 +1280,9 @@ final class AstraPipelineLauncher {
             cancellationRequested.set(true);
             Future<?> future = currentRun.get();
             boolean requested = future != null && future.cancel(true);
+            // The launcher owns the Java/Groovy Future, not the active VirtualEnvironmentRunner
+            // Process instance inside Cellpose. Keep the status honest unless a future
+            // runtime API exposes direct process termination.
             appendLine(requested
                     ? "[CANCELLED] Cancellation requested. Java/Groovy task interruption was requested. Native Cellpose process may continue until the current operation exits."
                     : "[CANCELLED] Cancellation marked. The current Java/Groovy task could not be interrupted directly. Native Cellpose process may continue until the current operation exits.");
@@ -1226,6 +1484,209 @@ final class AstraPipelineLauncher {
         }
     }
 
+    record ColocalizationCheck(String label, String compartment, List<String> channels) {
+    }
+
+    private static final class ChannelCheckboxEditor extends VBox {
+
+        private final Map<String, CheckBox> boxes = new LinkedHashMap<>();
+
+        private ChannelCheckboxEditor(String titleText, List<String> channels, String rawValue) {
+            super(7.0);
+            Label title = new Label(titleText);
+            title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 900; -fx-text-fill: " + INK + ";");
+            FlowPane options = new FlowPane(8.0, 8.0);
+            List<String> selected = EditableConstant.csvValues(rawValue);
+            for (String channel : channels) {
+                CheckBox box = new CheckBox(channel);
+                box.setSelected(selected.contains(channel));
+                box.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";");
+                boxes.put(channel, box);
+                options.getChildren().add(box);
+            }
+            if (channels.isEmpty()) {
+                Label empty = new Label("Open an image to choose channels without typing.");
+                empty.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + MUTED + ";");
+                getChildren().addAll(title, empty);
+            } else {
+                getChildren().addAll(title, options);
+            }
+        }
+
+        private List<String> selectedChannels() {
+            return boxes.entrySet().stream()
+                    .filter(e -> e.getValue().isSelected())
+                    .map(Map.Entry::getKey)
+                    .toList();
+        }
+
+        private void setSelected(List<String> values) {
+            boxes.forEach((name, box) -> box.setSelected(values.contains(name)));
+        }
+
+        private void addChangeListener(Runnable listener) {
+            boxes.values().forEach(box -> box.selectedProperty().addListener((obs, oldValue, newValue) -> listener.run()));
+        }
+    }
+
+    private static final class ColocalizationChecksEditor extends VBox {
+
+        private final List<String> imageChannels;
+        private final VBox rows = new VBox(8.0);
+        private final List<CheckRow> checkRows = new ArrayList<>();
+        private final List<Runnable> listeners = new ArrayList<>();
+
+        private ColocalizationChecksEditor(List<String> imageChannels, String rawValue) {
+            super(8.0);
+            this.imageChannels = List.copyOf(imageChannels);
+            List<ColocalizationCheck> parsed = parseColocalizationChecks(rawValue);
+            if (parsed.isEmpty()) {
+                parsed = List.of(new ColocalizationCheck("DAPI_AND_AF488_nucleus", "Nucleus", imageChannels.stream().limit(2).toList()));
+            }
+            parsed.forEach(this::addRow);
+            Button add = new Button("Add check");
+            add.setFocusTraversable(false);
+            add.setStyle(semanticButtonStyle());
+            add.setOnAction(event -> {
+                addRow(new ColocalizationCheck("", "Nucleus", List.of()));
+                notifyListeners();
+            });
+            getChildren().addAll(rows, add);
+        }
+
+        private void addRow(ColocalizationCheck check) {
+            CheckRow row = new CheckRow(check);
+            checkRows.add(row);
+            rows.getChildren().add(row.node);
+        }
+
+        private List<ColocalizationCheck> checks() {
+            return checkRows.stream().map(CheckRow::check).toList();
+        }
+
+        private String render() {
+            return renderColocalizationChecks(checks());
+        }
+
+        private void addChangeListener(Runnable listener) {
+            listeners.add(listener);
+        }
+
+        private void notifyListeners() {
+            listeners.forEach(Runnable::run);
+        }
+
+        private final class CheckRow {
+
+            private final HBox node = new HBox(8.0);
+            private final TextField label = new TextField();
+            private final ComboBox<String> compartment = new ComboBox<>();
+            private final Map<String, CheckBox> channelBoxes = new LinkedHashMap<>();
+
+            private CheckRow(ColocalizationCheck check) {
+                node.setAlignment(Pos.CENTER_LEFT);
+                node.setStyle("-fx-background-color: white; -fx-border-color: #d7e2e6; -fx-border-radius: 5; -fx-background-radius: 5; -fx-padding: 8;");
+                label.setPromptText("Label");
+                label.setText(check.label());
+                label.setPrefColumnCount(18);
+                label.setStyle(EditableConstant.controlStyle());
+                compartment.getItems().addAll("Nucleus", "Cell", "Cytoplasm");
+                compartment.setValue(check.compartment().isBlank() ? "Nucleus" : check.compartment());
+                compartment.setStyle(EditableConstant.controlStyle());
+                FlowPane channels = new FlowPane(6.0, 6.0);
+                for (String channel : imageChannels) {
+                    CheckBox box = new CheckBox(channel);
+                    box.setSelected(check.channels().contains(channel));
+                    box.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-text-fill: " + INK + ";");
+                    channelBoxes.put(channel, box);
+                    channels.getChildren().add(box);
+                    box.selectedProperty().addListener((obs, oldValue, newValue) -> notifyListeners());
+                }
+                Button remove = new Button("Remove");
+                remove.setFocusTraversable(false);
+                remove.setStyle(semanticButtonStyle());
+                remove.setOnAction(event -> {
+                    checkRows.remove(this);
+                    rows.getChildren().remove(node);
+                    notifyListeners();
+                });
+                label.textProperty().addListener((obs, oldValue, newValue) -> notifyListeners());
+                compartment.valueProperty().addListener((obs, oldValue, newValue) -> notifyListeners());
+                HBox.setHgrow(channels, Priority.ALWAYS);
+                node.getChildren().addAll(label, compartment, channels, remove);
+            }
+
+            private ColocalizationCheck check() {
+                return new ColocalizationCheck(
+                        label.getText().trim(),
+                        String.valueOf(compartment.getValue()).trim(),
+                        channelBoxes.entrySet().stream()
+                                .filter(e -> e.getValue().isSelected())
+                                .map(Map.Entry::getKey)
+                                .toList()
+                );
+            }
+        }
+    }
+
+    private static final class ThresholdExclusionEditor extends VBox {
+
+        private final Set<String> selected;
+        private final Map<String, CheckBox> boxes = new LinkedHashMap<>();
+        private final List<Runnable> listeners = new ArrayList<>();
+
+        private ThresholdExclusionEditor(String rawValue) {
+            super(7.0);
+            selected = new java.util.LinkedHashSet<>(EditableConstant.csvValues(rawValue));
+        }
+
+        private void refresh(List<String> markerKeys) {
+            selected.addAll(boxes.entrySet().stream()
+                    .filter(e -> e.getValue().isSelected())
+                    .map(Map.Entry::getKey)
+                    .toList());
+            selected.retainAll(markerKeys);
+            boxes.clear();
+            getChildren().clear();
+            if (markerKeys.isEmpty()) {
+                Label empty = new Label("Add colocalization checks to choose threshold exclusions.");
+                empty.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + MUTED + ";");
+                getChildren().add(empty);
+                return;
+            }
+            for (String key : markerKeys) {
+                CheckBox box = new CheckBox("Exclude " + key.replace("|", " | ") + " from thresholding/QC");
+                box.setSelected(selected.contains(key));
+                box.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";");
+                box.selectedProperty().addListener((obs, oldValue, newValue) -> {
+                    if (newValue) {
+                        selected.add(key);
+                    } else {
+                        selected.remove(key);
+                    }
+                    notifyListeners();
+                });
+                boxes.put(key, box);
+                getChildren().add(box);
+            }
+        }
+
+        private List<String> selectedKeys() {
+            return boxes.entrySet().stream()
+                    .filter(e -> e.getValue().isSelected())
+                    .map(Map.Entry::getKey)
+                    .toList();
+        }
+
+        private void addChangeListener(Runnable listener) {
+            listeners.add(listener);
+        }
+
+        private void notifyListeners() {
+            listeners.forEach(Runnable::run);
+        }
+    }
+
     private static final class ListEditor extends VBox {
 
         private final TextField field;
@@ -1383,6 +1844,12 @@ final class AstraPipelineLauncher {
                 value = Boolean.toString(checkBox.isSelected());
             } else if (activeEditor instanceof ListEditor listEditor) {
                 value = renderSimpleListValue(listEditor.text());
+            } else if (activeEditor instanceof ChannelCheckboxEditor channelEditor) {
+                value = renderStringList(channelEditor.selectedChannels());
+            } else if (activeEditor instanceof ColocalizationChecksEditor checksEditor) {
+                value = checksEditor.render();
+            } else if (activeEditor instanceof ThresholdExclusionEditor exclusionEditor) {
+                value = renderStringList(exclusionEditor.selectedKeys());
             } else if (activeEditor instanceof CodeEditor codeEditor) {
                 value = codeEditor.text();
             } else if (activeEditor instanceof TextArea area) {
@@ -1426,6 +1893,12 @@ final class AstraPipelineLauncher {
                 return Boolean.toString(checkBox.isSelected());
             } else if (activeEditor instanceof ListEditor listEditor) {
                 return renderSimpleListValue(listEditor.text());
+            } else if (activeEditor instanceof ChannelCheckboxEditor channelEditor) {
+                return renderStringList(channelEditor.selectedChannels());
+            } else if (activeEditor instanceof ColocalizationChecksEditor checksEditor) {
+                return checksEditor.render();
+            } else if (activeEditor instanceof ThresholdExclusionEditor exclusionEditor) {
+                return renderStringList(exclusionEditor.selectedKeys());
             } else if (activeEditor instanceof CodeEditor codeEditor) {
                 return codeEditor.text();
             } else if (activeEditor instanceof TextArea area) {
@@ -1451,6 +1924,8 @@ final class AstraPipelineLauncher {
                 checkBox.setSelected(Boolean.parseBoolean(displayValue));
             } else if (editor instanceof ListEditor listEditor) {
                 listEditor.setText(EditableConstant.simpleListToCsv(displayValue));
+            } else if (editor instanceof ChannelCheckboxEditor channelEditor) {
+                channelEditor.setSelected(EditableConstant.csvValues(displayValue));
             } else if (editor instanceof CodeEditor codeEditor) {
                 codeEditor.setText(displayValue);
             } else if (editor instanceof TextArea area) {
@@ -1471,11 +1946,11 @@ final class AstraPipelineLauncher {
             if (!"List".equals(type) || channels == null || channels.isEmpty()) {
                 return;
             }
-            displayValue = "[" + channels.stream()
-                    .filter(s -> s != null && !s.isBlank())
-                    .map(s -> "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"")
-                    .reduce((a, b) -> a + ", " + b)
-                    .orElse("") + "]";
+            displayValue = renderStringList(channels);
+        }
+
+        private void setCustomEditor(Node editor) {
+            this.editor = editor;
         }
 
         private String optionValue() {
@@ -1504,6 +1979,12 @@ final class AstraPipelineLauncher {
                 checkBox.selectedProperty().addListener((obs, oldValue, newValue) -> listener.run());
             } else if (activeEditor instanceof ListEditor listEditor) {
                 listEditor.addChangeListener(listener);
+            } else if (activeEditor instanceof ChannelCheckboxEditor channelEditor) {
+                channelEditor.addChangeListener(listener);
+            } else if (activeEditor instanceof ColocalizationChecksEditor checksEditor) {
+                checksEditor.addChangeListener(listener);
+            } else if (activeEditor instanceof ThresholdExclusionEditor exclusionEditor) {
+                exclusionEditor.addChangeListener(listener);
             } else if (activeEditor instanceof CodeEditor codeEditor) {
                 codeEditor.addChangeListener(listener);
             } else if (activeEditor instanceof TextArea area) {
