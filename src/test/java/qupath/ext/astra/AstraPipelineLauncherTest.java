@@ -97,11 +97,12 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
-    void imageChannelDefaultsDoNotFillCellSegmentationLists() {
+    void imageChannelDefaultsUseTargetSegmentationListsWithoutFillingGenericCellLists() {
         String script = """
                 final List CHANNELS_FOR_NUCLEUS = ["DAPI"]
                 final List CHANNELS_FOR_CELL = ["AF555"]
-                final List CELLPOSE_CELL_CHANNELS = ["AF488"]
+                final List NUCLEUS_SEGMENTATION_CHANNELS = []
+                final List CELL_SEGMENTATION_CHANNELS = []
                 final Map cfg = [:]
                 """;
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
@@ -110,7 +111,24 @@ class AstraPipelineLauncherTest {
         String configured = AstraPipelineLauncher.applyConstants(script, constants);
 
         assertTrue(configured.contains("final List CHANNELS_FOR_CELL = [\"AF555\"]"));
-        assertTrue(configured.contains("final List CELLPOSE_CELL_CHANNELS = [\"AF488\"]"));
+        assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = [\"DAPI\"]"));
+        assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = [\"AF488\"]"));
+    }
+
+    @Test
+    void cellSegmentationDefaultsBlankWithoutSecondChannel() {
+        String script = """
+                final List NUCLEUS_SEGMENTATION_CHANNELS = []
+                final List CELL_SEGMENTATION_CHANNELS = []
+                final Map cfg = [:]
+                """;
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+
+        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Only"));
+        String configured = AstraPipelineLauncher.applyConstants(script, constants);
+
+        assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = [\"Only\"]"));
+        assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = []"));
     }
 
     @Test
@@ -124,6 +142,51 @@ class AstraPipelineLauncherTest {
 
         assertTrue(constants.stream().anyMatch(c -> c.name().equals("DETECTION_TARGET")));
         assertTrue(constants.stream().anyMatch(c -> c.name().equals("THRESHOLD_EXCLUDE_MARKERS")));
+    }
+
+    @Test
+    void targetSpecificModelControlsRemainAvailableForBothTarget() {
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationModelScript("BOTH"));
+
+        assertEquals(List.of("NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE"),
+                AstraPipelineLauncher.targetModelControlNames("NUCLEUS"));
+        assertEquals(List.of("CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE"),
+                AstraPipelineLauncher.targetModelControlNames("CELL"));
+        assertEquals(List.of("NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE",
+                        "CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE"),
+                AstraPipelineLauncher.targetModelControlNames("BOTH"));
+        assertTrue(constants.stream().anyMatch(c -> c.name().equals("NUC_MODEL_SOURCE")));
+        assertTrue(constants.stream().anyMatch(c -> c.name().equals("NUC_MODEL_NAME")));
+        assertTrue(constants.stream().anyMatch(c -> c.name().equals("NUC_MODEL_FILE")));
+        assertTrue(constants.stream().anyMatch(c -> c.name().equals("CELL_MODEL_SOURCE")));
+        assertTrue(constants.stream().anyMatch(c -> c.name().equals("CELL_MODEL_NAME")));
+        assertTrue(constants.stream().anyMatch(c -> c.name().equals("CELL_MODEL_FILE")));
+    }
+
+    @Test
+    void markerExclusionKeysComeOnlyFromColocalizationChecks() {
+        List<AstraPipelineLauncher.ColocalizationCheck> checks = List.of(
+                new AstraPipelineLauncher.ColocalizationCheck("DAPI_AF488", "Nucleus", List.of("DAPI", "AF488"))
+        );
+
+        List<String> keys = AstraPipelineLauncher.markerKeysFromChecks(checks);
+
+        assertTrue(keys.contains("DAPI|Nucleus"));
+        assertTrue(keys.contains("AF488|Nucleus"));
+        assertFalse(keys.contains("AF647|Nucleus"));
+        assertEquals("[\"DAPI|Nucleus\"]", AstraPipelineLauncher.renderStringList(List.of("DAPI|Nucleus")));
+    }
+
+    @Test
+    void colocalizationCheckBuilderRendersGroovyMapList() {
+        String rendered = AstraPipelineLauncher.renderColocalizationChecks(List.of(
+                new AstraPipelineLauncher.ColocalizationCheck("A_B_nucleus", "Nucleus", List.of("A", "B")),
+                new AstraPipelineLauncher.ColocalizationCheck("C_cell", "Cell", List.of("C"))
+        ));
+
+        assertTrue(rendered.contains("LABEL      : \"A_B_nucleus\""));
+        assertTrue(rendered.contains("COMPARTMENT: \"Cell\""));
+        assertTrue(rendered.contains("CHANNELS   : [\"A\", \"B\"]"));
     }
 
     @Test
@@ -174,10 +237,41 @@ class AstraPipelineLauncherTest {
         assertFalse(source.contains("Cancellation requested.") && source.contains("[DONE] Cancellation"));
     }
 
+    @Test
+    void logCaptureTextDocumentsCellposeSubprocessRoute() throws Exception {
+        String launcher = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String runner = Files.readString(Path.of("src/main/java/qupath/ext/biop/cmd/VirtualEnvironmentRunner.java"));
+
+        assertTrue(launcher.contains("Cellpose subprocess stdout/stderr is captured when it is emitted through QuPath logging."));
+        assertTrue(runner.contains("redirectErrorStream(true)"));
+        assertTrue(runner.contains("logger.info(\"{}: {}\", name, line);"));
+    }
+
     private static List<AstraPipelineLauncher.EditableConstant> extractModes(String modes) {
         return AstraPipelineLauncher.extractEditableConstants("""
                 final List MODES_TO_RUN = %s
                 final Map cfg = [:]
                 """.formatted(modes));
+    }
+
+    private static String colocalizationModelScript(String target) {
+        return """
+                final List DETECTION_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
+                final String DETECTION_TARGET = "%s"
+                final List MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
+                final String MODEL_SOURCE = "MODEL_NAME"
+                final String MODEL_NAME = "cpsam"
+                final String MODEL_FILE = ""
+                final List NUC_MODEL_SOURCE_OPTIONS = ["", "MODEL_NAME", "SAVED", "FILE"]
+                final String NUC_MODEL_SOURCE = ""
+                final String NUC_MODEL_NAME = ""
+                final String NUC_MODEL_FILE = ""
+                final List CELL_MODEL_SOURCE_OPTIONS = ["", "MODEL_NAME", "SAVED", "FILE"]
+                final String CELL_MODEL_SOURCE = ""
+                final String CELL_MODEL_NAME = ""
+                final String CELL_MODEL_FILE = ""
+                final List COLOCALIZATION_CHECKS = []
+                final Map cfg = [:]
+                """.formatted(target);
     }
 }
