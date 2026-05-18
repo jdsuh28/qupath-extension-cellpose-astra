@@ -18,8 +18,8 @@ QuPath interface used by ASTRA's Groovy pipeline scripts.
 - This repo **is not** published through the upstream BIOP catalog.
 
 ASTRA provides a separate fork/repo for the Python side
-(**cellpose-astra**). Installation and environment provisioning is handled
-there or by ASTRA-level documentation.
+(**cellpose-astra**). The extension includes an ASTRA-owned installer that
+creates and validates the runtime before registering it with QuPath.
 
 ## Active ASTRA Surfaces
 
@@ -59,14 +59,25 @@ Because this fork is not distributed through the BIOP catalog, installation is p
 
 High-level flow:
 
-1) Install/provision the Python environment via **cellpose-astra** (or via the umbrella **astra** tool).
-2) Add the ASTRA catalog to QuPath (the catalog is maintained and versioned by ASTRA, not BIOP).
-3) Install this extension from the ASTRA catalog inside QuPath.
-4) In QuPath preferences, point the extension to the Python executable from the **cellpose-astra** environment (and any other required paths as defined by ASTRA’s docs).
+1) Add the ASTRA catalog to QuPath (the catalog is maintained and versioned by ASTRA, not BIOP).
+2) Install this extension from the ASTRA catalog inside QuPath.
+3) Run `Extensions > ASTRA > Install/Repair Python Runtime`.
+4) Confirm the installer reports validation success before running ASTRA pipelines.
 
 Notes:
-- This extension assumes required Python dependencies are already present in
-  the target environment, including `scikit-image` for validation QC.
+- The installer uses conda/miniforge first and creates a deterministic prefix
+  at `~/.astra/cellpose-astra` with Python 3.10.
+- Set `ASTRA_CONDA` to a conda-compatible executable if `conda`, `mamba`, or
+  `micromamba` is not on `PATH`.
+- A venv install path exists only as an explicit advanced path:
+  `ASTRA_RUNTIME_INSTALL_STRATEGY=venv`.
+- Installation is not considered complete until validation commands pass:
+  Python, NumPy, torch, Cellpose-ASTRA fork marker, combined imports, and a
+  Cellpose startup/version check.
+- Installer logs are written under `~/.astra/logs/install/`.
+- Failed installs show the command, exit code, and recent stdout/stderr. Fix
+  the environment issue and rerun `Install/Repair Python Runtime`; the
+  extension does not mark a failed runtime as installed.
 - Base ASTRA pipeline scripts enforce model/parameter source policy,
   overwrite policy, biological analysis logic, and publication-facing
   preflight checks.
