@@ -1,5 +1,8 @@
 package qupath.ext.astra;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonSyntaxException;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -11,6 +14,8 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
+import javafx.scene.control.TextInputDialog;
+import javafx.stage.FileChooser;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
@@ -38,9 +43,15 @@ import qupath.lib.images.servers.ImageChannel;
 import qupath.lib.scripting.ScriptParameters;
 
 import javax.script.ScriptException;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Instant;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -57,8 +68,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.prefs.BackingStoreException;
-import java.util.prefs.Preferences;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -89,8 +98,8 @@ final class AstraPipelineLauncher {
     private static final String CORAL = "#d9604c";
     private static final String GOLD = "#d4a72c";
     private static final String CONTROL_BORDER = "#7fa3ad";
-    private static final String PREF_SCHEMA_ID = "__schema_id";
-    private static final Preferences SETTINGS = Preferences.userNodeForPackage(AstraPipelineLauncher.class).node("pipeline-settings");
+    private static final int SETTINGS_PROFILE_SCHEMA_VERSION = 1;
+    private static final Gson PROFILE_GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private AstraPipelineLauncher() {
         throw new AssertionError("No instances");
@@ -120,7 +129,8 @@ final class AstraPipelineLauncher {
             return;
         }
         String schemaId = schemaIdentity(constants);
-        PersistentApplyResult persisted = applyPersistentSettings(scriptName, schemaId, constants);
+        String sourceScriptSha256 = sha256Hex(scriptText);
+        SettingsProfileState profileState = SettingsProfileState.scriptDefaults();
 
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.initOwner(qupath.getStage());
@@ -128,10 +138,7 @@ final class AstraPipelineLauncher {
         dialog.setHeaderText(null);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         RunFeedback feedback = new RunFeedback(scriptName);
-        dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants, !persisted.restored(), feedback, schemaId));
-        if (persisted.schemaReset()) {
-            feedback.warn("Saved settings were reset because this script schema changed.");
-        }
+        dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants, true, feedback, schemaId, sourceScriptSha256, profileState));
         dialog.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
         dialog.setResizable(true);
 
@@ -154,8 +161,7 @@ final class AstraPipelineLauncher {
                 feedback.warn("Provisional vascular automation cancelled before execution.");
                 return;
             }
-            savePersistentSettings(scriptName, schemaId, constants);
-            feedback.info(finalConfigSummary(scriptName, schemaId, constants));
+            feedback.info(finalConfigSummary(scriptName, schemaId, constants, profileState));
             executeAsync(qupath, scriptName, configuredScript, feedback, runButton);
         });
 
@@ -298,61 +304,6 @@ final class AstraPipelineLauncher {
         return out.toString();
     }
 
-    static PersistentApplyResult applyPersistentSettings(String scriptName, String schemaId, List<EditableConstant> constants) {
-        Preferences node = settingsNode(scriptName);
-        String storedSchemaId = node.get(PREF_SCHEMA_ID, null);
-        if (storedSchemaId != null && !storedSchemaId.equals(schemaId)) {
-            clearPersistentSettings(scriptName);
-            return new PersistentApplyResult(false, true);
-        }
-        if (storedSchemaId == null && hasStoredValues(node, constants)) {
-            clearPersistentSettings(scriptName);
-            return new PersistentApplyResult(false, true);
-        }
-        boolean restored = false;
-        for (EditableConstant constant : constants) {
-            String value = node.get(constant.name, null);
-            if (value != null) {
-                constant.setDisplayValue(value);
-                restored = true;
-            }
-        }
-        return new PersistentApplyResult(restored, false);
-    }
-
-    private static boolean hasStoredValues(Preferences node, List<EditableConstant> constants) {
-        for (EditableConstant constant : constants) {
-            if (node.get(constant.name, null) != null) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static void savePersistentSettings(String scriptName, String schemaId, List<EditableConstant> constants) {
-        Preferences node = settingsNode(scriptName);
-        node.put(PREF_SCHEMA_ID, schemaId);
-        for (EditableConstant constant : constants) {
-            try {
-                node.put(constant.name, constant.currentDisplayValue());
-            } catch (RuntimeException e) {
-                logger.debug("Skipping invalid in-progress ASTRA setting {} for {}", constant.name, scriptName);
-            }
-        }
-    }
-
-    static void clearPersistentSettings(String scriptName) {
-        try {
-            settingsNode(scriptName).clear();
-        } catch (BackingStoreException e) {
-            logger.warn("Unable to clear ASTRA settings for {}", scriptName, e);
-        }
-    }
-
-    static Preferences settingsNode(String scriptName) {
-        return SETTINGS.node(scriptName.replaceAll("[^A-Za-z0-9_.-]", "_"));
-    }
-
     static String schemaIdentity(List<EditableConstant> constants) {
         StringBuilder schema = new StringBuilder();
         for (EditableConstant constant : constants) {
@@ -375,13 +326,142 @@ final class AstraPipelineLauncher {
         }
     }
 
+    static File settingsProfileDirectory(File projectBase, String scriptName) {
+        Objects.requireNonNull(projectBase, "projectBase");
+        return new File(new File(new File(projectBase, "astra"), "settings"), settingsPipelineName(scriptName));
+    }
+
+    static String settingsPipelineName(String scriptName) {
+        String normalized = scriptName == null ? "" : scriptName.toLowerCase(Locale.ROOT);
+        if (normalized.contains("colocalization")) {
+            return "colocalization";
+        }
+        if (normalized.contains("vascular")) {
+            return "vascular";
+        }
+        if (normalized.contains("training")) {
+            return "training";
+        }
+        if (normalized.contains("tuning")) {
+            return "tuning";
+        }
+        if (normalized.contains("validation")) {
+            return "validation";
+        }
+        return normalized.replaceAll("[^a-z0-9_.-]+", "_").replaceAll("^_+|_+$", "");
+    }
+
+    static SettingsProfile createSettingsProfile(String scriptName, String schemaId, String sourceScriptSha256, List<EditableConstant> constants) {
+        Map<String, String> values = new LinkedHashMap<>();
+        Map<String, String> modelReferences = new LinkedHashMap<>();
+        for (EditableConstant constant : constants) {
+            String value = constant.currentDisplayValue();
+            values.put(constant.name, value);
+            if (constant.name.contains("MODEL")) {
+                modelReferences.put(constant.name, value);
+            }
+        }
+        return new SettingsProfile(
+                SETTINGS_PROFILE_SCHEMA_VERSION,
+                settingsPipelineName(scriptName),
+                scriptName,
+                schemaId,
+                sourceScriptSha256,
+                runtimeProperty("astra.base.version", "unknown"),
+                runtimeProperty("Implementation-Version", "unknown"),
+                Instant.now().toString(),
+                values,
+                modelReferences,
+                ""
+        );
+    }
+
+    static void writeSettingsProfile(File file, SettingsProfile profile) throws IOException {
+        File parent = file.getParentFile();
+        if (parent != null) {
+            Files.createDirectories(parent.toPath());
+        }
+        try (FileWriter writer = new FileWriter(file, StandardCharsets.UTF_8)) {
+            PROFILE_GSON.toJson(profile, writer);
+        }
+    }
+
+    static SettingsProfile readSettingsProfile(File file) throws IOException {
+        try (FileReader reader = new FileReader(file, StandardCharsets.UTF_8)) {
+            SettingsProfile profile = PROFILE_GSON.fromJson(reader, SettingsProfile.class);
+            if (profile == null) {
+                throw new IOException("Settings profile is empty: " + file);
+            }
+            return profile;
+        } catch (JsonSyntaxException e) {
+            throw new IOException("Settings profile is not valid JSON: " + file, e);
+        }
+    }
+
+    static void applySettingsProfile(SettingsProfile profile, String scriptName, String schemaId, String sourceScriptSha256, List<EditableConstant> constants) {
+        Objects.requireNonNull(profile, "profile");
+        if (profile.schema_version != SETTINGS_PROFILE_SCHEMA_VERSION) {
+            throw new IllegalArgumentException("Unsupported ASTRA settings profile schema version: " + profile.schema_version);
+        }
+        if (!Objects.equals(profile.pipeline_name, settingsPipelineName(scriptName))) {
+            throw new IllegalArgumentException("Settings profile is for pipeline '" + profile.pipeline_name + "', not '" + settingsPipelineName(scriptName) + "'.");
+        }
+        if (!Objects.equals(profile.script_schema_id, schemaId)) {
+            throw new IllegalArgumentException("Settings profile schema does not match the current script.");
+        }
+        if (!Objects.equals(profile.source_script_sha256, sourceScriptSha256)) {
+            throw new IllegalArgumentException("Settings profile source script hash does not match the current bundled script.");
+        }
+        Map<String, EditableConstant> byName = new LinkedHashMap<>();
+        constants.forEach(c -> byName.put(c.name, c));
+        for (String key : profile.constants.keySet()) {
+            if (!byName.containsKey(key)) {
+                throw new IllegalArgumentException("Settings profile contains unknown ASTRA constant: " + key);
+            }
+        }
+        for (Map.Entry<String, String> entry : profile.constants.entrySet()) {
+            byName.get(entry.getKey()).setDisplayValue(entry.getValue());
+        }
+    }
+
+    private static String runtimeProperty(String name, String fallback) {
+        Package pkg = AstraPipelineLauncher.class.getPackage();
+        if ("Implementation-Version".equals(name) && pkg != null && pkg.getImplementationVersion() != null) {
+            return pkg.getImplementationVersion();
+        }
+        return fallback;
+    }
+
+    static String sha256Hex(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder out = new StringBuilder(bytes.length * 2);
+            for (byte b : bytes) {
+                out.append(String.format("%02x", b));
+            }
+            return out.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable.", e);
+        }
+    }
+
+    static String sha256File(File file) throws IOException {
+        return sha256Hex(Files.readString(file.toPath()));
+    }
+
     static String finalConfigSummary(String scriptName, String schemaId, List<EditableConstant> constants) {
+        return finalConfigSummary(scriptName, schemaId, constants, SettingsProfileState.scriptDefaults());
+    }
+
+    static String finalConfigSummary(String scriptName, String schemaId, List<EditableConstant> constants, SettingsProfileState profileState) {
         Map<String, EditableConstant> byName = new LinkedHashMap<>();
         constants.forEach(c -> byName.put(c.name, c));
         List<String> lines = new ArrayList<>();
         lines.add("Resolved configuration:");
         lines.add("  pipeline: " + scriptName);
         lines.add("  schema: " + schemaId.substring(0, Math.min(12, schemaId.length())));
+        lines.add("  settings source: " + profileState.summary());
         appendSummary(lines, byName, "IMAGE_SCOPE", "  image scope");
         appendSummary(lines, byName, "SELECTED_IMAGE_NAMES", "  selected images");
         appendSummary(lines, byName, "DETECTION_TARGET", "  detection target");
@@ -416,11 +496,14 @@ final class AstraPipelineLauncher {
         boolean inherited = specificSource.isBlank();
         String valueName = rawString(constants, prefix + "MODEL_NAME", "");
         String valueFile = rawString(constants, prefix + "MODEL_FILE", "");
+        String valueSavedId = rawString(constants, prefix + "SAVED_MODEL_ID", "");
         String sharedName = rawString(constants, "MODEL_NAME", "");
         String sharedFile = rawString(constants, "MODEL_FILE", "");
-        String value = "FILE".equals(source)
+        String value = "SAVED".equals(source)
+                ? valueSavedId
+                : ("FILE".equals(source)
                 ? (valueFile.isBlank() ? sharedFile : valueFile)
-                : (valueName.isBlank() ? sharedName : valueName);
+                : (valueName.isBlank() ? sharedName : valueName));
         lines.add("  effective " + label + " model source: " + source + (inherited ? " (inherited)" : " (target-specific)"));
         lines.add("  effective " + label + " model: " + value);
     }
@@ -464,10 +547,10 @@ final class AstraPipelineLauncher {
         String target = detectionTarget == null ? "BOTH" : detectionTarget.trim().toUpperCase(Locale.ROOT);
         List<String> names = new ArrayList<>();
         if (!"CELL".equals(target)) {
-            names.addAll(List.of("NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE"));
+            names.addAll(List.of("NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE", "NUC_SAVED_MODEL_ID"));
         }
         if (!"NUCLEUS".equals(target)) {
-            names.addAll(List.of("CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE"));
+            names.addAll(List.of("CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE", "CELL_SAVED_MODEL_ID"));
         }
         return names;
     }
@@ -517,7 +600,8 @@ final class AstraPipelineLauncher {
         return alert.showAndWait().filter(ButtonType.OK::equals).isPresent();
     }
 
-    private static Node createContent(QuPathGUI qupath, String scriptName, List<EditableConstant> constants, boolean applyChannelDefaults, RunFeedback feedback, String schemaId) {
+    private static Node createContent(QuPathGUI qupath, String scriptName, List<EditableConstant> constants, boolean applyChannelDefaults,
+                                      RunFeedback feedback, String schemaId, String sourceScriptSha256, SettingsProfileState profileState) {
         List<ImageChannel> imageChannels = imageChannels(qupath);
         if (applyChannelDefaults) {
             applyImageChannelDefaults(constants, imageChannels);
@@ -540,10 +624,18 @@ final class AstraPipelineLauncher {
         reset.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; -fx-background-color: rgba(255,255,255,0.92); -fx-text-fill: " + TEAL_DARK + "; -fx-border-color: white; -fx-border-radius: 5; -fx-background-radius: 5;");
         reset.setOnAction(event -> {
             constants.forEach(EditableConstant::resetEditor);
-            clearPersistentSettings(scriptName);
-            feedback.info("Settings reset to the current image-aware defaults.");
+            profileState.resetToScriptDefaults();
+            feedback.info("Settings reset to the current script/image-aware defaults. No QuPath hierarchy data was changed.");
         });
-        titleRow.getChildren().addAll(title, reset);
+        Button saveProfile = new Button("Save settings profile");
+        saveProfile.setFocusTraversable(false);
+        saveProfile.setStyle(reset.getStyle());
+        saveProfile.setOnAction(event -> saveSettingsProfileWithDialog(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, feedback));
+        Button loadProfile = new Button("Load settings profile");
+        loadProfile.setFocusTraversable(false);
+        loadProfile.setStyle(reset.getStyle());
+        loadProfile.setOnAction(event -> loadSettingsProfileWithDialog(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, feedback));
+        titleRow.getChildren().addAll(title, reset, saveProfile, loadProfile);
         Label subtitle = new Label(descriptionFor(scriptName));
         subtitle.setWrapText(true);
         subtitle.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-text-fill: #e3f4f1;");
@@ -554,7 +646,7 @@ final class AstraPipelineLauncher {
         body.getChildren().add(createChannelPanel(imageChannels));
         boolean colocalization = isColocalizationConfig(constants);
         if (colocalization) {
-            body.getChildren().add(createColocalizationPanel(scriptName, constants, imageChannels, schemaId));
+            body.getChildren().add(createColocalizationPanel(constants, imageChannels, profileState));
         }
 
         VBox basic = sectionShell("Basic", "Start here. These are the normal run controls: target, scope, channels, model source, thresholds, and outputs.");
@@ -564,7 +656,7 @@ final class AstraPipelineLauncher {
                     .filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))
                     .toList();
             if (!groupConstants.isEmpty()) {
-                basic.getChildren().add(createSection(scriptName, group, groupConstants, true, constants, schemaId));
+                basic.getChildren().add(createSection(group, groupConstants, true, profileState));
             }
         }
 
@@ -575,7 +667,7 @@ final class AstraPipelineLauncher {
                     .filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))
                     .toList();
             if (!groupConstants.isEmpty()) {
-                advanced.getChildren().add(createSection(scriptName, group, groupConstants, false, constants, schemaId));
+                advanced.getChildren().add(createSection(group, groupConstants, false, profileState));
             }
         }
 
@@ -597,6 +689,82 @@ final class AstraPipelineLauncher {
 
         root.getChildren().addAll(header, workspace);
         return root;
+    }
+
+    private static void saveSettingsProfileWithDialog(QuPathGUI qupath, String scriptName, String schemaId, String sourceScriptSha256,
+                                                      List<EditableConstant> constants, SettingsProfileState profileState, RunFeedback feedback) {
+        File profileDir;
+        try {
+            profileDir = settingsProfileDirectory(projectBaseDirectory(qupath), scriptName);
+            Files.createDirectories(profileDir.toPath());
+        } catch (RuntimeException | IOException e) {
+            Dialogs.showErrorMessage("ASTRA Settings Profile", "Unable to resolve ASTRA project settings directory:\n" + e.getMessage());
+            return;
+        }
+        TextInputDialog nameDialog = new TextInputDialog("default");
+        nameDialog.initOwner(qupath.getStage());
+        nameDialog.setTitle("Save ASTRA Settings Profile");
+        nameDialog.setHeaderText("Save settings profile");
+        nameDialog.setContentText("Profile name:");
+        String profileName = nameDialog.showAndWait()
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .orElse(null);
+        if (profileName == null) {
+            return;
+        }
+        String safeName = profileName.replaceAll("[^A-Za-z0-9_.-]+", "_");
+        File target = new File(profileDir, safeName.endsWith(".json") ? safeName : safeName + ".json");
+        try {
+            SettingsProfile profile = createSettingsProfile(scriptName, schemaId, sourceScriptSha256, constants);
+            writeSettingsProfile(target, profile);
+            String hash = sha256File(target);
+            profileState.loadedProfile(target.getName(), target.getAbsolutePath(), hash);
+            feedback.info("Saved ASTRA settings profile: " + target.getAbsolutePath());
+        } catch (IOException | RuntimeException e) {
+            Dialogs.showErrorMessage("ASTRA Settings Profile", "Unable to save settings profile:\n" + e.getMessage());
+        }
+    }
+
+    private static void loadSettingsProfileWithDialog(QuPathGUI qupath, String scriptName, String schemaId, String sourceScriptSha256,
+                                                      List<EditableConstant> constants, SettingsProfileState profileState, RunFeedback feedback) {
+        File profileDir;
+        try {
+            profileDir = settingsProfileDirectory(projectBaseDirectory(qupath), scriptName);
+            Files.createDirectories(profileDir.toPath());
+        } catch (RuntimeException | IOException e) {
+            Dialogs.showErrorMessage("ASTRA Settings Profile", "Unable to resolve ASTRA project settings directory:\n" + e.getMessage());
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Load ASTRA Settings Profile");
+        chooser.setInitialDirectory(profileDir);
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("ASTRA settings profiles", "*.json"));
+        File selected = chooser.showOpenDialog(qupath.getStage());
+        if (selected == null) {
+            return;
+        }
+        try {
+            SettingsProfile profile = readSettingsProfile(selected);
+            applySettingsProfile(profile, scriptName, schemaId, sourceScriptSha256, constants);
+            constants.forEach(EditableConstant::syncEditorFromValue);
+            profileState.loadedProfile(selected.getName(), selected.getAbsolutePath(), sha256File(selected));
+            feedback.info("Loaded ASTRA settings profile: " + selected.getAbsolutePath());
+        } catch (IOException | RuntimeException e) {
+            Dialogs.showErrorMessage("ASTRA Settings Profile", "Unable to load settings profile:\n" + e.getMessage());
+        }
+    }
+
+    private static File projectBaseDirectory(QuPathGUI qupath) {
+        if (qupath.getProject() == null || qupath.getProject().getPath() == null) {
+            throw new IllegalStateException("Open a QuPath project before saving or loading ASTRA settings profiles.");
+        }
+        Path projectPath = qupath.getProject().getPath();
+        Path base = Files.isDirectory(projectPath) ? projectPath : projectPath.getParent();
+        if (base == null) {
+            throw new IllegalStateException("Unable to resolve the QuPath project directory for ASTRA settings profiles.");
+        }
+        return base.toFile();
     }
 
     private static VBox sectionShell(String titleText, String subtitleText) {
@@ -623,14 +791,14 @@ final class AstraPipelineLauncher {
         }
         return Set.of(
                 "DETECTION_TARGET",
-                "NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE",
-                "CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE",
+                "NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE", "NUC_SAVED_MODEL_ID",
+                "CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE", "CELL_SAVED_MODEL_ID",
                 "NUCLEUS_SEGMENTATION_CHANNELS", "CELL_SEGMENTATION_CHANNELS",
                 "COLOCALIZATION_CHECKS", "THRESHOLD_EXCLUDE_MARKERS"
         ).contains(name);
     }
 
-    private static VBox createColocalizationPanel(String scriptName, List<EditableConstant> constants, List<ImageChannel> imageChannels, String schemaId) {
+    private static VBox createColocalizationPanel(List<EditableConstant> constants, List<ImageChannel> imageChannels, SettingsProfileState profileState) {
         Map<String, EditableConstant> byName = new LinkedHashMap<>();
         constants.forEach(c -> byName.put(c.name, c));
         List<String> channelNames = imageChannels.stream().map(ImageChannel::getName).filter(Objects::nonNull).toList();
@@ -648,13 +816,13 @@ final class AstraPipelineLauncher {
             Node editor = detectionTarget.createEditor();
             HBox.setHgrow(editor, Priority.ALWAYS);
             row.getChildren().addAll(label, editor);
-            detectionTarget.addChangeListener(() -> savePersistentSettings(scriptName, schemaId, constants));
+            detectionTarget.addChangeListener(profileState::markManualEdit);
             targetPanel.getChildren().add(row);
         }
 
         VBox modelPanel = semanticCard("Target Models", "Choose nucleus and cell model initializers independently. Shared MODEL_* values remain available in Advanced only as inheritance defaults.");
-        VBox nucleusModel = targetModelGroup("Nucleus model", byName.get("NUC_MODEL_SOURCE"), byName.get("NUC_MODEL_NAME"), byName.get("NUC_MODEL_FILE"), scriptName, schemaId, constants);
-        VBox cellModel = targetModelGroup("Cell model", byName.get("CELL_MODEL_SOURCE"), byName.get("CELL_MODEL_NAME"), byName.get("CELL_MODEL_FILE"), scriptName, schemaId, constants);
+        VBox nucleusModel = targetModelGroup("Nucleus model", byName.get("NUC_MODEL_SOURCE"), byName.get("NUC_MODEL_NAME"), byName.get("NUC_MODEL_FILE"), byName.get("NUC_SAVED_MODEL_ID"), profileState);
+        VBox cellModel = targetModelGroup("Cell model", byName.get("CELL_MODEL_SOURCE"), byName.get("CELL_MODEL_NAME"), byName.get("CELL_MODEL_FILE"), byName.get("CELL_SAVED_MODEL_ID"), profileState);
         modelPanel.getChildren().addAll(nucleusModel, cellModel);
 
         VBox segmentationPanel = semanticCard("Segmentation Channels", "Checkboxes write explicit Groovy lists into the target-specific segmentation channel constants.");
@@ -664,11 +832,11 @@ final class AstraPipelineLauncher {
         ChannelCheckboxEditor cellEditor = new ChannelCheckboxEditor("Cell segmentation channels", channelNames, cellChannels == null ? "[]" : cellChannels.displayValue);
         if (nucChannels != null) {
             nucChannels.setCustomEditor(nucEditor);
-            nucEditor.addChangeListener(() -> savePersistentSettings(scriptName, schemaId, constants));
+            nucEditor.addChangeListener(profileState::markManualEdit);
         }
         if (cellChannels != null) {
             cellChannels.setCustomEditor(cellEditor);
-            cellEditor.addChangeListener(() -> savePersistentSettings(scriptName, schemaId, constants));
+            cellEditor.addChangeListener(profileState::markManualEdit);
         }
         segmentationPanel.getChildren().addAll(nucEditor, cellEditor);
 
@@ -677,7 +845,7 @@ final class AstraPipelineLauncher {
         ColocalizationChecksEditor checksEditor = new ColocalizationChecksEditor(channelNames, checksConstant == null ? "[]" : checksConstant.displayValue);
         if (checksConstant != null) {
             checksConstant.setCustomEditor(checksEditor);
-            checksEditor.addChangeListener(() -> savePersistentSettings(scriptName, schemaId, constants));
+            checksEditor.addChangeListener(profileState::markManualEdit);
         }
         checksPanel.getChildren().add(checksEditor);
 
@@ -687,7 +855,7 @@ final class AstraPipelineLauncher {
         exclusionEditor.refresh(markerKeysFromChecks(checksEditor.checks()));
         if (exclusionsConstant != null) {
             exclusionsConstant.setCustomEditor(exclusionEditor);
-            exclusionEditor.addChangeListener(() -> savePersistentSettings(scriptName, schemaId, constants));
+            exclusionEditor.addChangeListener(profileState::markManualEdit);
         }
         checksEditor.addChangeListener(() -> exclusionEditor.refresh(markerKeysFromChecks(checksEditor.checks())));
         exclusionPanel.getChildren().add(exclusionEditor);
@@ -722,7 +890,7 @@ final class AstraPipelineLauncher {
         return box;
     }
 
-    private static VBox targetModelGroup(String title, EditableConstant source, EditableConstant name, EditableConstant file, String scriptName, String schemaId, List<EditableConstant> allConstants) {
+    private static VBox targetModelGroup(String title, EditableConstant source, EditableConstant name, EditableConstant file, EditableConstant savedModelId, SettingsProfileState profileState) {
         VBox group = new VBox(8.0);
         group.setPadding(new Insets(10.0));
         group.setStyle("-fx-background-color: white; -fx-border-color: #d7e2e6; -fx-border-radius: 5; -fx-background-radius: 5;");
@@ -730,7 +898,7 @@ final class AstraPipelineLauncher {
         label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: " + INK + ";");
         group.getChildren().add(label);
         Map<String, RowNodes> rows = new LinkedHashMap<>();
-        for (EditableConstant constant : Arrays.asList(source, name, file)) {
+        for (EditableConstant constant : Arrays.asList(source, name, file, savedModelId)) {
             if (constant == null) {
                 continue;
             }
@@ -744,12 +912,13 @@ final class AstraPipelineLauncher {
             row.getChildren().addAll(rowLabel, editor);
             group.getChildren().add(row);
             rows.put(constant.name, new RowNodes(rowLabel, editor));
-            constant.addChangeListener(() -> savePersistentSettings(scriptName, schemaId, allConstants));
+            constant.addChangeListener(profileState::markManualEdit);
         }
         Runnable update = () -> {
             String selected = source == null ? "" : source.optionValue();
             setVisible(rows, name == null ? "" : name.name, selected.isBlank() || "MODEL_NAME".equals(selected));
             setVisible(rows, file == null ? "" : file.name, "FILE".equals(selected));
+            setVisible(rows, savedModelId == null ? "" : savedModelId.name, "SAVED".equals(selected));
         };
         if (source != null) {
             source.addChangeListener(update);
@@ -787,7 +956,7 @@ final class AstraPipelineLauncher {
         return flow;
     }
 
-    private static CollapsibleSection createSection(String scriptName, String title, List<EditableConstant> constants, boolean expanded, List<EditableConstant> allConstants, String schemaId) {
+    private static CollapsibleSection createSection(String title, List<EditableConstant> constants, boolean expanded, SettingsProfileState profileState) {
         GridPane grid = new GridPane();
         grid.setPadding(new Insets(14.0));
         grid.setHgap(12.0);
@@ -816,7 +985,7 @@ final class AstraPipelineLauncher {
             grid.add(labelBox, 0, row);
 
             Node editor = constant.createEditor();
-            constant.addChangeListener(() -> savePersistentSettings(scriptName, schemaId, allConstants));
+            constant.addChangeListener(profileState::markManualEdit);
             GridPane.setHgrow(editor, Priority.ALWAYS);
             grid.add(editor, 1, row++);
             rows.put(constant.name, new RowNodes(labelBox, editor));
@@ -1613,7 +1782,75 @@ final class AstraPipelineLauncher {
     private record RowNodes(Node label, Node editor) {
     }
 
-    record PersistentApplyResult(boolean restored, boolean schemaReset) {
+    static final class SettingsProfileState {
+
+        private String source = "script defaults or manual GUI values";
+        private String profileName = "";
+        private String profilePath = "";
+        private String profileSha256 = "";
+        private boolean manualEdit;
+
+        private static SettingsProfileState scriptDefaults() {
+            return new SettingsProfileState();
+        }
+
+        private void loadedProfile(String name, String path, String sha256) {
+            this.source = "loaded settings profile";
+            this.profileName = name;
+            this.profilePath = path;
+            this.profileSha256 = sha256;
+            this.manualEdit = false;
+        }
+
+        private void resetToScriptDefaults() {
+            this.source = "script defaults or manual GUI values";
+            this.profileName = "";
+            this.profilePath = "";
+            this.profileSha256 = "";
+            this.manualEdit = false;
+        }
+
+        private void markManualEdit() {
+            this.manualEdit = true;
+        }
+
+        private String summary() {
+            if (!profilePath.isBlank()) {
+                return source + " (" + profileName + ", sha256=" + profileSha256.substring(0, Math.min(12, profileSha256.length()))
+                        + (manualEdit ? ", edited after load" : "") + ")";
+            }
+            return manualEdit ? "manual GUI values" : source;
+        }
+    }
+
+    static final class SettingsProfile {
+        int schema_version;
+        String pipeline_name;
+        String script_name;
+        String script_schema_id;
+        String source_script_sha256;
+        String astra_base_commit_or_version;
+        String astra_extension_commit_or_version;
+        String saved_timestamp;
+        Map<String, String> constants;
+        Map<String, String> model_references;
+        String notes;
+
+        SettingsProfile(int schemaVersion, String pipelineName, String scriptName, String scriptSchemaId, String sourceScriptSha256,
+                        String astraBaseCommitOrVersion, String astraExtensionCommitOrVersion, String savedTimestamp,
+                        Map<String, String> constants, Map<String, String> modelReferences, String notes) {
+            this.schema_version = schemaVersion;
+            this.pipeline_name = pipelineName;
+            this.script_name = scriptName;
+            this.script_schema_id = scriptSchemaId;
+            this.source_script_sha256 = sourceScriptSha256;
+            this.astra_base_commit_or_version = astraBaseCommitOrVersion;
+            this.astra_extension_commit_or_version = astraExtensionCommitOrVersion;
+            this.saved_timestamp = savedTimestamp;
+            this.constants = constants;
+            this.model_references = modelReferences;
+            this.notes = notes;
+        }
     }
 
     static final class RunLogCapture implements TextAppendable, AutoCloseable {
@@ -1735,6 +1972,13 @@ final class AstraPipelineLauncher {
             return renderColocalizationChecks(checks());
         }
 
+        private void setRawValue(String rawValue) {
+            rows.getChildren().clear();
+            checkRows.clear();
+            parseColocalizationChecks(rawValue).forEach(this::addRow);
+            notifyListeners();
+        }
+
         private void addChangeListener(Runnable listener) {
             listeners.add(listener);
         }
@@ -1849,6 +2093,12 @@ final class AstraPipelineLauncher {
                     .filter(e -> e.getValue().isSelected())
                     .map(Map.Entry::getKey)
                     .toList();
+        }
+
+        private void setRawValue(String rawValue) {
+            selected.clear();
+            selected.addAll(EditableConstant.csvValues(rawValue));
+            refresh(new ArrayList<>(boxes.keySet()));
         }
 
         private void addChangeListener(Runnable listener) {
@@ -2051,11 +2301,38 @@ final class AstraPipelineLauncher {
             defaultDisplayValue = displayValue;
         }
 
-        private void setDisplayValue(String displayValue) {
+        void setDisplayValue(String displayValue) {
             this.displayValue = displayValue;
         }
 
-        private String currentDisplayValue() {
+        private void syncEditorFromValue() {
+            if (editor == null) {
+                return;
+            }
+            if (editor instanceof ComboBox<?> comboBox) {
+                @SuppressWarnings("unchecked")
+                ComboBox<String> typed = (ComboBox<String>) comboBox;
+                typed.setValue(stripStringQuotes(type, displayValue));
+            } else if (editor instanceof CheckBox checkBox) {
+                checkBox.setSelected(Boolean.parseBoolean(displayValue));
+            } else if (editor instanceof ListEditor listEditor) {
+                listEditor.setText(EditableConstant.simpleListToCsv(displayValue));
+            } else if (editor instanceof ChannelCheckboxEditor channelEditor) {
+                channelEditor.setSelected(EditableConstant.csvValues(displayValue));
+            } else if (editor instanceof ColocalizationChecksEditor checksEditor) {
+                checksEditor.setRawValue(displayValue);
+            } else if (editor instanceof ThresholdExclusionEditor exclusionEditor) {
+                exclusionEditor.setRawValue(displayValue);
+            } else if (editor instanceof CodeEditor codeEditor) {
+                codeEditor.setText(displayValue);
+            } else if (editor instanceof TextArea area) {
+                area.setText(displayValue);
+            } else if (editor instanceof TextField field) {
+                field.setText(stripStringQuotes(type, displayValue));
+            }
+        }
+
+        String currentDisplayValue() {
             if (editor == null) {
                 return displayValue;
             }

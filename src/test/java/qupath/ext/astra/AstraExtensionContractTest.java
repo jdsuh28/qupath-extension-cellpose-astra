@@ -5,7 +5,10 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -101,6 +104,7 @@ class AstraExtensionContractTest {
         assertTrue(joined.contains("import cellpose"));
         assertTrue(joined.contains("astra"));
         assertTrue(joined.contains("-m, cellpose, --version"));
+        assertFalse(joined.contains("segment_anything"));
     }
 
     /**
@@ -117,6 +121,69 @@ class AstraExtensionContractTest {
         assertTrue(message.contains("exit code 7"));
         assertTrue(message.contains("python -c import cellpose"));
         assertTrue(message.contains("line3"));
+    }
+
+    /**
+     * Verifies installer cancellation actively destroys a running process.
+     */
+    @Test
+    void runtimeInstallerCancellationTerminatesActiveProcess() {
+        FakeProcess process = new FakeProcess();
+
+        assertTrue(AstraRuntimeInstaller.terminateProcessForCancellation(process, Duration.ofMillis(1)));
+        assertTrue(process.destroyCalled);
+        assertTrue(process.destroyForciblyCalled);
+    }
+
+    private static final class FakeProcess extends Process {
+        boolean destroyCalled;
+        boolean destroyForciblyCalled;
+
+        @Override
+        public OutputStream getOutputStream() {
+            return OutputStream.nullOutputStream();
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return InputStream.nullInputStream();
+        }
+
+        @Override
+        public InputStream getErrorStream() {
+            return InputStream.nullInputStream();
+        }
+
+        @Override
+        public int waitFor() {
+            return 1;
+        }
+
+        @Override
+        public boolean waitFor(long timeout, java.util.concurrent.TimeUnit unit) {
+            return false;
+        }
+
+        @Override
+        public int exitValue() {
+            throw new IllegalThreadStateException("still running");
+        }
+
+        @Override
+        public void destroy() {
+            destroyCalled = true;
+        }
+
+        @Override
+        public Process destroyForcibly() {
+            destroyForciblyCalled = true;
+            return this;
+        }
+
+        @Override
+        public boolean isAlive() {
+            return !destroyForciblyCalled;
+        }
     }
 
     /**

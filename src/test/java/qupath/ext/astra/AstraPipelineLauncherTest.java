@@ -1,10 +1,11 @@
 package qupath.ext.astra;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.prefs.Preferences;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -60,40 +61,47 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
-    void oldSettingsWithoutSchemaIdAreCleared() {
-        String scriptName = "launcher-test-old-settings";
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
-                final String MODE = "A"
-                final Map cfg = [:]
-                """);
-        Preferences node = AstraPipelineLauncher.settingsNode(scriptName);
-        node.put("MODE", "\"B\"");
+    void launcherDoesNotAutoRestoreOrSaveScientificConstantsThroughJavaPreferences() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
 
-        AstraPipelineLauncher.PersistentApplyResult result =
-                AstraPipelineLauncher.applyPersistentSettings(scriptName, AstraPipelineLauncher.schemaIdentity(constants), constants);
-
-        assertFalse(result.restored());
-        assertTrue(result.schemaReset());
-        assertEquals(null, node.get("MODE", null));
+        assertFalse(source.contains("java.util.prefs.Preferences"));
+        assertFalse(source.contains("applyPersistentSettings("));
+        assertFalse(source.contains("savePersistentSettings("));
+        assertFalse(source.contains("settingsNode("));
     }
 
     @Test
-    void mismatchedSchemaSettingsAreCleared() {
-        String scriptName = "launcher-test-schema-mismatch";
+    void settingsProfilesRoundTripConstants(@TempDir Path tempDir) throws Exception {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
                 final String MODE = "A"
+                final String MODEL_NAME = "cpsam"
                 final Map cfg = [:]
                 """);
-        Preferences node = AstraPipelineLauncher.settingsNode(scriptName);
-        node.put("__schema_id", "stale");
-        node.put("MODE", "\"B\"");
+        String schema = AstraPipelineLauncher.schemaIdentity(constants);
+        String sourceHash = AstraPipelineLauncher.sha256Hex("script");
+        constants.get(0).setDisplayValue("\"B\"");
+        File file = tempDir.resolve("profile.json").toFile();
 
-        AstraPipelineLauncher.PersistentApplyResult result =
-                AstraPipelineLauncher.applyPersistentSettings(scriptName, AstraPipelineLauncher.schemaIdentity(constants), constants);
+        AstraPipelineLauncher.writeSettingsProfile(
+                file,
+                AstraPipelineLauncher.createSettingsProfile("Training", schema, sourceHash, constants)
+        );
 
-        assertFalse(result.restored());
-        assertTrue(result.schemaReset());
-        assertEquals(null, node.get("MODE", null));
+        List<AstraPipelineLauncher.EditableConstant> fresh = AstraPipelineLauncher.extractEditableConstants("""
+                final String MODE = "A"
+                final String MODEL_NAME = "cpsam"
+                final Map cfg = [:]
+                """);
+        AstraPipelineLauncher.applySettingsProfile(
+                AstraPipelineLauncher.readSettingsProfile(file),
+                "Training",
+                AstraPipelineLauncher.schemaIdentity(fresh),
+                sourceHash,
+                fresh
+        );
+
+        assertEquals("\"B\"", fresh.get(0).currentDisplayValue());
+        assertTrue(Files.readString(file.toPath()).contains("\"model_references\""));
     }
 
     @Test
@@ -315,12 +323,12 @@ class AstraPipelineLauncherTest {
     void targetSpecificModelControlsRemainAvailableForBothTarget() {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationModelScript("BOTH"));
 
-        assertEquals(List.of("NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE"),
+        assertEquals(List.of("NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE", "NUC_SAVED_MODEL_ID"),
                 AstraPipelineLauncher.targetModelControlNames("NUCLEUS"));
-        assertEquals(List.of("CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE"),
+        assertEquals(List.of("CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE", "CELL_SAVED_MODEL_ID"),
                 AstraPipelineLauncher.targetModelControlNames("CELL"));
-        assertEquals(List.of("NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE",
-                        "CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE"),
+        assertEquals(List.of("NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE", "NUC_SAVED_MODEL_ID",
+                        "CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE", "CELL_SAVED_MODEL_ID"),
                 AstraPipelineLauncher.targetModelControlNames("BOTH"));
         assertTrue(constants.stream().anyMatch(c -> c.name().equals("NUC_MODEL_SOURCE")));
         assertTrue(constants.stream().anyMatch(c -> c.name().equals("NUC_MODEL_NAME")));
@@ -380,10 +388,12 @@ class AstraPipelineLauncherTest {
                 final String NUC_MODEL_SOURCE = "MODEL_NAME"
                 final String NUC_MODEL_NAME = "nuc-special"
                 final String NUC_MODEL_FILE = ""
+                final String NUC_SAVED_MODEL_ID = ""
                 final List CELL_MODEL_SOURCE_OPTIONS = ["", "MODEL_NAME", "SAVED", "FILE"]
                 final String CELL_MODEL_SOURCE = ""
                 final String CELL_MODEL_NAME = ""
                 final String CELL_MODEL_FILE = ""
+                final String CELL_SAVED_MODEL_ID = ""
                 final Map cfg = [:]
                 """);
 
@@ -393,6 +403,29 @@ class AstraPipelineLauncherTest {
         assertTrue(summary.contains("effective nucleus model: nuc-special"));
         assertTrue(summary.contains("effective cell model source: MODEL_NAME (inherited)"));
         assertTrue(summary.contains("effective cell model: cpsam"));
+    }
+
+    @Test
+    void finalSummaryShowsEffectiveSavedModelIds() {
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+                final List DETECTION_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
+                final String DETECTION_TARGET = "NUCLEUS"
+                final List MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
+                final String MODEL_SOURCE = "MODEL_NAME"
+                final String MODEL_NAME = "cpsam"
+                final String MODEL_FILE = ""
+                final List NUC_MODEL_SOURCE_OPTIONS = ["", "MODEL_NAME", "SAVED", "FILE"]
+                final String NUC_MODEL_SOURCE = "SAVED"
+                final String NUC_MODEL_NAME = ""
+                final String NUC_MODEL_FILE = ""
+                final String NUC_SAVED_MODEL_ID = "nuc_v1"
+                final Map cfg = [:]
+                """);
+
+        String summary = AstraPipelineLauncher.finalConfigSummary("Colocalization", "123456789012", constants);
+
+        assertTrue(summary.contains("effective nucleus model source: SAVED (target-specific)"));
+        assertTrue(summary.contains("effective nucleus model: nuc_v1"));
     }
 
     @Test
@@ -524,10 +557,12 @@ class AstraPipelineLauncherTest {
                 final String NUC_MODEL_SOURCE = ""
                 final String NUC_MODEL_NAME = ""
                 final String NUC_MODEL_FILE = ""
+                final String NUC_SAVED_MODEL_ID = ""
                 final List CELL_MODEL_SOURCE_OPTIONS = ["", "MODEL_NAME", "SAVED", "FILE"]
                 final String CELL_MODEL_SOURCE = ""
                 final String CELL_MODEL_NAME = ""
                 final String CELL_MODEL_FILE = ""
+                final String CELL_SAVED_MODEL_ID = ""
                 final List COLOCALIZATION_CHECKS = []
                 final Map cfg = [:]
                 """.formatted(target);
