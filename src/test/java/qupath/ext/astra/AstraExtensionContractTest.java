@@ -71,8 +71,52 @@ class AstraExtensionContractTest {
         assertEquals("v4.0.8+astra.2", AstraRuntimeInstaller.DEFAULT_CELLPOSE_REF);
         assertEquals("git+https://github.com/jdsuh28/cellpose-astra.git@v4.0.8+astra.2",
                 AstraRuntimeInstaller.cellposePackageSpec());
-        assertEquals("cellpose-runtime", AstraRuntimeInstaller.runtimeDirectory().getName());
+        assertEquals("cellpose-astra", AstraRuntimeInstaller.runtimeDirectory().getName());
         assertTrue(AstraRuntimeInstaller.runtimePythonExecutable(new File("runtime")).getPath().contains("runtime"));
+    }
+
+    /**
+     * Verifies the default installer builds a conda-prefix runtime rather than
+     * silently creating a venv.
+     */
+    @Test
+    void runtimeInstallerBuildsCondaPrefixCommand() {
+        List<String> command = AstraRuntimeInstaller.condaCreateCommand("conda", new File("/tmp/cellpose-astra"));
+
+        assertEquals(List.of("conda", "create", "-y", "-p", "/tmp/cellpose-astra", "python=3.10"), command);
+    }
+
+    /**
+     * Verifies runtime validation checks Python, NumPy, torch, Cellpose, the
+     * ASTRA fork marker, and Cellpose startup before reporting success.
+     */
+    @Test
+    void runtimeInstallerValidationCommandsCoverRequiredImports() {
+        List<List<String>> commands = AstraRuntimeInstaller.validationCommands(new File("/runtime/bin/python"));
+        String joined = commands.toString();
+
+        assertTrue(joined.contains("--version"));
+        assertTrue(joined.contains("import numpy"));
+        assertTrue(joined.contains("import torch"));
+        assertTrue(joined.contains("import cellpose"));
+        assertTrue(joined.contains("astra"));
+        assertTrue(joined.contains("-m, cellpose, --version"));
+    }
+
+    /**
+     * Verifies command failures include the command, exit code, and bounded
+     * recent output for GUI diagnostics.
+     */
+    @Test
+    void runtimeInstallerFormatsValidationFailureDetails() {
+        String message = AstraRuntimeInstaller.formatCommandFailure(
+                List.of("python", "-c", "import cellpose"),
+                new AstraRuntimeInstaller.CommandResult(7, "line1\nline2\nline3")
+        );
+
+        assertTrue(message.contains("exit code 7"));
+        assertTrue(message.contains("python -c import cellpose"));
+        assertTrue(message.contains("line3"));
     }
 
     /**
