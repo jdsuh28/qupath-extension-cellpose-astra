@@ -617,11 +617,12 @@ final class AstraPipelineLauncher {
                 && constants.stream().anyMatch(c -> "DETECTION_TARGET".equals(c.name));
     }
 
-    private static boolean isHandledByColocalizationPanel(String name, boolean colocalization) {
+    static boolean isHandledByColocalizationPanel(String name, boolean colocalization) {
         if (!colocalization) {
             return false;
         }
         return Set.of(
+                "DETECTION_TARGET",
                 "NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE",
                 "CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE",
                 "NUCLEUS_SEGMENTATION_CHANNELS", "CELL_SEGMENTATION_CHANNELS",
@@ -636,6 +637,20 @@ final class AstraPipelineLauncher {
 
         VBox box = sectionShell("Colocalization Setup", "Target-specific controls for segmentation models, segmentation channels, marker checks, and threshold exclusions.");
         EditableConstant detectionTarget = byName.get("DETECTION_TARGET");
+
+        VBox targetPanel = semanticCard("Detection Target", "Choose whether colocalization runs nucleus segmentation, cell segmentation, or paired nucleus/cell detection.");
+        if (detectionTarget != null) {
+            HBox row = new HBox(8.0);
+            row.setAlignment(Pos.CENTER_LEFT);
+            Label label = new Label("Detection target");
+            label.setMinWidth(160.0);
+            label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 800; -fx-text-fill: " + INK + ";");
+            Node editor = detectionTarget.createEditor();
+            HBox.setHgrow(editor, Priority.ALWAYS);
+            row.getChildren().addAll(label, editor);
+            detectionTarget.addChangeListener(() -> savePersistentSettings(scriptName, schemaId, constants));
+            targetPanel.getChildren().add(row);
+        }
 
         VBox modelPanel = semanticCard("Target Models", "Choose nucleus and cell model initializers independently. Shared MODEL_* values remain available in Advanced only as inheritance defaults.");
         VBox nucleusModel = targetModelGroup("Nucleus model", byName.get("NUC_MODEL_SOURCE"), byName.get("NUC_MODEL_NAME"), byName.get("NUC_MODEL_FILE"), scriptName, schemaId, constants);
@@ -690,7 +705,7 @@ final class AstraPipelineLauncher {
         }
         updateTargetVisibility.run();
 
-        box.getChildren().addAll(modelPanel, segmentationPanel, checksPanel, exclusionPanel);
+        box.getChildren().addAll(targetPanel, modelPanel, segmentationPanel, checksPanel, exclusionPanel);
         return box;
     }
 
@@ -866,17 +881,19 @@ final class AstraPipelineLauncher {
         if (names.isEmpty()) {
             return;
         }
+        ImageAwareChannelDefaults defaults = resolveImageAwareChannelDefaults(names);
         Map<String, EditableConstant> byName = new LinkedHashMap<>();
         constants.forEach(c -> byName.put(c.name, c));
         for (EditableConstant constant : constants) {
             switch (constant.name) {
-                case "CHANNEL_DAPI" -> constant.setDisplayString(preferredChannel(names, "DAPI", "Hoechst", "DAPI"));
-                case "CHANNEL_WGA" -> constant.setDisplayString(preferredChannel(names, "AF488", "FITC", "WGA"));
-                case "CHANNEL_ASMA" -> constant.setDisplayString(preferredChannel(names, "AF555", "Cy3", "aSMA", "ASMA"));
-                case "CHANNEL_CD31" -> constant.setDisplayString(preferredChannel(names, "AF647", "Cy5", "CD31"));
-                case "CHANNELS_FOR_NUCLEUS" -> constant.setDisplayList(List.of(preferredChannel(names, "DAPI", "Hoechst", "DAPI")));
-                case "NUCLEUS_SEGMENTATION_CHANNELS" -> constant.setDisplayList(firstChannel(names));
-                case "CELL_SEGMENTATION_CHANNELS" -> constant.setDisplayList(secondChannel(names));
+                case "CHANNEL_DAPI" -> constant.setDisplayStringAllowEmpty(firstOrNull(defaults.nucleusChannels()));
+                case "CHANNEL_WGA" -> constant.setDisplayStringAllowEmpty(firstMatching(names, "wga", "wheat germ"));
+                case "CHANNEL_ASMA" -> constant.setDisplayStringAllowEmpty(firstMatching(names, "asma", "a-sma", "αsma", "smooth muscle"));
+                case "CHANNEL_CD31" -> constant.setDisplayStringAllowEmpty(firstMatching(names, "cd31", "pecam"));
+                case "CHANNELS_FOR_NUCLEUS" -> constant.setDisplayListAllowEmpty(defaults.nucleusChannels());
+                case "CHANNELS_FOR_CELL" -> constant.setDisplayListAllowEmpty(defaults.cellChannels());
+                case "NUCLEUS_SEGMENTATION_CHANNELS" -> constant.setDisplayListAllowEmpty(defaults.nucleusChannels());
+                case "CELL_SEGMENTATION_CHANNELS" -> constant.setDisplayListAllowEmpty(defaults.cellChannels());
                 default -> {
                 }
             }
@@ -890,16 +907,28 @@ final class AstraPipelineLauncher {
         if (names == null || names.isEmpty()) {
             return;
         }
-        String first = names.get(0);
-        String second = names.size() > 1 ? names.get(1) : null;
+        ImageAwareChannelDefaults defaults = resolveImageAwareChannelDefaults(names);
+        List<String> nucleusChannels = defaults.nucleusChannels();
+        List<String> cellChannels = defaults.cellChannels();
+        setListConstant(constants, "NUCLEUS_SEGMENTATION_CHANNELS", nucleusChannels);
+        setListConstant(constants, "CELL_SEGMENTATION_CHANNELS", cellChannels);
+        if (!defaults.hasNucleusMarker()) {
+            setRawConstant(constants, "COLOCALIZATION_CHECKS", "[]");
+            setListConstant(constants, "THRESHOLD_EXCLUDE_MARKERS", List.of());
+            setRawConstant(constants, "MANUAL_INTENSITY_THRESHOLDS", "[:]");
+            setRawConstant(constants, "RANGE_THRESHOLD_FRACTION_BY_MARKER", "[:]");
+            setRawConstant(constants, "THRESHOLD_PROVENANCE_BY_MARKER", "[:]");
+            setRawConstant(constants, "BACKGROUND_SUBTRACTION_BY_CHANNEL", "[:]");
+            return;
+        }
+        String nucleus = nucleusChannels.get(0);
+        String marker = defaults.markerChannels().isEmpty() ? null : defaults.markerChannels().get(0);
         String compartment = "Nucleus";
-        List<String> checkChannels = second == null ? List.of(first) : List.of(first, second);
+        List<String> checkChannels = marker == null ? List.of(nucleus) : List.of(nucleus, marker);
         String label = safeLabel(String.join("_AND_", checkChannels) + "_nucleus");
-        String firstKey = first + "|" + compartment;
-        String thresholdKey = second == null ? null : second + "|" + compartment;
+        String firstKey = nucleus + "|" + compartment;
+        String thresholdKey = marker == null ? null : marker + "|" + compartment;
 
-        setListConstant(constants, "NUCLEUS_SEGMENTATION_CHANNELS", List.of(first));
-        setListConstant(constants, "CELL_SEGMENTATION_CHANNELS", second == null ? List.of() : List.of(second));
         setRawConstant(constants, "COLOCALIZATION_CHECKS", renderColocalizationChecks(List.of(new ColocalizationCheck(label, compartment, checkChannels))));
         setListConstant(constants, "THRESHOLD_EXCLUDE_MARKERS", List.of(firstKey));
         setRawConstant(constants, "MANUAL_INTENSITY_THRESHOLDS", thresholdKey == null ? "[:]" : "[\n        " + quoteGroovy(thresholdKey) + "     : 100.0d\n]");
@@ -928,22 +957,60 @@ final class AstraPipelineLauncher {
         return label.isBlank() ? "colocalization_nucleus" : label;
     }
 
-    private static List<String> firstChannel(List<String> names) {
-        return names.isEmpty() ? List.of() : List.of(names.get(0));
+    static ImageAwareChannelDefaults resolveImageAwareChannelDefaults(List<String> openedChannels) {
+        List<String> names = openedChannels == null ? List.of() : openedChannels.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .distinct()
+                .toList();
+        List<String> nucleusChannels = names.stream()
+                .filter(AstraPipelineLauncher::isNuclearChannel)
+                .toList();
+        List<String> cellChannels = names.stream()
+                .filter(name -> !isNuclearChannel(name))
+                .filter(AstraPipelineLauncher::isRecognizedNonNuclearChannel)
+                .toList();
+        List<String> markerChannels = names.stream()
+                .filter(name -> !isNuclearChannel(name))
+                .filter(AstraPipelineLauncher::isRecognizedNonNuclearChannel)
+                .toList();
+        return new ImageAwareChannelDefaults(nucleusChannels, cellChannels, markerChannels,
+                !nucleusChannels.isEmpty(), !cellChannels.isEmpty());
     }
 
-    private static List<String> secondChannel(List<String> names) {
-        return names.size() < 2 ? List.of() : List.of(names.get(1));
+    private static boolean isNuclearChannel(String name) {
+        String lower = name.toLowerCase(Locale.ROOT);
+        return lower.contains("dapi") || lower.contains("hoechst");
     }
 
-    private static String preferredChannel(List<String> names, String... candidates) {
-        for (String candidate : candidates) {
-            for (String name : names) {
-                if (name.equalsIgnoreCase(candidate)) {
-                    return name;
-                }
-            }
-        }
+    private static boolean isRecognizedNonNuclearChannel(String name) {
+        String lower = name.toLowerCase(Locale.ROOT);
+        return lower.contains("fitc") ||
+                lower.contains("tritc") ||
+                lower.contains("texas") ||
+                lower.contains("alexa") ||
+                lower.contains("af488") ||
+                lower.contains("af555") ||
+                lower.contains("af568") ||
+                lower.contains("af594") ||
+                lower.contains("af647") ||
+                lower.contains("cy3") ||
+                lower.contains("cy5") ||
+                lower.contains("wga") ||
+                lower.contains("wheat germ") ||
+                lower.contains("asma") ||
+                lower.contains("a-sma") ||
+                lower.contains("αsma") ||
+                lower.contains("cd31") ||
+                lower.contains("pecam");
+    }
+
+    private static String firstOrNull(List<String> values) {
+        return values == null || values.isEmpty() ? null : values.get(0);
+    }
+
+    private static String firstMatching(List<String> names, String... candidates) {
         for (String candidate : candidates) {
             for (String name : names) {
                 if (name.toLowerCase(Locale.ROOT).contains(candidate.toLowerCase(Locale.ROOT))) {
@@ -951,7 +1018,14 @@ final class AstraPipelineLauncher {
                 }
             }
         }
-        return names.get(0);
+        return null;
+    }
+
+    record ImageAwareChannelDefaults(List<String> nucleusChannels,
+                                     List<String> cellChannels,
+                                     List<String> markerChannels,
+                                     boolean hasNucleusMarker,
+                                     boolean hasCellCandidate) {
     }
 
     private static String semanticButtonStyle() {
@@ -1637,9 +1711,6 @@ final class AstraPipelineLauncher {
             super(8.0);
             this.imageChannels = List.copyOf(imageChannels);
             List<ColocalizationCheck> parsed = parseColocalizationChecks(rawValue);
-            if (parsed.isEmpty()) {
-                parsed = List.of(new ColocalizationCheck("DAPI_AND_AF488_nucleus", "Nucleus", imageChannels.stream().limit(2).toList()));
-            }
             parsed.forEach(this::addRow);
             Button add = new Button("Add check");
             add.setFocusTraversable(false);
@@ -1689,8 +1760,11 @@ final class AstraPipelineLauncher {
                 label.setStyle(EditableConstant.controlStyle());
                 compartment.getItems().addAll("Nucleus", "Cell", "Cytoplasm");
                 compartment.setValue(check.compartment().isBlank() ? "Nucleus" : check.compartment());
+                compartment.setMinWidth(120.0);
+                compartment.setPrefWidth(130.0);
                 compartment.setStyle(EditableConstant.controlStyle());
                 FlowPane channels = new FlowPane(6.0, 6.0);
+                channels.setAlignment(Pos.CENTER_LEFT);
                 for (String channel : imageChannels) {
                     CheckBox box = new CheckBox(channel);
                     box.setSelected(check.channels().contains(channel));
@@ -1699,7 +1773,10 @@ final class AstraPipelineLauncher {
                     channels.getChildren().add(box);
                     box.selectedProperty().addListener((obs, oldValue, newValue) -> notifyListeners());
                 }
-                Button remove = new Button("Remove");
+                Button remove = new Button("🗑");
+                remove.setTooltip(new Tooltip("Delete check"));
+                remove.setMinSize(28.0, 28.0);
+                remove.setPrefSize(28.0, 28.0);
                 remove.setFocusTraversable(false);
                 remove.setStyle(semanticButtonStyle());
                 remove.setOnAction(event -> {
@@ -2037,6 +2114,17 @@ final class AstraPipelineLauncher {
                 return;
             }
             displayValue = "\"" + channelName.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+        }
+
+        private void setDisplayStringAllowEmpty(String channelName) {
+            if (!"String".equals(type)) {
+                return;
+            }
+            if (channelName == null || channelName.isBlank()) {
+                displayValue = "\"\"";
+            } else {
+                setDisplayString(channelName);
+            }
         }
 
         private void setDisplayList(List<String> channels) {

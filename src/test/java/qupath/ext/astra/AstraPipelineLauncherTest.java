@@ -110,13 +110,14 @@ class AstraPipelineLauncherTest {
         AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("DAPI", "AF488", "AF555", "AF647"));
         String configured = AstraPipelineLauncher.applyConstants(script, constants);
 
-        assertTrue(configured.contains("final List CHANNELS_FOR_CELL = [\"AF555\"]"));
+        assertTrue(configured.contains("final List CHANNELS_FOR_NUCLEUS = [\"DAPI\"]"));
+        assertTrue(configured.contains("final List CHANNELS_FOR_CELL = [\"AF488\", \"AF555\", \"AF647\"]"));
         assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = [\"DAPI\"]"));
-        assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = [\"AF488\"]"));
+        assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = [\"AF488\", \"AF555\", \"AF647\"]"));
     }
 
     @Test
-    void cellSegmentationDefaultsBlankWithoutSecondChannel() {
+    void singleNonNuclearChannelDoesNotBecomeNucleusOrCellByPosition() {
         String script = """
                 final List NUCLEUS_SEGMENTATION_CHANNELS = []
                 final List CELL_SEGMENTATION_CHANNELS = []
@@ -127,8 +128,44 @@ class AstraPipelineLauncherTest {
         AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Only"));
         String configured = AstraPipelineLauncher.applyConstants(script, constants);
 
-        assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = [\"Only\"]"));
+        assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = []"));
         assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = []"));
+    }
+
+    @Test
+    void openedChannelsWithoutDapiOrHoechstDoNotAutofillNucleus() {
+        String script = """
+                final List CHANNELS_FOR_NUCLEUS = ["DAPI"]
+                final List CHANNELS_FOR_CELL = ["AF555", "AF488", "DAPI"]
+                final Map cfg = [:]
+                """;
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+
+        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Channel 1", "Channel 2"));
+        String configured = AstraPipelineLauncher.applyConstants(script, constants);
+
+        assertTrue(configured.contains("final List CHANNELS_FOR_NUCLEUS = []"));
+        assertTrue(configured.contains("final List CHANNELS_FOR_CELL = []"));
+        assertFalse(configured.contains("DAPI"));
+        assertFalse(configured.contains("AF555"));
+        assertFalse(configured.contains("AF488"));
+    }
+
+    @Test
+    void singleNuclearChannelDoesNotAutofillCell() {
+        String script = """
+                final List CHANNELS_FOR_NUCLEUS = []
+                final List CHANNELS_FOR_CELL = ["AF555"]
+                final Map cfg = [:]
+                """;
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+
+        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Hoechst"));
+        String configured = AstraPipelineLauncher.applyConstants(script, constants);
+
+        assertTrue(configured.contains("final List CHANNELS_FOR_NUCLEUS = [\"Hoechst\"]"));
+        assertTrue(configured.contains("final List CHANNELS_FOR_CELL = []"));
+        assertFalse(configured.contains("AF555"));
     }
 
     @Test
@@ -148,33 +185,57 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
-    void arbitraryOpenedChannelsDoNotLeaveHardcodedDapiAf488() {
+    void hoechstAndAf555SynchronizeColocalizationDefaults() {
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
+
+        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Hoechst", "AF555"));
+        String configured = AstraPipelineLauncher.applyConstants(colocalizationDefaultsScript(), constants);
+
+        assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = [\"Hoechst\"]"));
+        assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = [\"AF555\"]"));
+        assertTrue(configured.contains("LABEL      : \"Hoechst_AND_AF555_nucleus\""));
+        assertTrue(configured.contains("final List THRESHOLD_EXCLUDE_MARKERS = [\"Hoechst|Nucleus\"]"));
+        assertTrue(configured.contains("\"AF555|Nucleus\"     : 100.0d"));
+    }
+
+    @Test
+    void arbitraryOpenedChannelsClearUnsafeColocalizationDefaults() {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
 
         AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Channel 1", "Channel 2"));
         String configured = AstraPipelineLauncher.applyConstants(colocalizationDefaultsScript(), constants);
 
-        assertTrue(configured.contains("LABEL      : \"Channel_1_AND_Channel_2_nucleus\""));
-        assertTrue(configured.contains("CHANNELS   : [\"Channel 1\", \"Channel 2\"]"));
-        assertTrue(configured.contains("final List THRESHOLD_EXCLUDE_MARKERS = [\"Channel 1|Nucleus\"]"));
-        assertTrue(configured.contains("\"Channel 2|Nucleus\"     : 100.0d"));
+        assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = []"));
+        assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = []"));
+        assertTrue(configured.contains("final List COLOCALIZATION_CHECKS = []"));
+        assertTrue(configured.contains("final List THRESHOLD_EXCLUDE_MARKERS = []"));
+        assertTrue(configured.contains("final Map MANUAL_INTENSITY_THRESHOLDS = [:]"));
+        assertFalse(configured.contains("Channel_1"));
+        assertFalse(configured.contains("Channel 1|Nucleus"));
         assertFalse(configured.contains("DAPI_AND_AF488"));
         assertFalse(configured.contains("\"AF488|Nucleus\""));
     }
 
     @Test
-    void oneOpenedChannelDoesNotReferenceMissingSecondChannel() {
+    void oneNonNuclearOpenedChannelDoesNotCreateNucleusCheck() {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
 
         AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Only"));
         String configured = AstraPipelineLauncher.applyConstants(colocalizationDefaultsScript(), constants);
 
-        assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = [\"Only\"]"));
+        assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = []"));
         assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = []"));
-        assertTrue(configured.contains("LABEL      : \"Only_nucleus\""));
-        assertTrue(configured.contains("CHANNELS   : [\"Only\"]"));
+        assertTrue(configured.contains("final List COLOCALIZATION_CHECKS = []"));
+        assertTrue(configured.contains("final List THRESHOLD_EXCLUDE_MARKERS = []"));
         assertTrue(configured.contains("final Map MANUAL_INTENSITY_THRESHOLDS = [:]"));
+        assertFalse(configured.contains("Only|Nucleus"));
         assertFalse(configured.contains("AF488"));
+    }
+
+    @Test
+    void colocalizationPanelOwnsDetectionTarget() {
+        assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("DETECTION_TARGET", true));
+        assertFalse(AstraPipelineLauncher.isHandledByColocalizationPanel("DETECTION_TARGET", false));
     }
 
     @Test
@@ -284,6 +345,46 @@ class AstraPipelineLauncherTest {
         assertTrue(rendered.contains("LABEL      : \"A_B_nucleus\""));
         assertTrue(rendered.contains("COMPARTMENT: \"Cell\""));
         assertTrue(rendered.contains("CHANNELS   : [\"A\", \"B\"]"));
+    }
+
+    @Test
+    void colocalizationCheckEditorDoesNotCreateHardcodedFallbackRow() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertFalse(source.contains("new ColocalizationCheck(\"DAPI_AND_AF488_nucleus\""));
+    }
+
+    @Test
+    void colocalizationCheckRowUsesAlignedIconDeleteControl() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("Button remove = new Button(\"🗑\")"));
+        assertTrue(source.contains("new Tooltip(\"Delete check\")"));
+        assertTrue(source.contains("compartment.setMinWidth(120.0)"));
+        assertTrue(source.contains("compartment.setPrefWidth(130.0)"));
+        assertTrue(source.contains("channels.setAlignment(Pos.CENTER_LEFT)"));
+    }
+
+    @Test
+    void vascularMarkerDefaultsDoNotUseUnrelatedFirstChannel() {
+        String script = """
+                final String CHANNEL_DAPI = "DAPI"
+                final String CHANNEL_WGA = "AF488"
+                final String CHANNEL_ASMA = "AF555"
+                final String CHANNEL_CD31 = "AF647"
+                final Map cfg = [:]
+                """;
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+
+        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Channel 1", "Channel 2"));
+        String configured = AstraPipelineLauncher.applyConstants(script, constants);
+
+        assertTrue(configured.contains("final String CHANNEL_DAPI = \"\""));
+        assertTrue(configured.contains("final String CHANNEL_WGA = \"\""));
+        assertTrue(configured.contains("final String CHANNEL_ASMA = \"\""));
+        assertTrue(configured.contains("final String CHANNEL_CD31 = \"\""));
+        assertFalse(configured.contains("Channel 1"));
+        assertFalse(configured.contains("AF488"));
     }
 
     @Test
