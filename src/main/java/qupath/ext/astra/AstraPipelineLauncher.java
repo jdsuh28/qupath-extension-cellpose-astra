@@ -424,6 +424,35 @@ final class AstraPipelineLauncher {
         }
     }
 
+    static List<String> missingProfileChannels(SettingsProfile profile, List<String> openedChannels) {
+        if (profile == null || profile.constants == null || openedChannels == null || openedChannels.isEmpty()) {
+            return List.of();
+        }
+        Set<String> opened = Set.copyOf(openedChannels);
+        List<String> referenced = new ArrayList<>();
+        for (Map.Entry<String, String> entry : profile.constants.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+            if ("COLOCALIZATION_CHECKS".equals(key)) {
+                parseColocalizationChecks(value).forEach(check -> referenced.addAll(check.channels()));
+            } else if (key.contains("CHANNEL")) {
+                if (value != null && value.trim().startsWith("[")) {
+                    referenced.addAll(EditableConstant.csvValues(value));
+                } else if (value != null) {
+                    String channel = EditableConstant.stripOuterQuotes(value.trim());
+                    if (!channel.isBlank()) {
+                        referenced.add(channel);
+                    }
+                }
+            }
+        }
+        return referenced.stream()
+                .filter(channel -> !opened.contains(channel))
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
     private static String runtimeProperty(String name, String fallback) {
         Package pkg = AstraPipelineLauncher.class.getPackage();
         if ("Implementation-Version".equals(name) && pkg != null && pkg.getImplementationVersion() != null) {
@@ -646,7 +675,7 @@ final class AstraPipelineLauncher {
         body.getChildren().add(createChannelPanel(imageChannels));
         boolean colocalization = isColocalizationConfig(constants);
         if (colocalization) {
-            body.getChildren().add(createColocalizationPanel(constants, imageChannels, profileState));
+            body.getChildren().add(createColocalizationPanel(qupath, constants, imageChannels, profileState));
         }
 
         VBox basic = sectionShell("Basic", "Start here. These are the normal run controls: target, scope, channels, model source, thresholds, and outputs.");
@@ -750,6 +779,10 @@ final class AstraPipelineLauncher {
             constants.forEach(EditableConstant::syncEditorFromValue);
             profileState.loadedProfile(selected.getName(), selected.getAbsolutePath(), sha256File(selected));
             feedback.info("Loaded ASTRA settings profile: " + selected.getAbsolutePath());
+            List<String> missingChannels = missingProfileChannels(profile, imageChannels(qupath).stream().map(ImageChannel::getName).filter(Objects::nonNull).toList());
+            if (!missingChannels.isEmpty()) {
+                feedback.warn("Loaded profile references channels not present in the open image: " + missingChannels);
+            }
         } catch (IOException | RuntimeException e) {
             Dialogs.showErrorMessage("ASTRA Settings Profile", "Unable to load settings profile:\n" + e.getMessage());
         }
@@ -765,6 +798,14 @@ final class AstraPipelineLauncher {
             throw new IllegalStateException("Unable to resolve the QuPath project directory for ASTRA settings profiles.");
         }
         return base.toFile();
+    }
+
+    private static File projectBaseDirectoryOrNull(QuPathGUI qupath) {
+        try {
+            return projectBaseDirectory(qupath);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     private static VBox sectionShell(String titleText, String subtitleText) {
@@ -798,10 +839,13 @@ final class AstraPipelineLauncher {
         ).contains(name);
     }
 
-    private static VBox createColocalizationPanel(List<EditableConstant> constants, List<ImageChannel> imageChannels, SettingsProfileState profileState) {
+    private static VBox createColocalizationPanel(QuPathGUI qupath, List<EditableConstant> constants, List<ImageChannel> imageChannels, SettingsProfileState profileState) {
         Map<String, EditableConstant> byName = new LinkedHashMap<>();
         constants.forEach(c -> byName.put(c.name, c));
         List<String> channelNames = imageChannels.stream().map(ImageChannel::getName).filter(Objects::nonNull).toList();
+        File projectBase = projectBaseDirectoryOrNull(qupath);
+        SavedModelDiscovery nucleusModels = discoverSavedModelIds(projectBase, "nucleus");
+        SavedModelDiscovery cellModels = discoverSavedModelIds(projectBase, "cell");
 
         VBox box = sectionShell("Colocalization Setup", "Target-specific controls for segmentation models, segmentation channels, marker checks, and threshold exclusions.");
         EditableConstant detectionTarget = byName.get("DETECTION_TARGET");
@@ -821,8 +865,8 @@ final class AstraPipelineLauncher {
         }
 
         VBox modelPanel = semanticCard("Target Models", "Choose nucleus and cell model initializers independently. Shared MODEL_* values remain available in Advanced only as inheritance defaults.");
-        VBox nucleusModel = targetModelGroup("Nucleus model", byName.get("NUC_MODEL_SOURCE"), byName.get("NUC_MODEL_NAME"), byName.get("NUC_MODEL_FILE"), byName.get("NUC_SAVED_MODEL_ID"), profileState);
-        VBox cellModel = targetModelGroup("Cell model", byName.get("CELL_MODEL_SOURCE"), byName.get("CELL_MODEL_NAME"), byName.get("CELL_MODEL_FILE"), byName.get("CELL_SAVED_MODEL_ID"), profileState);
+        VBox nucleusModel = targetModelGroup("Nucleus model", byName.get("NUC_MODEL_SOURCE"), byName.get("NUC_MODEL_NAME"), byName.get("NUC_MODEL_FILE"), byName.get("NUC_SAVED_MODEL_ID"), nucleusModels, profileState);
+        VBox cellModel = targetModelGroup("Cell model", byName.get("CELL_MODEL_SOURCE"), byName.get("CELL_MODEL_NAME"), byName.get("CELL_MODEL_FILE"), byName.get("CELL_SAVED_MODEL_ID"), cellModels, profileState);
         modelPanel.getChildren().addAll(nucleusModel, cellModel);
 
         VBox segmentationPanel = semanticCard("Segmentation Channels", "Checkboxes write explicit Groovy lists into the target-specific segmentation channel constants.");
@@ -890,13 +934,17 @@ final class AstraPipelineLauncher {
         return box;
     }
 
-    private static VBox targetModelGroup(String title, EditableConstant source, EditableConstant name, EditableConstant file, EditableConstant savedModelId, SettingsProfileState profileState) {
+    private static VBox targetModelGroup(String title, EditableConstant source, EditableConstant name, EditableConstant file,
+                                         EditableConstant savedModelId, SavedModelDiscovery savedModelDiscovery, SettingsProfileState profileState) {
         VBox group = new VBox(8.0);
         group.setPadding(new Insets(10.0));
         group.setStyle("-fx-background-color: white; -fx-border-color: #d7e2e6; -fx-border-radius: 5; -fx-background-radius: 5;");
         Label label = new Label(title);
         label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: " + INK + ";");
         group.getChildren().add(label);
+        if (savedModelId != null) {
+            applySavedModelIdDiscovery(savedModelId, savedModelDiscovery);
+        }
         Map<String, RowNodes> rows = new LinkedHashMap<>();
         for (EditableConstant constant : Arrays.asList(source, name, file, savedModelId)) {
             if (constant == null) {
@@ -914,6 +962,12 @@ final class AstraPipelineLauncher {
             rows.put(constant.name, new RowNodes(rowLabel, editor));
             constant.addChangeListener(profileState::markManualEdit);
         }
+        if (savedModelDiscovery != null && !savedModelDiscovery.invalidModels().isEmpty()) {
+            Label invalid = new Label("Invalid saved model folders: " + savedModelDiscovery.invalidModels());
+            invalid.setWrapText(true);
+            invalid.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-text-fill: #9b3126;");
+            group.getChildren().add(invalid);
+        }
         Runnable update = () -> {
             String selected = source == null ? "" : source.optionValue();
             setVisible(rows, name == null ? "" : name.name, selected.isBlank() || "MODEL_NAME".equals(selected));
@@ -925,6 +979,34 @@ final class AstraPipelineLauncher {
         }
         update.run();
         return group;
+    }
+
+    static void applySavedModelIdDiscovery(EditableConstant savedModelId, SavedModelDiscovery discovery) {
+        if (savedModelId == null || discovery == null) {
+            return;
+        }
+        prefillSingleSavedModelId(savedModelId, discovery);
+        savedModelId.setCustomEditor(savedModelIdCombo(savedModelId, discovery.validIds()));
+    }
+
+    static void prefillSingleSavedModelId(EditableConstant savedModelId, SavedModelDiscovery discovery) {
+        if (savedModelId == null || discovery == null) {
+            return;
+        }
+        String current = EditableConstant.stripStringQuotes(savedModelId.type, savedModelId.displayValue).trim();
+        if (current.isBlank() && discovery.validIds().size() == 1) {
+            savedModelId.setDisplayString(discovery.validIds().get(0));
+        }
+    }
+
+    private static ComboBox<String> savedModelIdCombo(EditableConstant constant, List<String> validIds) {
+        ComboBox<String> combo = new ComboBox<>();
+        combo.setEditable(true);
+        combo.getItems().addAll(validIds);
+        combo.setValue(EditableConstant.stripStringQuotes(constant.type, constant.displayValue));
+        combo.setMaxWidth(Double.MAX_VALUE);
+        combo.setStyle(EditableConstant.controlStyle());
+        return combo;
     }
 
     private static void setNodeVisible(Node node, boolean visible) {
@@ -1036,6 +1118,76 @@ final class AstraPipelineLauncher {
             return List.of();
         }
         return qupath.getImageData().getServer().getMetadata().getChannels();
+    }
+
+    static SavedModelDiscovery discoverSavedModelIds(File projectBase, String targetFolder) {
+        if (projectBase == null) {
+            return new SavedModelDiscovery(List.of(), Map.of());
+        }
+        File root = new File(new File(new File(projectBase, "astra"), "models"), targetFolder);
+        if (!root.isDirectory()) {
+            return new SavedModelDiscovery(List.of(), Map.of());
+        }
+        List<String> valid = new ArrayList<>();
+        Map<String, String> invalid = new LinkedHashMap<>();
+        File[] entries = root.listFiles();
+        if (entries == null) {
+            return new SavedModelDiscovery(List.of(), Map.of(root.getName(), "Unable to list model directory."));
+        }
+        for (File entry : entries) {
+            if (entry == null || !visibleModelName(entry.getName())) {
+                continue;
+            }
+            if (entry.isFile() && entry.getName().toLowerCase(Locale.ROOT).endsWith(".cpm")) {
+                invalid.put(entry.getName(), "Legacy direct .cpm file; expected <model_id>/model.cpm plus model_metadata.json.");
+                continue;
+            }
+            if (!entry.isDirectory()) {
+                continue;
+            }
+            File metadata = new File(entry, "model_metadata.json");
+            if (!metadata.isFile()) {
+                invalid.put(entry.getName(), "Missing model_metadata.json.");
+                continue;
+            }
+            try (FileReader reader = new FileReader(metadata, StandardCharsets.UTF_8)) {
+                Object parsed = PROFILE_GSON.fromJson(reader, Object.class);
+                if (!(parsed instanceof Map<?, ?> map)) {
+                    invalid.put(entry.getName(), "model_metadata.json root is not an object.");
+                    continue;
+                }
+                Object modelId = map.get("model_id");
+                Object target = map.get("target");
+                if (!entry.getName().equals(String.valueOf(modelId))) {
+                    invalid.put(entry.getName(), "metadata model_id does not match folder name.");
+                    continue;
+                }
+                if (!targetFolder.equalsIgnoreCase(targetFolderForMetadata(String.valueOf(target)))) {
+                    invalid.put(entry.getName(), "metadata target does not match " + targetFolder + ".");
+                    continue;
+                }
+                valid.add(entry.getName());
+            } catch (IOException | RuntimeException e) {
+                invalid.put(entry.getName(), "Malformed model_metadata.json: " + e.getMessage());
+            }
+        }
+        Collections.sort(valid);
+        return new SavedModelDiscovery(List.copyOf(valid), Map.copyOf(invalid));
+    }
+
+    private static boolean visibleModelName(String name) {
+        return name != null && !name.isBlank() && !name.startsWith(".") && !name.startsWith("._");
+    }
+
+    private static String targetFolderForMetadata(String target) {
+        String normalized = target == null ? "" : target.trim().toUpperCase(Locale.ROOT);
+        if ("NUCLEUS".equals(normalized) || "NUC".equals(normalized)) {
+            return "nucleus";
+        }
+        if ("CELL".equals(normalized)) {
+            return "cell";
+        }
+        return "";
     }
 
     private static void applyImageChannelDefaults(List<EditableConstant> constants, List<ImageChannel> channels) {
@@ -1194,6 +1346,9 @@ final class AstraPipelineLauncher {
                                      List<String> markerChannels,
                                      boolean hasNucleusMarker,
                                      boolean hasCellCandidate) {
+    }
+
+    record SavedModelDiscovery(List<String> validIds, Map<String, String> invalidModels) {
     }
 
     private static String semanticButtonStyle() {
@@ -1790,11 +1945,11 @@ final class AstraPipelineLauncher {
         private String profileSha256 = "";
         private boolean manualEdit;
 
-        private static SettingsProfileState scriptDefaults() {
+        static SettingsProfileState scriptDefaults() {
             return new SettingsProfileState();
         }
 
-        private void loadedProfile(String name, String path, String sha256) {
+        void loadedProfile(String name, String path, String sha256) {
             this.source = "loaded settings profile";
             this.profileName = name;
             this.profilePath = path;
@@ -1802,7 +1957,7 @@ final class AstraPipelineLauncher {
             this.manualEdit = false;
         }
 
-        private void resetToScriptDefaults() {
+        void resetToScriptDefaults() {
             this.source = "script defaults or manual GUI values";
             this.profileName = "";
             this.profilePath = "";
@@ -1810,11 +1965,11 @@ final class AstraPipelineLauncher {
             this.manualEdit = false;
         }
 
-        private void markManualEdit() {
+        void markManualEdit() {
             this.manualEdit = true;
         }
 
-        private String summary() {
+        String summary() {
             if (!profilePath.isBlank()) {
                 return source + " (" + profileName + ", sha256=" + profileSha256.substring(0, Math.min(12, profileSha256.length()))
                         + (manualEdit ? ", edited after load" : "") + ")";

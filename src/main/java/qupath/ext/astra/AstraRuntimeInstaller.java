@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -394,7 +395,7 @@ final class AstraRuntimeInstaller {
      */
     private static CommandResult runCommand(List<String> command, File workingDirectory, Duration timeout, InstallProgress progress, File logFile) throws IOException, InterruptedException {
         if (progress != null && progress.cancelRequested) {
-            throw new IOException("ASTRA runtime setup was cancelled before starting command:\n" + String.join(" ", command));
+            throw new CancellationException("ASTRA runtime installation cancelled by user before starting command:\n" + String.join(" ", command));
         }
         appendLog(logFile, "\n$ " + String.join(" ", command) + System.lineSeparator());
         progressLine(progress, "$ " + String.join(" ", command));
@@ -421,7 +422,7 @@ final class AstraRuntimeInstaller {
             }
             reader.join(Duration.ofSeconds(2).toMillis());
             if (progress != null && progress.cancelRequested) {
-                throw new IOException("ASTRA runtime setup was cancelled after command:\n" + String.join(" ", command));
+                throw new CancellationException("ASTRA runtime installation cancelled by user after command:\n" + String.join(" ", command));
             }
             return new CommandResult(process.exitValue(), output.toString());
         } finally {
