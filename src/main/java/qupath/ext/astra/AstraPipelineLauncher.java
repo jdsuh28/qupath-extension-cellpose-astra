@@ -967,13 +967,12 @@ final class AstraPipelineLauncher {
         List<String> nucleusChannels = names.stream()
                 .filter(AstraPipelineLauncher::isNuclearChannel)
                 .toList();
-        List<String> cellChannels = names.stream()
+        List<String> nonNuclearChannels = names.stream()
                 .filter(name -> !isNuclearChannel(name))
-                .filter(AstraPipelineLauncher::isRecognizedNonNuclearChannel)
                 .toList();
+        List<String> cellChannels = nucleusChannels.isEmpty() ? List.of() : nonNuclearChannels;
         List<String> markerChannels = names.stream()
                 .filter(name -> !isNuclearChannel(name))
-                .filter(AstraPipelineLauncher::isRecognizedNonNuclearChannel)
                 .toList();
         return new ImageAwareChannelDefaults(nucleusChannels, cellChannels, markerChannels,
                 !nucleusChannels.isEmpty(), !cellChannels.isEmpty());

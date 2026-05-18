@@ -169,6 +169,66 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
+    void dapiAndGenericSecondChannelUsesGenericSecondForCell() {
+        String script = """
+                final List CHANNELS_FOR_NUCLEUS = []
+                final List CHANNELS_FOR_CELL = []
+                final List NUCLEUS_SEGMENTATION_CHANNELS = []
+                final List CELL_SEGMENTATION_CHANNELS = []
+                final Map cfg = [:]
+                """;
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+
+        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("DAPI", "Channel 2"));
+        String configured = AstraPipelineLauncher.applyConstants(script, constants);
+
+        assertTrue(configured.contains("final List CHANNELS_FOR_NUCLEUS = [\"DAPI\"]"));
+        assertTrue(configured.contains("final List CHANNELS_FOR_CELL = [\"Channel 2\"]"));
+        assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = [\"DAPI\"]"));
+        assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = [\"Channel 2\"]"));
+    }
+
+    @Test
+    void hoechstAndGenericSecondChannelUsesGenericSecondForCell() {
+        String script = """
+                final List CHANNELS_FOR_NUCLEUS = []
+                final List CHANNELS_FOR_CELL = []
+                final List NUCLEUS_SEGMENTATION_CHANNELS = []
+                final List CELL_SEGMENTATION_CHANNELS = []
+                final Map cfg = [:]
+                """;
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+
+        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Hoechst", "Membrane"));
+        String configured = AstraPipelineLauncher.applyConstants(script, constants);
+
+        assertTrue(configured.contains("final List CHANNELS_FOR_NUCLEUS = [\"Hoechst\"]"));
+        assertTrue(configured.contains("final List CHANNELS_FOR_CELL = [\"Membrane\"]"));
+        assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = [\"Hoechst\"]"));
+        assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = [\"Membrane\"]"));
+    }
+
+    @Test
+    void genericChannelsWithoutNuclearMarkerStillDoNothing() {
+        String script = """
+                final List CHANNELS_FOR_NUCLEUS = ["DAPI"]
+                final List CHANNELS_FOR_CELL = ["AF555"]
+                final List NUCLEUS_SEGMENTATION_CHANNELS = ["DAPI"]
+                final List CELL_SEGMENTATION_CHANNELS = ["AF555"]
+                final Map cfg = [:]
+                """;
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+
+        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Channel 1", "Channel 2"));
+        String configured = AstraPipelineLauncher.applyConstants(script, constants);
+
+        assertTrue(configured.contains("final List CHANNELS_FOR_NUCLEUS = []"));
+        assertTrue(configured.contains("final List CHANNELS_FOR_CELL = []"));
+        assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = []"));
+        assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = []"));
+    }
+
+    @Test
     void twoOpenedChannelsSynchronizeColocalizationDefaults() {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
 
