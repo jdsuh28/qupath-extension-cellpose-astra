@@ -307,10 +307,13 @@ final class AstraRuntimeInstaller {
     }
 
     /**
-     * Verifies that the runtime imports Cellpose, torch, and segment-anything.
+     * Verifies that the runtime passes all required startup checks before it is
+     * accepted: Python executable version, NumPy import/version, torch
+     * import/version, Cellpose-ASTRA fork marker, combined import validation,
+     * and Cellpose startup/version command.
      *
      * @param python runtime Python executable.
-     * @throws IOException if verification fails.
+     * @throws IOException if any validation command fails.
      * @throws InterruptedException if verification is interrupted.
      */
     private static void verifyRuntime(File python, InstallProgress progress, File logFile) throws IOException, InterruptedException {
@@ -402,21 +405,54 @@ final class AstraRuntimeInstaller {
         }
 
         Process process = builder.start();
+        if (progress != null) {
+            progress.setCurrentProcess(process);
+        }
         StringBuilder output = new StringBuilder();
-        Thread reader = new Thread(() -> readOutput(process, output, progress, logFile), "ASTRA runtime installer output");
-        reader.setDaemon(true);
-        reader.start();
+        try {
+            Thread reader = new Thread(() -> readOutput(process, output, progress, logFile), "ASTRA runtime installer output");
+            reader.setDaemon(true);
+            reader.start();
 
-        boolean finished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        if (!finished) {
+            boolean finished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            if (!finished) {
+                terminateProcessForCancellation(process, Duration.ofSeconds(2));
+                throw new IOException("Command timed out after " + timeout.toMinutes() + " minutes:\n" + String.join(" ", command));
+            }
+            reader.join(Duration.ofSeconds(2).toMillis());
+            if (progress != null && progress.cancelRequested) {
+                throw new IOException("ASTRA runtime setup was cancelled after command:\n" + String.join(" ", command));
+            }
+            return new CommandResult(process.exitValue(), output.toString());
+        } finally {
+            if (progress != null) {
+                progress.clearCurrentProcess(process);
+            }
+        }
+    }
+
+    /**
+     * Terminates an active installer process for cancellation.
+     *
+     * @param process process to stop.
+     * @param gracefulWait time to wait after {@link Process#destroy()} before
+     * escalating.
+     * @return true if a running process was asked to terminate.
+     */
+    static boolean terminateProcessForCancellation(Process process, Duration gracefulWait) {
+        if (process == null || !process.isAlive()) {
+            return false;
+        }
+        process.destroy();
+        try {
+            if (!process.waitFor(Math.max(1L, gracefulWait.toMillis()), TimeUnit.MILLISECONDS) && process.isAlive()) {
+                process.destroyForcibly();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             process.destroyForcibly();
-            throw new IOException("Command timed out after " + timeout.toMinutes() + " minutes:\n" + String.join(" ", command));
         }
-        reader.join(Duration.ofSeconds(2).toMillis());
-        if (progress != null && progress.cancelRequested) {
-            throw new IOException("ASTRA runtime setup was cancelled after command:\n" + String.join(" ", command));
-        }
-        return new CommandResult(process.exitValue(), output.toString());
+        return true;
     }
 
     /**
@@ -557,6 +593,7 @@ final class AstraRuntimeInstaller {
         private final Label step;
         private final TextArea log;
         private volatile boolean cancelRequested;
+        private volatile Process currentProcess;
 
         /**
          * Creates a progress sink.
@@ -586,8 +623,7 @@ final class AstraRuntimeInstaller {
             Button cancel = new Button("Cancel");
             InstallProgress progress = new InstallProgress(stage, step, log);
             cancel.setOnAction(event -> {
-                progress.cancelRequested = true;
-                progress.line("Cancellation requested. The current package operation may finish before setup stops.");
+                progress.requestCancel();
                 cancel.setDisable(true);
             });
             HBox top = new HBox(10, indicator, step, cancel);
@@ -618,6 +654,42 @@ final class AstraRuntimeInstaller {
          */
         void line(String text) {
             Platform.runLater(() -> log.appendText(text + System.lineSeparator()));
+        }
+
+        /**
+         * Tracks the currently running installer process so cancellation can
+         * interrupt long conda/pip commands.
+         *
+         * @param process active process.
+         */
+        void setCurrentProcess(Process process) {
+            currentProcess = process;
+            if (cancelRequested) {
+                terminateProcessForCancellation(process, Duration.ofSeconds(2));
+            }
+        }
+
+        /**
+         * Clears the current process if it matches the completed command.
+         *
+         * @param process process that completed.
+         */
+        void clearCurrentProcess(Process process) {
+            if (currentProcess == process) {
+                currentProcess = null;
+            }
+        }
+
+        /**
+         * Requests cancellation and immediately terminates any active command.
+         */
+        void requestCancel() {
+            cancelRequested = true;
+            line("Cancellation requested. Stopping the active install command.");
+            Process process = currentProcess;
+            if (terminateProcessForCancellation(process, Duration.ofSeconds(2))) {
+                line("Active install command was asked to terminate.");
+            }
         }
 
         /**
