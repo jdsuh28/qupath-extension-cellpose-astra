@@ -584,7 +584,8 @@ class AstraPipelineLauncherTest {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
 
         assertTrue(source.contains("private static final double CONTENT_HORIZONTAL_MARGIN = 24.0;"));
-        assertTrue(source.contains("private static final double SECTION_ROW_HEIGHT = 34.0;"));
+        assertTrue(source.contains("private static final double PARAMETER_ROW_HEIGHT = 34.0;"));
+        assertTrue(source.contains("private static final double PARAMETER_ROW_GAP = 8.0;"));
         assertTrue(source.contains("header.setPadding(new Insets(22.0, CONTENT_HORIZONTAL_MARGIN, 20.0, CONTENT_HORIZONTAL_MARGIN));"));
         assertTrue(source.contains("body.setPadding(new Insets(0, 0, 18.0, 0));"));
         assertTrue(source.contains("workspace.setPadding(new Insets(0, CONTENT_HORIZONTAL_MARGIN, 18.0, CONTENT_HORIZONTAL_MARGIN));"));
@@ -598,10 +599,14 @@ class AstraPipelineLauncherTest {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
 
         assertTrue(source.contains("private static HBox labeledRow(String labelText, Node editor, double labelWidth)"));
-        assertTrue(source.contains("row.setMinHeight(SECTION_ROW_HEIGHT);"));
-        assertTrue(source.contains("grid.setVgap(8.0);"));
+        assertTrue(source.contains("row.setMinHeight(PARAMETER_ROW_HEIGHT);"));
+        assertTrue(source.contains("grid.setVgap(PARAMETER_ROW_GAP);"));
+        assertTrue(source.contains("VBox group = new VBox(PARAMETER_ROW_GAP);"));
+        assertTrue(source.contains("private final VBox rows = new VBox(PARAMETER_ROW_GAP);"));
         assertTrue(source.contains("HBox row = labeledRow(prettyName(constant.name), editor, 160.0);"));
         assertTrue(source.contains("HBox row = labeledRow(\"Detection target\", editor, 160.0);"));
+        assertTrue(source.contains("private static final double SECTION_CONTENT_GAP = 9.0;"));
+        assertTrue(source.contains("private static final double CARD_CONTENT_GAP = 8.0;"));
     }
 
     @Test

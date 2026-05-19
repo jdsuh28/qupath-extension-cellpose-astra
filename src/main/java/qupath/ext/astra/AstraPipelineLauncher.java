@@ -102,7 +102,10 @@ final class AstraPipelineLauncher {
     private static final String CONTROL_BORDER = "#7fa3ad";
     private static final int SETTINGS_PROFILE_SCHEMA_VERSION = 1;
     private static final double CONTENT_HORIZONTAL_MARGIN = 24.0;
-    private static final double SECTION_ROW_HEIGHT = 34.0;
+    private static final double PARAMETER_ROW_HEIGHT = 34.0;
+    private static final double PARAMETER_ROW_GAP = 8.0;
+    private static final double SECTION_CONTENT_GAP = 9.0;
+    private static final double CARD_CONTENT_GAP = 8.0;
     private static final Gson PROFILE_GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private AstraPipelineLauncher() {
@@ -882,7 +885,7 @@ final class AstraPipelineLauncher {
     }
 
     private static VBox sectionShell(String titleText, String subtitleText) {
-        VBox box = new VBox(9.0);
+        VBox box = new VBox(SECTION_CONTENT_GAP);
         box.setPadding(new Insets(14.0));
         box.setStyle("-fx-background-color: " + PANEL + "; -fx-border-color: #cfdce1; -fx-border-radius: 7; -fx-background-radius: 7;");
         Label title = new Label(titleText);
@@ -1016,7 +1019,7 @@ final class AstraPipelineLauncher {
     }
 
     private static VBox semanticCard(String titleText, String subtitleText) {
-        VBox box = new VBox(9.0);
+        VBox box = new VBox(CARD_CONTENT_GAP);
         box.setPadding(new Insets(12.0));
         box.setStyle("-fx-background-color: #f9fcfd; -fx-border-color: #c8dce1; -fx-border-radius: 6; -fx-background-radius: 6;");
         Label title = new Label(titleText);
@@ -1030,7 +1033,7 @@ final class AstraPipelineLauncher {
 
     private static VBox targetModelGroup(String title, EditableConstant source, EditableConstant name, EditableConstant file,
                                          EditableConstant savedModelId, SavedModelDiscovery savedModelDiscovery, SettingsAutosave autosave) {
-        VBox group = new VBox(6.0);
+        VBox group = new VBox(PARAMETER_ROW_GAP);
         group.setPadding(new Insets(10.0));
         group.setStyle("-fx-background-color: white; -fx-border-color: #d7e2e6; -fx-border-radius: 5; -fx-background-radius: 5;");
         Label label = new Label(title);
@@ -1127,13 +1130,16 @@ final class AstraPipelineLauncher {
     }
 
     private static HBox labeledRow(String labelText, Node editor, double labelWidth) {
-        HBox row = new HBox(8.0);
+        HBox row = new HBox(PARAMETER_ROW_GAP);
         row.setAlignment(Pos.CENTER_LEFT);
-        row.setMinHeight(SECTION_ROW_HEIGHT);
-        row.setPrefHeight(SECTION_ROW_HEIGHT);
+        row.setMinHeight(PARAMETER_ROW_HEIGHT);
+        row.setPrefHeight(PARAMETER_ROW_HEIGHT);
         Label label = new Label(labelText);
         label.setMinWidth(labelWidth);
         label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 800; -fx-text-fill: " + INK + ";");
+        if (editor instanceof Region region) {
+            region.setMinHeight(PARAMETER_ROW_HEIGHT);
+        }
         HBox.setHgrow(editor, Priority.ALWAYS);
         row.getChildren().addAll(label, editor);
         return row;
@@ -1143,7 +1149,7 @@ final class AstraPipelineLauncher {
         GridPane grid = new GridPane();
         grid.setPadding(new Insets(14.0));
         grid.setHgap(12.0);
-        grid.setVgap(8.0);
+        grid.setVgap(PARAMETER_ROW_GAP);
         grid.setStyle("-fx-background-color: " + PANEL + "; -fx-border-color: #d7e2e6; -fx-border-radius: 0 0 6 6; -fx-background-radius: 0 0 6 6;");
 
         int row = 0;
@@ -1165,13 +1171,13 @@ final class AstraPipelineLauncher {
             info.setTooltip(tooltip);
             installReliableTooltip(info, tooltip);
             labelBox.getChildren().addAll(label, info);
-            labelBox.setMinHeight(SECTION_ROW_HEIGHT);
+            labelBox.setMinHeight(PARAMETER_ROW_HEIGHT);
             grid.add(labelBox, 0, row);
 
             Node editor = constant.createEditor();
             constant.addChangeListener(autosave::markManualEditAndSave);
             if (editor instanceof Region region) {
-                region.setMinHeight(SECTION_ROW_HEIGHT);
+                region.setMinHeight(PARAMETER_ROW_HEIGHT);
             }
             GridPane.setHgrow(editor, Priority.ALWAYS);
             grid.add(editor, 1, row++);
@@ -2262,7 +2268,7 @@ final class AstraPipelineLauncher {
     private static final class ColocalizationChecksEditor extends VBox {
 
         private final List<String> imageChannels;
-        private final VBox rows = new VBox(8.0);
+        private final VBox rows = new VBox(PARAMETER_ROW_GAP);
         private final List<CheckRow> checkRows = new ArrayList<>();
         private final List<Runnable> listeners = new ArrayList<>();
 
@@ -2312,13 +2318,14 @@ final class AstraPipelineLauncher {
 
         private final class CheckRow {
 
-            private final HBox node = new HBox(8.0);
+            private final HBox node = new HBox(PARAMETER_ROW_GAP);
             private final TextField label = new TextField();
             private final ComboBox<String> compartment = new ComboBox<>();
             private final Map<String, CheckBox> channelBoxes = new LinkedHashMap<>();
 
             private CheckRow(ColocalizationCheck check) {
                 node.setAlignment(Pos.CENTER_LEFT);
+                node.setMinHeight(PARAMETER_ROW_HEIGHT);
                 node.setStyle("-fx-background-color: white; -fx-border-color: #d7e2e6; -fx-border-radius: 5; -fx-background-radius: 5; -fx-padding: 8;");
                 label.setPromptText("Label");
                 label.setText(check.label());
