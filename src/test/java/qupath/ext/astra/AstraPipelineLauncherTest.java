@@ -383,6 +383,28 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
+    void launcherSourceUsesBalancedBodyMarginsAndSharedRowHeight() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("private static final double BODY_LEFT_MARGIN = 14.0;"));
+        assertTrue(source.contains("private static final double BODY_RIGHT_MARGIN = 18.0;"));
+        assertTrue(source.contains("private static final double SECTION_ROW_HEIGHT = 34.0;"));
+        assertTrue(source.contains("body.setPadding(new Insets(0, BODY_RIGHT_MARGIN, 18.0, BODY_LEFT_MARGIN));"));
+        assertTrue(source.contains("workspace.setPadding(new Insets(0, BODY_RIGHT_MARGIN, 18.0, BODY_LEFT_MARGIN));"));
+    }
+
+    @Test
+    void launcherSourceUsesSharedLabeledRowsForConsistentVerticalSpacing() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("private static HBox labeledRow(String labelText, Node editor, double labelWidth)"));
+        assertTrue(source.contains("row.setMinHeight(SECTION_ROW_HEIGHT);"));
+        assertTrue(source.contains("grid.setVgap(8.0);"));
+        assertTrue(source.contains("HBox row = labeledRow(prettyName(constant.name), editor, 160.0);"));
+        assertTrue(source.contains("HBox row = labeledRow(\"Detection target\", editor, 160.0);"));
+    }
+
+    @Test
     void detectionTargetAndThresholdExclusionsAreEditable() {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
                 final List DETECTION_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]

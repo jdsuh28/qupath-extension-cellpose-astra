@@ -28,6 +28,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.shape.Rectangle;
 import org.slf4j.Logger;
@@ -99,6 +100,9 @@ final class AstraPipelineLauncher {
     private static final String GOLD = "#d4a72c";
     private static final String CONTROL_BORDER = "#7fa3ad";
     private static final int SETTINGS_PROFILE_SCHEMA_VERSION = 1;
+    private static final double BODY_LEFT_MARGIN = 14.0;
+    private static final double BODY_RIGHT_MARGIN = 18.0;
+    private static final double SECTION_ROW_HEIGHT = 34.0;
     private static final Gson PROFILE_GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private AstraPipelineLauncher() {
@@ -671,7 +675,7 @@ final class AstraPipelineLauncher {
         header.getChildren().addAll(titleRow, subtitle, createPipelineFlow(scriptName));
 
         VBox body = new VBox(14.0);
-        body.setPadding(new Insets(0, 18.0, 18.0, 18.0));
+        body.setPadding(new Insets(0, BODY_RIGHT_MARGIN, 18.0, BODY_LEFT_MARGIN));
         body.getChildren().add(createChannelPanel(imageChannels));
         boolean colocalization = isColocalizationConfig(constants);
         if (colocalization) {
@@ -710,7 +714,7 @@ final class AstraPipelineLauncher {
         HBox.setHgrow(scroll, Priority.ALWAYS);
 
         HBox workspace = new HBox(14.0);
-        workspace.setPadding(new Insets(0, 18.0, 18.0, 18.0));
+        workspace.setPadding(new Insets(0, BODY_RIGHT_MARGIN, 18.0, BODY_LEFT_MARGIN));
         workspace.setStyle("-fx-background-color: " + PAPER + ";");
         Node feedbackNode = feedback.node();
         workspace.getChildren().addAll(scroll, feedbackNode);
@@ -852,14 +856,8 @@ final class AstraPipelineLauncher {
 
         VBox targetPanel = semanticCard("Detection Target", "Choose whether colocalization runs nucleus segmentation, cell segmentation, or paired nucleus/cell detection.");
         if (detectionTarget != null) {
-            HBox row = new HBox(8.0);
-            row.setAlignment(Pos.CENTER_LEFT);
-            Label label = new Label("Detection target");
-            label.setMinWidth(160.0);
-            label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 800; -fx-text-fill: " + INK + ";");
             Node editor = detectionTarget.createEditor();
-            HBox.setHgrow(editor, Priority.ALWAYS);
-            row.getChildren().addAll(label, editor);
+            HBox row = labeledRow("Detection target", editor, 160.0);
             detectionTarget.addChangeListener(profileState::markManualEdit);
             targetPanel.getChildren().add(row);
         }
@@ -936,7 +934,7 @@ final class AstraPipelineLauncher {
 
     private static VBox targetModelGroup(String title, EditableConstant source, EditableConstant name, EditableConstant file,
                                          EditableConstant savedModelId, SavedModelDiscovery savedModelDiscovery, SettingsProfileState profileState) {
-        VBox group = new VBox(8.0);
+        VBox group = new VBox(6.0);
         group.setPadding(new Insets(10.0));
         group.setStyle("-fx-background-color: white; -fx-border-color: #d7e2e6; -fx-border-radius: 5; -fx-background-radius: 5;");
         Label label = new Label(title);
@@ -950,16 +948,10 @@ final class AstraPipelineLauncher {
             if (constant == null) {
                 continue;
             }
-            HBox row = new HBox(8.0);
-            row.setAlignment(Pos.CENTER_LEFT);
-            Label rowLabel = new Label(prettyName(constant.name));
-            rowLabel.setMinWidth(160.0);
-            rowLabel.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 800; -fx-text-fill: " + INK + ";");
             Node editor = constant.createEditor();
-            HBox.setHgrow(editor, Priority.ALWAYS);
-            row.getChildren().addAll(rowLabel, editor);
+            HBox row = labeledRow(prettyName(constant.name), editor, 160.0);
             group.getChildren().add(row);
-            rows.put(constant.name, new RowNodes(rowLabel, editor));
+            rows.put(constant.name, new RowNodes(row, editor));
             constant.addChangeListener(profileState::markManualEdit);
         }
         if (savedModelDiscovery != null && !savedModelDiscovery.invalidModels().isEmpty()) {
@@ -1038,11 +1030,24 @@ final class AstraPipelineLauncher {
         return flow;
     }
 
+    private static HBox labeledRow(String labelText, Node editor, double labelWidth) {
+        HBox row = new HBox(8.0);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setMinHeight(SECTION_ROW_HEIGHT);
+        row.setPrefHeight(SECTION_ROW_HEIGHT);
+        Label label = new Label(labelText);
+        label.setMinWidth(labelWidth);
+        label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 800; -fx-text-fill: " + INK + ";");
+        HBox.setHgrow(editor, Priority.ALWAYS);
+        row.getChildren().addAll(label, editor);
+        return row;
+    }
+
     private static CollapsibleSection createSection(String title, List<EditableConstant> constants, boolean expanded, SettingsProfileState profileState) {
         GridPane grid = new GridPane();
         grid.setPadding(new Insets(14.0));
         grid.setHgap(12.0);
-        grid.setVgap(10.0);
+        grid.setVgap(8.0);
         grid.setStyle("-fx-background-color: " + PANEL + "; -fx-border-color: #d7e2e6; -fx-border-radius: 0 0 6 6; -fx-background-radius: 0 0 6 6;");
 
         int row = 0;
@@ -1064,10 +1069,14 @@ final class AstraPipelineLauncher {
             info.setTooltip(tooltip);
             installReliableTooltip(info, tooltip);
             labelBox.getChildren().addAll(label, info);
+            labelBox.setMinHeight(SECTION_ROW_HEIGHT);
             grid.add(labelBox, 0, row);
 
             Node editor = constant.createEditor();
             constant.addChangeListener(profileState::markManualEdit);
+            if (editor instanceof Region region) {
+                region.setMinHeight(SECTION_ROW_HEIGHT);
+            }
             GridPane.setHgrow(editor, Priority.ALWAYS);
             grid.add(editor, 1, row++);
             rows.put(constant.name, new RowNodes(labelBox, editor));
@@ -1302,28 +1311,6 @@ final class AstraPipelineLauncher {
     private static boolean isNuclearChannel(String name) {
         String lower = name.toLowerCase(Locale.ROOT);
         return lower.contains("dapi") || lower.contains("hoechst");
-    }
-
-    private static boolean isRecognizedNonNuclearChannel(String name) {
-        String lower = name.toLowerCase(Locale.ROOT);
-        return lower.contains("fitc") ||
-                lower.contains("tritc") ||
-                lower.contains("texas") ||
-                lower.contains("alexa") ||
-                lower.contains("af488") ||
-                lower.contains("af555") ||
-                lower.contains("af568") ||
-                lower.contains("af594") ||
-                lower.contains("af647") ||
-                lower.contains("cy3") ||
-                lower.contains("cy5") ||
-                lower.contains("wga") ||
-                lower.contains("wheat germ") ||
-                lower.contains("asma") ||
-                lower.contains("a-sma") ||
-                lower.contains("αsma") ||
-                lower.contains("cd31") ||
-                lower.contains("pecam");
     }
 
     private static String firstOrNull(List<String> values) {
