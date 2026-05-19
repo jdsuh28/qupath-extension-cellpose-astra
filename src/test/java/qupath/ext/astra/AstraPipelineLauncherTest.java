@@ -773,6 +773,8 @@ class AstraPipelineLauncherTest {
 
         assertTrue(source.contains("Button remove = new Button(\"🗑\")"));
         assertTrue(source.contains("new Tooltip(\"Delete check\")"));
+        assertFalse(source.contains("new Button(\"...\")"));
+        assertFalse(source.contains("setText(\"...\")"));
         assertTrue(source.contains("compartment.setMinWidth(120.0)"));
         assertTrue(source.contains("compartment.setPrefWidth(130.0)"));
         assertTrue(source.contains("channels.setAlignment(Pos.CENTER_LEFT)"));
