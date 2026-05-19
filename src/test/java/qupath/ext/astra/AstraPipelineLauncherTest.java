@@ -638,6 +638,20 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
+    void colocalizationInheritedModelDefaultsBecomeVisibleTargetSpecificValues() {
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationModelScript("BOTH"));
+
+        AstraPipelineLauncher.applyColocalizationInheritedModelDefaults(constants);
+        Map<String, String> values = new java.util.LinkedHashMap<>();
+        constants.forEach(c -> values.put(c.name(), c.currentDisplayValue()));
+
+        assertEquals("\"MODEL_NAME\"", values.get("NUC_MODEL_SOURCE"));
+        assertEquals("\"cpsam\"", values.get("NUC_MODEL_NAME"));
+        assertEquals("\"MODEL_NAME\"", values.get("CELL_MODEL_SOURCE"));
+        assertEquals("\"cpsam\"", values.get("CELL_MODEL_NAME"));
+    }
+
+    @Test
     void colocalizationPanelStateFollowsDetectionTarget() {
         assertEquals(new AstraPipelineLauncher.ColocalizationPanelState(true, false, true, false),
                 AstraPipelineLauncher.colocalizationPanelState("NUCLEUS"));

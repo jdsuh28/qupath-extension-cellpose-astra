@@ -698,6 +698,10 @@ final class AstraPipelineLauncher {
         if (applyChannelDefaults) {
             applyImageChannelDefaults(constants, imageChannels);
         }
+        boolean colocalization = isColocalizationConfig(constants);
+        if (colocalization) {
+            applyColocalizationInheritedModelDefaults(constants);
+        }
         constants.forEach(EditableConstant::markDefault);
         SettingsAutosave autosave = SettingsAutosave.create(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, feedback);
         autosave.restoreIfAvailable();
@@ -739,7 +743,6 @@ final class AstraPipelineLauncher {
         VBox body = new VBox(14.0);
         body.setPadding(new Insets(0, BODY_HORIZONTAL_MARGIN, 18.0, BODY_HORIZONTAL_MARGIN));
         body.getChildren().add(createChannelPanel(imageChannels));
-        boolean colocalization = isColocalizationConfig(constants);
         if (colocalization) {
             body.getChildren().add(createColocalizationPanel(qupath, constants, imageChannels, autosave));
         }
@@ -908,6 +911,32 @@ final class AstraPipelineLauncher {
                 "NUCLEUS_SEGMENTATION_CHANNELS", "CELL_SEGMENTATION_CHANNELS",
                 "COLOCALIZATION_CHECKS", "THRESHOLD_EXCLUDE_MARKERS"
         ).contains(name);
+    }
+
+    static void applyColocalizationInheritedModelDefaults(List<EditableConstant> constants) {
+        Map<String, EditableConstant> byName = new LinkedHashMap<>();
+        constants.forEach(c -> byName.put(c.name, c));
+        applyInheritedModelDefaultsForTarget(byName, "NUC_");
+        applyInheritedModelDefaultsForTarget(byName, "CELL_");
+    }
+
+    private static void applyInheritedModelDefaultsForTarget(Map<String, EditableConstant> constants, String prefix) {
+        EditableConstant targetSource = constants.get(prefix + "MODEL_SOURCE");
+        EditableConstant targetName = constants.get(prefix + "MODEL_NAME");
+        EditableConstant targetFile = constants.get(prefix + "MODEL_FILE");
+        String source = rawString(constants, prefix + "MODEL_SOURCE", "");
+        if (source.isBlank()) {
+            source = rawString(constants, "MODEL_SOURCE", "MODEL_NAME");
+            if (targetSource != null && !source.isBlank()) {
+                targetSource.setDisplayString(source);
+            }
+        }
+        if ("MODEL_NAME".equals(source) && targetName != null && rawString(constants, prefix + "MODEL_NAME", "").isBlank()) {
+            targetName.setDisplayString(rawString(constants, "MODEL_NAME", ""));
+        }
+        if ("FILE".equals(source) && targetFile != null && rawString(constants, prefix + "MODEL_FILE", "").isBlank()) {
+            targetFile.setDisplayString(rawString(constants, "MODEL_FILE", ""));
+        }
     }
 
     private static VBox createColocalizationPanel(QuPathGUI qupath, List<EditableConstant> constants, List<ImageChannel> imageChannels, SettingsAutosave autosave) {
