@@ -101,7 +101,7 @@ final class AstraPipelineLauncher {
     private static final String GOLD = "#d4a72c";
     private static final String CONTROL_BORDER = "#7fa3ad";
     private static final int SETTINGS_PROFILE_SCHEMA_VERSION = 1;
-    private static final double BODY_HORIZONTAL_MARGIN = 18.0;
+    private static final double CONTENT_HORIZONTAL_MARGIN = 24.0;
     private static final double SECTION_ROW_HEIGHT = 34.0;
     private static final Gson PROFILE_GSON = new GsonBuilder().setPrettyPrinting().create();
 
@@ -711,7 +711,7 @@ final class AstraPipelineLauncher {
         root.setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
 
         VBox header = new VBox(12.0);
-        header.setPadding(new Insets(22.0, 24.0, 20.0, 24.0));
+        header.setPadding(new Insets(22.0, CONTENT_HORIZONTAL_MARGIN, 20.0, CONTENT_HORIZONTAL_MARGIN));
         header.setStyle("-fx-background-color: linear-gradient(to right, #102a3a, #1f7a7a 62%, #d9604c);");
         HBox titleRow = new HBox(12.0);
         titleRow.setAlignment(Pos.CENTER_LEFT);
@@ -741,7 +741,7 @@ final class AstraPipelineLauncher {
         header.getChildren().addAll(titleRow, subtitle, createPipelineFlow(scriptName));
 
         VBox body = new VBox(14.0);
-        body.setPadding(new Insets(0, BODY_HORIZONTAL_MARGIN, 18.0, BODY_HORIZONTAL_MARGIN));
+        body.setPadding(new Insets(0, 0, 18.0, 0));
         body.getChildren().add(createChannelPanel(imageChannels));
         if (colocalization) {
             body.getChildren().add(createColocalizationPanel(qupath, constants, imageChannels, autosave));
@@ -779,7 +779,7 @@ final class AstraPipelineLauncher {
         HBox.setHgrow(scroll, Priority.ALWAYS);
 
         HBox workspace = new HBox(14.0);
-        workspace.setPadding(new Insets(0, BODY_HORIZONTAL_MARGIN, 18.0, BODY_HORIZONTAL_MARGIN));
+        workspace.setPadding(new Insets(0, CONTENT_HORIZONTAL_MARGIN, 18.0, CONTENT_HORIZONTAL_MARGIN));
         workspace.setStyle("-fx-background-color: " + PAPER + ";");
         Node feedbackNode = feedback.node();
         workspace.getChildren().addAll(scroll, feedbackNode);
