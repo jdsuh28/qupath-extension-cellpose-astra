@@ -53,8 +53,8 @@ class AstraPipelineLauncherTest {
                 // USER EDIT SECTION
                 // -----------------------------------------------------------------------------
 
-                final String MODEL_NAME_HELP = "Default model name."
-                final String MODEL_NAME = "cpsam"
+                final String NUC_MODEL_NAME_HELP = "Default nucleus model name."
+                final String NUC_MODEL_NAME = "cpsam"
                 final double NUC_CELLPROB = CellposeInferenceDefaults.CELLPROB_THRESHOLD
 
                 // -----------------------------------------------------------------------------
@@ -66,7 +66,7 @@ class AstraPipelineLauncherTest {
                 """);
 
         List<String> names = constants.stream().map(AstraPipelineLauncher.EditableConstant::name).toList();
-        assertEquals(List.of("MODEL_NAME", "NUC_CELLPROB"), names);
+        assertEquals(List.of("NUC_MODEL_NAME", "NUC_CELLPROB"), names);
         assertFalse(names.contains("USE_LOCAL_CLASSES"));
         assertFalse(names.contains("localRunnerFile"));
     }
@@ -75,15 +75,15 @@ class AstraPipelineLauncherTest {
     void realCurrentAstraScriptsExposeEditableConstantsAfterDefaultsBootstrap() throws Exception {
         Map<String, List<String>> requiredByScript = Map.of(
                 "training/src/main/groovy/training.groovy",
-                List.of("TRAIN_TARGET", "TRAINING_MODE", "MODEL_NAME", "CHANNELS_FOR_NUCLEUS"),
+                List.of("TRAIN_TARGET", "TRAINING_MODE", "NUC_MODEL_NAME", "CHANNELS_FOR_NUCLEUS"),
                 "tuning/src/main/groovy/tuning.groovy",
-                List.of("TUNE_TARGET", "SEARCH_MODE", "MODEL_NAME", "PARAM_DEFAULTS_BY_TARGET"),
+                List.of("TUNE_TARGET", "SEARCH_MODE", "NUC_MODEL_NAME", "PARAM_DEFAULTS_BY_TARGET"),
                 "validation/src/main/groovy/validation.groovy",
-                List.of("VALIDATE_TARGET", "VALIDATION_MODE", "MODEL_NAME", "PARAM_DEFAULTS_BY_TARGET"),
+                List.of("VALIDATE_TARGET", "VALIDATION_MODE", "NUC_MODEL_NAME", "PARAM_DEFAULTS_BY_TARGET"),
                 "analysis/src/main/groovy/vascular/vascular.groovy",
-                List.of("MODEL_NAME", "NUC_CELLPROB", "CELL_CELLPROB", "RESULTS_FOLDER"),
+                List.of("NUC_MODEL_NAME", "NUC_CELLPROB", "CELL_CELLPROB", "RESULTS_FOLDER"),
                 "analysis/src/main/groovy/colocalization/colocalization.groovy",
-                List.of("DETECTION_TARGET", "MODEL_NAME", "NUC_CELLPROB", "COLOCALIZATION_CHECKS")
+                List.of("DETECTION_TARGET", "NUC_MODEL_NAME", "NUC_CELLPROB", "COLOCALIZATION_CHECKS")
         );
 
         for (Map.Entry<String, List<String>> entry : requiredByScript.entrySet()) {
@@ -92,6 +92,9 @@ class AstraPipelineLauncherTest {
             List<String> names = constants.stream().map(AstraPipelineLauncher.EditableConstant::name).toList();
 
             assertFalse(constants.isEmpty(), entry.getKey() + " must expose editable constants.");
+            assertFalse(names.contains("MODEL_SOURCE"), entry.getKey() + " must not expose generic MODEL_SOURCE.");
+            assertFalse(names.contains("MODEL_NAME"), entry.getKey() + " must not expose generic MODEL_NAME.");
+            assertFalse(names.contains("MODEL_FILE"), entry.getKey() + " must not expose generic MODEL_FILE.");
             for (String required : entry.getValue()) {
                 assertTrue(names.contains(required), entry.getKey() + " must expose " + required + ".");
             }
@@ -145,7 +148,7 @@ class AstraPipelineLauncherTest {
     void settingsProfilesRoundTripConstants(@TempDir Path tempDir) throws Exception {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
                 final String MODE = "A"
-                final String MODEL_NAME = "cpsam"
+                final String NUC_MODEL_NAME = "cpsam"
                 final Map cfg = [:]
                 """);
         String schema = AstraPipelineLauncher.schemaIdentity(constants);
@@ -160,7 +163,7 @@ class AstraPipelineLauncherTest {
 
         List<AstraPipelineLauncher.EditableConstant> fresh = AstraPipelineLauncher.extractEditableConstants("""
                 final String MODE = "A"
-                final String MODEL_NAME = "cpsam"
+                final String NUC_MODEL_NAME = "cpsam"
                 final Map cfg = [:]
                 """);
         AstraPipelineLauncher.applySettingsProfile(
@@ -182,7 +185,7 @@ class AstraPipelineLauncherTest {
 
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
                 final String MODE = "A"
-                final String MODEL_NAME = "cpsam"
+                final String NUC_MODEL_NAME = "cpsam"
                 final Map cfg = [:]
                 """);
         String schema = AstraPipelineLauncher.schemaIdentity(constants);
@@ -194,7 +197,7 @@ class AstraPipelineLauncherTest {
 
         List<AstraPipelineLauncher.EditableConstant> fresh = AstraPipelineLauncher.extractEditableConstants("""
                 final String MODE = "A"
-                final String MODEL_NAME = "cpsam"
+                final String NUC_MODEL_NAME = "cpsam"
                 final Map cfg = [:]
                 """);
         AstraPipelineLauncher.SettingsProfileState state = AstraPipelineLauncher.SettingsProfileState.scriptDefaults();
@@ -572,9 +575,9 @@ class AstraPipelineLauncherTest {
     @Test
     void colocalizationPanelOwnsDetectionTarget() {
         assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("DETECTION_TARGET", true));
-        assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("MODEL_SOURCE", true));
-        assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("MODEL_NAME", true));
-        assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("MODEL_FILE", true));
+        assertFalse(AstraPipelineLauncher.isHandledByColocalizationPanel("MODEL_SOURCE", true));
+        assertFalse(AstraPipelineLauncher.isHandledByColocalizationPanel("MODEL_NAME", true));
+        assertFalse(AstraPipelineLauncher.isHandledByColocalizationPanel("MODEL_FILE", true));
         assertFalse(AstraPipelineLauncher.isHandledByColocalizationPanel("DETECTION_TARGET", false));
         assertFalse(AstraPipelineLauncher.isHandledByColocalizationPanel("MODEL_SOURCE", false));
     }
@@ -645,10 +648,9 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
-    void colocalizationInheritedModelDefaultsBecomeVisibleTargetSpecificValues() {
+    void colocalizationModelDefaultsAreTargetSpecificValues() {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationModelScript("BOTH"));
 
-        AstraPipelineLauncher.applyColocalizationInheritedModelDefaults(constants);
         Map<String, String> values = new java.util.LinkedHashMap<>();
         constants.forEach(c -> values.put(c.name(), c.currentDisplayValue()));
 
@@ -696,22 +698,18 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
-    void finalSummaryShowsEffectiveInheritedAndTargetSpecificModels() {
+    void finalSummaryShowsEffectiveTargetSpecificModels() {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
                 final List DETECTION_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
                 final String DETECTION_TARGET = "BOTH"
-                final List MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
-                final String MODEL_SOURCE = "MODEL_NAME"
-                final String MODEL_NAME = "cpsam"
-                final String MODEL_FILE = ""
-                final List NUC_MODEL_SOURCE_OPTIONS = ["", "MODEL_NAME", "SAVED", "FILE"]
+                final List NUC_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
                 final String NUC_MODEL_SOURCE = "MODEL_NAME"
                 final String NUC_MODEL_NAME = "nuc-special"
                 final String NUC_MODEL_FILE = ""
                 final String NUC_SAVED_MODEL_ID = ""
-                final List CELL_MODEL_SOURCE_OPTIONS = ["", "MODEL_NAME", "SAVED", "FILE"]
-                final String CELL_MODEL_SOURCE = ""
-                final String CELL_MODEL_NAME = ""
+                final List CELL_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
+                final String CELL_MODEL_SOURCE = "MODEL_NAME"
+                final String CELL_MODEL_NAME = "cpsam"
                 final String CELL_MODEL_FILE = ""
                 final String CELL_SAVED_MODEL_ID = ""
                 final Map cfg = [:]
@@ -719,10 +717,11 @@ class AstraPipelineLauncherTest {
 
         String summary = AstraPipelineLauncher.finalConfigSummary("Colocalization", "123456789012", constants);
 
-        assertTrue(summary.contains("effective nucleus model source: MODEL_NAME (target-specific)"));
+        assertTrue(summary.contains("effective nucleus model source: MODEL_NAME"));
         assertTrue(summary.contains("effective nucleus model: nuc-special"));
-        assertTrue(summary.contains("effective cell model source: MODEL_NAME (inherited)"));
+        assertTrue(summary.contains("effective cell model source: MODEL_NAME"));
         assertTrue(summary.contains("effective cell model: cpsam"));
+        assertFalse(summary.contains("(inherited)"));
     }
 
     @Test
@@ -730,13 +729,9 @@ class AstraPipelineLauncherTest {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
                 final List DETECTION_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
                 final String DETECTION_TARGET = "NUCLEUS"
-                final List MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
-                final String MODEL_SOURCE = "MODEL_NAME"
-                final String MODEL_NAME = "cpsam"
-                final String MODEL_FILE = ""
-                final List NUC_MODEL_SOURCE_OPTIONS = ["", "MODEL_NAME", "SAVED", "FILE"]
+                final List NUC_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
                 final String NUC_MODEL_SOURCE = "SAVED"
-                final String NUC_MODEL_NAME = ""
+                final String NUC_MODEL_NAME = "cpsam"
                 final String NUC_MODEL_FILE = ""
                 final String NUC_SAVED_MODEL_ID = "nuc_v1"
                 final Map cfg = [:]
@@ -744,7 +739,7 @@ class AstraPipelineLauncherTest {
 
         String summary = AstraPipelineLauncher.finalConfigSummary("Colocalization", "123456789012", constants);
 
-        assertTrue(summary.contains("effective nucleus model source: SAVED (target-specific)"));
+        assertTrue(summary.contains("effective nucleus model source: SAVED"));
         assertTrue(summary.contains("effective nucleus model: nuc_v1"));
     }
 
@@ -877,18 +872,14 @@ class AstraPipelineLauncherTest {
         return """
                 final List DETECTION_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
                 final String DETECTION_TARGET = "%s"
-                final List MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
-                final String MODEL_SOURCE = "MODEL_NAME"
-                final String MODEL_NAME = "cpsam"
-                final String MODEL_FILE = ""
-                final List NUC_MODEL_SOURCE_OPTIONS = ["", "MODEL_NAME", "SAVED", "FILE"]
-                final String NUC_MODEL_SOURCE = ""
-                final String NUC_MODEL_NAME = ""
+                final List NUC_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
+                final String NUC_MODEL_SOURCE = "MODEL_NAME"
+                final String NUC_MODEL_NAME = "cpsam"
                 final String NUC_MODEL_FILE = ""
                 final String NUC_SAVED_MODEL_ID = ""
-                final List CELL_MODEL_SOURCE_OPTIONS = ["", "MODEL_NAME", "SAVED", "FILE"]
-                final String CELL_MODEL_SOURCE = ""
-                final String CELL_MODEL_NAME = ""
+                final List CELL_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
+                final String CELL_MODEL_SOURCE = "MODEL_NAME"
+                final String CELL_MODEL_NAME = "cpsam"
                 final String CELL_MODEL_FILE = ""
                 final String CELL_SAVED_MODEL_ID = ""
                 final List COLOCALIZATION_CHECKS = []

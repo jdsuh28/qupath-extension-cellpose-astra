@@ -586,20 +586,16 @@ final class AstraPipelineLauncher {
             return;
         }
         String prefix = "NUCLEUS".equals(target) ? "NUC_" : "CELL_";
-        String specificSource = rawString(constants, prefix + "MODEL_SOURCE", "");
-        String source = specificSource.isBlank() ? rawString(constants, "MODEL_SOURCE", "") : specificSource;
-        boolean inherited = specificSource.isBlank();
+        String source = rawString(constants, prefix + "MODEL_SOURCE", "");
         String valueName = rawString(constants, prefix + "MODEL_NAME", "");
         String valueFile = rawString(constants, prefix + "MODEL_FILE", "");
         String valueSavedId = rawString(constants, prefix + "SAVED_MODEL_ID", "");
-        String sharedName = rawString(constants, "MODEL_NAME", "");
-        String sharedFile = rawString(constants, "MODEL_FILE", "");
         String value = "SAVED".equals(source)
                 ? valueSavedId
                 : ("FILE".equals(source)
-                ? (valueFile.isBlank() ? sharedFile : valueFile)
-                : (valueName.isBlank() ? sharedName : valueName));
-        lines.add("  effective " + label + " model source: " + source + (inherited ? " (inherited)" : " (target-specific)"));
+                ? valueFile
+                : valueName);
+        lines.add("  effective " + label + " model source: " + source);
         lines.add("  effective " + label + " model: " + value);
     }
 
@@ -702,9 +698,6 @@ final class AstraPipelineLauncher {
             applyImageChannelDefaults(constants, imageChannels);
         }
         boolean colocalization = isColocalizationConfig(constants);
-        if (colocalization) {
-            applyColocalizationInheritedModelDefaults(constants);
-        }
         constants.forEach(EditableConstant::markDefault);
         SettingsAutosave autosave = SettingsAutosave.create(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, feedback);
         autosave.restoreIfAvailable();
@@ -908,38 +901,11 @@ final class AstraPipelineLauncher {
         }
         return Set.of(
                 "DETECTION_TARGET",
-                "MODEL_SOURCE", "MODEL_NAME", "MODEL_FILE",
                 "NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE", "NUC_SAVED_MODEL_ID",
                 "CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE", "CELL_SAVED_MODEL_ID",
                 "NUCLEUS_SEGMENTATION_CHANNELS", "CELL_SEGMENTATION_CHANNELS",
                 "COLOCALIZATION_CHECKS", "THRESHOLD_EXCLUDE_MARKERS"
         ).contains(name);
-    }
-
-    static void applyColocalizationInheritedModelDefaults(List<EditableConstant> constants) {
-        Map<String, EditableConstant> byName = new LinkedHashMap<>();
-        constants.forEach(c -> byName.put(c.name, c));
-        applyInheritedModelDefaultsForTarget(byName, "NUC_");
-        applyInheritedModelDefaultsForTarget(byName, "CELL_");
-    }
-
-    private static void applyInheritedModelDefaultsForTarget(Map<String, EditableConstant> constants, String prefix) {
-        EditableConstant targetSource = constants.get(prefix + "MODEL_SOURCE");
-        EditableConstant targetName = constants.get(prefix + "MODEL_NAME");
-        EditableConstant targetFile = constants.get(prefix + "MODEL_FILE");
-        String source = rawString(constants, prefix + "MODEL_SOURCE", "");
-        if (source.isBlank()) {
-            source = rawString(constants, "MODEL_SOURCE", "MODEL_NAME");
-            if (targetSource != null && !source.isBlank()) {
-                targetSource.setDisplayString(source);
-            }
-        }
-        if ("MODEL_NAME".equals(source) && targetName != null && rawString(constants, prefix + "MODEL_NAME", "").isBlank()) {
-            targetName.setDisplayString(rawString(constants, "MODEL_NAME", ""));
-        }
-        if ("FILE".equals(source) && targetFile != null && rawString(constants, prefix + "MODEL_FILE", "").isBlank()) {
-            targetFile.setDisplayString(rawString(constants, "MODEL_FILE", ""));
-        }
     }
 
     private static VBox createColocalizationPanel(QuPathGUI qupath, List<EditableConstant> constants, List<ImageChannel> imageChannels, SettingsAutosave autosave) {
@@ -1527,8 +1493,6 @@ final class AstraPipelineLauncher {
         Map<String, EditableConstant> byName = new LinkedHashMap<>();
         constants.forEach(c -> byName.put(c.name, c));
         Runnable update = () -> {
-            setVisible(rows, "MODEL_NAME", isSelected(byName, "MODEL_SOURCE", "MODEL_NAME"));
-            setVisible(rows, "MODEL_FILE", isSelected(byName, "MODEL_SOURCE", "FILE"));
             setVisible(rows, "NUC_MODEL_NAME", isSelected(byName, "NUC_MODEL_SOURCE", "MODEL_NAME"));
             setVisible(rows, "NUC_MODEL_FILE", isSelected(byName, "NUC_MODEL_SOURCE", "FILE"));
             setVisible(rows, "CELL_MODEL_NAME", isSelected(byName, "CELL_MODEL_SOURCE", "MODEL_NAME"));
@@ -1727,9 +1691,6 @@ final class AstraPipelineLauncher {
                 "CLASSIFIER_ENDOTHELIUM",
                 "CLASS_ROI",
                 "CLASS_TRACE",
-                "MODEL_SOURCE",
-                "MODEL_NAME",
-                "MODEL_FILE",
                 "PARAM_SOURCE",
                 "BEST_PARAMS_FILE",
                 "IMAGE_SCOPE",
