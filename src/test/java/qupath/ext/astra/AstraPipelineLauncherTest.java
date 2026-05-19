@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -358,6 +359,46 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
+    void applySettingsProvenanceFailsWhenOneRequiredConstantIsMissing() {
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+                final String NUC_MODEL_NAME = "cpsam"
+                final Map cfg = [:]
+                """);
+
+        IllegalStateException error = assertThrows(IllegalStateException.class, () ->
+                AstraPipelineLauncher.applySettingsProvenanceConstants("""
+                        final String SETTINGS_SOURCE = ""
+                        final String SETTINGS_PROFILE_NAME = ""
+                        final String SETTINGS_PROFILE_PATH = ""
+                        final String SETTINGS_PROFILE_SHA256 = ""
+                        final String CONFIGURED_CONSTANTS_SHA256 = ""
+                        final Map cfg = [:]
+                        """, constants, AstraPipelineLauncher.SettingsProfileState.scriptDefaults()));
+
+        assertTrue(error.getMessage().contains("MANUAL_EDIT_AFTER_PROFILE_LOAD"));
+    }
+
+    @Test
+    void applySettingsProvenanceFailsWithAllMissingConstantsListed() {
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+                final String NUC_MODEL_NAME = "cpsam"
+                final Map cfg = [:]
+                """);
+
+        IllegalStateException error = assertThrows(IllegalStateException.class, () ->
+                AstraPipelineLauncher.applySettingsProvenanceConstants("""
+                        final String SETTINGS_SOURCE = ""
+                        final String SETTINGS_PROFILE_SHA256 = ""
+                        final Map cfg = [:]
+                        """, constants, AstraPipelineLauncher.SettingsProfileState.scriptDefaults()));
+
+        assertTrue(error.getMessage().contains("SETTINGS_PROFILE_NAME"));
+        assertTrue(error.getMessage().contains("SETTINGS_PROFILE_PATH"));
+        assertTrue(error.getMessage().contains("CONFIGURED_CONSTANTS_SHA256"));
+        assertTrue(error.getMessage().contains("MANUAL_EDIT_AFTER_PROFILE_LOAD"));
+    }
+
+    @Test
     void savedModelDiscoveryHandlesZeroOneMultipleAndMalformed(@TempDir Path tempDir) throws Exception {
         File projectBase = tempDir.toFile();
 
@@ -387,13 +428,13 @@ class AstraPipelineLauncherTest {
                 final Map cfg = [:]
                 """);
 
-        AstraPipelineLauncher.prefillSingleSavedModelId(constants.get(0), discovery);
-
+        assertEquals(List.of("cell_a", "cell_b"), discovery.validIds());
+        assertFalse(Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java")).contains("prefillSingleSavedModelId"));
         assertEquals("\"\"", constants.get(0).currentDisplayValue());
     }
 
     @Test
-    void savedModelDiscoveryPrefillsExactlyOneVisibleModel(@TempDir Path tempDir) throws Exception {
+    void savedModelDiscoveryDoesNotAutoselectWhenExactlyOneModelExists(@TempDir Path tempDir) throws Exception {
         writeModelMetadata(tempDir.toFile(), "nucleus", "nuc_only", "NUCLEUS");
         AstraPipelineLauncher.SavedModelDiscovery discovery = AstraPipelineLauncher.discoverSavedModelIds(tempDir.toFile(), "nucleus");
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
@@ -401,9 +442,9 @@ class AstraPipelineLauncherTest {
                 final Map cfg = [:]
                 """);
 
-        AstraPipelineLauncher.prefillSingleSavedModelId(constants.get(0), discovery);
-
-        assertEquals("\"nuc_only\"", constants.get(0).currentDisplayValue());
+        assertEquals(List.of("nuc_only"), discovery.validIds());
+        assertFalse(Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java")).contains("prefillSingleSavedModelId"));
+        assertEquals("\"\"", constants.get(0).currentDisplayValue());
     }
 
     @Test
@@ -539,7 +580,7 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
-    void twoOpenedChannelsSynchronizeColocalizationDefaults() {
+    void twoOpenedChannelsOnlyPopulateColocalizationSegmentationChannels() {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
 
         AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("DAPI", "FITC"));
@@ -547,15 +588,13 @@ class AstraPipelineLauncherTest {
 
         assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = [\"DAPI\"]"));
         assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = [\"FITC\"]"));
-        assertTrue(configured.contains("LABEL      : \"DAPI_AND_FITC_nucleus\""));
-        assertTrue(configured.contains("CHANNELS   : [\"DAPI\", \"FITC\"]"));
-        assertTrue(configured.contains("final List THRESHOLD_EXCLUDE_MARKERS = [\"DAPI|Nucleus\"]"));
-        assertTrue(configured.contains("\"FITC|Nucleus\"     : 100.0d"));
-        assertFalse(configured.contains("AF488"));
+        assertFalse(configured.contains("LABEL      : \"DAPI_AND_FITC_nucleus\""));
+        assertFalse(configured.contains("\"FITC|Nucleus\"     : 100.0d"));
+        assertTrue(configured.contains("LABEL      : \"DAPI_AND_AF488_nucleus\""));
     }
 
     @Test
-    void hoechstAndAf555SynchronizeColocalizationDefaults() {
+    void hoechstAndAf555DoNotGenerateColocalizationChecks() {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
 
         AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Hoechst", "AF555"));
@@ -563,13 +602,13 @@ class AstraPipelineLauncherTest {
 
         assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = [\"Hoechst\"]"));
         assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = [\"AF555\"]"));
-        assertTrue(configured.contains("LABEL      : \"Hoechst_AND_AF555_nucleus\""));
-        assertTrue(configured.contains("final List THRESHOLD_EXCLUDE_MARKERS = [\"Hoechst|Nucleus\"]"));
-        assertTrue(configured.contains("\"AF555|Nucleus\"     : 100.0d"));
+        assertFalse(configured.contains("LABEL      : \"Hoechst_AND_AF555_nucleus\""));
+        assertFalse(configured.contains("final List THRESHOLD_EXCLUDE_MARKERS = [\"Hoechst|Nucleus\"]"));
+        assertFalse(configured.contains("\"AF555|Nucleus\"     : 100.0d"));
     }
 
     @Test
-    void arbitraryOpenedChannelsClearUnsafeColocalizationDefaults() {
+    void arbitraryOpenedChannelsDoNotRewriteScientificColocalizationDefaults() {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
 
         AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Channel 1", "Channel 2"));
@@ -577,13 +616,10 @@ class AstraPipelineLauncherTest {
 
         assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = []"));
         assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = []"));
-        assertTrue(configured.contains("final List COLOCALIZATION_CHECKS = []"));
-        assertTrue(configured.contains("final List THRESHOLD_EXCLUDE_MARKERS = []"));
-        assertTrue(configured.contains("final Map MANUAL_INTENSITY_THRESHOLDS = [:]"));
         assertFalse(configured.contains("Channel_1"));
         assertFalse(configured.contains("Channel 1|Nucleus"));
-        assertFalse(configured.contains("DAPI_AND_AF488"));
-        assertFalse(configured.contains("\"AF488|Nucleus\""));
+        assertTrue(configured.contains("DAPI_AND_AF488"));
+        assertTrue(configured.contains("\"AF488|Nucleus\""));
     }
 
     @Test
@@ -595,11 +631,8 @@ class AstraPipelineLauncherTest {
 
         assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = []"));
         assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = []"));
-        assertTrue(configured.contains("final List COLOCALIZATION_CHECKS = []"));
-        assertTrue(configured.contains("final List THRESHOLD_EXCLUDE_MARKERS = []"));
-        assertTrue(configured.contains("final Map MANUAL_INTENSITY_THRESHOLDS = [:]"));
         assertFalse(configured.contains("Only|Nucleus"));
-        assertFalse(configured.contains("AF488"));
+        assertTrue(configured.contains("AF488"));
     }
 
     @Test
@@ -790,6 +823,8 @@ class AstraPipelineLauncherTest {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
 
         assertFalse(source.contains("new ColocalizationCheck(\"DAPI_AND_AF488_nucleus\""));
+        assertFalse(source.contains("setRawConstant(constants, \"COLOCALIZATION_CHECKS\""));
+        assertFalse(source.contains("setRawConstant(constants, \"MANUAL_INTENSITY_THRESHOLDS\""));
     }
 
     @Test

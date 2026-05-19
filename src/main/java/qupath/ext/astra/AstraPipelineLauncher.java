@@ -57,6 +57,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -347,11 +348,27 @@ final class AstraPipelineLauncher {
         provenance.put("CONFIGURED_CONSTANTS_SHA256", quoteGroovy(configuredConstantsSha256(constants)));
         provenance.put("MANUAL_EDIT_AFTER_PROFILE_LOAD", String.valueOf(state.manualEditAfterLoad()));
 
+        List<String> missing = missingProvenanceConstants(scriptText, provenance.keySet());
+        if (!missing.isEmpty()) {
+            throw new IllegalStateException("ASTRA settings provenance injection failed; script is missing required constant(s): " + String.join(", ", missing));
+        }
+
         String configured = scriptText;
         for (Map.Entry<String, String> entry : provenance.entrySet()) {
             configured = replaceProvenanceConstant(configured, entry.getKey(), entry.getValue());
         }
         return configured;
+    }
+
+    private static List<String> missingProvenanceConstants(String scriptText, Collection<String> requiredNames) {
+        List<String> missing = new ArrayList<>();
+        for (String name : requiredNames) {
+            Pattern pattern = Pattern.compile("(?m)^final\\s+(String|boolean)\\s+" + Pattern.quote(name) + "\\s*=");
+            if (!pattern.matcher(scriptText).find()) {
+                missing.add(name);
+            }
+        }
+        return missing;
     }
 
     private static String configuredConstantsSha256(List<EditableConstant> constants) {
@@ -366,7 +383,7 @@ final class AstraPipelineLauncher {
         Pattern pattern = Pattern.compile("(?m)^final\\s+(String|boolean)\\s+" + Pattern.quote(name) + "\\s*=\\s*[^\\r\\n]*(\\R?)");
         Matcher matcher = pattern.matcher(scriptText);
         if (!matcher.find()) {
-            return scriptText;
+            throw new IllegalStateException("ASTRA settings provenance injection failed; script is missing required constant: " + name);
         }
         String type = matcher.group(1);
         String newline = matcher.group(2);
@@ -1084,18 +1101,7 @@ final class AstraPipelineLauncher {
         if (savedModelId == null || discovery == null) {
             return;
         }
-        prefillSingleSavedModelId(savedModelId, discovery);
         savedModelId.setCustomEditor(savedModelIdCombo(savedModelId, discovery.validIds()));
-    }
-
-    static void prefillSingleSavedModelId(EditableConstant savedModelId, SavedModelDiscovery discovery) {
-        if (savedModelId == null || discovery == null) {
-            return;
-        }
-        String current = EditableConstant.stripStringQuotes(savedModelId.type, savedModelId.displayValue).trim();
-        if (current.isBlank() && discovery.validIds().size() == 1) {
-            savedModelId.setDisplayString(discovery.validIds().get(0));
-        }
     }
 
     private static ComboBox<String> savedModelIdCombo(EditableConstant constant, List<String> validIds) {
@@ -1352,29 +1358,6 @@ final class AstraPipelineLauncher {
         List<String> cellChannels = defaults.cellChannels();
         setListConstant(constants, "NUCLEUS_SEGMENTATION_CHANNELS", nucleusChannels);
         setListConstant(constants, "CELL_SEGMENTATION_CHANNELS", cellChannels);
-        if (!defaults.hasNucleusMarker()) {
-            setRawConstant(constants, "COLOCALIZATION_CHECKS", "[]");
-            setListConstant(constants, "THRESHOLD_EXCLUDE_MARKERS", List.of());
-            setRawConstant(constants, "MANUAL_INTENSITY_THRESHOLDS", "[:]");
-            setRawConstant(constants, "RANGE_THRESHOLD_FRACTION_BY_MARKER", "[:]");
-            setRawConstant(constants, "THRESHOLD_PROVENANCE_BY_MARKER", "[:]");
-            setRawConstant(constants, "BACKGROUND_SUBTRACTION_BY_CHANNEL", "[:]");
-            return;
-        }
-        String nucleus = nucleusChannels.get(0);
-        String marker = defaults.markerChannels().isEmpty() ? null : defaults.markerChannels().get(0);
-        String compartment = "Nucleus";
-        List<String> checkChannels = marker == null ? List.of(nucleus) : List.of(nucleus, marker);
-        String label = safeLabel(String.join("_AND_", checkChannels) + "_nucleus");
-        String firstKey = nucleus + "|" + compartment;
-        String thresholdKey = marker == null ? null : marker + "|" + compartment;
-
-        setRawConstant(constants, "COLOCALIZATION_CHECKS", renderColocalizationChecks(List.of(new ColocalizationCheck(label, compartment, checkChannels))));
-        setListConstant(constants, "THRESHOLD_EXCLUDE_MARKERS", List.of(firstKey));
-        setRawConstant(constants, "MANUAL_INTENSITY_THRESHOLDS", thresholdKey == null ? "[:]" : "[\n        " + quoteGroovy(thresholdKey) + "     : 100.0d\n]");
-        setRawConstant(constants, "RANGE_THRESHOLD_FRACTION_BY_MARKER", thresholdKey == null ? "[:]" : "[\n        " + quoteGroovy(thresholdKey) + "     : 0.50d\n]");
-        setRawConstant(constants, "THRESHOLD_PROVENANCE_BY_MARKER", thresholdKey == null ? "[:]" : "[\n        " + quoteGroovy(thresholdKey) + "     : \"EDIT: describe threshold source before publication use\"\n]");
-        setRawConstant(constants, "BACKGROUND_SUBTRACTION_BY_CHANNEL", "[:]");
     }
 
     private static void setListConstant(Map<String, EditableConstant> constants, String name, List<String> values) {
