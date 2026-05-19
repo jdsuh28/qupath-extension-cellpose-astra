@@ -172,7 +172,7 @@ final class AstraPipelineLauncher {
     }
 
     /**
-     * Extracts editable top-level constants from the script header.
+     * Extracts editable top-level constants from the script's user-edit section.
      *
      * @param scriptText source script.
      * @return editable constants in source order.
@@ -183,14 +183,26 @@ final class AstraPipelineLauncher {
         Map<String, List<String>> scriptOptions = new LinkedHashMap<>();
         Map<String, String> scriptHelp = new LinkedHashMap<>();
         int offset = 0;
+        boolean hasUserEditSection = scriptText.contains("USER EDIT SECTION");
+        boolean inUserEditSection = !hasUserEditSection;
 
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
-            if (line.startsWith("final boolean USE_LOCAL_CLASSES") || line.startsWith("final Map cfg")) {
+            String trimmed = line.trim();
+
+            if (!inUserEditSection) {
+                if (trimmed.contains("USER EDIT SECTION")) {
+                    inUserEditSection = true;
+                }
+                offset += line.length() + 1;
+                continue;
+            }
+
+            if (trimmed.contains("CONFIG BUILD") || trimmed.contains("DO NOT MODIFY BELOW") || trimmed.startsWith("final Map cfg")) {
                 break;
             }
 
-            Matcher matcher = DECLARATION_PATTERN.matcher(line.trim());
+            Matcher matcher = DECLARATION_PATTERN.matcher(trimmed);
             if (!matcher.matches()) {
                 offset += line.length() + 1;
                 continue;
@@ -198,7 +210,7 @@ final class AstraPipelineLauncher {
 
             String type = matcher.group(1);
             String name = matcher.group(2);
-            if (name.startsWith("__") || "USE_LOCAL_CLASSES".equals(name)) {
+            if (isInternalConstantName(name)) {
                 offset += line.length() + 1;
                 continue;
             }
@@ -257,6 +269,14 @@ final class AstraPipelineLauncher {
         }
 
         return out;
+    }
+
+    private static boolean isInternalConstantName(String name) {
+        return name == null
+                || name.startsWith("__")
+                || "localRunnerFile".equals(name)
+                || "USE_LOCAL_CLASSES".equals(name)
+                || "loader".equals(name);
     }
 
     private static List<String> parseStringOptions(String value) {

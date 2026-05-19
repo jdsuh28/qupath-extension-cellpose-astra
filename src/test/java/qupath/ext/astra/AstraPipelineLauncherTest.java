@@ -6,6 +6,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -19,6 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class AstraPipelineLauncherTest {
 
+    private static final Path BASE_ASTRA_ROOT = Path.of("..", "astra");
+
     @Test
     void helpConstantsAttachToTargetVariables() {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
@@ -31,6 +34,74 @@ class AstraPipelineLauncherTest {
         assertEquals(1, constants.size());
         assertEquals("DETECTION_TARGET", constants.get(0).name());
         assertEquals("Choose the segmentation target.", constants.get(0).helpText());
+    }
+
+    @Test
+    void extractionIgnoresBootstrapConstantsBeforeUserEditSection() {
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+                final File localRunnerFile =
+                    new File("training/src/main/groovy/TrainingRunner.groovy")
+                final boolean USE_LOCAL_CLASSES =
+                    localRunnerFile.exists() && localRunnerFile.isFile()
+                final ClassLoader loader = this.class.classLoader
+                File __astraCellposeDefaultsLocalFile = new File("shared/src/main/groovy/CellposeInferenceDefaults.groovy")
+                if (USE_LOCAL_CLASSES) {
+                    loader.parseClass(__astraCellposeDefaultsLocalFile)
+                }
+
+                // -----------------------------------------------------------------------------
+                // USER EDIT SECTION
+                // -----------------------------------------------------------------------------
+
+                final String MODEL_NAME_HELP = "Default model name."
+                final String MODEL_NAME = "cpsam"
+                final double NUC_CELLPROB = CellposeInferenceDefaults.CELLPROB_THRESHOLD
+
+                // -----------------------------------------------------------------------------
+                // CONFIG BUILD
+                // -----------------------------------------------------------------------------
+
+                final boolean USE_LOCAL_CLASSES = false
+                final Map cfg = [:]
+                """);
+
+        List<String> names = constants.stream().map(AstraPipelineLauncher.EditableConstant::name).toList();
+        assertEquals(List.of("MODEL_NAME", "NUC_CELLPROB"), names);
+        assertFalse(names.contains("USE_LOCAL_CLASSES"));
+        assertFalse(names.contains("localRunnerFile"));
+    }
+
+    @Test
+    void realCurrentAstraScriptsExposeEditableConstantsAfterDefaultsBootstrap() throws Exception {
+        Map<String, List<String>> requiredByScript = Map.of(
+                "training/src/main/groovy/training.groovy",
+                List.of("TRAIN_TARGET", "TRAINING_MODE", "MODEL_NAME", "CHANNELS_FOR_NUCLEUS"),
+                "tuning/src/main/groovy/tuning.groovy",
+                List.of("TUNE_TARGET", "SEARCH_MODE", "MODEL_NAME", "PARAM_DEFAULTS_BY_TARGET"),
+                "validation/src/main/groovy/validation.groovy",
+                List.of("VALIDATE_TARGET", "VALIDATION_MODE", "MODEL_NAME", "PARAM_DEFAULTS_BY_TARGET"),
+                "analysis/src/main/groovy/vascular/vascular.groovy",
+                List.of("MODEL_NAME", "NUC_CELLPROB", "CELL_CELLPROB", "RESULTS_FOLDER"),
+                "analysis/src/main/groovy/colocalization/colocalization.groovy",
+                List.of("DETECTION_TARGET", "MODEL_NAME", "NUC_CELLPROB", "COLOCALIZATION_CHECKS")
+        );
+
+        for (Map.Entry<String, List<String>> entry : requiredByScript.entrySet()) {
+            String source = realBaseScript(entry.getKey());
+            List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(source);
+            List<String> names = constants.stream().map(AstraPipelineLauncher.EditableConstant::name).toList();
+
+            assertFalse(constants.isEmpty(), entry.getKey() + " must expose editable constants.");
+            for (String required : entry.getValue()) {
+                assertTrue(names.contains(required), entry.getKey() + " must expose " + required + ".");
+            }
+            assertFalse(names.contains("USE_LOCAL_CLASSES"), entry.getKey() + " must not expose bootstrap source mode.");
+            assertFalse(names.stream().anyMatch(name -> name.startsWith("__")), entry.getKey() + " must not expose bootstrap internals.");
+            assertTrue(source.indexOf("if (USE_LOCAL_CLASSES)") < source.indexOf("// USER EDIT SECTION"),
+                    entry.getKey() + " must load CellposeInferenceDefaults before editable constants.");
+            assertFalse(source.contains("loadClass(\"CellposeInferenceDefaults\")"), entry.getKey() + " must not probe loaded defaults.");
+            assertFalse(source.contains("catch (ClassNotFoundException"), entry.getKey() + " must not reintroduce fallback-chain loading.");
+        }
     }
 
     @Test
@@ -642,6 +713,12 @@ class AstraPipelineLauncherTest {
                 final List MODES_TO_RUN = %s
                 final Map cfg = [:]
                 """.formatted(modes));
+    }
+
+    private static String realBaseScript(String relativePath) throws Exception {
+        Path path = BASE_ASTRA_ROOT.resolve(relativePath).normalize();
+        assertTrue(Files.isRegularFile(path), "Missing current ASTRA script fixture: " + path);
+        return Files.readString(path);
     }
 
     private static String colocalizationModelScript(String target) {
