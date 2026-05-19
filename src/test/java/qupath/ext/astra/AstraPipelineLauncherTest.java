@@ -572,7 +572,11 @@ class AstraPipelineLauncherTest {
     @Test
     void colocalizationPanelOwnsDetectionTarget() {
         assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("DETECTION_TARGET", true));
+        assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("MODEL_SOURCE", true));
+        assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("MODEL_NAME", true));
+        assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("MODEL_FILE", true));
         assertFalse(AstraPipelineLauncher.isHandledByColocalizationPanel("DETECTION_TARGET", false));
+        assertFalse(AstraPipelineLauncher.isHandledByColocalizationPanel("MODEL_SOURCE", false));
     }
 
     @Test
@@ -622,6 +626,9 @@ class AstraPipelineLauncherTest {
         assertEquals(List.of("NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE", "NUC_SAVED_MODEL_ID",
                         "CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE", "CELL_SAVED_MODEL_ID"),
                 AstraPipelineLauncher.targetModelControlNames("BOTH"));
+        assertFalse(AstraPipelineLauncher.targetModelControlNames("BOTH").contains("MODEL_SOURCE"));
+        assertFalse(AstraPipelineLauncher.targetModelControlNames("BOTH").contains("MODEL_NAME"));
+        assertFalse(AstraPipelineLauncher.targetModelControlNames("BOTH").contains("MODEL_FILE"));
         assertTrue(constants.stream().anyMatch(c -> c.name().equals("NUC_MODEL_SOURCE")));
         assertTrue(constants.stream().anyMatch(c -> c.name().equals("NUC_MODEL_NAME")));
         assertTrue(constants.stream().anyMatch(c -> c.name().equals("NUC_MODEL_FILE")));

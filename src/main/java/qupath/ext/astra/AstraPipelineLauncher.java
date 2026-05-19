@@ -902,6 +902,7 @@ final class AstraPipelineLauncher {
         }
         return Set.of(
                 "DETECTION_TARGET",
+                "MODEL_SOURCE", "MODEL_NAME", "MODEL_FILE",
                 "NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE", "NUC_SAVED_MODEL_ID",
                 "CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE", "CELL_SAVED_MODEL_ID",
                 "NUCLEUS_SEGMENTATION_CHANNELS", "CELL_SEGMENTATION_CHANNELS",
@@ -928,7 +929,7 @@ final class AstraPipelineLauncher {
             targetPanel.getChildren().add(row);
         }
 
-        VBox modelPanel = semanticCard("Target Models", "Choose nucleus and cell model initializers independently. Shared MODEL_* values remain available in Advanced only as inheritance defaults.");
+        VBox modelPanel = semanticCard("Target Models", "Choose nucleus and cell model initializers independently. Generic shared MODEL_* values are not shown as separate colocalization controls.");
         VBox nucleusModel = targetModelGroup("Nucleus model", byName.get("NUC_MODEL_SOURCE"), byName.get("NUC_MODEL_NAME"), byName.get("NUC_MODEL_FILE"), byName.get("NUC_SAVED_MODEL_ID"), nucleusModels, autosave);
         VBox cellModel = targetModelGroup("Cell model", byName.get("CELL_MODEL_SOURCE"), byName.get("CELL_MODEL_NAME"), byName.get("CELL_MODEL_FILE"), byName.get("CELL_SAVED_MODEL_ID"), cellModels, autosave);
         modelPanel.getChildren().addAll(nucleusModel, cellModel);
