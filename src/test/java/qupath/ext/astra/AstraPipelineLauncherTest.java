@@ -105,6 +105,82 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
+    void profileLoadReportsMissingImageChannelsWithoutChangingDefaults() {
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+                final List CHANNELS_FOR_NUCLEUS = ["DAPI"]
+                final List CHANNELS_FOR_CELL = ["FITC"]
+                final Map cfg = [:]
+                """);
+        String schema = AstraPipelineLauncher.schemaIdentity(constants);
+        AstraPipelineLauncher.SettingsProfile profile = AstraPipelineLauncher.createSettingsProfile("Training", schema, "abc", constants);
+
+        List<String> missing = AstraPipelineLauncher.missingProfileChannels(profile, List.of("DAPI"));
+
+        assertEquals(List.of("FITC"), missing);
+        assertTrue(constants.get(0).currentDisplayValue().contains("DAPI"));
+    }
+
+    @Test
+    void resetToScriptDefaultsClearsLoadedProfileState() {
+        AstraPipelineLauncher.SettingsProfileState state = AstraPipelineLauncher.SettingsProfileState.scriptDefaults();
+        state.loadedProfile("profile.json", "/tmp/profile.json", "1234567890abcdef");
+        assertTrue(state.summary().contains("loaded settings profile"));
+
+        state.resetToScriptDefaults();
+
+        assertEquals("script defaults or manual GUI values", state.summary());
+    }
+
+    @Test
+    void savedModelDiscoveryHandlesZeroOneMultipleAndMalformed(@TempDir Path tempDir) throws Exception {
+        File projectBase = tempDir.toFile();
+
+        assertEquals(List.of(), AstraPipelineLauncher.discoverSavedModelIds(projectBase, "nucleus").validIds());
+
+        writeModelMetadata(projectBase, "nucleus", "nuc_a", "NUCLEUS");
+        AstraPipelineLauncher.SavedModelDiscovery one = AstraPipelineLauncher.discoverSavedModelIds(projectBase, "nucleus");
+        assertEquals(List.of("nuc_a"), one.validIds());
+        assertTrue(one.invalidModels().isEmpty());
+
+        writeModelMetadata(projectBase, "nucleus", "nuc_b", "NUCLEUS");
+        AstraPipelineLauncher.SavedModelDiscovery multiple = AstraPipelineLauncher.discoverSavedModelIds(projectBase, "nucleus");
+        assertEquals(List.of("nuc_a", "nuc_b"), multiple.validIds());
+
+        Files.createDirectories(tempDir.resolve("astra/models/nucleus/bad"));
+        AstraPipelineLauncher.SavedModelDiscovery malformed = AstraPipelineLauncher.discoverSavedModelIds(projectBase, "nucleus");
+        assertTrue(malformed.invalidModels().containsKey("bad"));
+    }
+
+    @Test
+    void savedModelDiscoveryDoesNotAutoselectWhenMultipleModelsExist(@TempDir Path tempDir) throws Exception {
+        writeModelMetadata(tempDir.toFile(), "cell", "cell_a", "CELL");
+        writeModelMetadata(tempDir.toFile(), "cell", "cell_b", "CELL");
+        AstraPipelineLauncher.SavedModelDiscovery discovery = AstraPipelineLauncher.discoverSavedModelIds(tempDir.toFile(), "cell");
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+                final String CELL_SAVED_MODEL_ID = ""
+                final Map cfg = [:]
+                """);
+
+        AstraPipelineLauncher.prefillSingleSavedModelId(constants.get(0), discovery);
+
+        assertEquals("\"\"", constants.get(0).currentDisplayValue());
+    }
+
+    @Test
+    void savedModelDiscoveryPrefillsExactlyOneVisibleModel(@TempDir Path tempDir) throws Exception {
+        writeModelMetadata(tempDir.toFile(), "nucleus", "nuc_only", "NUCLEUS");
+        AstraPipelineLauncher.SavedModelDiscovery discovery = AstraPipelineLauncher.discoverSavedModelIds(tempDir.toFile(), "nucleus");
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+                final String NUC_SAVED_MODEL_ID = ""
+                final Map cfg = [:]
+                """);
+
+        AstraPipelineLauncher.prefillSingleSavedModelId(constants.get(0), discovery);
+
+        assertEquals("\"nuc_only\"", constants.get(0).currentDisplayValue());
+    }
+
+    @Test
     void imageChannelDefaultsUseTargetSegmentationListsWithoutFillingGenericCellLists() {
         String script = """
                 final List CHANNELS_FOR_NUCLEUS = ["DAPI"]
@@ -304,6 +380,29 @@ class AstraPipelineLauncherTest {
     void colocalizationPanelOwnsDetectionTarget() {
         assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("DETECTION_TARGET", true));
         assertFalse(AstraPipelineLauncher.isHandledByColocalizationPanel("DETECTION_TARGET", false));
+    }
+
+    @Test
+    void launcherSourceUsesBalancedBodyMarginsAndSharedRowHeight() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("private static final double BODY_HORIZONTAL_MARGIN = 18.0;"));
+        assertTrue(source.contains("private static final double SECTION_ROW_HEIGHT = 34.0;"));
+        assertTrue(source.contains("body.setPadding(new Insets(0, BODY_HORIZONTAL_MARGIN, 18.0, BODY_HORIZONTAL_MARGIN));"));
+        assertTrue(source.contains("workspace.setPadding(new Insets(0, BODY_HORIZONTAL_MARGIN, 18.0, BODY_HORIZONTAL_MARGIN));"));
+        assertFalse(source.contains("BODY_LEFT_MARGIN"));
+        assertFalse(source.contains("BODY_RIGHT_MARGIN"));
+    }
+
+    @Test
+    void launcherSourceUsesSharedLabeledRowsForConsistentVerticalSpacing() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("private static HBox labeledRow(String labelText, Node editor, double labelWidth)"));
+        assertTrue(source.contains("row.setMinHeight(SECTION_ROW_HEIGHT);"));
+        assertTrue(source.contains("grid.setVgap(8.0);"));
+        assertTrue(source.contains("HBox row = labeledRow(prettyName(constant.name), editor, 160.0);"));
+        assertTrue(source.contains("HBox row = labeledRow(\"Detection target\", editor, 160.0);"));
     }
 
     @Test
@@ -566,6 +665,20 @@ class AstraPipelineLauncherTest {
                 final List COLOCALIZATION_CHECKS = []
                 final Map cfg = [:]
                 """.formatted(target);
+    }
+
+    private static void writeModelMetadata(File projectBase, String targetFolder, String modelId, String target) throws Exception {
+        Path modelDir = projectBase.toPath().resolve("astra/models").resolve(targetFolder).resolve(modelId);
+        Files.createDirectories(modelDir);
+        Files.writeString(modelDir.resolve("model_metadata.json"), """
+                {
+                  "schema_version": "1",
+                  "model_id": "%s",
+                  "target": "%s",
+                  "model_file": "model.cpm",
+                  "model_sha256": "abc"
+                }
+                """.formatted(modelId, target));
     }
 
     private static String colocalizationDefaultsScript() {

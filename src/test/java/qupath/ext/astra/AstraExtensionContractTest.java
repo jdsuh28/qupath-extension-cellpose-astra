@@ -135,6 +135,36 @@ class AstraExtensionContractTest {
         assertTrue(process.destroyForciblyCalled);
     }
 
+    /**
+     * Verifies runtime registration remains ordered after validation.
+     *
+     * @throws Exception if the installer source cannot be read.
+     */
+    @Test
+    void runtimeInstallerAppliesRuntimePathOnlyAfterValidation() throws Exception {
+        String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraRuntimeInstaller.java").toPath());
+        int verify = source.indexOf("verifyRuntime(python, progress, logFile);");
+        int apply = source.indexOf("applyRuntimePath(runtimePythonPath, python);");
+
+        assertTrue(verify >= 0);
+        assertTrue(apply > verify);
+    }
+
+    /**
+     * Verifies cancelled installation is reported as cancellation/failure and
+     * cannot execute the success branch before validation.
+     *
+     * @throws Exception if the installer source cannot be read.
+     */
+    @Test
+    void runtimeInstallerCancellationCannotReachSuccessPath() throws Exception {
+        String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraRuntimeInstaller.java").toPath());
+
+        assertTrue(source.contains("throw new CancellationException(\"ASTRA runtime installation cancelled by user"));
+        assertTrue(source.contains("progress.failed(t, logFile);"));
+        assertTrue(source.contains("progress.done(\"ASTRA runtime is ready:"));
+    }
+
     private static final class FakeProcess extends Process {
         boolean destroyCalled;
         boolean destroyForciblyCalled;
