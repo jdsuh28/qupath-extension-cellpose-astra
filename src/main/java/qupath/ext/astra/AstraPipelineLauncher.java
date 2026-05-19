@@ -64,6 +64,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -155,7 +156,7 @@ final class AstraPipelineLauncher {
             event.consume();
             String configuredScript;
             try {
-                configuredScript = applyConstants(scriptText, constants);
+                configuredScript = applyConstants(scriptText, constants, profileState);
             } catch (RuntimeException e) {
                 Dialogs.showErrorMessage("ASTRA " + scriptName, e.getMessage());
                 return;
@@ -329,6 +330,47 @@ final class AstraPipelineLauncher {
             out.replace(constant.start, constant.end, constant.renderDeclaration());
         }
         return out.toString();
+    }
+
+    static String applyConstants(String scriptText, List<EditableConstant> constants, SettingsProfileState profileState) {
+        return applySettingsProvenanceConstants(applyConstants(scriptText, constants), constants, profileState);
+    }
+
+    static String applySettingsProvenanceConstants(String scriptText, List<EditableConstant> constants, SettingsProfileState profileState) {
+        Objects.requireNonNull(scriptText, "scriptText");
+        SettingsProfileState state = profileState == null ? SettingsProfileState.scriptDefaults() : profileState;
+        Map<String, String> provenance = new LinkedHashMap<>();
+        provenance.put("SETTINGS_SOURCE", quoteGroovy(state.exportSource()));
+        provenance.put("SETTINGS_PROFILE_NAME", quoteGroovy(state.profileName));
+        provenance.put("SETTINGS_PROFILE_PATH", quoteGroovy(state.profilePath));
+        provenance.put("SETTINGS_PROFILE_SHA256", quoteGroovy(state.profileSha256));
+        provenance.put("CONFIGURED_CONSTANTS_SHA256", quoteGroovy(configuredConstantsSha256(constants)));
+        provenance.put("MANUAL_EDIT_AFTER_PROFILE_LOAD", String.valueOf(state.manualEditAfterLoad()));
+
+        String configured = scriptText;
+        for (Map.Entry<String, String> entry : provenance.entrySet()) {
+            configured = replaceProvenanceConstant(configured, entry.getKey(), entry.getValue());
+        }
+        return configured;
+    }
+
+    private static String configuredConstantsSha256(List<EditableConstant> constants) {
+        Map<String, String> values = new TreeMap<>();
+        for (EditableConstant constant : constants) {
+            values.put(constant.name, constant.currentDisplayValue());
+        }
+        return sha256Hex(PROFILE_GSON.toJson(values));
+    }
+
+    private static String replaceProvenanceConstant(String scriptText, String name, String renderedValue) {
+        Pattern pattern = Pattern.compile("(?m)^final\\s+(String|boolean)\\s+" + Pattern.quote(name) + "\\s*=\\s*[^\\r\\n]*(\\R?)");
+        Matcher matcher = pattern.matcher(scriptText);
+        if (!matcher.find()) {
+            return scriptText;
+        }
+        String type = matcher.group(1);
+        String newline = matcher.group(2);
+        return matcher.replaceFirst(Matcher.quoteReplacement("final " + type + " " + name + " = " + renderedValue + newline));
     }
 
     static String schemaIdentity(List<EditableConstant> constants) {
@@ -2102,6 +2144,14 @@ final class AstraPipelineLauncher {
 
         void markManualEdit() {
             this.manualEdit = true;
+        }
+
+        boolean manualEditAfterLoad() {
+            return manualEdit && !profilePath.isBlank();
+        }
+
+        String exportSource() {
+            return profilePath.isBlank() && manualEdit ? "manual GUI values" : source;
         }
 
         String summary() {

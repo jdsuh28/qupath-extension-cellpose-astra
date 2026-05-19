@@ -328,6 +328,36 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
+    void applyConstantsInjectsSettingsProvenanceForRunExports() {
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+                final String NUC_MODEL_NAME = "cpsam"
+                final Map cfg = [:]
+                """);
+        constants.get(0).setDisplayValue("\"nuc-special\"");
+        AstraPipelineLauncher.SettingsProfileState state = AstraPipelineLauncher.SettingsProfileState.scriptDefaults();
+        state.loadedAutosave("_autosave.json", "/project/astra/settings/training/_autosave.json", "1234567890abcdef");
+        state.markManualEdit();
+
+        String configured = AstraPipelineLauncher.applySettingsProvenanceConstants("""
+                final String SETTINGS_SOURCE = "script defaults or manual GUI values"
+                final String SETTINGS_PROFILE_NAME = ""
+                final String SETTINGS_PROFILE_PATH = ""
+                final String SETTINGS_PROFILE_SHA256 = ""
+                final String CONFIGURED_CONSTANTS_SHA256 = ""
+                final boolean MANUAL_EDIT_AFTER_PROFILE_LOAD = false
+                final String NUC_MODEL_NAME = "nuc-special"
+                final Map cfg = [:]
+                """, constants, state);
+
+        assertTrue(configured.contains("final String SETTINGS_SOURCE = \"autosaved settings\""));
+        assertTrue(configured.contains("final String SETTINGS_PROFILE_NAME = \"_autosave.json\""));
+        assertTrue(configured.contains("final String SETTINGS_PROFILE_PATH = \"/project/astra/settings/training/_autosave.json\""));
+        assertTrue(configured.contains("final String SETTINGS_PROFILE_SHA256 = \"1234567890abcdef\""));
+        assertTrue(configured.contains("final boolean MANUAL_EDIT_AFTER_PROFILE_LOAD = true"));
+        assertTrue(configured.matches("(?s).*final String CONFIGURED_CONSTANTS_SHA256 = \"[0-9a-f]{64}\".*"));
+    }
+
+    @Test
     void savedModelDiscoveryHandlesZeroOneMultipleAndMalformed(@TempDir Path tempDir) throws Exception {
         File projectBase = tempDir.toFile();
 
