@@ -386,11 +386,12 @@ class AstraPipelineLauncherTest {
     void launcherSourceUsesBalancedBodyMarginsAndSharedRowHeight() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
 
-        assertTrue(source.contains("private static final double BODY_LEFT_MARGIN = 14.0;"));
-        assertTrue(source.contains("private static final double BODY_RIGHT_MARGIN = 18.0;"));
+        assertTrue(source.contains("private static final double BODY_HORIZONTAL_MARGIN = 18.0;"));
         assertTrue(source.contains("private static final double SECTION_ROW_HEIGHT = 34.0;"));
-        assertTrue(source.contains("body.setPadding(new Insets(0, BODY_RIGHT_MARGIN, 18.0, BODY_LEFT_MARGIN));"));
-        assertTrue(source.contains("workspace.setPadding(new Insets(0, BODY_RIGHT_MARGIN, 18.0, BODY_LEFT_MARGIN));"));
+        assertTrue(source.contains("body.setPadding(new Insets(0, BODY_HORIZONTAL_MARGIN, 18.0, BODY_HORIZONTAL_MARGIN));"));
+        assertTrue(source.contains("workspace.setPadding(new Insets(0, BODY_HORIZONTAL_MARGIN, 18.0, BODY_HORIZONTAL_MARGIN));"));
+        assertFalse(source.contains("BODY_LEFT_MARGIN"));
+        assertFalse(source.contains("BODY_RIGHT_MARGIN"));
     }
 
     @Test

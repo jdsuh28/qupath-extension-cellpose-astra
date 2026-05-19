@@ -100,8 +100,7 @@ final class AstraPipelineLauncher {
     private static final String GOLD = "#d4a72c";
     private static final String CONTROL_BORDER = "#7fa3ad";
     private static final int SETTINGS_PROFILE_SCHEMA_VERSION = 1;
-    private static final double BODY_LEFT_MARGIN = 14.0;
-    private static final double BODY_RIGHT_MARGIN = 18.0;
+    private static final double BODY_HORIZONTAL_MARGIN = 18.0;
     private static final double SECTION_ROW_HEIGHT = 34.0;
     private static final Gson PROFILE_GSON = new GsonBuilder().setPrettyPrinting().create();
 
@@ -675,7 +674,7 @@ final class AstraPipelineLauncher {
         header.getChildren().addAll(titleRow, subtitle, createPipelineFlow(scriptName));
 
         VBox body = new VBox(14.0);
-        body.setPadding(new Insets(0, BODY_RIGHT_MARGIN, 18.0, BODY_LEFT_MARGIN));
+        body.setPadding(new Insets(0, BODY_HORIZONTAL_MARGIN, 18.0, BODY_HORIZONTAL_MARGIN));
         body.getChildren().add(createChannelPanel(imageChannels));
         boolean colocalization = isColocalizationConfig(constants);
         if (colocalization) {
@@ -714,7 +713,7 @@ final class AstraPipelineLauncher {
         HBox.setHgrow(scroll, Priority.ALWAYS);
 
         HBox workspace = new HBox(14.0);
-        workspace.setPadding(new Insets(0, BODY_RIGHT_MARGIN, 18.0, BODY_LEFT_MARGIN));
+        workspace.setPadding(new Insets(0, BODY_HORIZONTAL_MARGIN, 18.0, BODY_HORIZONTAL_MARGIN));
         workspace.setStyle("-fx-background-color: " + PAPER + ";");
         Node feedbackNode = feedback.node();
         workspace.getChildren().addAll(scroll, feedbackNode);
