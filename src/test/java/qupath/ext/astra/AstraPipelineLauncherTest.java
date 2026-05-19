@@ -176,6 +176,128 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
+    void autosaveUsesProjectLocalSettingsFileAndRestoresMatchingState(@TempDir Path tempDir) throws Exception {
+        File autosave = AstraPipelineLauncher.autosaveSettingsFile(tempDir.toFile(), "Training");
+        assertEquals(tempDir.resolve("astra/settings/training/_autosave.json").normalize(), autosave.toPath().normalize());
+
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+                final String MODE = "A"
+                final String MODEL_NAME = "cpsam"
+                final Map cfg = [:]
+                """);
+        String schema = AstraPipelineLauncher.schemaIdentity(constants);
+        String sourceHash = AstraPipelineLauncher.sha256Hex("script");
+        constants.get(0).setDisplayValue("\"B\"");
+
+        AstraPipelineLauncher.writeAutosaveSettings(autosave, "Training", schema, sourceHash, constants);
+        assertTrue(autosave.isFile());
+
+        List<AstraPipelineLauncher.EditableConstant> fresh = AstraPipelineLauncher.extractEditableConstants("""
+                final String MODE = "A"
+                final String MODEL_NAME = "cpsam"
+                final Map cfg = [:]
+                """);
+        AstraPipelineLauncher.SettingsProfileState state = AstraPipelineLauncher.SettingsProfileState.scriptDefaults();
+        List<String> info = new ArrayList<>();
+        List<String> warnings = new ArrayList<>();
+
+        assertTrue(AstraPipelineLauncher.restoreAutosaveSettings(
+                autosave,
+                "Training",
+                AstraPipelineLauncher.schemaIdentity(fresh),
+                sourceHash,
+                fresh,
+                state,
+                info::add,
+                warnings::add
+        ));
+
+        assertEquals("\"B\"", fresh.get(0).currentDisplayValue());
+        assertTrue(state.summary().contains("autosaved settings"));
+        assertTrue(info.stream().anyMatch(line -> line.contains("_autosave.json")));
+        assertTrue(warnings.isEmpty());
+    }
+
+    @Test
+    void autosaveIgnoresSchemaAndSourceMismatches(@TempDir Path tempDir) throws Exception {
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+                final List MODE_OPTIONS = ["A", "B"]
+                final String MODE = "A"
+                final Map cfg = [:]
+                """);
+        String schema = AstraPipelineLauncher.schemaIdentity(constants);
+        String sourceHash = AstraPipelineLauncher.sha256Hex("script");
+        constants.get(0).setDisplayValue("\"B\"");
+        File autosave = AstraPipelineLauncher.autosaveSettingsFile(tempDir.toFile(), "Training");
+        AstraPipelineLauncher.writeAutosaveSettings(autosave, "Training", schema, sourceHash, constants);
+
+        List<AstraPipelineLauncher.EditableConstant> schemaChanged = AstraPipelineLauncher.extractEditableConstants("""
+                final List MODE_OPTIONS = ["A", "B", "C"]
+                final String MODE = "A"
+                final Map cfg = [:]
+                """);
+        AstraPipelineLauncher.SettingsProfileState schemaState = AstraPipelineLauncher.SettingsProfileState.scriptDefaults();
+        List<String> schemaWarnings = new ArrayList<>();
+        assertFalse(AstraPipelineLauncher.restoreAutosaveSettings(
+                autosave,
+                "Training",
+                AstraPipelineLauncher.schemaIdentity(schemaChanged),
+                sourceHash,
+                schemaChanged,
+                schemaState,
+                ignored -> {
+                },
+                schemaWarnings::add
+        ));
+        assertEquals("\"A\"", schemaChanged.get(0).currentDisplayValue());
+        assertTrue(schemaWarnings.stream().anyMatch(line -> line.contains("schema")));
+
+        List<AstraPipelineLauncher.EditableConstant> sourceChanged = AstraPipelineLauncher.extractEditableConstants("""
+                final List MODE_OPTIONS = ["A", "B"]
+                final String MODE = "A"
+                final Map cfg = [:]
+                """);
+        List<String> sourceWarnings = new ArrayList<>();
+        assertFalse(AstraPipelineLauncher.restoreAutosaveSettings(
+                autosave,
+                "Training",
+                AstraPipelineLauncher.schemaIdentity(sourceChanged),
+                AstraPipelineLauncher.sha256Hex("changed script"),
+                sourceChanged,
+                AstraPipelineLauncher.SettingsProfileState.scriptDefaults(),
+                ignored -> {
+                },
+                sourceWarnings::add
+        ));
+        assertEquals("\"A\"", sourceChanged.get(0).currentDisplayValue());
+        assertTrue(sourceWarnings.stream().anyMatch(line -> line.contains("source script hash")));
+    }
+
+    @Test
+    void resetCanClearAutosaveDeterministically(@TempDir Path tempDir) throws Exception {
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+                final String MODE = "A"
+                final Map cfg = [:]
+                """);
+        File autosave = AstraPipelineLauncher.autosaveSettingsFile(tempDir.toFile(), "Training");
+        AstraPipelineLauncher.writeAutosaveSettings(autosave, "Training", AstraPipelineLauncher.schemaIdentity(constants), "abc", constants);
+        assertTrue(autosave.isFile());
+
+        AstraPipelineLauncher.clearAutosaveSettings(autosave);
+
+        assertFalse(autosave.exists());
+    }
+
+    @Test
+    void manualGuiEditsUseProjectLocalAutosaveNotJavaPreferences() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("markManualEditAndSave"));
+        assertTrue(source.contains("_autosave.json"));
+        assertFalse(source.contains("java.util.prefs.Preferences"));
+    }
+
+    @Test
     void profileLoadReportsMissingImageChannelsWithoutChangingDefaults() {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
                 final List CHANNELS_FOR_NUCLEUS = ["DAPI"]

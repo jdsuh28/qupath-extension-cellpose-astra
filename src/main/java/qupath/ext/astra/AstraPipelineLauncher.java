@@ -88,6 +88,7 @@ final class AstraPipelineLauncher {
     private static final Pattern DECLARATION_PATTERN = Pattern.compile(
             "^final\\s+(String|boolean|int|double|List|Map)\\s+([A-Z][A-Z0-9_]*)\\s*=\\s*(.*)$"
     );
+    private static final String AUTOSAVE_PROFILE_FILE = "_autosave.json";
     private static final String FONT_STACK = "\"Aptos Display\", \"Segoe UI\", \"Inter\", \"Helvetica Neue\", Arial, sans-serif";
     private static final String MONO_FONT_STACK = "\"JetBrains Mono\", \"SF Mono\", Consolas, monospace";
     private static final String INK = "#172431";
@@ -354,6 +355,10 @@ final class AstraPipelineLauncher {
         return new File(new File(new File(projectBase, "astra"), "settings"), settingsPipelineName(scriptName));
     }
 
+    static File autosaveSettingsFile(File projectBase, String scriptName) {
+        return new File(settingsProfileDirectory(projectBase, scriptName), AUTOSAVE_PROFILE_FILE);
+    }
+
     static String settingsPipelineName(String scriptName) {
         String normalized = scriptName == null ? "" : scriptName.toLowerCase(Locale.ROOT);
         if (normalized.contains("colocalization")) {
@@ -406,6 +411,41 @@ final class AstraPipelineLauncher {
         }
         try (FileWriter writer = new FileWriter(file, StandardCharsets.UTF_8)) {
             PROFILE_GSON.toJson(profile, writer);
+        }
+    }
+
+    static void writeAutosaveSettings(File file, String scriptName, String schemaId, String sourceScriptSha256,
+                                      List<EditableConstant> constants) throws IOException {
+        SettingsProfile profile = createSettingsProfile(scriptName, schemaId, sourceScriptSha256, constants);
+        profile.notes = "ASTRA automatic last-working-settings autosave.";
+        writeSettingsProfile(file, profile);
+    }
+
+    static boolean restoreAutosaveSettings(File file, String scriptName, String schemaId, String sourceScriptSha256,
+                                           List<EditableConstant> constants, SettingsProfileState profileState,
+                                           Consumer<String> info, Consumer<String> warn) {
+        if (file == null || !file.isFile()) {
+            return false;
+        }
+        try {
+            SettingsProfile profile = readSettingsProfile(file);
+            applySettingsProfile(profile, scriptName, schemaId, sourceScriptSha256, constants);
+            profileState.loadedAutosave(file.getName(), file.getAbsolutePath(), sha256File(file));
+            if (info != null) {
+                info.accept("Restored ASTRA autosave: " + file.getAbsolutePath());
+            }
+            return true;
+        } catch (IOException | RuntimeException e) {
+            if (warn != null) {
+                warn.accept("Ignoring ASTRA autosave at " + file.getAbsolutePath() + ": " + e.getMessage());
+            }
+            return false;
+        }
+    }
+
+    static void clearAutosaveSettings(File file) throws IOException {
+        if (file != null) {
+            Files.deleteIfExists(file.toPath());
         }
     }
 
@@ -659,6 +699,8 @@ final class AstraPipelineLauncher {
             applyImageChannelDefaults(constants, imageChannels);
         }
         constants.forEach(EditableConstant::markDefault);
+        SettingsAutosave autosave = SettingsAutosave.create(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, feedback);
+        autosave.restoreIfAvailable();
 
         VBox root = new VBox(14.0);
         root.setPadding(new Insets(0));
@@ -677,16 +719,17 @@ final class AstraPipelineLauncher {
         reset.setOnAction(event -> {
             constants.forEach(EditableConstant::resetEditor);
             profileState.resetToScriptDefaults();
+            autosave.clear();
             feedback.info("Settings reset to the current script/image-aware defaults. No QuPath hierarchy data was changed.");
         });
         Button saveProfile = new Button("Save settings profile");
         saveProfile.setFocusTraversable(false);
         saveProfile.setStyle(reset.getStyle());
-        saveProfile.setOnAction(event -> saveSettingsProfileWithDialog(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, feedback));
+        saveProfile.setOnAction(event -> saveSettingsProfileWithDialog(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, autosave, feedback));
         Button loadProfile = new Button("Load settings profile");
         loadProfile.setFocusTraversable(false);
         loadProfile.setStyle(reset.getStyle());
-        loadProfile.setOnAction(event -> loadSettingsProfileWithDialog(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, feedback));
+        loadProfile.setOnAction(event -> loadSettingsProfileWithDialog(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, autosave, feedback));
         titleRow.getChildren().addAll(title, reset, saveProfile, loadProfile);
         Label subtitle = new Label(descriptionFor(scriptName));
         subtitle.setWrapText(true);
@@ -698,7 +741,7 @@ final class AstraPipelineLauncher {
         body.getChildren().add(createChannelPanel(imageChannels));
         boolean colocalization = isColocalizationConfig(constants);
         if (colocalization) {
-            body.getChildren().add(createColocalizationPanel(qupath, constants, imageChannels, profileState));
+            body.getChildren().add(createColocalizationPanel(qupath, constants, imageChannels, autosave));
         }
 
         VBox basic = sectionShell("Basic", "Start here. These are the normal run controls: target, scope, channels, model source, thresholds, and outputs.");
@@ -708,7 +751,7 @@ final class AstraPipelineLauncher {
                     .filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))
                     .toList();
             if (!groupConstants.isEmpty()) {
-                basic.getChildren().add(createSection(group, groupConstants, true, profileState));
+                basic.getChildren().add(createSection(group, groupConstants, true, autosave));
             }
         }
 
@@ -719,7 +762,7 @@ final class AstraPipelineLauncher {
                     .filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))
                     .toList();
             if (!groupConstants.isEmpty()) {
-                advanced.getChildren().add(createSection(group, groupConstants, false, profileState));
+                advanced.getChildren().add(createSection(group, groupConstants, false, autosave));
             }
         }
 
@@ -744,7 +787,8 @@ final class AstraPipelineLauncher {
     }
 
     private static void saveSettingsProfileWithDialog(QuPathGUI qupath, String scriptName, String schemaId, String sourceScriptSha256,
-                                                      List<EditableConstant> constants, SettingsProfileState profileState, RunFeedback feedback) {
+                                                      List<EditableConstant> constants, SettingsProfileState profileState,
+                                                      SettingsAutosave autosave, RunFeedback feedback) {
         File profileDir;
         try {
             profileDir = settingsProfileDirectory(projectBaseDirectory(qupath), scriptName);
@@ -772,6 +816,7 @@ final class AstraPipelineLauncher {
             writeSettingsProfile(target, profile);
             String hash = sha256File(target);
             profileState.loadedProfile(target.getName(), target.getAbsolutePath(), hash);
+            autosave.saveCurrent();
             feedback.info("Saved ASTRA settings profile: " + target.getAbsolutePath());
         } catch (IOException | RuntimeException e) {
             Dialogs.showErrorMessage("ASTRA Settings Profile", "Unable to save settings profile:\n" + e.getMessage());
@@ -779,7 +824,8 @@ final class AstraPipelineLauncher {
     }
 
     private static void loadSettingsProfileWithDialog(QuPathGUI qupath, String scriptName, String schemaId, String sourceScriptSha256,
-                                                      List<EditableConstant> constants, SettingsProfileState profileState, RunFeedback feedback) {
+                                                      List<EditableConstant> constants, SettingsProfileState profileState,
+                                                      SettingsAutosave autosave, RunFeedback feedback) {
         File profileDir;
         try {
             profileDir = settingsProfileDirectory(projectBaseDirectory(qupath), scriptName);
@@ -801,6 +847,7 @@ final class AstraPipelineLauncher {
             applySettingsProfile(profile, scriptName, schemaId, sourceScriptSha256, constants);
             constants.forEach(EditableConstant::syncEditorFromValue);
             profileState.loadedProfile(selected.getName(), selected.getAbsolutePath(), sha256File(selected));
+            autosave.saveCurrent();
             feedback.info("Loaded ASTRA settings profile: " + selected.getAbsolutePath());
             List<String> missingChannels = missingProfileChannels(profile, imageChannels(qupath).stream().map(ImageChannel::getName).filter(Objects::nonNull).toList());
             if (!missingChannels.isEmpty()) {
@@ -862,7 +909,7 @@ final class AstraPipelineLauncher {
         ).contains(name);
     }
 
-    private static VBox createColocalizationPanel(QuPathGUI qupath, List<EditableConstant> constants, List<ImageChannel> imageChannels, SettingsProfileState profileState) {
+    private static VBox createColocalizationPanel(QuPathGUI qupath, List<EditableConstant> constants, List<ImageChannel> imageChannels, SettingsAutosave autosave) {
         Map<String, EditableConstant> byName = new LinkedHashMap<>();
         constants.forEach(c -> byName.put(c.name, c));
         List<String> channelNames = imageChannels.stream().map(ImageChannel::getName).filter(Objects::nonNull).toList();
@@ -877,13 +924,13 @@ final class AstraPipelineLauncher {
         if (detectionTarget != null) {
             Node editor = detectionTarget.createEditor();
             HBox row = labeledRow("Detection target", editor, 160.0);
-            detectionTarget.addChangeListener(profileState::markManualEdit);
+            detectionTarget.addChangeListener(autosave::markManualEditAndSave);
             targetPanel.getChildren().add(row);
         }
 
         VBox modelPanel = semanticCard("Target Models", "Choose nucleus and cell model initializers independently. Shared MODEL_* values remain available in Advanced only as inheritance defaults.");
-        VBox nucleusModel = targetModelGroup("Nucleus model", byName.get("NUC_MODEL_SOURCE"), byName.get("NUC_MODEL_NAME"), byName.get("NUC_MODEL_FILE"), byName.get("NUC_SAVED_MODEL_ID"), nucleusModels, profileState);
-        VBox cellModel = targetModelGroup("Cell model", byName.get("CELL_MODEL_SOURCE"), byName.get("CELL_MODEL_NAME"), byName.get("CELL_MODEL_FILE"), byName.get("CELL_SAVED_MODEL_ID"), cellModels, profileState);
+        VBox nucleusModel = targetModelGroup("Nucleus model", byName.get("NUC_MODEL_SOURCE"), byName.get("NUC_MODEL_NAME"), byName.get("NUC_MODEL_FILE"), byName.get("NUC_SAVED_MODEL_ID"), nucleusModels, autosave);
+        VBox cellModel = targetModelGroup("Cell model", byName.get("CELL_MODEL_SOURCE"), byName.get("CELL_MODEL_NAME"), byName.get("CELL_MODEL_FILE"), byName.get("CELL_SAVED_MODEL_ID"), cellModels, autosave);
         modelPanel.getChildren().addAll(nucleusModel, cellModel);
 
         VBox segmentationPanel = semanticCard("Segmentation Channels", "Checkboxes write explicit Groovy lists into the target-specific segmentation channel constants.");
@@ -893,11 +940,11 @@ final class AstraPipelineLauncher {
         ChannelCheckboxEditor cellEditor = new ChannelCheckboxEditor("Cell segmentation channels", channelNames, cellChannels == null ? "[]" : cellChannels.displayValue);
         if (nucChannels != null) {
             nucChannels.setCustomEditor(nucEditor);
-            nucEditor.addChangeListener(profileState::markManualEdit);
+            nucEditor.addChangeListener(autosave::markManualEditAndSave);
         }
         if (cellChannels != null) {
             cellChannels.setCustomEditor(cellEditor);
-            cellEditor.addChangeListener(profileState::markManualEdit);
+            cellEditor.addChangeListener(autosave::markManualEditAndSave);
         }
         segmentationPanel.getChildren().addAll(nucEditor, cellEditor);
 
@@ -906,7 +953,7 @@ final class AstraPipelineLauncher {
         ColocalizationChecksEditor checksEditor = new ColocalizationChecksEditor(channelNames, checksConstant == null ? "[]" : checksConstant.displayValue);
         if (checksConstant != null) {
             checksConstant.setCustomEditor(checksEditor);
-            checksEditor.addChangeListener(profileState::markManualEdit);
+            checksEditor.addChangeListener(autosave::markManualEditAndSave);
         }
         checksPanel.getChildren().add(checksEditor);
 
@@ -916,7 +963,7 @@ final class AstraPipelineLauncher {
         exclusionEditor.refresh(markerKeysFromChecks(checksEditor.checks()));
         if (exclusionsConstant != null) {
             exclusionsConstant.setCustomEditor(exclusionEditor);
-            exclusionEditor.addChangeListener(profileState::markManualEdit);
+            exclusionEditor.addChangeListener(autosave::markManualEditAndSave);
         }
         checksEditor.addChangeListener(() -> exclusionEditor.refresh(markerKeysFromChecks(checksEditor.checks())));
         exclusionPanel.getChildren().add(exclusionEditor);
@@ -952,7 +999,7 @@ final class AstraPipelineLauncher {
     }
 
     private static VBox targetModelGroup(String title, EditableConstant source, EditableConstant name, EditableConstant file,
-                                         EditableConstant savedModelId, SavedModelDiscovery savedModelDiscovery, SettingsProfileState profileState) {
+                                         EditableConstant savedModelId, SavedModelDiscovery savedModelDiscovery, SettingsAutosave autosave) {
         VBox group = new VBox(6.0);
         group.setPadding(new Insets(10.0));
         group.setStyle("-fx-background-color: white; -fx-border-color: #d7e2e6; -fx-border-radius: 5; -fx-background-radius: 5;");
@@ -971,7 +1018,7 @@ final class AstraPipelineLauncher {
             HBox row = labeledRow(prettyName(constant.name), editor, 160.0);
             group.getChildren().add(row);
             rows.put(constant.name, new RowNodes(row, editor));
-            constant.addChangeListener(profileState::markManualEdit);
+            constant.addChangeListener(autosave::markManualEditAndSave);
         }
         if (savedModelDiscovery != null && !savedModelDiscovery.invalidModels().isEmpty()) {
             Label invalid = new Label("Invalid saved model folders: " + savedModelDiscovery.invalidModels());
@@ -1062,7 +1109,7 @@ final class AstraPipelineLauncher {
         return row;
     }
 
-    private static CollapsibleSection createSection(String title, List<EditableConstant> constants, boolean expanded, SettingsProfileState profileState) {
+    private static CollapsibleSection createSection(String title, List<EditableConstant> constants, boolean expanded, SettingsAutosave autosave) {
         GridPane grid = new GridPane();
         grid.setPadding(new Insets(14.0));
         grid.setHgap(12.0);
@@ -1092,7 +1139,7 @@ final class AstraPipelineLauncher {
             grid.add(labelBox, 0, row);
 
             Node editor = constant.createEditor();
-            constant.addChangeListener(profileState::markManualEdit);
+            constant.addChangeListener(autosave::markManualEditAndSave);
             if (editor instanceof Region region) {
                 region.setMinHeight(SECTION_ROW_HEIGHT);
             }
@@ -1943,6 +1990,83 @@ final class AstraPipelineLauncher {
     private record RowNodes(Node label, Node editor) {
     }
 
+    static final class SettingsAutosave {
+
+        private final File file;
+        private final String scriptName;
+        private final String schemaId;
+        private final String sourceScriptSha256;
+        private final List<EditableConstant> constants;
+        private final SettingsProfileState profileState;
+        private final RunFeedback feedback;
+        private boolean warnedDisabled;
+
+        private SettingsAutosave(File file, String scriptName, String schemaId, String sourceScriptSha256,
+                                 List<EditableConstant> constants, SettingsProfileState profileState, RunFeedback feedback) {
+            this.file = file;
+            this.scriptName = scriptName;
+            this.schemaId = schemaId;
+            this.sourceScriptSha256 = sourceScriptSha256;
+            this.constants = constants;
+            this.profileState = profileState;
+            this.feedback = feedback;
+        }
+
+        static SettingsAutosave create(QuPathGUI qupath, String scriptName, String schemaId, String sourceScriptSha256,
+                                       List<EditableConstant> constants, SettingsProfileState profileState, RunFeedback feedback) {
+            File autosaveFile = null;
+            try {
+                autosaveFile = autosaveSettingsFile(projectBaseDirectory(qupath), scriptName);
+            } catch (RuntimeException e) {
+                if (feedback != null) {
+                    feedback.warn("ASTRA settings autosave disabled: " + e.getMessage());
+                }
+            }
+            return new SettingsAutosave(autosaveFile, scriptName, schemaId, sourceScriptSha256, constants, profileState, feedback);
+        }
+
+        void restoreIfAvailable() {
+            restoreAutosaveSettings(file, scriptName, schemaId, sourceScriptSha256, constants, profileState,
+                    feedback == null ? null : feedback::info,
+                    feedback == null ? null : feedback::warn);
+        }
+
+        void markManualEditAndSave() {
+            profileState.markManualEdit();
+            saveCurrent();
+        }
+
+        void saveCurrent() {
+            if (file == null) {
+                if (!warnedDisabled && feedback != null) {
+                    warnedDisabled = true;
+                    feedback.warn("ASTRA settings autosave skipped because no project-local settings path is available.");
+                }
+                return;
+            }
+            try {
+                writeAutosaveSettings(file, scriptName, schemaId, sourceScriptSha256, constants);
+            } catch (IOException | RuntimeException e) {
+                if (feedback != null) {
+                    feedback.warn("Unable to write ASTRA autosave at " + file.getAbsolutePath() + ": " + e.getMessage());
+                }
+            }
+        }
+
+        void clear() {
+            if (file == null) {
+                return;
+            }
+            try {
+                clearAutosaveSettings(file);
+            } catch (IOException e) {
+                if (feedback != null) {
+                    feedback.warn("Unable to clear ASTRA autosave at " + file.getAbsolutePath() + ": " + e.getMessage());
+                }
+            }
+        }
+    }
+
     static final class SettingsProfileState {
 
         private String source = "script defaults or manual GUI values";
@@ -1957,6 +2081,14 @@ final class AstraPipelineLauncher {
 
         void loadedProfile(String name, String path, String sha256) {
             this.source = "loaded settings profile";
+            this.profileName = name;
+            this.profilePath = path;
+            this.profileSha256 = sha256;
+            this.manualEdit = false;
+        }
+
+        void loadedAutosave(String name, String path, String sha256) {
+            this.source = "autosaved settings";
             this.profileName = name;
             this.profilePath = path;
             this.profileSha256 = sha256;
