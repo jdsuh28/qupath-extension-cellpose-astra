@@ -275,13 +275,26 @@ public class Cellpose2D {
             // Using an outer thread poll impacts any parallel streams created inside
             var pool = new ForkJoinPool(nThreads);
             try {
-                pool.submit(runnable);
+                pool.submit(runnable).get();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Cellpose detection was interrupted.", e);
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause() == null ? e : e.getCause();
+                if (cause instanceof RuntimeException runtimeException) {
+                    throw runtimeException;
+                }
+                if (cause instanceof Error error) {
+                    throw error;
+                }
+                throw new IllegalStateException("Cellpose detection failed.", cause);
             } finally {
                 pool.shutdown();
                 try {
                     pool.awaitTermination(2, TimeUnit.DAYS);
                 } catch (InterruptedException e) {
-                    logger.warn("Process was interrupted! {}", e.getLocalizedMessage(), e);
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted while waiting for Cellpose detection workers to stop.", e);
                 }
             }
         } else {
@@ -471,9 +484,13 @@ public class Cellpose2D {
 
         try {
             runCellpose(allTiles);
-        } catch (IOException | InterruptedException e) {
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             logger.error("Failed to Run Cellpose", e);
-            return;
+            throw new IllegalStateException("Cellpose detection was interrupted before masks could be read.", e);
+        } catch (IOException e) {
+            logger.error("Failed to Run Cellpose", e);
+            throw new IllegalStateException("Cellpose detection failed before masks could be read.", e);
         }
 
         // Group the candidates per parent object, as this is needed to optimize when checking for overlap

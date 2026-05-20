@@ -220,6 +220,11 @@ class AstraExtensionContractTest {
         assertTrue(base.contains("requireSuccessfulProcessExit(veRunner, \"Cellpose process\")"));
         assertTrue(base.contains("throw e;"));
         assertTrue(base.contains("exited with value"));
+        assertFalse(base.contains("catch (IOException | InterruptedException e) {\n            logger.error(\"Failed to Run Cellpose\", e);\n            return;"));
+        assertTrue(base.contains("throw new IllegalStateException(\"Cellpose detection failed before masks could be read.\", e);"));
+        assertTrue(base.contains("Thread.currentThread().interrupt();"));
+        assertTrue(base.contains("pool.submit(runnable).get();"));
+        assertTrue(base.contains("throw new IllegalStateException(\"Cellpose detection was interrupted.\", e);"));
         assertTrue(astra.contains("requireSuccessfulProcessExit(veRunner, \"Cellpose process\")"));
         assertTrue(astra.contains("exited with value"));
         assertTrue(astra.contains("Process log:"));
