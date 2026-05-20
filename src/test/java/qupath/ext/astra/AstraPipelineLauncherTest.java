@@ -805,6 +805,75 @@ class AstraPipelineLauncherTest {
 
         assertTrue(summary.contains("effective nucleus model source: SAVED"));
         assertTrue(summary.contains("effective nucleus model: nuc_v1"));
+        assertTrue(summary.contains("effective cell model: not used for DETECTION_TARGET=NUCLEUS"));
+    }
+
+    @Test
+    void finalSummaryUsesTrainingTargetForEffectiveModels() {
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+                final List TRAIN_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
+                final String TRAIN_TARGET = "NUCLEUS"
+                final List NUC_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
+                final String NUC_MODEL_SOURCE = "MODEL_NAME"
+                final String NUC_MODEL_NAME = "nuc-train"
+                final String NUC_MODEL_FILE = ""
+                final String NUC_SAVED_MODEL_ID = ""
+                final List CELL_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
+                final String CELL_MODEL_SOURCE = "MODEL_NAME"
+                final String CELL_MODEL_NAME = "cell-train"
+                final String CELL_MODEL_FILE = ""
+                final String CELL_SAVED_MODEL_ID = ""
+                final Map cfg = [:]
+                """);
+
+        String summary = AstraPipelineLauncher.finalConfigSummary("Training", "123456789012", constants);
+
+        assertTrue(summary.contains("training target: \"NUCLEUS\""));
+        assertTrue(summary.contains("effective nucleus model: nuc-train"));
+        assertTrue(summary.contains("effective cell model: not used for TRAIN_TARGET=NUCLEUS"));
+        assertFalse(summary.contains("not used for DETECTION_TARGET"));
+    }
+
+    @Test
+    void finalSummaryUsesTuningAndValidationTargetsForEffectiveModels() {
+        List<AstraPipelineLauncher.EditableConstant> tuning = AstraPipelineLauncher.extractEditableConstants("""
+                final List TUNE_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
+                final String TUNE_TARGET = "CELL"
+                final List NUC_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
+                final String NUC_MODEL_SOURCE = "MODEL_NAME"
+                final String NUC_MODEL_NAME = "nuc-tune"
+                final String NUC_MODEL_FILE = ""
+                final String NUC_SAVED_MODEL_ID = ""
+                final List CELL_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
+                final String CELL_MODEL_SOURCE = "MODEL_NAME"
+                final String CELL_MODEL_NAME = "cell-tune"
+                final String CELL_MODEL_FILE = ""
+                final String CELL_SAVED_MODEL_ID = ""
+                final Map cfg = [:]
+                """);
+        List<AstraPipelineLauncher.EditableConstant> validation = AstraPipelineLauncher.extractEditableConstants("""
+                final List VALIDATE_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
+                final String VALIDATE_TARGET = "BOTH"
+                final List NUC_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
+                final String NUC_MODEL_SOURCE = "MODEL_NAME"
+                final String NUC_MODEL_NAME = "nuc-val"
+                final String NUC_MODEL_FILE = ""
+                final String NUC_SAVED_MODEL_ID = ""
+                final List CELL_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
+                final String CELL_MODEL_SOURCE = "MODEL_NAME"
+                final String CELL_MODEL_NAME = "cell-val"
+                final String CELL_MODEL_FILE = ""
+                final String CELL_SAVED_MODEL_ID = ""
+                final Map cfg = [:]
+                """);
+
+        String tuningSummary = AstraPipelineLauncher.finalConfigSummary("Tuning", "123456789012", tuning);
+        String validationSummary = AstraPipelineLauncher.finalConfigSummary("Validation", "123456789012", validation);
+
+        assertTrue(tuningSummary.contains("effective nucleus model: not used for TUNE_TARGET=CELL"));
+        assertTrue(tuningSummary.contains("effective cell model: cell-tune"));
+        assertTrue(validationSummary.contains("effective nucleus model: nuc-val"));
+        assertTrue(validationSummary.contains("effective cell model: cell-val"));
     }
 
     @Test

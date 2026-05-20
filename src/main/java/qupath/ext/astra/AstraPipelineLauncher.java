@@ -618,9 +618,12 @@ final class AstraPipelineLauncher {
         lines.add("  settings source: " + profileState.summary());
         appendSummary(lines, byName, "IMAGE_SCOPE", "  image scope");
         appendSummary(lines, byName, "SELECTED_IMAGE_NAMES", "  selected images");
+        appendSummary(lines, byName, "TRAIN_TARGET", "  training target");
+        appendSummary(lines, byName, "TUNE_TARGET", "  tuning target");
+        appendSummary(lines, byName, "VALIDATE_TARGET", "  validation target");
         appendSummary(lines, byName, "DETECTION_TARGET", "  detection target");
-        appendEffectiveModelSummary(lines, byName, "NUCLEUS", "nucleus");
-        appendEffectiveModelSummary(lines, byName, "CELL", "cell");
+        appendEffectiveModelSummary(lines, byName, effectiveTargetKey(byName), "NUCLEUS", "nucleus");
+        appendEffectiveModelSummary(lines, byName, effectiveTargetKey(byName), "CELL", "cell");
         appendSummary(lines, byName, "NUCLEUS_SEGMENTATION_CHANNELS", "  nucleus segmentation channels");
         appendSummary(lines, byName, "CELL_SEGMENTATION_CHANNELS", "  cell segmentation channels");
         appendSummary(lines, byName, "CHANNELS_FOR_NUCLEUS", "  nucleus channels");
@@ -634,14 +637,23 @@ final class AstraPipelineLauncher {
         return String.join("\n", lines);
     }
 
-    private static void appendEffectiveModelSummary(List<String> lines, Map<String, EditableConstant> constants, String target, String label) {
-        String detectionTarget = rawString(constants, "DETECTION_TARGET", "BOTH");
-        if ("NUCLEUS".equals(target) && "CELL".equals(detectionTarget)) {
-            lines.add("  effective " + label + " model: not used for DETECTION_TARGET=CELL");
+    private static String effectiveTargetKey(Map<String, EditableConstant> constants) {
+        for (String key : List.of("TRAIN_TARGET", "TUNE_TARGET", "VALIDATE_TARGET", "DETECTION_TARGET")) {
+            if (constants.containsKey(key)) {
+                return key;
+            }
+        }
+        return "";
+    }
+
+    private static void appendEffectiveModelSummary(List<String> lines, Map<String, EditableConstant> constants, String targetKey, String target, String label) {
+        String selectedTarget = targetKey == null || targetKey.isBlank() ? "BOTH" : rawString(constants, targetKey, "BOTH");
+        if ("NUCLEUS".equals(target) && "CELL".equals(selectedTarget)) {
+            lines.add("  effective " + label + " model: not used for " + targetKey + "=CELL");
             return;
         }
-        if ("CELL".equals(target) && "NUCLEUS".equals(detectionTarget)) {
-            lines.add("  effective " + label + " model: not used for DETECTION_TARGET=NUCLEUS");
+        if ("CELL".equals(target) && "NUCLEUS".equals(selectedTarget)) {
+            lines.add("  effective " + label + " model: not used for " + targetKey + "=NUCLEUS");
             return;
         }
         String prefix = "NUCLEUS".equals(target) ? "NUC_" : "CELL_";
