@@ -21,7 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class AstraPipelineLauncherTest {
 
-    private static final Path BASE_ASTRA_ROOT = Path.of("..", "astra");
+    private static final Path LOCAL_BASE_ASTRA_ROOT = Path.of("..", "astra");
+    private static final Path VENDORED_BASE_ASTRA_ROOT = Path.of("src", "main", "resources", "astra");
 
     @Test
     void helpConstantsAttachToTargetVariables() {
@@ -928,9 +929,22 @@ class AstraPipelineLauncherTest {
     }
 
     private static String realBaseScript(String relativePath) throws Exception {
-        Path path = BASE_ASTRA_ROOT.resolve(relativePath).normalize();
+        Path path = currentBaseAstraRoot(relativePath).resolve(relativePath).normalize();
         assertTrue(Files.isRegularFile(path), "Missing current ASTRA script fixture: " + path);
         return Files.readString(path);
+    }
+
+    private static Path currentBaseAstraRoot(String relativePath) {
+        Path localPath = LOCAL_BASE_ASTRA_ROOT.resolve(relativePath).normalize();
+        if (Files.isRegularFile(localPath)) {
+            return LOCAL_BASE_ASTRA_ROOT;
+        }
+        Path vendoredPath = VENDORED_BASE_ASTRA_ROOT.resolve(relativePath).normalize();
+        if (Files.isRegularFile(vendoredPath)) {
+            return VENDORED_BASE_ASTRA_ROOT;
+        }
+        throw new AssertionError("Missing current ASTRA script fixture. Checked local source "
+                + localPath + " and vendored release resource " + vendoredPath + ".");
     }
 
     private static String colocalizationModelScript(String target) {
