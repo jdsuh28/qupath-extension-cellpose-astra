@@ -178,7 +178,9 @@ class AstraExtensionContractTest {
         assertTrue(source.contains("ASTRA_RUNTIME_PYTHON_PATH_KEY = \"astraRuntimePythonPath\""));
         assertTrue(source.contains("syncAstraRuntimePythonPreference()"));
         assertTrue(source.contains("PathPrefs.createPersistentPreference(ASTRA_RUNTIME_PYTHON_PATH_KEY, \"\")"));
-        assertTrue(source.contains("cellposeSetup.setCellposePythonPath(normalized);"));
+        assertTrue(source.contains("pythonExecutable.isAbsolute()"));
+        assertTrue(source.contains("pythonExecutable.isFile()"));
+        assertTrue(source.contains("cellposeSetup.setCellposePythonPath(absolutePath);"));
         assertTrue(source.contains("CellposeSetup may not have been synchronized yet"));
         assertTrue(source.contains("ASTRA/Cellpose > ASTRA runtime Python executable"));
         assertFalse(source.contains("cellposeSAMPythonPath"));
