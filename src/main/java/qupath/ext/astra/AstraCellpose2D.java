@@ -99,6 +99,7 @@ public class AstraCellpose2D extends Cellpose2D {
     private ResultsTable validationResults;
     private boolean batchInferenceEnabled = true;
     private boolean pixelScalingEnabled = true;
+    private boolean persistTrainingArtifacts = true;
     private Double lastCanonicalPixelSizeUsed = null;
     private String trainingAnnotationClass = null;
 
@@ -120,6 +121,10 @@ public class AstraCellpose2D extends Cellpose2D {
 
     public void setPixelScalingEnabled(boolean enabled) {
         this.pixelScalingEnabled = enabled;
+    }
+
+    public void setPersistTrainingArtifacts(boolean enabled) {
+        this.persistTrainingArtifacts = enabled;
     }
 
     public Double getCanonicalPixelSizeUsed() {
@@ -376,10 +381,12 @@ public class AstraCellpose2D extends Cellpose2D {
 
             ResultsTable parsedTrainingResults = parseTrainingResults();
             setTrainingResults(parsedTrainingResults);
-            saveTrainingGraphAfterTraining();
+            if (persistTrainingArtifacts) {
+                saveTrainingGraphAfterTraining();
+            }
             logger.info("Training completed. Results processed and ready.");
 
-            return trainingArtifactReturnValue(getTrainingDirectory());
+            return trainingArtifactReturnValue(this.groundTruthDirectory);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("ASTRA training was interrupted.", e);
@@ -526,9 +533,11 @@ public class AstraCellpose2D extends Cellpose2D {
             }
         }
 
-        File trainingResultsFile = resolveTrainingResultsFile(getTrainingResultsDirectory());
-        logger.info("Saving Training Results to {}", trainingResultsFile.getAbsolutePath());
-        trainingResults.save(trainingResultsFile.getAbsolutePath());
+        if (persistTrainingArtifacts) {
+            File trainingResultsFile = resolveTrainingResultsFile(getTrainingResultsDirectory());
+            logger.info("Saving Training Results to {}", trainingResultsFile.getAbsolutePath());
+            trainingResults.save(trainingResultsFile.getAbsolutePath());
+        }
         return trainingResults;
     }
 
@@ -1028,6 +1037,8 @@ public class AstraCellpose2D extends Cellpose2D {
         cellposeArguments.add("--train");
         cellposeArguments.add("--dir");
         cellposeArguments.add(getTrainingDirectory().getAbsolutePath());
+        cellposeArguments.add("--astra_model_save_root");
+        cellposeArguments.add(this.groundTruthDirectory.getAbsolutePath());
 
         if (this.useTestDir) {
             cellposeArguments.add("--test_dir");
@@ -1811,7 +1822,7 @@ public class AstraCellpose2D extends Cellpose2D {
 
     static File resolveTrainingDirectory(File groundTruthDirectory) {
         Objects.requireNonNull(groundTruthDirectory, "groundTruthDirectory");
-        return groundTruthDirectory;
+        return new File(groundTruthDirectory, "train");
     }
 
     static File resolveValidationInputDirectory(File validationDirectory) {

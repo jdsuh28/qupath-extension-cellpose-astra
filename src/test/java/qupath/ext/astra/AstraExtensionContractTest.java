@@ -222,6 +222,27 @@ class AstraExtensionContractTest {
     }
 
     /**
+     * Verifies ASTRA training uses the explicit train/test/models runtime
+     * contract and passes the ASTRA save-root hook to Cellpose-ASTRA.
+     *
+     * @throws Exception if source cannot be read.
+     */
+    @Test
+    void astraTrainingUsesThreeFolderRuntimeContract() throws Exception {
+        File root = new File("/tmp/astra-training-root");
+        String runtime = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraCellpose2D.java").toPath());
+        String builder = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraCellposeBuilder.java").toPath());
+
+        assertEquals(new File(root, "train"), AstraCellpose2D.resolveTrainingDirectory(root));
+        assertEquals(new File(root, "models"), AstraCellpose2D.trainingArtifactReturnValue(root));
+        assertTrue(runtime.contains("cellposeArguments.add(\"--astra_model_save_root\")"));
+        assertTrue(runtime.contains("cellposeArguments.add(this.groundTruthDirectory.getAbsolutePath())"));
+        assertTrue(runtime.contains("return trainingArtifactReturnValue(this.groundTruthDirectory);"));
+        assertTrue(builder.contains("persistTrainingArtifacts(boolean persist)"));
+        assertTrue(builder.contains("runtime.setPersistTrainingArtifacts(persistTrainingArtifacts);"));
+    }
+
+    /**
      * Verifies Cellpose subprocess failure cannot be reported as a successful
      * zero-cell detection.
      *
