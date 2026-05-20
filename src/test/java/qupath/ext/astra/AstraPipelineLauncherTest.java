@@ -906,8 +906,12 @@ class AstraPipelineLauncherTest {
         assertFalse(source.contains("new Button(\"🗑\")"));
         assertFalse(source.contains("new Button(\"...\")"));
         assertFalse(source.contains("setText(\"...\")"));
+        assertTrue(source.contains("nestedField(\"Check name\", label)"));
+        assertTrue(source.contains("nestedField(\"Compartment\", compartment)"));
+        assertTrue(source.contains("nestedField(\"Channels\", channels)"));
         assertTrue(source.contains("compartment.setMinWidth(120.0)"));
         assertTrue(source.contains("compartment.setPrefWidth(130.0)"));
+        assertTrue(source.contains("styleComboBoxText(compartment)"));
         assertTrue(source.contains("channels.setAlignment(Pos.CENTER_LEFT)"));
     }
 
@@ -925,10 +929,15 @@ class AstraPipelineLauncherTest {
     void colocalizationThresholdAndBackgroundScopesAreInSetupPanel() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
 
-        assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, byName.get(\"THRESHOLD_SCOPE\")"));
-        assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, byName.get(\"BACKGROUND_SCOPE\")"));
+        assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"THRESHOLD_SCOPE\")"));
+        assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"BACKGROUND_SCOPE\")"));
         assertTrue(source.contains("\"THRESHOLD_MODE\", \"THRESHOLD_SCOPE\""));
         assertTrue(source.contains("\"BACKGROUND_MODE\", \"BACKGROUND_SCOPE\""));
+        assertTrue(source.contains("installColocalizationThresholdVisibility(byName, thresholdRows, thresholdPanel)"));
+        assertTrue(source.contains("setVisible(rows, \"MANUAL_INTENSITY_THRESHOLDS\", isSelected(byName, \"THRESHOLD_MODE\", \"MANUAL\"))"));
+        assertTrue(source.contains("setVisible(rows, \"LOCAL_BACKGROUND_PERCENTILE\", localBackground)"));
+        assertTrue(source.contains("panel.requestLayout()"));
+        assertTrue(source.contains("row.editor.setDisable(!visible)"));
     }
 
     @Test
