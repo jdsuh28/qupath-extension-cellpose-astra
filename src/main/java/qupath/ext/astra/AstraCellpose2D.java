@@ -27,6 +27,7 @@ import qupath.lib.common.ColorTools;
 import qupath.lib.common.GeneralTools;
 import qupath.lib.geom.ImmutableDimension;
 import qupath.lib.gui.QuPathGUI;
+import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.gui.scripting.QPEx;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.*;
@@ -86,6 +87,10 @@ import java.util.stream.Collectors;
 public class AstraCellpose2D extends Cellpose2D {
 
     private static final Logger logger = LoggerFactory.getLogger(AstraCellpose2D.class);
+
+    private static final String ASTRA_RUNTIME_PYTHON_PATH_KEY = "astraRuntimePythonPath";
+    private static final String ASTRA_RUNTIME_PYTHON_PATH_NAME =
+            "ASTRA/Cellpose > ASTRA runtime Python executable";
 
     private static final String VALIDATION_METRICS_HELPER_RELATIVE_PATH = "QC/run-cellpose-qc.py";
 
@@ -1054,10 +1059,13 @@ public class AstraCellpose2D extends Cellpose2D {
     private VirtualEnvironmentRunner createRuntimeRunner() {
         requireSupportedRuntimeConfiguration();
 
-        String pythonPath = cellposeSetup.getCellposePythonPath();
+        String pythonPath = syncAstraRuntimePythonPreference();
         if (pythonPath == null || pythonPath.isBlank()) {
             throw new IllegalStateException(
-                    "ASTRA runtime Python path is empty. Please configure it in Edit > Preferences."
+                    "ASTRA runtime Python path is empty. Configure "
+                            + ASTRA_RUNTIME_PYTHON_PATH_NAME
+                            + " (key: " + ASTRA_RUNTIME_PYTHON_PATH_KEY + ") in Edit > Preferences. "
+                            + "CellposeSetup may not have been synchronized yet."
             );
         }
 
@@ -1074,6 +1082,17 @@ public class AstraCellpose2D extends Cellpose2D {
                 null,
                 this.getClass().getSimpleName()
         );
+    }
+
+    private String syncAstraRuntimePythonPreference() {
+        String pythonPath = PathPrefs.createPersistentPreference(ASTRA_RUNTIME_PYTHON_PATH_KEY, "").get();
+        if (pythonPath == null || pythonPath.isBlank()) {
+            cellposeSetup.setCellposePythonPath("");
+            return "";
+        }
+        String normalized = pythonPath.trim();
+        cellposeSetup.setCellposePythonPath(normalized);
+        return normalized;
     }
 
     private void requireSupportedRuntimeConfiguration() {

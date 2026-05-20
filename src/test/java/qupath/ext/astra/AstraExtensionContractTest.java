@@ -165,6 +165,25 @@ class AstraExtensionContractTest {
         assertTrue(source.contains("progress.done(\"ASTRA runtime is ready:"));
     }
 
+    /**
+     * Verifies the Java Cellpose runner reads ASTRA's explicit runtime
+     * preference directly before creating a process runner.
+     *
+     * @throws Exception if source cannot be read.
+     */
+    @Test
+    void cellposeRunnerSyncsAstraRuntimePreferenceDirectly() throws Exception {
+        String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraCellpose2D.java").toPath());
+
+        assertTrue(source.contains("ASTRA_RUNTIME_PYTHON_PATH_KEY = \"astraRuntimePythonPath\""));
+        assertTrue(source.contains("syncAstraRuntimePythonPreference()"));
+        assertTrue(source.contains("PathPrefs.createPersistentPreference(ASTRA_RUNTIME_PYTHON_PATH_KEY, \"\")"));
+        assertTrue(source.contains("cellposeSetup.setCellposePythonPath(normalized);"));
+        assertTrue(source.contains("CellposeSetup may not have been synchronized yet"));
+        assertTrue(source.contains("ASTRA/Cellpose > ASTRA runtime Python executable"));
+        assertFalse(source.contains("cellposeSAMPythonPath"));
+    }
+
     private static final class FakeProcess extends Process {
         boolean destroyCalled;
         boolean destroyForciblyCalled;
