@@ -207,6 +207,21 @@ class AstraExtensionContractTest {
     }
 
     /**
+     * Verifies ASTRA-owned default folders are rooted under projectRoot/astra
+     * when callers do not provide explicit directories.
+     */
+    @Test
+    void astraDefaultDirectoriesResolveUnderAstraRoot() {
+        File project = new File("/tmp/astra-extension-project");
+
+        assertEquals(new File(project, "astra"), AstraCellpose2D.resolveAstraRootDirectory(project));
+        assertEquals(new File(project, "astra/models"), AstraCellpose2D.resolveModelDirectory(project, null));
+        assertEquals(new File(project, "astra/training"), AstraCellpose2D.resolveTrainingRootDirectory(project, null));
+        assertEquals(new File(project, "astra/validation"), AstraCellpose2D.resolveValidationInputDirectory(project, null));
+        assertEquals(new File(project, "astra/results"), AstraCellpose2D.resolveResultsDirectory(project, null));
+    }
+
+    /**
      * Verifies Cellpose subprocess failure cannot be reported as a successful
      * zero-cell detection.
      *
