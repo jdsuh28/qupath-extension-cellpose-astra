@@ -303,6 +303,8 @@ class AstraExtensionContractTest {
                 final String SEARCH_MODE = "TEST"
                 final String VALIDATION_MODE = "FULL"
                 final List CHANNELS_FOR_NUCLEUS = ["DAPI"]
+                final boolean USE_BATCH_MODE = true
+                final boolean USE_PIXEL_SCALING = true
                 final double NUC_DIAMETER_UM = 2.5d
                 final boolean LOG_VIEWER_PROGRESS_FAILURES = false
                 final Map cfg = [:]
@@ -319,8 +321,22 @@ class AstraExtensionContractTest {
         assertFalse(isAdvanced(constants, "SEARCH_MODE"));
         assertFalse(isAdvanced(constants, "VALIDATION_MODE"));
         assertFalse(isAdvanced(constants, "CHANNELS_FOR_NUCLEUS"));
+        assertFalse(isAdvanced(constants, "USE_BATCH_MODE"));
+        assertFalse(isAdvanced(constants, "USE_PIXEL_SCALING"));
         assertTrue(isAdvanced(constants, "NUC_DIAMETER_UM"));
         assertTrue(isAdvanced(constants, "LOG_VIEWER_PROGRESS_FAILURES"));
+    }
+
+    /**
+     * Verifies pixel scaling is visible only when batch execution is enabled.
+     *
+     * @throws Exception if source cannot be read.
+     */
+    @Test
+    void launcherGatesPixelScalingByBatchMode() throws Exception {
+        String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraPipelineLauncher.java").toPath());
+
+        assertTrue(source.contains("setVisible(rows, \"USE_PIXEL_SCALING\", isChecked(byName, \"USE_BATCH_MODE\"));"));
     }
 
     /**
