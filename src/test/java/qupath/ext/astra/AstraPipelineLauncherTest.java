@@ -7,6 +7,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -913,6 +914,9 @@ class AstraPipelineLauncherTest {
         assertTrue(source.contains("compartment.setPrefWidth(130.0)"));
         assertTrue(source.contains("styleComboBoxText(compartment)"));
         assertTrue(source.contains("channels.setAlignment(Pos.CENTER_LEFT)"));
+        assertTrue(source.contains("private static String nestedLabelStyle()"));
+        assertTrue(source.contains("private static String checkBoxStyle()"));
+        assertTrue(source.contains("private static void styleCheckBox(CheckBox box)"));
     }
 
     @Test
@@ -931,13 +935,44 @@ class AstraPipelineLauncherTest {
 
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"THRESHOLD_SCOPE\")"));
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"BACKGROUND_SCOPE\")"));
-        assertTrue(source.contains("\"THRESHOLD_MODE\", \"THRESHOLD_SCOPE\""));
-        assertTrue(source.contains("\"BACKGROUND_MODE\", \"BACKGROUND_SCOPE\""));
+        assertTrue(source.contains("thresholdRows.put(\"THRESHOLD_EXCLUDE_MARKERS\""));
         assertTrue(source.contains("installColocalizationThresholdVisibility(byName, thresholdRows, thresholdPanel)"));
-        assertTrue(source.contains("setVisible(rows, \"MANUAL_INTENSITY_THRESHOLDS\", isSelected(byName, \"THRESHOLD_MODE\", \"MANUAL\"))"));
-        assertTrue(source.contains("setVisible(rows, \"LOCAL_BACKGROUND_PERCENTILE\", localBackground)"));
+        assertTrue(source.contains("static Set<String> colocalizationThresholdVisibilityState("));
+        assertTrue(source.contains("List.of(\"THRESHOLD_MODE\", \"BACKGROUND_MODE\")"));
+        assertFalse(source.contains("List.of(\"THRESHOLD_MODE\", \"THRESHOLD_SCOPE\", \"BACKGROUND_MODE\", \"BACKGROUND_SCOPE\")"));
         assertTrue(source.contains("panel.requestLayout()"));
         assertTrue(source.contains("row.editor.setDisable(!visible)"));
+    }
+
+    @Test
+    void colocalizationThresholdVisibilityDefaultRunStateIsCompact() {
+        Set<String> visible = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "RUN", "NONE", "RUN");
+
+        assertEquals(Set.of("THRESHOLD_MODE", "THRESHOLD_SCOPE", "THRESHOLD_EXCLUDE_MARKERS", "BACKGROUND_MODE"), visible);
+    }
+
+    @Test
+    void colocalizationThresholdScopeTogglesDoNotChangeVisibility() {
+        Set<String> run = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "RUN", "NONE", "RUN");
+        Set<String> slide = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "SLIDE", "NONE", "RUN");
+        Set<String> roi = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "ROI", "NONE", "RUN");
+
+        assertEquals(run, slide);
+        assertEquals(run, roi);
+    }
+
+    @Test
+    void colocalizationThresholdVisibilityIsModeDriven() {
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MANUAL", "RUN", "NONE", "RUN")
+                .contains("MANUAL_INTENSITY_THRESHOLDS"));
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("RANGE_PERCENT", "RUN", "NONE", "RUN")
+                .contains("RANGE_THRESHOLD_FRACTION_BY_MARKER"));
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "RUN", "MANUAL_OFFSET", "RUN")
+                .contains("BACKGROUND_SUBTRACTION_BY_CHANNEL"));
+
+        Set<String> local = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "RUN", "LOCAL_ROI_PERCENTILE", "ROI");
+        assertTrue(local.contains("BACKGROUND_SCOPE"));
+        assertTrue(local.contains("LOCAL_BACKGROUND_PERCENTILE"));
     }
 
     @Test
