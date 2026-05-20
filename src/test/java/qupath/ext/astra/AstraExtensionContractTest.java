@@ -186,6 +186,45 @@ class AstraExtensionContractTest {
         assertFalse(source.contains("cellposeSAMPythonPath"));
     }
 
+    /**
+     * Verifies ASTRA-owned Cellpose detection cannot fall through to BIOP's
+     * legacy runtime preference selection.
+     *
+     * @throws Exception if source cannot be read.
+     */
+    @Test
+    void astraCellposeOverridesBiopRuntimeSelection() throws Exception {
+        String base = Files.readString(new File(ROOT, "src/main/java/qupath/ext/biop/cellpose/Cellpose2D.java").toPath());
+        String astra = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraCellpose2D.java").toPath());
+
+        assertTrue(base.contains("protected VirtualEnvironmentRunner getVirtualEnvironmentRunner()"));
+        assertTrue(astra.contains("protected VirtualEnvironmentRunner getVirtualEnvironmentRunner()"));
+        assertTrue(astra.contains("return createRuntimeRunner();"));
+        assertTrue(astra.contains("VirtualEnvironmentRunner.EnvType.EXE"));
+        assertFalse(astra.contains("EnvType.CONDA"));
+        assertFalse(astra.contains("\"CALL\""));
+        assertFalse(astra.contains("\"activate\""));
+    }
+
+    /**
+     * Verifies Cellpose subprocess failure cannot be reported as a successful
+     * zero-cell detection.
+     *
+     * @throws Exception if source cannot be read.
+     */
+    @Test
+    void cellposeDetectionFailureIsFatal() throws Exception {
+        String base = Files.readString(new File(ROOT, "src/main/java/qupath/ext/biop/cellpose/Cellpose2D.java").toPath());
+        String astra = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraCellpose2D.java").toPath());
+
+        assertTrue(base.contains("requireSuccessfulProcessExit(veRunner, \"Cellpose process\")"));
+        assertTrue(base.contains("throw e;"));
+        assertTrue(base.contains("exited with value"));
+        assertTrue(astra.contains("requireSuccessfulProcessExit(veRunner, \"Cellpose process\")"));
+        assertTrue(astra.contains("exited with value"));
+        assertTrue(astra.contains("Process log:"));
+    }
+
     private static final class FakeProcess extends Process {
         boolean destroyCalled;
         boolean destroyForciblyCalled;

@@ -805,7 +805,7 @@ public class Cellpose2D {
      *
      * @return the virtual environment runner that can run the desired command
      */
-    private VirtualEnvironmentRunner getVirtualEnvironmentRunner() {
+    protected VirtualEnvironmentRunner getVirtualEnvironmentRunner() {
 
         // Make sure that cellposeSetup.getCellposePythonPath() is not empty
         if (cellposeSetup.getCellposePythonPath().isEmpty() && !this.useCellposeSAM) {
@@ -888,7 +888,7 @@ public class Cellpose2D {
         // Make sure that allTiles is not null, if it is, just return null
         // as we are likely just running validation and thus do not need to give any results back
         if (allTiles == null) {
-            veRunner.getProcess().waitFor();
+            requireSuccessfulProcessExit(veRunner, "Cellpose process");
             return;
         }
 
@@ -898,7 +898,7 @@ public class Cellpose2D {
 
         if (!this.doReadResultsAsynchronously) {
             // We need to wait for the process to finish
-            veRunner.getProcess().waitFor();
+            requireSuccessfulProcessExit(veRunner, "Cellpose process");
             allTiles.forEach(entry -> {
                 readerTasks.add(executor.submit(() -> {
                     // Read the objects from the file
@@ -952,8 +952,10 @@ public class Cellpose2D {
                         remainingFiles.remove(k);
                     });
                 }
+                requireSuccessfulProcessExit(veRunner, "Cellpose process");
             } catch (IOException e) {
                 logger.error(e.getMessage(), e);
+                throw e;
 
             } finally {
                 // No matter what, try and check if there are tiles left
@@ -991,6 +993,25 @@ public class Cellpose2D {
                 throw new IOException("Failed to read Cellpose output tile: " + cause.getMessage(), cause);
             }
         }
+    }
+
+    private static void requireSuccessfulProcessExit(VirtualEnvironmentRunner runner, String label) throws IOException, InterruptedException {
+        Process process = runner.getProcess();
+        if (process == null) {
+            throw new IOException(label + " did not start a process.");
+        }
+        int exitValue = process.waitFor();
+        if (exitValue != 0) {
+            throw new IOException(label + " exited with value " + exitValue + ". Process log: " + lastProcessLogLines(runner.getProcessLog(), 12));
+        }
+    }
+
+    private static String lastProcessLogLines(List<String> log, int maxLines) {
+        if (log == null || log.isEmpty()) {
+            return "";
+        }
+        int start = Math.max(0, log.size() - maxLines);
+        return String.join("\n", log.subList(start, log.size()));
     }
 
     /**

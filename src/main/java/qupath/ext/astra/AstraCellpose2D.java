@@ -1056,6 +1056,11 @@ public class AstraCellpose2D extends Cellpose2D {
         writeCellpose2DField("theLog", veRunner.getProcessLog());
     }
 
+    @Override
+    protected VirtualEnvironmentRunner getVirtualEnvironmentRunner() {
+        return createRuntimeRunner();
+    }
+
     private VirtualEnvironmentRunner createRuntimeRunner() {
         requireSupportedRuntimeConfiguration();
 
@@ -1867,8 +1872,16 @@ public class AstraCellpose2D extends Cellpose2D {
         }
         int exitValue = process.waitFor();
         if (exitValue != 0) {
-            throw new IOException(label + " exited with value " + exitValue + ". Please check the process log for details.");
+            throw new IOException(label + " exited with value " + exitValue + ". Process log: " + lastProcessLogLines(runner.getProcessLog(), 12));
         }
+    }
+
+    private static String lastProcessLogLines(List<String> log, int maxLines) {
+        if (log == null || log.isEmpty()) {
+            return "";
+        }
+        int start = Math.max(0, log.size() - maxLines);
+        return String.join("\n", log.subList(start, log.size()));
     }
 
 

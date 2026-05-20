@@ -898,16 +898,52 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
-    void colocalizationCheckRowUsesAlignedIconDeleteControl() throws Exception {
+    void colocalizationCheckRowUsesReadableDeleteControl() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
 
-        assertTrue(source.contains("Button remove = new Button(\"🗑\")"));
+        assertTrue(source.contains("Button remove = new Button(\"Delete check\")"));
         assertTrue(source.contains("new Tooltip(\"Delete check\")"));
+        assertFalse(source.contains("new Button(\"🗑\")"));
         assertFalse(source.contains("new Button(\"...\")"));
         assertFalse(source.contains("setText(\"...\")"));
         assertTrue(source.contains("compartment.setMinWidth(120.0)"));
         assertTrue(source.contains("compartment.setPrefWidth(130.0)"));
         assertTrue(source.contains("channels.setAlignment(Pos.CENTER_LEFT)"));
+    }
+
+    @Test
+    void comboBoxSelectedValueUsesReadableTextColor() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("private static void styleComboBoxText(ComboBox<String> combo)"));
+        assertTrue(source.contains("combo.setButtonCell(readableComboCell())"));
+        assertTrue(source.contains("combo.setCellFactory(list -> readableComboCell())"));
+        assertTrue(source.contains("-fx-text-fill: \" + INK"));
+    }
+
+    @Test
+    void colocalizationThresholdAndBackgroundScopesAreInSetupPanel() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, byName.get(\"THRESHOLD_SCOPE\")"));
+        assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, byName.get(\"BACKGROUND_SCOPE\")"));
+        assertTrue(source.contains("\"THRESHOLD_MODE\", \"THRESHOLD_SCOPE\""));
+        assertTrue(source.contains("\"BACKGROUND_MODE\", \"BACKGROUND_SCOPE\""));
+    }
+
+    @Test
+    void selectedImageNamesUsesScalableProjectPicker() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("private static final class SelectedImageNamesEditor extends VBox"));
+        assertTrue(source.contains("ListView<String> list"));
+        assertTrue(source.contains("filter.setPromptText(\"Filter project image names\")"));
+        assertTrue(source.contains("list.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE)"));
+        assertTrue(source.contains("smallButton(\"Select filtered\")"));
+        assertTrue(source.contains("smallButton(\"Clear\")"));
+        assertTrue(source.contains("smallButton(\"Invert filtered\")"));
+        assertTrue(source.contains("smallButton(\"Paste names\")"));
+        assertTrue(source.contains("renderStringList(selectedNames())"));
     }
 
     @Test
