@@ -226,8 +226,8 @@ class AstraExtensionContractTest {
     void launcherSeparatesBasicAndAdvancedConfiguration() throws Exception {
         String script = """
                 final String CLASS_ANALYSIS_REGION = "ROI"
-                final List MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
-                final String MODEL_SOURCE = "MODEL_NAME"
+                final List NUC_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
+                final String NUC_MODEL_SOURCE = "MODEL_NAME"
                 final String CHANNEL_DAPI = "DAPI"
                 final List CELLPOSE_CELL_CHANNELS = ["AF488", "DAPI"]
                 final List COLOCALIZATION_CHECKS = []
@@ -267,8 +267,8 @@ class AstraExtensionContractTest {
     @Test
     void launcherUsesScriptDeclaredOptions() throws Exception {
         String script = """
-                final List MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
-                final String MODEL_SOURCE = "MODEL_NAME"
+                final List NUC_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
+                final String NUC_MODEL_SOURCE = "MODEL_NAME"
                 final List CUSTOM_MODE_OPTIONS = ["ALPHA", "BETA"]
                 final String CUSTOM_MODE = "ALPHA"
                 final Map cfg = [:]
@@ -277,8 +277,8 @@ class AstraExtensionContractTest {
         List<?> constants = AstraPipelineLauncher.extractEditableConstants(script);
 
         assertEquals(2, constants.size());
-        assertFalse(hasConstant(constants, "MODEL_SOURCE_OPTIONS"));
-        assertEquals(List.of("MODEL_NAME", "SAVED", "FILE"), optionsFor(constants, "MODEL_SOURCE"));
+        assertFalse(hasConstant(constants, "NUC_MODEL_SOURCE_OPTIONS"));
+        assertEquals(List.of("MODEL_NAME", "SAVED", "FILE"), optionsFor(constants, "NUC_MODEL_SOURCE"));
         assertEquals(List.of("ALPHA", "BETA"), optionsFor(constants, "CUSTOM_MODE"));
     }
 
