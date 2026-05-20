@@ -27,6 +27,7 @@ import qupath.lib.common.ColorTools;
 import qupath.lib.common.GeneralTools;
 import qupath.lib.geom.ImmutableDimension;
 import qupath.lib.gui.QuPathGUI;
+import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.gui.scripting.QPEx;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.*;
@@ -86,6 +87,10 @@ import java.util.stream.Collectors;
 public class AstraCellpose2D extends Cellpose2D {
 
     private static final Logger logger = LoggerFactory.getLogger(AstraCellpose2D.class);
+
+    private static final String ASTRA_RUNTIME_PYTHON_PATH_KEY = "astraRuntimePythonPath";
+    private static final String ASTRA_RUNTIME_PYTHON_PATH_NAME =
+            "ASTRA/Cellpose > ASTRA runtime Python executable";
 
     private static final String VALIDATION_METRICS_HELPER_RELATIVE_PATH = "QC/run-cellpose-qc.py";
 
@@ -1054,19 +1059,8 @@ public class AstraCellpose2D extends Cellpose2D {
     private VirtualEnvironmentRunner createRuntimeRunner() {
         requireSupportedRuntimeConfiguration();
 
-        String pythonPath = cellposeSetup.getCellposePythonPath();
-        if (pythonPath == null || pythonPath.isBlank()) {
-            throw new IllegalStateException(
-                    "ASTRA runtime Python path is empty. Please configure it in Edit > Preferences."
-            );
-        }
-
-        File pythonExecutable = new File(pythonPath.trim());
-        if (!pythonExecutable.exists() || !pythonExecutable.isFile()) {
-            throw new IllegalStateException(
-                    "ASTRA runtime Python path does not resolve to an executable file: " + pythonExecutable.getAbsolutePath()
-            );
-        }
+        String pythonPath = syncAstraRuntimePythonPreference();
+        File pythonExecutable = new File(pythonPath);
 
         return new VirtualEnvironmentRunner(
                 pythonExecutable.getAbsolutePath(),
@@ -1074,6 +1068,40 @@ public class AstraCellpose2D extends Cellpose2D {
                 null,
                 this.getClass().getSimpleName()
         );
+    }
+
+    private String syncAstraRuntimePythonPreference() {
+        String pythonPath = PathPrefs.createPersistentPreference(ASTRA_RUNTIME_PYTHON_PATH_KEY, "").get();
+        if (pythonPath == null || pythonPath.isBlank()) {
+            cellposeSetup.setCellposePythonPath("");
+            throw new IllegalStateException(
+                    "ASTRA runtime Python path is empty. Configure "
+                            + ASTRA_RUNTIME_PYTHON_PATH_NAME
+                            + " (key: " + ASTRA_RUNTIME_PYTHON_PATH_KEY + ") in Edit > Preferences. "
+                            + "CellposeSetup may not have been synchronized yet."
+            );
+        }
+        String normalized = pythonPath.trim();
+        File pythonExecutable = new File(normalized);
+        if (!pythonExecutable.isAbsolute()) {
+            throw new IllegalStateException(
+                    "ASTRA runtime Python path must be an absolute path from "
+                            + ASTRA_RUNTIME_PYTHON_PATH_NAME
+                            + " (key: " + ASTRA_RUNTIME_PYTHON_PATH_KEY + "): "
+                            + normalized
+            );
+        }
+        if (!pythonExecutable.isFile()) {
+            throw new IllegalStateException(
+                    "ASTRA runtime Python path from "
+                            + ASTRA_RUNTIME_PYTHON_PATH_NAME
+                            + " (key: " + ASTRA_RUNTIME_PYTHON_PATH_KEY + ") is not an existing regular file: "
+                            + pythonExecutable.getAbsolutePath()
+            );
+        }
+        String absolutePath = pythonExecutable.getAbsolutePath();
+        cellposeSetup.setCellposePythonPath(absolutePath);
+        return absolutePath;
     }
 
     private void requireSupportedRuntimeConfiguration() {
