@@ -108,6 +108,42 @@ final class AstraPipelineLauncher {
     private static final String CORAL = "#d9604c";
     private static final String GOLD = "#d4a72c";
     private static final String CONTROL_BORDER = "#7fa3ad";
+    private static final Map<String, String> EXPLICIT_LABELS = Map.ofEntries(
+            Map.entry("NUC_MODEL_SOURCE", "Nucleus Model Source"),
+            Map.entry("NUC_MODEL_NAME", "Nucleus Model Name"),
+            Map.entry("NUC_MODEL_FILE", "Nucleus Model File"),
+            Map.entry("NUC_SAVED_MODEL_ID", "Nucleus Saved Model ID"),
+            Map.entry("CELL_MODEL_SOURCE", "Cell Model Source"),
+            Map.entry("CELL_MODEL_NAME", "Cell Model Name"),
+            Map.entry("CELL_MODEL_FILE", "Cell Model File"),
+            Map.entry("CELL_SAVED_MODEL_ID", "Cell Saved Model ID"),
+            Map.entry("THRESHOLD_SCOPE", "Threshold Scope"),
+            Map.entry("BACKGROUND_SCOPE", "Background Scope"),
+            Map.entry("BACKGROUND_SUBTRACTION_BY_CHANNEL", "Manual Background Offsets"),
+            Map.entry("MANUAL_INTENSITY_THRESHOLDS", "Manual Intensity Thresholds"),
+            Map.entry("RANGE_THRESHOLD_FRACTION_BY_MARKER", "Range Threshold Fractions"),
+            Map.entry("THRESHOLD_PROVENANCE_BY_MARKER", "Threshold Provenance"),
+            Map.entry("COLOCALIZATION_CHECKS", "Colocalization Checks"),
+            Map.entry("USE_GPU", "Use GPU"),
+            Map.entry("USE_BATCH_MODE", "Use Batch Mode"),
+            Map.entry("USE_PIXEL_SCALING", "Use Pixel Scaling"),
+            Map.entry("QC_FOLDER", "QC Folder"),
+            Map.entry("QC_FILENAME", "QC Filename"),
+            Map.entry("RESULTS_FOLDER", "Results Folder"),
+            Map.entry("RESULTS_BASENAME", "Results Basename")
+    );
+    private static final Map<String, String> LABEL_TOKENS = Map.ofEntries(
+            Map.entry("NUC", "Nucleus"),
+            Map.entry("ROI", "Region"),
+            Map.entry("ID", "ID"),
+            Map.entry("GPU", "GPU"),
+            Map.entry("QC", "QC"),
+            Map.entry("CSV", "CSV"),
+            Map.entry("DAPI", "DAPI"),
+            Map.entry("AF488", "AF488"),
+            Map.entry("AF555", "AF555"),
+            Map.entry("AF647", "AF647")
+    );
     private static final int SETTINGS_PROFILE_SCHEMA_VERSION = 1;
     private static final double CONTENT_HORIZONTAL_MARGIN = 24.0;
     private static final double PARAMETER_ROW_HEIGHT = 34.0;
@@ -1202,7 +1238,7 @@ final class AstraPipelineLauncher {
                 continue;
             }
             Node editor = constant.createEditor();
-            HBox row = labeledRow(prettyName(constant.name), editor, 160.0);
+            HBox row = labeledRow(displayLabel(constant.name), editor, 160.0);
             group.getChildren().add(row);
             rows.put(constant.name, new RowNodes(row, editor));
             constant.addChangeListener(autosave::markManualEditAndSave);
@@ -1239,14 +1275,39 @@ final class AstraPipelineLauncher {
         combo.getItems().addAll(validIds);
         combo.setValue(EditableConstant.stripStringQuotes(constant.type, constant.displayValue));
         combo.setMaxWidth(Double.MAX_VALUE);
-        combo.setStyle(EditableConstant.controlStyle());
-        styleComboBoxText(combo);
+        styleAstraComboBox(combo);
         return combo;
+    }
+
+    private static void styleAstraComboBox(ComboBox<String> combo) {
+        combo.setStyle(EditableConstant.controlStyle() + " -fx-mark-color: " + TEAL_DARK + ";");
+        styleComboBoxText(combo);
+        if (combo.isEditable()) {
+            combo.getEditor().setStyle(EditableConstant.controlStyle());
+        }
+        combo.skinProperty().addListener((obs, oldSkin, newSkin) -> Platform.runLater(() -> styleComboBoxSubnodes(combo)));
+        combo.sceneProperty().addListener((obs, oldScene, newScene) -> Platform.runLater(() -> styleComboBoxSubnodes(combo)));
+        Platform.runLater(() -> styleComboBoxSubnodes(combo));
     }
 
     private static void styleComboBoxText(ComboBox<String> combo) {
         combo.setButtonCell(readableComboCell());
         combo.setCellFactory(list -> readableComboCell());
+    }
+
+    private static void styleComboBoxSubnodes(ComboBox<String> combo) {
+        Node arrowButton = combo.lookup(".arrow-button");
+        if (arrowButton != null) {
+            arrowButton.setStyle("-fx-background-color: transparent; -fx-border-color: transparent; -fx-background-radius: 0 4 4 0;");
+        }
+        Node arrow = combo.lookup(".arrow");
+        if (arrow != null) {
+            arrow.setStyle("-fx-background-color: " + TEAL_DARK + ";");
+        }
+        Node editor = combo.lookup(".text-field");
+        if (editor instanceof TextField textField) {
+            textField.setStyle(EditableConstant.controlStyle());
+        }
     }
 
     private static ListCell<String> readableComboCell() {
@@ -1333,7 +1394,7 @@ final class AstraPipelineLauncher {
         for (EditableConstant constant : constants) {
             HBox labelBox = new HBox(7.0);
             labelBox.setAlignment(Pos.CENTER_LEFT);
-            Label label = new Label(prettyName(constant.name));
+            Label label = new Label(displayLabel(constant.name));
             label.setMinWidth(220.0);
             label.setWrapText(true);
             label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 800; -fx-text-fill: " + INK + ";");
@@ -1829,8 +1890,29 @@ final class AstraPipelineLauncher {
         return -1;
     }
 
-    private static String prettyName(String name) {
-        return name.toLowerCase(Locale.ROOT).replace('_', ' ');
+    static String displayLabel(String name) {
+        if (name == null || name.isBlank()) {
+            return "";
+        }
+        String explicit = EXPLICIT_LABELS.get(name);
+        if (explicit != null) {
+            return explicit;
+        }
+        String[] tokens = name.split("_");
+        List<String> words = new ArrayList<>(tokens.length);
+        for (String token : tokens) {
+            if (token == null || token.isBlank()) {
+                continue;
+            }
+            String mapped = LABEL_TOKENS.get(token);
+            words.add(mapped != null ? mapped : titleCaseToken(token));
+        }
+        return String.join(" ", words);
+    }
+
+    private static String titleCaseToken(String token) {
+        String lower = token.toLowerCase(Locale.ROOT);
+        return lower.substring(0, 1).toUpperCase(Locale.ROOT) + lower.substring(1);
     }
 
     private static List<String> orderedGroups(List<EditableConstant> constants, boolean advanced) {
@@ -1961,8 +2043,8 @@ final class AstraPipelineLauncher {
             box.setStyle("-fx-background-color: #102a3a; -fx-border-color: #284f60; -fx-border-radius: 7; -fx-background-radius: 7;");
             box.setPrefWidth(430.0);
             box.setMinWidth(360.0);
-            box.setMaxWidth(520.0);
-            HBox.setHgrow(box, Priority.NEVER);
+            box.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(box, Priority.ALWAYS);
 
             HBox header = new HBox(10.0);
             header.setAlignment(Pos.CENTER_LEFT);
@@ -2501,8 +2583,7 @@ final class AstraPipelineLauncher {
                 compartment.setValue(check.compartment().isBlank() ? "Nucleus" : check.compartment());
                 compartment.setMinWidth(120.0);
                 compartment.setPrefWidth(130.0);
-                compartment.setStyle(EditableConstant.controlStyle());
-                styleComboBoxText(compartment);
+                styleAstraComboBox(compartment);
                 FlowPane channels = new FlowPane(6.0, 6.0);
                 channels.setAlignment(Pos.CENTER_LEFT);
                 for (String channel : imageChannels) {
@@ -2872,8 +2953,7 @@ final class AstraPipelineLauncher {
                 comboBox.getItems().addAll(options);
                 comboBox.setValue(stripStringQuotes(type, displayValue));
                 comboBox.setMaxWidth(Double.MAX_VALUE);
-                comboBox.setStyle(controlStyle());
-                styleComboBoxText(comboBox);
+                styleAstraComboBox(comboBox);
                 return comboBox;
             }
             if ("boolean".equals(type)) {

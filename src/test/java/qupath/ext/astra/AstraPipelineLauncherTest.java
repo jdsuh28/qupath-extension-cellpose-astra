@@ -671,10 +671,22 @@ class AstraPipelineLauncherTest {
         assertTrue(source.contains("grid.setVgap(PARAMETER_ROW_GAP);"));
         assertTrue(source.contains("VBox group = new VBox(PARAMETER_ROW_GAP);"));
         assertTrue(source.contains("private final VBox rows = new VBox(PARAMETER_ROW_GAP);"));
-        assertTrue(source.contains("HBox row = labeledRow(prettyName(constant.name), editor, 160.0);"));
+        assertTrue(source.contains("HBox row = labeledRow(displayLabel(constant.name), editor, 160.0);"));
         assertTrue(source.contains("HBox row = labeledRow(\"Detection target\", editor, 160.0);"));
         assertTrue(source.contains("private static final double SECTION_CONTENT_GAP = 9.0;"));
         assertTrue(source.contains("private static final double CARD_CONTENT_GAP = 8.0;"));
+    }
+
+    @Test
+    void launcherUsesProfessionalLabelsForPipelineControls() {
+        assertEquals("Nucleus Model Source", AstraPipelineLauncher.displayLabel("NUC_MODEL_SOURCE"));
+        assertEquals("Nucleus Saved Model ID", AstraPipelineLauncher.displayLabel("NUC_SAVED_MODEL_ID"));
+        assertEquals("Cell Saved Model ID", AstraPipelineLauncher.displayLabel("CELL_SAVED_MODEL_ID"));
+        assertEquals("Threshold Scope", AstraPipelineLauncher.displayLabel("THRESHOLD_SCOPE"));
+        assertEquals("Manual Background Offsets", AstraPipelineLauncher.displayLabel("BACKGROUND_SUBTRACTION_BY_CHANNEL"));
+        assertEquals("Use GPU", AstraPipelineLauncher.displayLabel("USE_GPU"));
+        assertEquals("QC Filename", AstraPipelineLauncher.displayLabel("QC_FILENAME"));
+        assertEquals("Selected Image Names", AstraPipelineLauncher.displayLabel("SELECTED_IMAGE_NAMES"));
     }
 
     @Test
@@ -912,7 +924,7 @@ class AstraPipelineLauncherTest {
         assertTrue(source.contains("nestedField(\"Channels\", channels)"));
         assertTrue(source.contains("compartment.setMinWidth(120.0)"));
         assertTrue(source.contains("compartment.setPrefWidth(130.0)"));
-        assertTrue(source.contains("styleComboBoxText(compartment)"));
+        assertTrue(source.contains("styleAstraComboBox(compartment)"));
         assertTrue(source.contains("channels.setAlignment(Pos.CENTER_LEFT)"));
         assertTrue(source.contains("private static String nestedLabelStyle()"));
         assertTrue(source.contains("private static String checkBoxStyle()"));
@@ -923,10 +935,24 @@ class AstraPipelineLauncherTest {
     void comboBoxSelectedValueUsesReadableTextColor() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
 
-        assertTrue(source.contains("private static void styleComboBoxText(ComboBox<String> combo)"));
+        assertTrue(source.contains("private static void styleAstraComboBox(ComboBox<String> combo)"));
+        assertTrue(source.contains("combo.getEditor().setStyle(EditableConstant.controlStyle())"));
+        assertTrue(source.contains("private static void styleComboBoxSubnodes(ComboBox<String> combo)"));
+        assertTrue(source.contains("combo.lookup(\".arrow-button\")"));
+        assertTrue(source.contains("arrowButton.setStyle(\"-fx-background-color: transparent;"));
         assertTrue(source.contains("combo.setButtonCell(readableComboCell())"));
         assertTrue(source.contains("combo.setCellFactory(list -> readableComboCell())"));
         assertTrue(source.contains("-fx-text-fill: \" + INK"));
+    }
+
+    @Test
+    void runFeedbackPaneResizesWithLauncherWidth() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("box.setMaxWidth(Double.MAX_VALUE);"));
+        assertTrue(source.contains("HBox.setHgrow(box, Priority.ALWAYS);"));
+        assertFalse(source.contains("HBox.setHgrow(box, Priority.NEVER);"));
+        assertFalse(source.contains("box.setMaxWidth(520.0);"));
     }
 
     @Test
