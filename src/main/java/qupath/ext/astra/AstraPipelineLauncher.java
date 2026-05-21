@@ -1847,6 +1847,67 @@ final class AstraPipelineLauncher {
         return value.replace("\\\"", "\"").replace("\\\\", "\\");
     }
 
+    static String formatGuiLogText(String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
+        boolean trailingNewline = normalized.endsWith("\n");
+        String[] lines = normalized.split("\n", -1);
+        StringBuilder out = new StringBuilder();
+        int lineCount = trailingNewline ? lines.length - 1 : lines.length;
+        for (int i = 0; i < lineCount; i++) {
+            String formatted = formatGuiLogLine(lines[i]);
+            if (!formatted.isBlank()) {
+                if (!out.isEmpty()) {
+                    out.append("\n");
+                }
+                out.append(formatted);
+            }
+        }
+        if (trailingNewline && !out.isEmpty()) {
+            out.append("\n");
+        }
+        return out.toString();
+    }
+
+    private static String formatGuiLogLine(String line) {
+        String out = line == null ? "" : line.trim();
+        if (out.isBlank()) {
+            return "";
+        }
+        out = out.replaceFirst("^\\[LOG]\\s*", "");
+        out = out.replaceFirst("^(INFO|WARN|ERROR|DEBUG|TRACE)\\s+(COLOCALIZATION|VASCULAR|TRAINING|TUNING|VALIDATION)\\b", "$1: $2");
+        out = out.replaceFirst("^(INFO|WARN|ERROR|DEBUG|TRACE)\\s+[^-]+-\\s*", "$1: ");
+        out = out.replaceFirst("^(INFO|WARN|ERROR|DEBUG|TRACE)\\s+([^:]+):\\s*", "$1: ");
+        out = collapseRepeatedPipelineNames(out);
+
+        Pattern stagePattern = Pattern.compile("^(?:(INFO|WARN|ERROR|DEBUG|TRACE):\\s*)?(COLOCALIZATION|VASCULAR|TRAINING|TUNING|VALIDATION)\\s+\\[([^\\]]+)]\\s*(.*)$");
+        Matcher stageMatcher = stagePattern.matcher(out);
+        if (stageMatcher.matches()) {
+            String severity = stageMatcher.group(1) == null ? "" : stageMatcher.group(1) + ": ";
+            String stage = titleCaseToken(stageMatcher.group(3).replace('_', ' '));
+            String message = stageMatcher.group(4) == null ? "" : stageMatcher.group(4).trim();
+            return severity + stage + (message.isBlank() ? "" : ": " + message);
+        }
+
+        Pattern pipelinePattern = Pattern.compile("^(?:(INFO|WARN|ERROR|DEBUG|TRACE):\\s*)?(COLOCALIZATION|VASCULAR|TRAINING|TUNING|VALIDATION)\\s+(.*)$");
+        Matcher pipelineMatcher = pipelinePattern.matcher(out);
+        if (pipelineMatcher.matches()) {
+            String severity = pipelineMatcher.group(1) == null ? "" : pipelineMatcher.group(1) + ": ";
+            return severity + pipelineMatcher.group(3).trim();
+        }
+        return out;
+    }
+
+    private static String collapseRepeatedPipelineNames(String line) {
+        String out = line;
+        for (String pipeline : List.of("COLOCALIZATION", "VASCULAR", "TRAINING", "TUNING", "VALIDATION")) {
+            out = out.replaceAll("\\b" + pipeline + "\\s+" + pipeline + "\\b", pipeline);
+        }
+        return out;
+    }
+
     private static void installReliableTooltip(Button info, Tooltip tooltip) {
         info.addEventHandler(MouseEvent.MOUSE_ENTERED, event -> {
             var point = info.localToScreen(info.getWidth() + 8.0, info.getHeight() / 2.0);
@@ -2304,8 +2365,9 @@ final class AstraPipelineLauncher {
         }
 
         private void appendLogText(String text) {
-            append("[LOG] " + text);
-            if (!text.endsWith("\n")) {
+            String formatted = formatGuiLogText(text);
+            append(formatted);
+            if (!formatted.isBlank() && !formatted.endsWith("\n")) {
                 append("\n");
             }
         }
@@ -2356,9 +2418,10 @@ final class AstraPipelineLauncher {
 
         private void emit(String text) {
             if (error) {
-                feedback.append("[ERR] " + text);
+                String formatted = formatGuiLogText(text);
+                feedback.append(formatted.startsWith("ERROR:") ? formatted : "ERROR: " + formatted);
             } else {
-                feedback.append(text);
+                feedback.append(formatGuiLogText(text));
             }
         }
     }

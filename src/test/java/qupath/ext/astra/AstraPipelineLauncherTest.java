@@ -1145,6 +1145,31 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
+    void guiLogFormatterRemovesLauncherClutterWithoutChangingCellposeLines() {
+        String formatted = AstraPipelineLauncher.formatGuiLogText("""
+                [LOG] COLOCALIZATION COLOCALIZATION [PREFLIGHT] Runtime Python synchronized.
+                ERROR COLOCALIZATION [QUANTIFY] Non-finite AF647|Nucleus measurements detected.
+                cellpose: 34 tile images processed
+                """);
+
+        assertTrue(formatted.contains("Preflight: Runtime Python synchronized."));
+        assertTrue(formatted.contains("ERROR: Quantify: Non-finite AF647|Nucleus measurements detected."));
+        assertTrue(formatted.contains("cellpose: 34 tile images processed"));
+        assertFalse(formatted.contains("[LOG]"));
+        assertFalse(formatted.contains("COLOCALIZATION COLOCALIZATION"));
+    }
+
+    @Test
+    void launcherSourceAvoidsGuiLogAndErrDoublePrefixes() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("static String formatGuiLogText(String text)"));
+        assertTrue(source.contains("feedback.append(formatGuiLogText(text));"));
+        assertFalse(source.contains("append(\"[LOG] \" + text)"));
+        assertFalse(source.contains("feedback.append(\"[ERR] \" + text)"));
+    }
+
+    @Test
     void cancellationMessageDocumentsNativeProcessLimitationAndAvoidsSuccess() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
 
