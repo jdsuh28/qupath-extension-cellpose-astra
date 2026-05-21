@@ -987,36 +987,43 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
-    void colocalizationThresholdVisibilityDefaultRunStateIsCompact() {
-        Set<String> visible = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "RUN", "NONE", "RUN");
+    void colocalizationThresholdVisibilityDefaultProjectStateIsCompact() {
+        Set<String> visible = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "PROJECT", "NONE", "PROJECT");
 
         assertEquals(Set.of("THRESHOLD_MODE", "THRESHOLD_SCOPE", "THRESHOLD_EXCLUDE_MARKERS", "BACKGROUND_MODE"), visible);
     }
 
     @Test
     void colocalizationThresholdScopeTogglesDoNotChangeVisibility() {
-        Set<String> run = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "RUN", "NONE", "RUN");
-        Set<String> slide = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "SLIDE", "NONE", "RUN");
-        Set<String> roi = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "ROI", "NONE", "RUN");
+        Set<String> project = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "PROJECT", "NONE", "PROJECT");
+        Set<String> image = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE", "PROJECT");
+        Set<String> region = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "REGION", "NONE", "PROJECT");
 
-        assertEquals(run, slide);
-        assertEquals(run, roi);
+        assertEquals(project, image);
+        assertEquals(project, region);
     }
 
     @Test
     void colocalizationThresholdVisibilityIsModeDriven() {
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MANUAL", "RUN", "NONE", "RUN")
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MANUAL", "PROJECT", "NONE", "PROJECT")
                 .contains("MANUAL_INTENSITY_THRESHOLDS"));
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MANUAL", "RUN", "NONE", "RUN")
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MANUAL", "PROJECT", "NONE", "PROJECT")
                 .contains("THRESHOLD_PROVENANCE_BY_MARKER"));
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("RANGE_PERCENT", "RUN", "NONE", "RUN")
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("RANGE_PERCENT", "PROJECT", "NONE", "PROJECT")
                 .contains("RANGE_THRESHOLD_FRACTION_BY_MARKER"));
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "RUN", "MANUAL_OFFSET", "RUN")
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "PROJECT", "MANUAL_OFFSET", "PROJECT")
                 .contains("BACKGROUND_SUBTRACTION_BY_CHANNEL"));
 
-        Set<String> local = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "RUN", "LOCAL_ROI_PERCENTILE", "ROI");
+        Set<String> local = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "PROJECT", "LOCAL_ROI_PERCENTILE", "REGION");
         assertTrue(local.contains("BACKGROUND_SCOPE"));
         assertTrue(local.contains("LOCAL_BACKGROUND_PERCENTILE"));
+    }
+
+    @Test
+    void launcherDoesNotPreserveRemovedResetBaselineAlias() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertFalse(source.contains("RESET_BASELINE"));
     }
 
     @Test

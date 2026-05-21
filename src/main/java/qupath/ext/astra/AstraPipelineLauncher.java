@@ -1935,7 +1935,6 @@ final class AstraPipelineLauncher {
             setVisible(rows, "THRESHOLD_PROVENANCE_BY_MARKER", isSelected(byName, "THRESHOLD_MODE", "MANUAL"));
             setVisible(rows, "RANGE_THRESHOLD_FRACTION_BY_MARKER", isSelected(byName, "THRESHOLD_MODE", "RANGE_PERCENT"));
             setVisible(rows, "BACKGROUND_SUBTRACTION_BY_CHANNEL", isSelected(byName, "BACKGROUND_MODE", "MANUAL_OFFSET"));
-            setVisible(rows, "MODES_TO_RUN", !isChecked(byName, "RESET_BASELINE"));
             setVisible(rows, "USE_PIXEL_SCALING", isChecked(byName, "USE_BATCH_MODE"));
         };
         byName.values().forEach(c -> c.addOptionListener(update));
@@ -2147,7 +2146,6 @@ final class AstraPipelineLauncher {
 
     private static boolean isAdvanced(String name) {
         Set<String> basic = Set.of(
-                "RESET_BASELINE",
                 "MODES_TO_RUN",
                 "TRAIN_TARGET",
                 "TRAINING_MODE",
