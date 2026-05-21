@@ -723,7 +723,7 @@ class AstraPipelineLauncherTest {
         assertEquals("Current Image", AstraGuiPresentation.displayOption("CURRENT_IMAGE"));
         assertEquals("Selected Analysis Region", AstraGuiPresentation.displayOption("SELECTED_ANALYSIS_REGION"));
         assertEquals("Project Image Selection", AstraGuiPresentation.displayOption("PROJECT_IMAGE_SELECTION"));
-        assertEquals(List.of("RESET", "DETECT_CELLS", "QUANTIFY"),
+        assertEquals(List.of("DETECT_CELLS", "QUANTIFY"),
                 AstraGuiPresentation.visibleRunModeOptions("Colocalization", List.of("RESET", "DETECT_CELLS", "QUANTIFY", "EXPORT")));
     }
 
@@ -1029,11 +1029,13 @@ class AstraPipelineLauncherTest {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
         String script = realBaseScript("analysis/src/main/groovy/colocalization/colocalization.groovy");
 
-        assertTrue(script.contains("final List MODES_TO_RUN_OPTIONS = [\"RESET\", \"DETECT_CELLS\", \"QUANTIFY\"]"));
+        assertTrue(script.contains("final List MODES_TO_RUN_OPTIONS = [\"DETECT_CELLS\", \"QUANTIFY\"]"));
         assertTrue(script.contains("final List MODES_TO_RUN = [\"DETECT_CELLS\", \"QUANTIFY\"]"));
         assertTrue(source.contains("private static final class StageModeEditor extends VBox"));
         assertTrue(source.contains("installColocalizationRunModeEditor(scriptName, constants)"));
-        assertTrue(source.contains("Choose stages in ASTRA's fixed order. RESET runs alone; export is a separate header action."));
+        assertTrue(source.contains("Choose stages in ASTRA's fixed order. Reset and export are separate header actions."));
+        assertTrue(source.contains("new Button(\"Reset Image...\")"));
+        assertTrue(source.contains("new Button(\"Reset Project...\")"));
         assertTrue(source.contains("new Button(\"Export\")"));
         assertTrue(source.contains("Map.of(\"MODES_TO_RUN\", \"[\\\"EXPORT\\\"]\")"));
         assertFalse(script.contains("MODES_TO_RUN_OPTIONS = [\"RESET\", \"DETECT_CELLS\", \"QUANTIFY\", \"EXPORT\"]"));

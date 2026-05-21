@@ -155,6 +155,8 @@ final class AstraPipelineLauncher {
         RunFeedback feedback = new RunFeedback(scriptName);
         AtomicReference<Button> runButtonRef = new AtomicReference<>();
         AtomicReference<Button> exportButtonRef = new AtomicReference<>();
+        AtomicReference<Button> resetImageButtonRef = new AtomicReference<>();
+        AtomicReference<Button> resetProjectButtonRef = new AtomicReference<>();
         Consumer<ActionEvent> exportAction = event -> {
             event.consume();
             String configuredScript;
@@ -168,7 +170,15 @@ final class AstraPipelineLauncher {
             feedback.info("Standalone export requested from the launcher header.");
             executeAsync(qupath, scriptName, configuredScript, feedback, runButtonRef.get(), exportButtonRef.get());
         };
-        dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants, true, feedback, schemaId, sourceScriptSha256, profileState, exportAction, exportButtonRef::set));
+        Consumer<ActionEvent> resetImageAction = event -> {
+            event.consume();
+            runHeaderReset(qupath, scriptName, scriptText, constants, profileState, schemaId, feedback, runButtonRef.get(), resetImageButtonRef.get(), "RESET_IMAGE", false);
+        };
+        Consumer<ActionEvent> resetProjectAction = event -> {
+            event.consume();
+            runHeaderReset(qupath, scriptName, scriptText, constants, profileState, schemaId, feedback, runButtonRef.get(), resetProjectButtonRef.get(), "RESET_PROJECT", true);
+        };
+        dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants, true, feedback, schemaId, sourceScriptSha256, profileState, exportAction, exportButtonRef::set, resetImageAction, resetImageButtonRef::set, resetProjectAction, resetProjectButtonRef::set));
         dialog.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
         dialog.setResizable(true);
 
@@ -731,6 +741,53 @@ final class AstraPipelineLauncher {
         return false;
     }
 
+    private static void runHeaderReset(QuPathGUI qupath, String scriptName, String scriptText, List<EditableConstant> constants,
+                                       SettingsProfileState profileState, String schemaId, RunFeedback feedback,
+                                       Button runButton, Button actionButton, String resetMode, boolean projectReset) {
+        if (!confirmAnalysisReset(qupath, scriptName, projectReset)) {
+            feedback.warn("Analysis reset cancelled before execution.");
+            return;
+        }
+        Map<String, String> overrides = new LinkedHashMap<>();
+        overrides.put("MODES_TO_RUN", renderStringList(List.of(resetMode)));
+        if (projectReset) {
+            List<String> names = projectImageNames(qupath);
+            if (names.isEmpty()) {
+                Dialogs.showErrorMessage("ASTRA " + scriptName, "Project reset requires an open project with image entries.");
+                return;
+            }
+            overrides.put("IMAGE_SCOPE", quoteGroovy("PROJECT_IMAGE_SELECTION"));
+            overrides.put("SELECTED_IMAGE_NAMES", renderStringList(names));
+        } else {
+            overrides.put("IMAGE_SCOPE", quoteGroovy("CURRENT_IMAGE"));
+        }
+        String configuredScript;
+        try {
+            configuredScript = applyConstants(scriptText, constants, profileState, overrides);
+        } catch (RuntimeException e) {
+            Dialogs.showErrorMessage("ASTRA " + scriptName, e.getMessage());
+            return;
+        }
+        feedback.info(finalConfigSummary(scriptName, schemaId, constants, profileState));
+        feedback.warn((projectReset ? "Project" : "Image") + " reset requested from the launcher header. ASTRA will remove only ledger-recorded object IDs and measurement keys; exported files are not deleted.");
+        executeAsync(qupath, scriptName, configuredScript, feedback, runButton, actionButton);
+    }
+
+    private static boolean confirmAnalysisReset(QuPathGUI qupath, String scriptName, boolean projectReset) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "", ButtonType.OK, ButtonType.CANCEL);
+        alert.initOwner(qupath.getStage());
+        alert.setTitle("ASTRA " + scriptName);
+        alert.setHeaderText(projectReset ? "Reset recorded ASTRA state for the project?" : "Reset recorded ASTRA state for the current image?");
+        alert.setContentText("""
+                This is destructive for ASTRA-generated hierarchy state.
+
+                ASTRA will delete only objects recorded by QuPath object ID in the analysis ledger and remove only recorded ASTRA measurement keys.
+                User ROI, Trace, analysis-region annotations, unledgered objects, and exported CSV/QC files are preserved.
+                """);
+        alert.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
+        return alert.showAndWait().filter(ButtonType.OK::equals).isPresent();
+    }
+
     private static void installProjectImageNameSelector(QuPathGUI qupath, List<EditableConstant> constants) {
         List<String> imageNames = projectImageNames(qupath);
         if (imageNames.isEmpty()) {
@@ -743,7 +800,7 @@ final class AstraPipelineLauncher {
     }
 
     private static void installColocalizationRunModeEditor(String scriptName, List<EditableConstant> constants) {
-        if (!AstraGuiPresentation.supportsHeaderExport(scriptName)) {
+        if (!AstraGuiPresentation.supportsAnalysisHeaderActions(scriptName)) {
             return;
         }
         constants.stream()
@@ -815,7 +872,9 @@ final class AstraPipelineLauncher {
 
     private static Node createContent(QuPathGUI qupath, String scriptName, List<EditableConstant> constants, boolean applyChannelDefaults,
                                       RunFeedback feedback, String schemaId, String sourceScriptSha256, SettingsProfileState profileState,
-                                      Consumer<ActionEvent> exportAction, Consumer<Button> exportButtonSink) {
+                                      Consumer<ActionEvent> exportAction, Consumer<Button> exportButtonSink,
+                                      Consumer<ActionEvent> resetImageAction, Consumer<Button> resetImageButtonSink,
+                                      Consumer<ActionEvent> resetProjectAction, Consumer<Button> resetProjectButtonSink) {
         List<ImageChannel> imageChannels = imageChannels(qupath);
         if (applyChannelDefaults) {
             applyImageChannelDefaults(constants, imageChannels);
@@ -855,18 +914,36 @@ final class AstraPipelineLauncher {
         loadProfile.setFocusTraversable(false);
         loadProfile.setStyle(reset.getStyle());
         loadProfile.setOnAction(event -> loadSettingsProfileWithDialog(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, autosave, feedback));
+        titleRow.getChildren().addAll(title, reset, saveProfile, loadProfile);
+        if (AstraGuiPresentation.supportsAnalysisHeaderActions(scriptName)) {
+            Button resetImage = new Button("Reset Image...");
+            resetImage.setFocusTraversable(false);
+            resetImage.setStyle(reset.getStyle());
+            resetImage.setTooltip(new Tooltip("Delete only ASTRA objects and measurements recorded for the current image in the analysis ledger."));
+            resetImage.setOnAction(resetImageAction::accept);
+            if (resetImageButtonSink != null) {
+                resetImageButtonSink.accept(resetImage);
+            }
+            Button resetProject = new Button("Reset Project...");
+            resetProject.setFocusTraversable(false);
+            resetProject.setStyle(reset.getStyle());
+            resetProject.setTooltip(new Tooltip("Delete only ASTRA objects and measurements recorded for every project image in the analysis ledger."));
+            resetProject.setOnAction(resetProjectAction::accept);
+            if (resetProjectButtonSink != null) {
+                resetProjectButtonSink.accept(resetProject);
+            }
+            titleRow.getChildren().addAll(resetImage, resetProject);
+        }
         if (AstraGuiPresentation.supportsHeaderExport(scriptName)) {
             Button export = new Button("Export");
             export.setFocusTraversable(false);
             export.setStyle(reset.getStyle());
-            export.setTooltip(new Tooltip("Write colocalization result files only if the current hierarchy matches the last successful QUANTIFY."));
+            export.setTooltip(new Tooltip("Write analysis result files only if the current hierarchy matches the last successful QUANTIFY."));
             export.setOnAction(exportAction::accept);
             if (exportButtonSink != null) {
                 exportButtonSink.accept(export);
             }
-            titleRow.getChildren().addAll(title, reset, saveProfile, loadProfile, export);
-        } else {
-            titleRow.getChildren().addAll(title, reset, saveProfile, loadProfile);
+            titleRow.getChildren().add(export);
         }
         Label subtitle = new Label(descriptionFor(scriptName));
         subtitle.setWrapText(true);
@@ -3186,7 +3263,7 @@ final class AstraPipelineLauncher {
                 boxes.put(mode, box);
                 options.getChildren().add(box);
             }
-            Label hint = new Label("Choose stages in ASTRA's fixed order. RESET runs alone; export is a separate header action.");
+            Label hint = new Label("Choose stages in ASTRA's fixed order. Reset and export are separate header actions.");
             hint.setWrapText(true);
             hint.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-text-fill: " + MUTED + ";");
             getChildren().addAll(options, hint);

@@ -78,14 +78,23 @@ final class AstraGuiPresentation {
     }
 
     static List<String> visibleRunModeOptions(String pipelineName, List<String> scriptOptions) {
-        if (pipelineName != null && pipelineName.toLowerCase(Locale.ROOT).contains("colocalization")) {
-            return List.of("RESET", "DETECT_CELLS", "QUANTIFY");
+        if (supportsAnalysisHeaderActions(pipelineName)) {
+            return (scriptOptions == null ? List.<String>of() : scriptOptions).stream()
+                    .filter(option -> !"RESET".equals(option))
+                    .filter(option -> !"EXPORT".equals(option))
+                    .toList();
         }
         return scriptOptions == null ? List.of() : List.copyOf(scriptOptions);
     }
 
     static boolean supportsHeaderExport(String pipelineName) {
-        return pipelineName != null && pipelineName.toLowerCase(Locale.ROOT).contains("colocalization");
+        return supportsAnalysisHeaderActions(pipelineName);
+    }
+
+    static boolean supportsAnalysisHeaderActions(String pipelineName) {
+        if (pipelineName == null) return false;
+        String name = pipelineName.toLowerCase(Locale.ROOT);
+        return name.contains("colocalization") || name.contains("vascular");
     }
 
     static String displayOption(String option) {
