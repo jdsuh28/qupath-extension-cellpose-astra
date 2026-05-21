@@ -663,6 +663,25 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
+    void launcherArchitectureUsesDeclaredSectionsAndNoDuplicatedSetupControls() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("VBox header = new VBox(12.0);"));
+        assertTrue(source.contains("VBox body = new VBox(14.0);"));
+        assertTrue(source.contains("VBox basic = sectionShell(\"Basic\""));
+        assertTrue(source.contains("VBox advanced = sectionShell(\"Advanced\""));
+        assertTrue(source.contains("Node feedbackNode = feedback.node();"));
+        assertTrue(source.contains("if (colocalization) {\n            body.getChildren().add(createColocalizationPanel"));
+        assertTrue(source.contains(".filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))"));
+        assertTrue(source.contains("private static VBox createColocalizationPanel("));
+        assertTrue(source.contains("static boolean isHandledByColocalizationPanel(String name, boolean colocalization)"));
+        assertFalse(source.contains("createVascularPanel("));
+        assertFalse(source.contains("createTrainingPanel("));
+        assertFalse(source.contains("createTuningPanel("));
+        assertFalse(source.contains("createValidationPanel("));
+    }
+
+    @Test
     void launcherSourceUsesSharedLabeledRowsForConsistentVerticalSpacing() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
 
