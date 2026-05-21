@@ -1044,7 +1044,8 @@ final class AstraPipelineLauncher {
                 "NUCLEUS_SEGMENTATION_CHANNELS", "CELL_SEGMENTATION_CHANNELS",
                 "COLOCALIZATION_CHECKS",
                 "THRESHOLD_MODE", "THRESHOLD_SCOPE", "THRESHOLD_EXCLUDE_MARKERS",
-                "MANUAL_INTENSITY_THRESHOLDS", "RANGE_THRESHOLD_FRACTION_BY_MARKER",
+                "MANUAL_INTENSITY_THRESHOLDS", "THRESHOLD_PROVENANCE_BY_MARKER",
+                "RANGE_THRESHOLD_FRACTION_BY_MARKER",
                 "BACKGROUND_MODE", "BACKGROUND_SCOPE", "LOCAL_BACKGROUND_PERCENTILE",
                 "BACKGROUND_SUBTRACTION_BY_CHANNEL"
         ).contains(name);
@@ -1109,6 +1110,25 @@ final class AstraPipelineLauncher {
         checksEditor.addChangeListener(() -> exclusionEditor.refresh(markerKeysFromChecks(checksEditor.checks())));
         exclusionPanel.getChildren().add(exclusionEditor);
 
+        List<MarkerKeyMapEditor> markerMapEditors = new ArrayList<>();
+        installMarkerKeyMapEditor(byName.get("MANUAL_INTENSITY_THRESHOLDS"), MarkerMapValueType.NUMERIC,
+                "Manual threshold values appear here after checks define marker keys.", markerMapEditors);
+        installMarkerKeyMapEditor(byName.get("RANGE_THRESHOLD_FRACTION_BY_MARKER"), MarkerMapValueType.NUMERIC,
+                "Range-percent threshold fractions appear here after checks define marker keys.", markerMapEditors);
+        installMarkerKeyMapEditor(byName.get("THRESHOLD_PROVENANCE_BY_MARKER"), MarkerMapValueType.TEXT,
+                "Threshold provenance rows appear here after checks define marker keys.", markerMapEditors);
+        installMarkerKeyMapEditor(byName.get("BACKGROUND_SUBTRACTION_BY_CHANNEL"), MarkerMapValueType.NUMERIC,
+                "Manual background offsets appear here after checks define marker keys.", markerMapEditors);
+        Runnable refreshMarkerKeyEditors = () -> {
+            List<String> markerKeys = markerKeysFromChecks(checksEditor.checks());
+            markerMapEditors.forEach(editor -> editor.refresh(markerKeys));
+        };
+        refreshMarkerKeyEditors.run();
+        checksEditor.addChangeListener(() -> {
+            refreshMarkerKeyEditors.run();
+            autosave.markManualEditAndSave();
+        });
+
         VBox thresholdPanel = semanticCard("Thresholds & Background", "Choose how positivity thresholds and explicit background correction are resolved before running colocalization.");
         Map<String, RowNodes> thresholdRows = new LinkedHashMap<>();
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_MODE"), "Threshold mode", autosave);
@@ -1116,6 +1136,7 @@ final class AstraPipelineLauncher {
         thresholdPanel.getChildren().add(exclusionPanel);
         thresholdRows.put("THRESHOLD_EXCLUDE_MARKERS", new RowNodes(exclusionPanel, exclusionPanel));
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("MANUAL_INTENSITY_THRESHOLDS"), "Manual thresholds", autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_PROVENANCE_BY_MARKER"), "Threshold provenance", autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("RANGE_THRESHOLD_FRACTION_BY_MARKER"), "Range fractions", autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("BACKGROUND_MODE"), "Background mode", autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("BACKGROUND_SCOPE"), "Background scope", autosave);
@@ -1140,6 +1161,16 @@ final class AstraPipelineLauncher {
         return box;
     }
 
+    private static void installMarkerKeyMapEditor(EditableConstant constant, MarkerMapValueType valueType,
+                                                   String emptyMessage, List<MarkerKeyMapEditor> editors) {
+        if (constant == null) {
+            return;
+        }
+        MarkerKeyMapEditor editor = new MarkerKeyMapEditor(constant.displayValue, valueType, emptyMessage);
+        constant.setCustomEditor(editor);
+        editors.add(editor);
+    }
+
     private static void addColocalizationConstantRow(VBox panel, Map<String, RowNodes> rows, EditableConstant constant,
                                                      String label, SettingsAutosave autosave) {
         if (constant == null) {
@@ -1147,7 +1178,9 @@ final class AstraPipelineLauncher {
         }
         Node editor = constant.createEditor();
         constant.addChangeListener(autosave::markManualEditAndSave);
-        HBox row = labeledRow(label, editor, 180.0);
+        Node row = editor instanceof MarkerKeyMapEditor
+                ? labeledVariableBlock(label, editor)
+                : labeledRow(label, editor, 180.0);
         panel.getChildren().add(row);
         rows.put(constant.name, new RowNodes(row, row));
     }
@@ -1190,6 +1223,7 @@ final class AstraPipelineLauncher {
         rows.add("BACKGROUND_MODE");
         if ("MANUAL".equals(thresholdMode)) {
             rows.add("MANUAL_INTENSITY_THRESHOLDS");
+            rows.add("THRESHOLD_PROVENANCE_BY_MARKER");
         }
         if ("RANGE_PERCENT".equals(thresholdMode)) {
             rows.add("RANGE_THRESHOLD_FRACTION_BY_MARKER");
@@ -1366,6 +1400,18 @@ final class AstraPipelineLauncher {
         HBox.setHgrow(editor, Priority.ALWAYS);
         row.getChildren().addAll(label, editor);
         return row;
+    }
+
+    private static VBox labeledVariableBlock(String labelText, Node editor) {
+        VBox block = new VBox(6.0);
+        block.setFillWidth(true);
+        Label label = new Label(labelText);
+        label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 800; -fx-text-fill: " + INK + ";");
+        if (editor instanceof Region region) {
+            region.setMaxWidth(Double.MAX_VALUE);
+        }
+        block.getChildren().addAll(label, editor);
+        return block;
     }
 
     private static VBox nestedField(String labelText, Node editor) {
@@ -1734,6 +1780,71 @@ final class AstraPipelineLauncher {
     private static String quoteGroovy(String value) {
         String clean = value == null ? "" : value;
         return "\"" + clean.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    }
+
+    static Map<String, String> parseMarkerKeyMapValues(String rawValue, MarkerMapValueType valueType) {
+        String raw = rawValue == null ? "" : rawValue;
+        Map<String, String> values = new LinkedHashMap<>();
+        Pattern entryPattern = valueType == MarkerMapValueType.TEXT
+                ? Pattern.compile("\"((?:\\\\.|[^\"\\\\])*)\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"")
+                : Pattern.compile("\"((?:\\\\.|[^\"\\\\])*)\"\\s*:\\s*([-+]?\\d+(?:\\.\\d+)?(?:[eE][-+]?\\d+)?[dD]?)");
+        Matcher matcher = entryPattern.matcher(raw);
+        while (matcher.find()) {
+            String key = unescapeGroovyStringFragment(matcher.group(1));
+            String value = valueType == MarkerMapValueType.TEXT
+                    ? unescapeGroovyStringFragment(matcher.group(2))
+                    : matcher.group(2).replaceAll("[dD]$", "");
+            if (!key.isBlank()) {
+                values.put(key, value);
+            }
+        }
+        return values;
+    }
+
+    static String renderMarkerKeyMapValues(Map<String, String> values, MarkerMapValueType valueType) {
+        Map<String, String> filtered = new LinkedHashMap<>();
+        if (values != null) {
+            values.forEach((key, value) -> {
+                String cleanKey = key == null ? "" : key.trim();
+                String cleanValue = value == null ? "" : value.trim();
+                if (!cleanKey.isBlank() && !cleanValue.isBlank()) {
+                    filtered.put(cleanKey, renderMarkerKeyMapValue(cleanKey, cleanValue, valueType));
+                }
+            });
+        }
+        if (filtered.isEmpty()) {
+            return "[:]";
+        }
+        StringBuilder out = new StringBuilder("[\n");
+        filtered.forEach((key, value) -> out.append("        ")
+                .append(quoteGroovy(key))
+                .append(": ")
+                .append(value)
+                .append(",\n"));
+        out.append("]");
+        return out.toString();
+    }
+
+    private static String renderMarkerKeyMapValue(String key, String value, MarkerMapValueType valueType) {
+        if (valueType == MarkerMapValueType.TEXT) {
+            return quoteGroovy(value);
+        }
+        String normalized = value.replaceAll("[dD]$", "");
+        double parsed;
+        try {
+            parsed = Double.parseDouble(normalized);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Marker-key map value for " + key + " must be a finite number.");
+        }
+        if (!Double.isFinite(parsed)) {
+            throw new IllegalArgumentException("Marker-key map value for " + key + " must be finite.");
+        }
+        return Double.toString(parsed) + "d";
+    }
+
+    private static String unescapeGroovyStringFragment(String raw) {
+        String value = raw == null ? "" : raw;
+        return value.replace("\\\"", "\"").replace("\\\\", "\\");
     }
 
     private static void installReliableTooltip(Button info, Tooltip tooltip) {
@@ -2499,6 +2610,11 @@ final class AstraPipelineLauncher {
     record ColocalizationCheck(String label, String compartment, List<String> channels) {
     }
 
+    enum MarkerMapValueType {
+        NUMERIC,
+        TEXT
+    }
+
     private static final class ChannelCheckboxEditor extends VBox {
 
         private final Map<String, CheckBox> boxes = new LinkedHashMap<>();
@@ -2657,6 +2773,103 @@ final class AstraPipelineLauncher {
                                 .toList()
                 );
             }
+        }
+    }
+
+    static final class MarkerKeyMapEditor extends VBox {
+
+        private final MarkerMapValueType valueType;
+        private final String emptyMessage;
+        private final Map<String, String> values = new LinkedHashMap<>();
+        private final Map<String, TextField> fields = new LinkedHashMap<>();
+        private final List<Runnable> listeners = new ArrayList<>();
+        private List<String> markerKeys = List.of();
+
+        MarkerKeyMapEditor(String rawValue, MarkerMapValueType valueType, String emptyMessage) {
+            super(7.0);
+            this.valueType = Objects.requireNonNull(valueType, "valueType");
+            this.emptyMessage = emptyMessage == null || emptyMessage.isBlank()
+                    ? "Marker-key rows appear after colocalization checks define marker keys."
+                    : emptyMessage;
+            values.putAll(parseMarkerKeyMapValues(rawValue, valueType));
+            setStyle("-fx-background-color: white; -fx-border-color: #d7e2e6; -fx-border-radius: 5; -fx-background-radius: 5; -fx-padding: 8;");
+        }
+
+        void refresh(List<String> newMarkerKeys) {
+            storeFieldValues();
+            LinkedHashSet<String> unique = new LinkedHashSet<>();
+            if (newMarkerKeys != null) {
+                newMarkerKeys.stream()
+                        .filter(Objects::nonNull)
+                        .map(String::trim)
+                        .filter(s -> !s.isBlank())
+                        .forEach(unique::add);
+            }
+            markerKeys = List.copyOf(unique);
+            values.keySet().retainAll(markerKeys);
+            rebuildRows();
+        }
+
+        private void rebuildRows() {
+            fields.clear();
+            getChildren().clear();
+            if (markerKeys.isEmpty()) {
+                Label empty = new Label(emptyMessage);
+                empty.setWrapText(true);
+                empty.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-text-fill: " + MUTED + ";");
+                getChildren().add(empty);
+                return;
+            }
+            for (String key : markerKeys) {
+                TextField field = new TextField(values.getOrDefault(key, ""));
+                field.setPromptText(valueType == MarkerMapValueType.TEXT ? "Describe source" : "Finite number");
+                field.setStyle(EditableConstant.controlStyle());
+                field.textProperty().addListener((obs, oldValue, newValue) -> {
+                    values.put(key, newValue == null ? "" : newValue.trim());
+                    notifyListeners();
+                });
+                fields.put(key, field);
+                VBox row = nestedField(key.replace("|", " | "), field);
+                getChildren().add(row);
+            }
+        }
+
+        private void storeFieldValues() {
+            fields.forEach((key, field) -> values.put(key, field.getText() == null ? "" : field.getText().trim()));
+        }
+
+        String render() {
+            storeFieldValues();
+            Map<String, String> ordered = new LinkedHashMap<>();
+            markerKeys.forEach(key -> ordered.put(key, values.getOrDefault(key, "")));
+            return renderMarkerKeyMapValues(ordered, valueType);
+        }
+
+        void setRawValue(String rawValue) {
+            values.clear();
+            values.putAll(parseMarkerKeyMapValues(rawValue, valueType));
+            values.keySet().retainAll(markerKeys);
+            rebuildRows();
+        }
+
+        void addChangeListener(Runnable listener) {
+            listeners.add(listener);
+        }
+
+        List<String> markerKeysForTest() {
+            return markerKeys;
+        }
+
+        void setValueForTest(String key, String value) {
+            if (fields.containsKey(key)) {
+                fields.get(key).setText(value);
+            } else {
+                values.put(key, value);
+            }
+        }
+
+        private void notifyListeners() {
+            listeners.forEach(Runnable::run);
         }
     }
 
@@ -3024,6 +3237,8 @@ final class AstraPipelineLauncher {
                 value = renderStringList(exclusionEditor.selectedKeys());
             } else if (activeEditor instanceof SelectedImageNamesEditor imageNamesEditor) {
                 value = imageNamesEditor.render();
+            } else if (activeEditor instanceof MarkerKeyMapEditor markerMapEditor) {
+                value = markerMapEditor.render();
             } else if (activeEditor instanceof CodeEditor codeEditor) {
                 value = codeEditor.text();
             } else if (activeEditor instanceof TextArea area) {
@@ -3076,6 +3291,8 @@ final class AstraPipelineLauncher {
                 exclusionEditor.setRawValue(displayValue);
             } else if (editor instanceof SelectedImageNamesEditor imageNamesEditor) {
                 imageNamesEditor.setRawValue(displayValue);
+            } else if (editor instanceof MarkerKeyMapEditor markerMapEditor) {
+                markerMapEditor.setRawValue(displayValue);
             } else if (editor instanceof CodeEditor codeEditor) {
                 codeEditor.setText(displayValue);
             } else if (editor instanceof TextArea area) {
@@ -3104,6 +3321,8 @@ final class AstraPipelineLauncher {
                 return renderStringList(exclusionEditor.selectedKeys());
             } else if (activeEditor instanceof SelectedImageNamesEditor imageNamesEditor) {
                 return imageNamesEditor.render();
+            } else if (activeEditor instanceof MarkerKeyMapEditor markerMapEditor) {
+                return markerMapEditor.render();
             } else if (activeEditor instanceof CodeEditor codeEditor) {
                 return codeEditor.text();
             } else if (activeEditor instanceof TextArea area) {
@@ -3133,6 +3352,8 @@ final class AstraPipelineLauncher {
                 channelEditor.setSelected(EditableConstant.csvValues(displayValue));
             } else if (editor instanceof SelectedImageNamesEditor imageNamesEditor) {
                 imageNamesEditor.setRawValue(displayValue);
+            } else if (editor instanceof MarkerKeyMapEditor markerMapEditor) {
+                markerMapEditor.setRawValue(displayValue);
             } else if (editor instanceof CodeEditor codeEditor) {
                 codeEditor.setText(displayValue);
             } else if (editor instanceof TextArea area) {
@@ -3211,6 +3432,8 @@ final class AstraPipelineLauncher {
                 exclusionEditor.addChangeListener(listener);
             } else if (activeEditor instanceof SelectedImageNamesEditor imageNamesEditor) {
                 imageNamesEditor.addChangeListener(listener);
+            } else if (activeEditor instanceof MarkerKeyMapEditor markerMapEditor) {
+                markerMapEditor.addChangeListener(listener);
             } else if (activeEditor instanceof CodeEditor codeEditor) {
                 codeEditor.addChangeListener(listener);
             } else if (activeEditor instanceof TextArea area) {

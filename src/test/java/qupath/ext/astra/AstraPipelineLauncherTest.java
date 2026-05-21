@@ -976,6 +976,7 @@ class AstraPipelineLauncherTest {
 
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"THRESHOLD_SCOPE\")"));
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"BACKGROUND_SCOPE\")"));
+        assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"THRESHOLD_PROVENANCE_BY_MARKER\")"));
         assertTrue(source.contains("thresholdRows.put(\"THRESHOLD_EXCLUDE_MARKERS\""));
         assertTrue(source.contains("installColocalizationThresholdVisibility(byName, thresholdRows, thresholdPanel)"));
         assertTrue(source.contains("static Set<String> colocalizationThresholdVisibilityState("));
@@ -1006,6 +1007,8 @@ class AstraPipelineLauncherTest {
     void colocalizationThresholdVisibilityIsModeDriven() {
         assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MANUAL", "RUN", "NONE", "RUN")
                 .contains("MANUAL_INTENSITY_THRESHOLDS"));
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MANUAL", "RUN", "NONE", "RUN")
+                .contains("THRESHOLD_PROVENANCE_BY_MARKER"));
         assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("RANGE_PERCENT", "RUN", "NONE", "RUN")
                 .contains("RANGE_THRESHOLD_FRACTION_BY_MARKER"));
         assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "RUN", "MANUAL_OFFSET", "RUN")
@@ -1014,6 +1017,56 @@ class AstraPipelineLauncherTest {
         Set<String> local = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "RUN", "LOCAL_ROI_PERCENTILE", "ROI");
         assertTrue(local.contains("BACKGROUND_SCOPE"));
         assertTrue(local.contains("LOCAL_BACKGROUND_PERCENTILE"));
+    }
+
+    @Test
+    void colocalizationMarkerKeyMapSettingsUseSpecializedEditors() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("static final class MarkerKeyMapEditor extends VBox"));
+        assertTrue(source.contains("installMarkerKeyMapEditor(byName.get(\"MANUAL_INTENSITY_THRESHOLDS\"), MarkerMapValueType.NUMERIC"));
+        assertTrue(source.contains("installMarkerKeyMapEditor(byName.get(\"RANGE_THRESHOLD_FRACTION_BY_MARKER\"), MarkerMapValueType.NUMERIC"));
+        assertTrue(source.contains("installMarkerKeyMapEditor(byName.get(\"THRESHOLD_PROVENANCE_BY_MARKER\"), MarkerMapValueType.TEXT"));
+        assertTrue(source.contains("installMarkerKeyMapEditor(byName.get(\"BACKGROUND_SUBTRACTION_BY_CHANNEL\"), MarkerMapValueType.NUMERIC"));
+        assertTrue(source.contains("editor instanceof MarkerKeyMapEditor"));
+        assertTrue(source.contains("labeledVariableBlock(label, editor)"));
+        assertTrue(source.contains("checksEditor.addChangeListener(() -> {\n            refreshMarkerKeyEditors.run();"));
+    }
+
+    @Test
+    void markerKeyMapRenderingProducesGroovyMapValues() {
+        Map<String, String> numeric = new java.util.LinkedHashMap<>();
+        numeric.put("AF647|Nucleus", "12.5");
+        numeric.put("DAPI|Nucleus", "");
+        String renderedNumeric = AstraPipelineLauncher.renderMarkerKeyMapValues(numeric, AstraPipelineLauncher.MarkerMapValueType.NUMERIC);
+
+        assertTrue(renderedNumeric.contains("\"AF647|Nucleus\": 12.5d"));
+        assertFalse(renderedNumeric.contains("DAPI|Nucleus"));
+
+        Map<String, String> text = new java.util.LinkedHashMap<>();
+        text.put("AF647|Nucleus", "manual \"publication\" threshold");
+        String renderedText = AstraPipelineLauncher.renderMarkerKeyMapValues(text, AstraPipelineLauncher.MarkerMapValueType.TEXT);
+
+        assertTrue(renderedText.contains("\"AF647|Nucleus\": \"manual \\\"publication\\\" threshold\""));
+    }
+
+    @Test
+    void markerKeyMapParsingReadsExistingGroovyMaps() {
+        Map<String, String> numeric = AstraPipelineLauncher.parseMarkerKeyMapValues("""
+                [
+                    "AF488|Nucleus": 100.0d,
+                    "AF647|Cell": 2.5
+                ]
+                """, AstraPipelineLauncher.MarkerMapValueType.NUMERIC);
+        Map<String, String> text = AstraPipelineLauncher.parseMarkerKeyMapValues("""
+                [
+                    "AF488|Nucleus": "manual source"
+                ]
+                """, AstraPipelineLauncher.MarkerMapValueType.TEXT);
+
+        assertEquals("100.0", numeric.get("AF488|Nucleus"));
+        assertEquals("2.5", numeric.get("AF647|Cell"));
+        assertEquals("manual source", text.get("AF488|Nucleus"));
     }
 
     @Test
