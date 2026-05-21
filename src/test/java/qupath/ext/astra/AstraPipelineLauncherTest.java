@@ -1033,7 +1033,7 @@ class AstraPipelineLauncherTest {
         assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "PROJECT", "MANUAL_OFFSET", "PROJECT")
                 .contains("BACKGROUND_SUBTRACTION_BY_CHANNEL"));
 
-        Set<String> local = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "PROJECT", "LOCAL_ROI_PERCENTILE", "REGION");
+        Set<String> local = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "PROJECT", "LOCAL_REGION_PERCENTILE", "REGION");
         assertTrue(local.contains("BACKGROUND_SCOPE"));
         assertTrue(local.contains("LOCAL_BACKGROUND_PERCENTILE"));
     }
@@ -1044,6 +1044,9 @@ class AstraPipelineLauncherTest {
 
         assertFalse(source.contains("RESET_BASELINE"));
         assertFalse(source.contains("EXPORT_ON_QUANTIFY"));
+        assertFalse(source.contains("EXPORT_RESULTS"));
+        assertFalse(source.contains("LOCAL_ROI_PERCENTILE"));
+        assertFalse(source.contains("LOCAL_SLIDE_PERCENTILE"));
     }
 
     @Test

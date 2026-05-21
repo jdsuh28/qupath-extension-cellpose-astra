@@ -675,7 +675,6 @@ final class AstraPipelineLauncher {
         appendSummary(lines, byName, "THRESHOLD_MODE", "  threshold mode");
         appendSummary(lines, byName, "THRESHOLD_EXCLUDE_MARKERS", "  threshold exclusions");
         appendSummary(lines, byName, "BACKGROUND_MODE", "  background mode");
-        appendSummary(lines, byName, "EXPORT_RESULTS", "  export results");
         appendSummary(lines, byName, "RESULTS_FOLDER", "  results folder");
         return String.join("\n", lines);
     }
@@ -1231,7 +1230,7 @@ final class AstraPipelineLauncher {
         if ("MANUAL_OFFSET".equals(backgroundMode)) {
             rows.add("BACKGROUND_SUBTRACTION_BY_CHANNEL");
         }
-        if ("LOCAL_ROI_PERCENTILE".equals(backgroundMode) || "LOCAL_SLIDE_PERCENTILE".equals(backgroundMode)) {
+        if ("LOCAL_REGION_PERCENTILE".equals(backgroundMode) || "LOCAL_IMAGE_PERCENTILE".equals(backgroundMode)) {
             rows.add("BACKGROUND_SCOPE");
             rows.add("LOCAL_BACKGROUND_PERCENTILE");
         }
@@ -2190,7 +2189,6 @@ final class AstraPipelineLauncher {
                 "USE_BATCH_MODE",
                 "USE_PIXEL_SCALING",
                 "SHOW_GUI_NOTIFICATIONS",
-                "EXPORT_RESULTS",
                 "EXPORT_QC_FIGURES",
                 "RESULTS_FOLDER",
                 "RESULTS_BASENAME",
