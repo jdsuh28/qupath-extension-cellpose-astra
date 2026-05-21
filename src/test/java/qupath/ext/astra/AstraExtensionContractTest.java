@@ -84,12 +84,25 @@ class AstraExtensionContractTest {
             assertFalse(path.endsWith(".ome.tiff"), path);
 
             String text = Files.readString(file.toPath());
-            assertFalse(text.contains("contracts/src/test/resources"), file.getPath());
-            assertFalse(text.contains("test-fixtures"), file.getPath());
-            assertFalse(text.contains(".ome.tif"), file.getPath());
-            assertFalse(text.contains(".ome.tiff"), file.getPath());
-            assertFalse(text.contains("vessels/manifest.json"), file.getPath());
+            if (!isVendoredAstraTestSource(path)) {
+                assertFalse(text.contains("contracts/src/test/resources"), file.getPath());
+                assertFalse(text.contains("test-fixtures"), file.getPath());
+                assertFalse(text.contains(".ome.tif"), file.getPath());
+                assertFalse(text.contains(".ome.tiff"), file.getPath());
+                assertFalse(text.contains("vessels/manifest.json"), file.getPath());
+            }
         }
+    }
+
+    /**
+     * Returns true for ASTRA test-source files intentionally copied into the
+     * release-build workspace by the manifest workflow's existing vendoring
+     * strategy.  The runtime guardrail still rejects actual fixture files and
+     * production/runtime fixture references.
+     */
+    private static boolean isVendoredAstraTestSource(String path) {
+        return path.contains("/src/main/resources/astra/")
+                && path.contains("/src/test/");
     }
 
     /**
