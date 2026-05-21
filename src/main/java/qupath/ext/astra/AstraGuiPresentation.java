@@ -21,8 +21,14 @@ final class AstraGuiPresentation {
             Map.entry("CELL_MODEL_NAME", "Cell Model Name"),
             Map.entry("CELL_MODEL_FILE", "Cell Model File"),
             Map.entry("CELL_SAVED_MODEL_ID", "Cell Saved Model ID"),
+            Map.entry("DETECTION_TARGET", "Detection Target"),
+            Map.entry("THRESHOLD_MODE", "Threshold Mode"),
             Map.entry("THRESHOLD_SCOPE", "Threshold Scope"),
-            Map.entry("BACKGROUND_SCOPE", "Background Scope"),
+            Map.entry("THRESHOLD_SELECTED_IMAGE_NAMES", "Threshold Source Images"),
+            Map.entry("MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL", "Match Threshold Image Names Against Original"),
+            Map.entry("MATCH_SELECTED_IMAGE_NAMES_AGAINST_ORIGINAL", "Match Selected Image Names Against Original"),
+            Map.entry("BACKGROUND_MODE", "Background Mode"),
+            Map.entry("LOCAL_BACKGROUND_PERCENTILE", "Local Background Percentile"),
             Map.entry("BACKGROUND_SUBTRACTION_BY_CHANNEL", "Manual Background Offsets"),
             Map.entry("MANUAL_INTENSITY_THRESHOLDS", "Manual Intensity Thresholds"),
             Map.entry("RANGE_THRESHOLD_FRACTION_BY_MARKER", "Range Threshold Fractions"),
@@ -37,7 +43,9 @@ final class AstraGuiPresentation {
             Map.entry("RESULTS_FOLDER", "Results Folder"),
             Map.entry("RESULTS_BASENAME", "Results Basename"),
             Map.entry("IMAGE_SCOPE", "Image Scope"),
-            Map.entry("SELECTED_IMAGE_NAMES", "Selected Image Names")
+            Map.entry("SELECTED_IMAGE_NAMES", "Selected Image Names"),
+            Map.entry("CLASS_ANALYSIS_REGION", "Analysis Region Class"),
+            Map.entry("CLASS_ROI", "ROI Class")
     );
 
     private static final Map<String, String> LABEL_TOKENS = Map.ofEntries(
@@ -105,6 +113,24 @@ final class AstraGuiPresentation {
             case "CURRENT_IMAGE" -> "Current Image";
             case "SELECTED_ANALYSIS_REGION" -> "Selected Analysis Region";
             case "PROJECT_IMAGE_SELECTION" -> "Project Image Selection";
+            case "SELECTED_IMAGES" -> "Selected Images";
+            case "LOCAL_PERCENTILE" -> "Local Percentile";
+            case "MANUAL_OFFSET" -> "Manual Offset";
+            case "LOG_GAUSSIAN_MIXTURE" -> "Log Gaussian Mixture";
+            case "GAUSSIAN_MIXTURE" -> "Gaussian Mixture";
+            case "KDE_VALLEY" -> "KDE Valley";
+            case "AUTO_OTSU_PER_CHANNEL" -> "Auto Otsu Per Channel";
+            case "RANGE_PERCENT" -> "Range Percent";
+            case "MANUAL" -> "Manual";
+            case "NONE" -> "None";
+            case "NUCLEUS" -> "Nucleus";
+            case "CELL" -> "Cell";
+            case "BOTH" -> "Both";
+            case "DETECT_CELLS" -> "Detect Cells";
+            case "GENERATE_REGIONS" -> "Generate Regions";
+            case "QUANTIFY" -> "Quantify";
+            case "AUTO_BUILD_CLASSIFIERS" -> "Auto Build Classifiers";
+            case "AUTO_SELECT_ROIS" -> "Auto Select ROIs";
             default -> displayLabel(option);
         };
     }

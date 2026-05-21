@@ -605,7 +605,7 @@ class AstraPipelineLauncherTest {
         assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = [\"Hoechst\"]"));
         assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = [\"AF555\"]"));
         assertFalse(configured.contains("LABEL      : \"Hoechst_AND_AF555_nucleus\""));
-        assertFalse(configured.contains("final List THRESHOLD_EXCLUDE_MARKERS = [\"Hoechst|Nucleus\"]"));
+        assertFalse(configured.contains("THRESHOLD_EXCLUDE_MARKERS"));
         assertFalse(configured.contains("\"AF555|Nucleus\"     : 100.0d"));
     }
 
@@ -691,7 +691,7 @@ class AstraPipelineLauncherTest {
         assertTrue(source.contains("VBox group = new VBox(PARAMETER_ROW_GAP);"));
         assertTrue(source.contains("private final VBox rows = new VBox(PARAMETER_ROW_GAP);"));
         assertTrue(source.contains("HBox row = labeledRow(displayLabel(constant.name), editor, 160.0);"));
-        assertTrue(source.contains("HBox row = labeledRow(\"Detection target\", editor, 160.0);"));
+        assertTrue(source.contains("HBox row = labeledRow(displayLabel(\"DETECTION_TARGET\"), editor, 160.0);"));
         assertTrue(source.contains("private static final double SECTION_CONTENT_GAP = 9.0;"));
         assertTrue(source.contains("private static final double CARD_CONTENT_GAP = 8.0;"));
     }
@@ -703,6 +703,8 @@ class AstraPipelineLauncherTest {
         assertEquals("Cell Saved Model ID", AstraPipelineLauncher.displayLabel("CELL_SAVED_MODEL_ID"));
         assertEquals("Threshold Scope", AstraPipelineLauncher.displayLabel("THRESHOLD_SCOPE"));
         assertEquals("Manual Background Offsets", AstraPipelineLauncher.displayLabel("BACKGROUND_SUBTRACTION_BY_CHANNEL"));
+        assertEquals("Detection Target", AstraPipelineLauncher.displayLabel("DETECTION_TARGET"));
+        assertEquals("Threshold Source Images", AstraPipelineLauncher.displayLabel("THRESHOLD_SELECTED_IMAGE_NAMES"));
         assertEquals("Use GPU", AstraPipelineLauncher.displayLabel("USE_GPU"));
         assertEquals("QC Filename", AstraPipelineLauncher.displayLabel("QC_FILENAME"));
         assertEquals("Selected Image Names", AstraPipelineLauncher.displayLabel("SELECTED_IMAGE_NAMES"));
@@ -723,21 +725,31 @@ class AstraPipelineLauncherTest {
         assertEquals("Current Image", AstraGuiPresentation.displayOption("CURRENT_IMAGE"));
         assertEquals("Selected Analysis Region", AstraGuiPresentation.displayOption("SELECTED_ANALYSIS_REGION"));
         assertEquals("Project Image Selection", AstraGuiPresentation.displayOption("PROJECT_IMAGE_SELECTION"));
+        assertEquals("Selected Images", AstraGuiPresentation.displayOption("SELECTED_IMAGES"));
+        assertEquals("Local Percentile", AstraGuiPresentation.displayOption("LOCAL_PERCENTILE"));
+        assertEquals("Detection Target", AstraGuiPresentation.displayLabel("DETECTION_TARGET"));
+        assertEquals("Threshold Source Images", AstraGuiPresentation.displayLabel("THRESHOLD_SELECTED_IMAGE_NAMES"));
         assertEquals(List.of("DETECT_CELLS", "QUANTIFY"),
                 AstraGuiPresentation.visibleRunModeOptions("Colocalization", List.of("RESET", "DETECT_CELLS", "QUANTIFY", "EXPORT")));
     }
 
     @Test
-    void detectionTargetAndThresholdExclusionsAreEditable() {
+    void detectionTargetAndPerCheckThresholdExclusionsAreEditable() {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
                 final List DETECTION_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
                 final String DETECTION_TARGET = "NUCLEUS"
-                final List THRESHOLD_EXCLUDE_MARKERS = ["DAPI|Nucleus"]
+                final List COLOCALIZATION_CHECKS = [
+                    [LABEL: "one", COMPARTMENT: "Nucleus", CHANNELS: ["DAPI"], EXCLUDED_CHANNELS: ["DAPI"]]
+                ]
                 final Map cfg = [:]
                 """);
 
         assertTrue(constants.stream().anyMatch(c -> c.name().equals("DETECTION_TARGET")));
-        assertTrue(constants.stream().anyMatch(c -> c.name().equals("THRESHOLD_EXCLUDE_MARKERS")));
+        AstraPipelineLauncher.EditableConstant checks = constants.stream()
+                .filter(c -> c.name().equals("COLOCALIZATION_CHECKS"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(List.of("DAPI"), AstraPipelineLauncher.parseColocalizationChecks(checks.currentDisplayValue()).get(0).excludedChannels());
     }
 
     @Test
@@ -788,7 +800,7 @@ class AstraPipelineLauncherTest {
     @Test
     void markerExclusionKeysComeOnlyFromColocalizationChecks() {
         List<AstraPipelineLauncher.ColocalizationCheck> checks = List.of(
-                new AstraPipelineLauncher.ColocalizationCheck("DAPI_AF488", "Nucleus", List.of("DAPI", "AF488"))
+                new AstraPipelineLauncher.ColocalizationCheck("DAPI_AF488", "Nucleus", List.of("DAPI", "AF488"), List.of("DAPI"))
         );
 
         List<String> keys = AstraPipelineLauncher.markerKeysFromChecks(checks);
@@ -796,20 +808,21 @@ class AstraPipelineLauncherTest {
         assertTrue(keys.contains("DAPI|Nucleus"));
         assertTrue(keys.contains("AF488|Nucleus"));
         assertFalse(keys.contains("AF647|Nucleus"));
+        assertEquals(List.of("AF488|Nucleus"), AstraPipelineLauncher.thresholdedMarkerKeysFromChecks(checks));
         assertEquals("[\"DAPI|Nucleus\"]", AstraPipelineLauncher.renderStringList(List.of("DAPI|Nucleus")));
     }
 
     @Test
-    void staleThresholdExclusionsAreRemovedWhenChecksChange() {
-        List<String> synchronizedKeys = AstraPipelineLauncher.synchronizedThresholdExclusions(
-                List.of("DAPI|Nucleus", "FITC|Cell"),
-                List.of(new AstraPipelineLauncher.ColocalizationCheck("fitc", "Nucleus", List.of("FITC")))
+    void perCheckThresholdExclusionsAreRenderedInsideEachCheck() {
+        List<AstraPipelineLauncher.ColocalizationCheck> checks = List.of(
+                new AstraPipelineLauncher.ColocalizationCheck("fitc", "Nucleus", List.of("FITC"), List.of("FITC")),
+                new AstraPipelineLauncher.ColocalizationCheck("af647", "Cell", List.of("AF647"), List.of())
         );
+        String rendered = AstraPipelineLauncher.renderColocalizationChecks(checks);
+        List<AstraPipelineLauncher.ColocalizationCheck> parsed = AstraPipelineLauncher.parseColocalizationChecks(rendered);
 
-        assertEquals(List.of("FITC|Nucleus"), AstraPipelineLauncher.markerKeysFromChecks(List.of(
-                new AstraPipelineLauncher.ColocalizationCheck("fitc", "Nucleus", List.of("FITC"))
-        )));
-        assertEquals(List.of(), synchronizedKeys);
+        assertEquals(List.of("FITC"), parsed.get(0).excludedChannels());
+        assertEquals(List.of(), parsed.get(1).excludedChannels());
     }
 
     @Test
@@ -930,13 +943,14 @@ class AstraPipelineLauncherTest {
     @Test
     void colocalizationCheckBuilderRendersGroovyMapList() {
         String rendered = AstraPipelineLauncher.renderColocalizationChecks(List.of(
-                new AstraPipelineLauncher.ColocalizationCheck("A_B_nucleus", "Nucleus", List.of("A", "B")),
-                new AstraPipelineLauncher.ColocalizationCheck("C_cell", "Cell", List.of("C"))
+                new AstraPipelineLauncher.ColocalizationCheck("A_B_nucleus", "Nucleus", List.of("A", "B"), List.of("A")),
+                new AstraPipelineLauncher.ColocalizationCheck("C_cell", "Cell", List.of("C"), List.of())
         ));
 
         assertTrue(rendered.contains("LABEL      : \"A_B_nucleus\""));
         assertTrue(rendered.contains("COMPARTMENT: \"Cell\""));
         assertTrue(rendered.contains("CHANNELS   : [\"A\", \"B\"]"));
+        assertTrue(rendered.contains("EXCLUDED_CHANNELS: [\"A\"]"));
     }
 
     @Test
@@ -960,6 +974,8 @@ class AstraPipelineLauncherTest {
         assertTrue(source.contains("nestedField(\"Check name\", label)"));
         assertTrue(source.contains("nestedField(\"Compartment\", compartment)"));
         assertTrue(source.contains("nestedField(\"Channels\", channels)"));
+        assertTrue(source.contains("nestedField(\"Threshold Exclusions\", exclusions)"));
+        assertTrue(source.contains("compartment.getItems().addAll(\"Nucleus\", \"Cytoplasm\", \"Cell\")"));
         assertTrue(source.contains("compartment.setMinWidth(120.0)"));
         assertTrue(source.contains("compartment.setPrefWidth(130.0)"));
         assertTrue(source.contains("styleAstraComboBox(compartment)"));
@@ -1013,13 +1029,13 @@ class AstraPipelineLauncherTest {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
 
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"THRESHOLD_SCOPE\")"));
-        assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"BACKGROUND_SCOPE\")"));
+        assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"THRESHOLD_SELECTED_IMAGE_NAMES\")"));
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"THRESHOLD_PROVENANCE_BY_MARKER\")"));
-        assertTrue(source.contains("thresholdRows.put(\"THRESHOLD_EXCLUDE_MARKERS\""));
+        assertFalse(source.contains("THRESHOLD_EXCLUDE_MARKERS"));
         assertTrue(source.contains("installColocalizationThresholdVisibility(byName, thresholdRows, thresholdPanel)"));
         assertTrue(source.contains("static Set<String> colocalizationThresholdVisibilityState("));
-        assertTrue(source.contains("List.of(\"THRESHOLD_MODE\", \"BACKGROUND_MODE\")"));
-        assertFalse(source.contains("List.of(\"THRESHOLD_MODE\", \"THRESHOLD_SCOPE\", \"BACKGROUND_MODE\", \"BACKGROUND_SCOPE\")"));
+        assertTrue(source.contains("List.of(\"THRESHOLD_MODE\", \"THRESHOLD_SCOPE\", \"BACKGROUND_MODE\")"));
+        assertFalse(source.contains("BACKGROUND_SCOPE"));
         assertTrue(source.contains("panel.requestLayout()"));
         assertTrue(source.contains("row.editor.setDisable(!visible)"));
     }
@@ -1032,6 +1048,8 @@ class AstraPipelineLauncherTest {
         assertTrue(script.contains("final List MODES_TO_RUN_OPTIONS = [\"DETECT_CELLS\", \"QUANTIFY\"]"));
         assertTrue(script.contains("final List MODES_TO_RUN = [\"DETECT_CELLS\", \"QUANTIFY\"]"));
         assertTrue(source.contains("private static final class StageModeEditor extends VBox"));
+        assertTrue(source.contains("private final MenuButton selector = new MenuButton();"));
+        assertTrue(source.contains("new CheckMenuItem(displayMode(mode))"));
         assertTrue(source.contains("installColocalizationRunModeEditor(scriptName, constants)"));
         assertTrue(source.contains("Choose stages in ASTRA's fixed order. Reset and export are separate header actions."));
         assertTrue(source.contains("new Button(\"Reset Image...\")"));
@@ -1063,35 +1081,35 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
-    void colocalizationThresholdVisibilityDefaultProjectStateIsCompact() {
-        Set<String> visible = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "PROJECT", "NONE", "PROJECT");
+    void colocalizationThresholdVisibilityDefaultImageStateIsCompact() {
+        Set<String> visible = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE");
 
-        assertEquals(Set.of("THRESHOLD_MODE", "THRESHOLD_SCOPE", "THRESHOLD_EXCLUDE_MARKERS", "BACKGROUND_MODE"), visible);
+        assertEquals(Set.of("THRESHOLD_MODE", "THRESHOLD_SCOPE", "BACKGROUND_MODE"), visible);
     }
 
     @Test
-    void colocalizationThresholdScopeTogglesDoNotChangeVisibility() {
-        Set<String> project = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "PROJECT", "NONE", "PROJECT");
-        Set<String> image = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE", "PROJECT");
-        Set<String> region = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "REGION", "NONE", "PROJECT");
+    void colocalizationSelectedThresholdSourceRevealsImageSelector() {
+        Set<String> image = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE");
+        Set<String> region = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "REGION", "NONE");
+        Set<String> selected = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "SELECTED_IMAGES", "NONE");
 
-        assertEquals(project, image);
-        assertEquals(project, region);
+        assertEquals(image, region);
+        assertTrue(selected.contains("THRESHOLD_SELECTED_IMAGE_NAMES"));
+        assertTrue(selected.contains("MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL"));
     }
 
     @Test
     void colocalizationThresholdVisibilityIsModeDriven() {
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MANUAL", "PROJECT", "NONE", "PROJECT")
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MANUAL", "IMAGE", "NONE")
                 .contains("MANUAL_INTENSITY_THRESHOLDS"));
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MANUAL", "PROJECT", "NONE", "PROJECT")
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MANUAL", "IMAGE", "NONE")
                 .contains("THRESHOLD_PROVENANCE_BY_MARKER"));
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("RANGE_PERCENT", "PROJECT", "NONE", "PROJECT")
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("RANGE_PERCENT", "IMAGE", "NONE")
                 .contains("RANGE_THRESHOLD_FRACTION_BY_MARKER"));
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "PROJECT", "MANUAL_OFFSET", "PROJECT")
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "IMAGE", "MANUAL_OFFSET")
                 .contains("BACKGROUND_SUBTRACTION_BY_CHANNEL"));
 
-        Set<String> local = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "PROJECT", "LOCAL_REGION_PERCENTILE", "REGION");
-        assertTrue(local.contains("BACKGROUND_SCOPE"));
+        Set<String> local = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "IMAGE", "LOCAL_PERCENTILE");
         assertTrue(local.contains("LOCAL_BACKGROUND_PERCENTILE"));
     }
 
@@ -1104,6 +1122,10 @@ class AstraPipelineLauncherTest {
         assertFalse(source.contains("EXPORT_RESULTS"));
         assertFalse(source.contains("LOCAL_ROI_PERCENTILE"));
         assertFalse(source.contains("LOCAL_SLIDE_PERCENTILE"));
+        assertFalse(source.contains("LOCAL_REGION_PERCENTILE"));
+        assertFalse(source.contains("LOCAL_IMAGE_PERCENTILE"));
+        assertFalse(source.contains("BACKGROUND_SCOPE"));
+        assertFalse(source.contains("THRESHOLD_EXCLUDE_MARKERS"));
     }
 
     @Test
@@ -1172,6 +1194,9 @@ class AstraPipelineLauncherTest {
         assertTrue(source.contains("summary.setText(names.size() + \" of \" + allNames.size()"));
         assertTrue(source.contains("smallButton(\"Paste names\")"));
         assertTrue(source.contains("renderStringList(selectedNames())"));
+        assertTrue(source.contains("\"THRESHOLD_SELECTED_IMAGE_NAMES\".equals(c.name)"));
+        assertTrue(source.contains("available.setCellFactory(list -> readableListCell())"));
+        assertTrue(source.contains("chosen.setCellFactory(list -> readableListCell())"));
     }
 
     @Test
@@ -1349,10 +1374,10 @@ class AstraPipelineLauncherTest {
                     [
                         LABEL      : "DAPI_AND_AF488_nucleus",
                         COMPARTMENT: "Nucleus",
-                        CHANNELS   : ["DAPI", "AF488"]
+                        CHANNELS   : ["DAPI", "AF488"],
+                        EXCLUDED_CHANNELS: ["DAPI"]
                     ]
                 ]
-                final List THRESHOLD_EXCLUDE_MARKERS = ["DAPI|Nucleus"]
                 final Map MANUAL_INTENSITY_THRESHOLDS = [
                     "AF488|Nucleus": 100.0d
                 ]
