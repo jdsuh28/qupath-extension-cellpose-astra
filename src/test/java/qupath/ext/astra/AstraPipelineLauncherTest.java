@@ -663,6 +663,25 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
+    void launcherArchitectureUsesDeclaredSectionsAndNoDuplicatedSetupControls() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("VBox header = new VBox(12.0);"));
+        assertTrue(source.contains("VBox body = new VBox(14.0);"));
+        assertTrue(source.contains("VBox basic = sectionShell(\"Basic\""));
+        assertTrue(source.contains("VBox advanced = sectionShell(\"Advanced\""));
+        assertTrue(source.contains("Node feedbackNode = feedback.node();"));
+        assertTrue(source.contains("if (colocalization) {\n            body.getChildren().add(createColocalizationPanel"));
+        assertTrue(source.contains(".filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))"));
+        assertTrue(source.contains("private static VBox createColocalizationPanel("));
+        assertTrue(source.contains("static boolean isHandledByColocalizationPanel(String name, boolean colocalization)"));
+        assertFalse(source.contains("createVascularPanel("));
+        assertFalse(source.contains("createTrainingPanel("));
+        assertFalse(source.contains("createTuningPanel("));
+        assertFalse(source.contains("createValidationPanel("));
+    }
+
+    @Test
     void launcherSourceUsesSharedLabeledRowsForConsistentVerticalSpacing() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
 
@@ -671,10 +690,22 @@ class AstraPipelineLauncherTest {
         assertTrue(source.contains("grid.setVgap(PARAMETER_ROW_GAP);"));
         assertTrue(source.contains("VBox group = new VBox(PARAMETER_ROW_GAP);"));
         assertTrue(source.contains("private final VBox rows = new VBox(PARAMETER_ROW_GAP);"));
-        assertTrue(source.contains("HBox row = labeledRow(prettyName(constant.name), editor, 160.0);"));
+        assertTrue(source.contains("HBox row = labeledRow(displayLabel(constant.name), editor, 160.0);"));
         assertTrue(source.contains("HBox row = labeledRow(\"Detection target\", editor, 160.0);"));
         assertTrue(source.contains("private static final double SECTION_CONTENT_GAP = 9.0;"));
         assertTrue(source.contains("private static final double CARD_CONTENT_GAP = 8.0;"));
+    }
+
+    @Test
+    void launcherUsesProfessionalLabelsForPipelineControls() {
+        assertEquals("Nucleus Model Source", AstraPipelineLauncher.displayLabel("NUC_MODEL_SOURCE"));
+        assertEquals("Nucleus Saved Model ID", AstraPipelineLauncher.displayLabel("NUC_SAVED_MODEL_ID"));
+        assertEquals("Cell Saved Model ID", AstraPipelineLauncher.displayLabel("CELL_SAVED_MODEL_ID"));
+        assertEquals("Threshold Scope", AstraPipelineLauncher.displayLabel("THRESHOLD_SCOPE"));
+        assertEquals("Manual Background Offsets", AstraPipelineLauncher.displayLabel("BACKGROUND_SUBTRACTION_BY_CHANNEL"));
+        assertEquals("Use GPU", AstraPipelineLauncher.displayLabel("USE_GPU"));
+        assertEquals("QC Filename", AstraPipelineLauncher.displayLabel("QC_FILENAME"));
+        assertEquals("Selected Image Names", AstraPipelineLauncher.displayLabel("SELECTED_IMAGE_NAMES"));
     }
 
     @Test
@@ -912,7 +943,7 @@ class AstraPipelineLauncherTest {
         assertTrue(source.contains("nestedField(\"Channels\", channels)"));
         assertTrue(source.contains("compartment.setMinWidth(120.0)"));
         assertTrue(source.contains("compartment.setPrefWidth(130.0)"));
-        assertTrue(source.contains("styleComboBoxText(compartment)"));
+        assertTrue(source.contains("styleAstraComboBox(compartment)"));
         assertTrue(source.contains("channels.setAlignment(Pos.CENTER_LEFT)"));
         assertTrue(source.contains("private static String nestedLabelStyle()"));
         assertTrue(source.contains("private static String checkBoxStyle()"));
@@ -923,10 +954,39 @@ class AstraPipelineLauncherTest {
     void comboBoxSelectedValueUsesReadableTextColor() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
 
-        assertTrue(source.contains("private static void styleComboBoxText(ComboBox<String> combo)"));
+        assertTrue(source.contains("private static void styleAstraComboBox(ComboBox<String> combo)"));
+        assertTrue(source.contains("combo.getEditor().setStyle(EditableConstant.controlStyle())"));
+        assertTrue(source.contains("private static void styleComboBoxSubnodes(ComboBox<String> combo)"));
+        assertTrue(source.contains("combo.lookup(\".arrow-button\")"));
+        assertTrue(source.contains("arrowButton.setStyle(\"-fx-background-color: transparent;"));
         assertTrue(source.contains("combo.setButtonCell(readableComboCell())"));
         assertTrue(source.contains("combo.setCellFactory(list -> readableComboCell())"));
         assertTrue(source.contains("-fx-text-fill: \" + INK"));
+    }
+
+    @Test
+    void runFeedbackPaneResizesWithLauncherWidth() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("box.setMaxWidth(Double.MAX_VALUE);"));
+        assertTrue(source.contains("HBox.setHgrow(box, Priority.ALWAYS);"));
+        assertFalse(source.contains("HBox.setHgrow(box, Priority.NEVER);"));
+        assertFalse(source.contains("box.setMaxWidth(520.0);"));
+    }
+
+    @Test
+    void launcherOwnsOneModalErrorDialogPerGuiRun() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("private static final String GUI_RUN_ACTIVE_PROPERTY = \"ASTRA_GUI_RUN_ACTIVE\";"));
+        assertTrue(source.contains("System.setProperty(GUI_RUN_ACTIVE_PROPERTY, \"true\");"));
+        assertTrue(source.contains("restoreGuiRunActiveProperty(previousGuiRunActive);"));
+        assertTrue(source.contains("private static void showRunFailureDialog(String scriptName, RunFeedback feedback, String message)"));
+        assertTrue(source.contains("if (!feedback.markErrorDialogShown())"));
+        assertTrue(source.contains("private final AtomicBoolean errorDialogShown = new AtomicBoolean(false);"));
+        assertTrue(source.contains("errorDialogShown.set(false);"));
+        assertTrue(source.contains("return errorDialogShown.compareAndSet(false, true);"));
+        assertTrue(source.contains("See the ASTRA run log for full details."));
     }
 
     @Test
@@ -935,6 +995,7 @@ class AstraPipelineLauncherTest {
 
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"THRESHOLD_SCOPE\")"));
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"BACKGROUND_SCOPE\")"));
+        assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"THRESHOLD_PROVENANCE_BY_MARKER\")"));
         assertTrue(source.contains("thresholdRows.put(\"THRESHOLD_EXCLUDE_MARKERS\""));
         assertTrue(source.contains("installColocalizationThresholdVisibility(byName, thresholdRows, thresholdPanel)"));
         assertTrue(source.contains("static Set<String> colocalizationThresholdVisibilityState("));
@@ -945,34 +1006,97 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
-    void colocalizationThresholdVisibilityDefaultRunStateIsCompact() {
-        Set<String> visible = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "RUN", "NONE", "RUN");
+    void colocalizationThresholdVisibilityDefaultProjectStateIsCompact() {
+        Set<String> visible = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "PROJECT", "NONE", "PROJECT");
 
         assertEquals(Set.of("THRESHOLD_MODE", "THRESHOLD_SCOPE", "THRESHOLD_EXCLUDE_MARKERS", "BACKGROUND_MODE"), visible);
     }
 
     @Test
     void colocalizationThresholdScopeTogglesDoNotChangeVisibility() {
-        Set<String> run = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "RUN", "NONE", "RUN");
-        Set<String> slide = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "SLIDE", "NONE", "RUN");
-        Set<String> roi = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "ROI", "NONE", "RUN");
+        Set<String> project = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "PROJECT", "NONE", "PROJECT");
+        Set<String> image = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE", "PROJECT");
+        Set<String> region = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "REGION", "NONE", "PROJECT");
 
-        assertEquals(run, slide);
-        assertEquals(run, roi);
+        assertEquals(project, image);
+        assertEquals(project, region);
     }
 
     @Test
     void colocalizationThresholdVisibilityIsModeDriven() {
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MANUAL", "RUN", "NONE", "RUN")
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MANUAL", "PROJECT", "NONE", "PROJECT")
                 .contains("MANUAL_INTENSITY_THRESHOLDS"));
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("RANGE_PERCENT", "RUN", "NONE", "RUN")
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MANUAL", "PROJECT", "NONE", "PROJECT")
+                .contains("THRESHOLD_PROVENANCE_BY_MARKER"));
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("RANGE_PERCENT", "PROJECT", "NONE", "PROJECT")
                 .contains("RANGE_THRESHOLD_FRACTION_BY_MARKER"));
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "RUN", "MANUAL_OFFSET", "RUN")
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "PROJECT", "MANUAL_OFFSET", "PROJECT")
                 .contains("BACKGROUND_SUBTRACTION_BY_CHANNEL"));
 
-        Set<String> local = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "RUN", "LOCAL_ROI_PERCENTILE", "ROI");
+        Set<String> local = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "PROJECT", "LOCAL_REGION_PERCENTILE", "REGION");
         assertTrue(local.contains("BACKGROUND_SCOPE"));
         assertTrue(local.contains("LOCAL_BACKGROUND_PERCENTILE"));
+    }
+
+    @Test
+    void launcherDoesNotPreserveRemovedAnalysisAliases() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertFalse(source.contains("RESET_BASELINE"));
+        assertFalse(source.contains("EXPORT_ON_QUANTIFY"));
+        assertFalse(source.contains("EXPORT_RESULTS"));
+        assertFalse(source.contains("LOCAL_ROI_PERCENTILE"));
+        assertFalse(source.contains("LOCAL_SLIDE_PERCENTILE"));
+    }
+
+    @Test
+    void colocalizationMarkerKeyMapSettingsUseSpecializedEditors() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("static final class MarkerKeyMapEditor extends VBox"));
+        assertTrue(source.contains("installMarkerKeyMapEditor(byName.get(\"MANUAL_INTENSITY_THRESHOLDS\"), MarkerMapValueType.NUMERIC"));
+        assertTrue(source.contains("installMarkerKeyMapEditor(byName.get(\"RANGE_THRESHOLD_FRACTION_BY_MARKER\"), MarkerMapValueType.NUMERIC"));
+        assertTrue(source.contains("installMarkerKeyMapEditor(byName.get(\"THRESHOLD_PROVENANCE_BY_MARKER\"), MarkerMapValueType.TEXT"));
+        assertTrue(source.contains("installMarkerKeyMapEditor(byName.get(\"BACKGROUND_SUBTRACTION_BY_CHANNEL\"), MarkerMapValueType.NUMERIC"));
+        assertTrue(source.contains("editor instanceof MarkerKeyMapEditor"));
+        assertTrue(source.contains("labeledVariableBlock(label, editor)"));
+        assertTrue(source.contains("checksEditor.addChangeListener(() -> {\n            refreshMarkerKeyEditors.run();"));
+    }
+
+    @Test
+    void markerKeyMapRenderingProducesGroovyMapValues() {
+        Map<String, String> numeric = new java.util.LinkedHashMap<>();
+        numeric.put("AF647|Nucleus", "12.5");
+        numeric.put("DAPI|Nucleus", "");
+        String renderedNumeric = AstraPipelineLauncher.renderMarkerKeyMapValues(numeric, AstraPipelineLauncher.MarkerMapValueType.NUMERIC);
+
+        assertTrue(renderedNumeric.contains("\"AF647|Nucleus\": 12.5d"));
+        assertFalse(renderedNumeric.contains("DAPI|Nucleus"));
+
+        Map<String, String> text = new java.util.LinkedHashMap<>();
+        text.put("AF647|Nucleus", "manual \"publication\" threshold");
+        String renderedText = AstraPipelineLauncher.renderMarkerKeyMapValues(text, AstraPipelineLauncher.MarkerMapValueType.TEXT);
+
+        assertTrue(renderedText.contains("\"AF647|Nucleus\": \"manual \\\"publication\\\" threshold\""));
+    }
+
+    @Test
+    void markerKeyMapParsingReadsExistingGroovyMaps() {
+        Map<String, String> numeric = AstraPipelineLauncher.parseMarkerKeyMapValues("""
+                [
+                    "AF488|Nucleus": 100.0d,
+                    "AF647|Cell": 2.5
+                ]
+                """, AstraPipelineLauncher.MarkerMapValueType.NUMERIC);
+        Map<String, String> text = AstraPipelineLauncher.parseMarkerKeyMapValues("""
+                [
+                    "AF488|Nucleus": "manual source"
+                ]
+                """, AstraPipelineLauncher.MarkerMapValueType.TEXT);
+
+        assertEquals("100.0", numeric.get("AF488|Nucleus"));
+        assertEquals("2.5", numeric.get("AF647|Cell"));
+        assertEquals("manual source", text.get("AF488|Nucleus"));
     }
 
     @Test
@@ -1048,6 +1172,31 @@ class AstraPipelineLauncherTest {
         assertTrue(lines.get(0).contains("INFO"));
         assertTrue(lines.get(1).contains("WARN"));
         assertTrue(lines.get(2).contains("ERROR"));
+    }
+
+    @Test
+    void guiLogFormatterRemovesLauncherClutterWithoutChangingCellposeLines() {
+        String formatted = AstraPipelineLauncher.formatGuiLogText("""
+                [LOG] COLOCALIZATION COLOCALIZATION [PREFLIGHT] Runtime Python synchronized.
+                ERROR COLOCALIZATION [QUANTIFY] Non-finite AF647|Nucleus measurements detected.
+                cellpose: 34 tile images processed
+                """);
+
+        assertTrue(formatted.contains("Preflight: Runtime Python synchronized."));
+        assertTrue(formatted.contains("ERROR: Quantify: Non-finite AF647|Nucleus measurements detected."));
+        assertTrue(formatted.contains("cellpose: 34 tile images processed"));
+        assertFalse(formatted.contains("[LOG]"));
+        assertFalse(formatted.contains("COLOCALIZATION COLOCALIZATION"));
+    }
+
+    @Test
+    void launcherSourceAvoidsGuiLogAndErrDoublePrefixes() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("static String formatGuiLogText(String text)"));
+        assertTrue(source.contains("feedback.append(formatGuiLogText(text));"));
+        assertFalse(source.contains("append(\"[LOG] \" + text)"));
+        assertFalse(source.contains("feedback.append(\"[ERR] \" + text)"));
     }
 
     @Test

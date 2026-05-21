@@ -97,6 +97,7 @@ final class AstraPipelineLauncher {
             "^final\\s+(String|boolean|int|double|List|Map)\\s+([A-Z][A-Z0-9_]*)\\s*=\\s*(.*)$"
     );
     private static final String AUTOSAVE_PROFILE_FILE = "_autosave.json";
+    private static final String GUI_RUN_ACTIVE_PROPERTY = "ASTRA_GUI_RUN_ACTIVE";
     private static final String FONT_STACK = "\"Aptos Display\", \"Segoe UI\", \"Inter\", \"Helvetica Neue\", Arial, sans-serif";
     private static final String MONO_FONT_STACK = "\"JetBrains Mono\", \"SF Mono\", Consolas, monospace";
     private static final String INK = "#172431";
@@ -108,6 +109,42 @@ final class AstraPipelineLauncher {
     private static final String CORAL = "#d9604c";
     private static final String GOLD = "#d4a72c";
     private static final String CONTROL_BORDER = "#7fa3ad";
+    private static final Map<String, String> EXPLICIT_LABELS = Map.ofEntries(
+            Map.entry("NUC_MODEL_SOURCE", "Nucleus Model Source"),
+            Map.entry("NUC_MODEL_NAME", "Nucleus Model Name"),
+            Map.entry("NUC_MODEL_FILE", "Nucleus Model File"),
+            Map.entry("NUC_SAVED_MODEL_ID", "Nucleus Saved Model ID"),
+            Map.entry("CELL_MODEL_SOURCE", "Cell Model Source"),
+            Map.entry("CELL_MODEL_NAME", "Cell Model Name"),
+            Map.entry("CELL_MODEL_FILE", "Cell Model File"),
+            Map.entry("CELL_SAVED_MODEL_ID", "Cell Saved Model ID"),
+            Map.entry("THRESHOLD_SCOPE", "Threshold Scope"),
+            Map.entry("BACKGROUND_SCOPE", "Background Scope"),
+            Map.entry("BACKGROUND_SUBTRACTION_BY_CHANNEL", "Manual Background Offsets"),
+            Map.entry("MANUAL_INTENSITY_THRESHOLDS", "Manual Intensity Thresholds"),
+            Map.entry("RANGE_THRESHOLD_FRACTION_BY_MARKER", "Range Threshold Fractions"),
+            Map.entry("THRESHOLD_PROVENANCE_BY_MARKER", "Threshold Provenance"),
+            Map.entry("COLOCALIZATION_CHECKS", "Colocalization Checks"),
+            Map.entry("USE_GPU", "Use GPU"),
+            Map.entry("USE_BATCH_MODE", "Use Batch Mode"),
+            Map.entry("USE_PIXEL_SCALING", "Use Pixel Scaling"),
+            Map.entry("QC_FOLDER", "QC Folder"),
+            Map.entry("QC_FILENAME", "QC Filename"),
+            Map.entry("RESULTS_FOLDER", "Results Folder"),
+            Map.entry("RESULTS_BASENAME", "Results Basename")
+    );
+    private static final Map<String, String> LABEL_TOKENS = Map.ofEntries(
+            Map.entry("NUC", "Nucleus"),
+            Map.entry("ROI", "Region"),
+            Map.entry("ID", "ID"),
+            Map.entry("GPU", "GPU"),
+            Map.entry("QC", "QC"),
+            Map.entry("CSV", "CSV"),
+            Map.entry("DAPI", "DAPI"),
+            Map.entry("AF488", "AF488"),
+            Map.entry("AF555", "AF555"),
+            Map.entry("AF647", "AF647")
+    );
     private static final int SETTINGS_PROFILE_SCHEMA_VERSION = 1;
     private static final double CONTENT_HORIZONTAL_MARGIN = 24.0;
     private static final double PARAMETER_ROW_HEIGHT = 34.0;
@@ -638,7 +675,6 @@ final class AstraPipelineLauncher {
         appendSummary(lines, byName, "THRESHOLD_MODE", "  threshold mode");
         appendSummary(lines, byName, "THRESHOLD_EXCLUDE_MARKERS", "  threshold exclusions");
         appendSummary(lines, byName, "BACKGROUND_MODE", "  background mode");
-        appendSummary(lines, byName, "EXPORT_RESULTS", "  export results");
         appendSummary(lines, byName, "RESULTS_FOLDER", "  results folder");
         return String.join("\n", lines);
     }
@@ -1007,7 +1043,8 @@ final class AstraPipelineLauncher {
                 "NUCLEUS_SEGMENTATION_CHANNELS", "CELL_SEGMENTATION_CHANNELS",
                 "COLOCALIZATION_CHECKS",
                 "THRESHOLD_MODE", "THRESHOLD_SCOPE", "THRESHOLD_EXCLUDE_MARKERS",
-                "MANUAL_INTENSITY_THRESHOLDS", "RANGE_THRESHOLD_FRACTION_BY_MARKER",
+                "MANUAL_INTENSITY_THRESHOLDS", "THRESHOLD_PROVENANCE_BY_MARKER",
+                "RANGE_THRESHOLD_FRACTION_BY_MARKER",
                 "BACKGROUND_MODE", "BACKGROUND_SCOPE", "LOCAL_BACKGROUND_PERCENTILE",
                 "BACKGROUND_SUBTRACTION_BY_CHANNEL"
         ).contains(name);
@@ -1072,6 +1109,25 @@ final class AstraPipelineLauncher {
         checksEditor.addChangeListener(() -> exclusionEditor.refresh(markerKeysFromChecks(checksEditor.checks())));
         exclusionPanel.getChildren().add(exclusionEditor);
 
+        List<MarkerKeyMapEditor> markerMapEditors = new ArrayList<>();
+        installMarkerKeyMapEditor(byName.get("MANUAL_INTENSITY_THRESHOLDS"), MarkerMapValueType.NUMERIC,
+                "Manual threshold values appear here after checks define marker keys.", markerMapEditors);
+        installMarkerKeyMapEditor(byName.get("RANGE_THRESHOLD_FRACTION_BY_MARKER"), MarkerMapValueType.NUMERIC,
+                "Range-percent threshold fractions appear here after checks define marker keys.", markerMapEditors);
+        installMarkerKeyMapEditor(byName.get("THRESHOLD_PROVENANCE_BY_MARKER"), MarkerMapValueType.TEXT,
+                "Threshold provenance rows appear here after checks define marker keys.", markerMapEditors);
+        installMarkerKeyMapEditor(byName.get("BACKGROUND_SUBTRACTION_BY_CHANNEL"), MarkerMapValueType.NUMERIC,
+                "Manual background offsets appear here after checks define marker keys.", markerMapEditors);
+        Runnable refreshMarkerKeyEditors = () -> {
+            List<String> markerKeys = markerKeysFromChecks(checksEditor.checks());
+            markerMapEditors.forEach(editor -> editor.refresh(markerKeys));
+        };
+        refreshMarkerKeyEditors.run();
+        checksEditor.addChangeListener(() -> {
+            refreshMarkerKeyEditors.run();
+            autosave.markManualEditAndSave();
+        });
+
         VBox thresholdPanel = semanticCard("Thresholds & Background", "Choose how positivity thresholds and explicit background correction are resolved before running colocalization.");
         Map<String, RowNodes> thresholdRows = new LinkedHashMap<>();
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_MODE"), "Threshold mode", autosave);
@@ -1079,6 +1135,7 @@ final class AstraPipelineLauncher {
         thresholdPanel.getChildren().add(exclusionPanel);
         thresholdRows.put("THRESHOLD_EXCLUDE_MARKERS", new RowNodes(exclusionPanel, exclusionPanel));
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("MANUAL_INTENSITY_THRESHOLDS"), "Manual thresholds", autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_PROVENANCE_BY_MARKER"), "Threshold provenance", autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("RANGE_THRESHOLD_FRACTION_BY_MARKER"), "Range fractions", autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("BACKGROUND_MODE"), "Background mode", autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("BACKGROUND_SCOPE"), "Background scope", autosave);
@@ -1103,6 +1160,16 @@ final class AstraPipelineLauncher {
         return box;
     }
 
+    private static void installMarkerKeyMapEditor(EditableConstant constant, MarkerMapValueType valueType,
+                                                   String emptyMessage, List<MarkerKeyMapEditor> editors) {
+        if (constant == null) {
+            return;
+        }
+        MarkerKeyMapEditor editor = new MarkerKeyMapEditor(constant.displayValue, valueType, emptyMessage);
+        constant.setCustomEditor(editor);
+        editors.add(editor);
+    }
+
     private static void addColocalizationConstantRow(VBox panel, Map<String, RowNodes> rows, EditableConstant constant,
                                                      String label, SettingsAutosave autosave) {
         if (constant == null) {
@@ -1110,7 +1177,9 @@ final class AstraPipelineLauncher {
         }
         Node editor = constant.createEditor();
         constant.addChangeListener(autosave::markManualEditAndSave);
-        HBox row = labeledRow(label, editor, 180.0);
+        Node row = editor instanceof MarkerKeyMapEditor
+                ? labeledVariableBlock(label, editor)
+                : labeledRow(label, editor, 180.0);
         panel.getChildren().add(row);
         rows.put(constant.name, new RowNodes(row, row));
     }
@@ -1153,6 +1222,7 @@ final class AstraPipelineLauncher {
         rows.add("BACKGROUND_MODE");
         if ("MANUAL".equals(thresholdMode)) {
             rows.add("MANUAL_INTENSITY_THRESHOLDS");
+            rows.add("THRESHOLD_PROVENANCE_BY_MARKER");
         }
         if ("RANGE_PERCENT".equals(thresholdMode)) {
             rows.add("RANGE_THRESHOLD_FRACTION_BY_MARKER");
@@ -1160,7 +1230,7 @@ final class AstraPipelineLauncher {
         if ("MANUAL_OFFSET".equals(backgroundMode)) {
             rows.add("BACKGROUND_SUBTRACTION_BY_CHANNEL");
         }
-        if ("LOCAL_ROI_PERCENTILE".equals(backgroundMode) || "LOCAL_SLIDE_PERCENTILE".equals(backgroundMode)) {
+        if ("LOCAL_REGION_PERCENTILE".equals(backgroundMode) || "LOCAL_IMAGE_PERCENTILE".equals(backgroundMode)) {
             rows.add("BACKGROUND_SCOPE");
             rows.add("LOCAL_BACKGROUND_PERCENTILE");
         }
@@ -1202,7 +1272,7 @@ final class AstraPipelineLauncher {
                 continue;
             }
             Node editor = constant.createEditor();
-            HBox row = labeledRow(prettyName(constant.name), editor, 160.0);
+            HBox row = labeledRow(displayLabel(constant.name), editor, 160.0);
             group.getChildren().add(row);
             rows.put(constant.name, new RowNodes(row, editor));
             constant.addChangeListener(autosave::markManualEditAndSave);
@@ -1239,14 +1309,39 @@ final class AstraPipelineLauncher {
         combo.getItems().addAll(validIds);
         combo.setValue(EditableConstant.stripStringQuotes(constant.type, constant.displayValue));
         combo.setMaxWidth(Double.MAX_VALUE);
-        combo.setStyle(EditableConstant.controlStyle());
-        styleComboBoxText(combo);
+        styleAstraComboBox(combo);
         return combo;
+    }
+
+    private static void styleAstraComboBox(ComboBox<String> combo) {
+        combo.setStyle(EditableConstant.controlStyle() + " -fx-mark-color: " + TEAL_DARK + ";");
+        styleComboBoxText(combo);
+        if (combo.isEditable()) {
+            combo.getEditor().setStyle(EditableConstant.controlStyle());
+        }
+        combo.skinProperty().addListener((obs, oldSkin, newSkin) -> Platform.runLater(() -> styleComboBoxSubnodes(combo)));
+        combo.sceneProperty().addListener((obs, oldScene, newScene) -> Platform.runLater(() -> styleComboBoxSubnodes(combo)));
+        Platform.runLater(() -> styleComboBoxSubnodes(combo));
     }
 
     private static void styleComboBoxText(ComboBox<String> combo) {
         combo.setButtonCell(readableComboCell());
         combo.setCellFactory(list -> readableComboCell());
+    }
+
+    private static void styleComboBoxSubnodes(ComboBox<String> combo) {
+        Node arrowButton = combo.lookup(".arrow-button");
+        if (arrowButton != null) {
+            arrowButton.setStyle("-fx-background-color: transparent; -fx-border-color: transparent; -fx-background-radius: 0 4 4 0;");
+        }
+        Node arrow = combo.lookup(".arrow");
+        if (arrow != null) {
+            arrow.setStyle("-fx-background-color: " + TEAL_DARK + ";");
+        }
+        Node editor = combo.lookup(".text-field");
+        if (editor instanceof TextField textField) {
+            textField.setStyle(EditableConstant.controlStyle());
+        }
     }
 
     private static ListCell<String> readableComboCell() {
@@ -1306,6 +1401,18 @@ final class AstraPipelineLauncher {
         return row;
     }
 
+    private static VBox labeledVariableBlock(String labelText, Node editor) {
+        VBox block = new VBox(6.0);
+        block.setFillWidth(true);
+        Label label = new Label(labelText);
+        label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 800; -fx-text-fill: " + INK + ";");
+        if (editor instanceof Region region) {
+            region.setMaxWidth(Double.MAX_VALUE);
+        }
+        block.getChildren().addAll(label, editor);
+        return block;
+    }
+
     private static VBox nestedField(String labelText, Node editor) {
         VBox box = new VBox(4.0);
         Label label = new Label(labelText);
@@ -1333,7 +1440,7 @@ final class AstraPipelineLauncher {
         for (EditableConstant constant : constants) {
             HBox labelBox = new HBox(7.0);
             labelBox.setAlignment(Pos.CENTER_LEFT);
-            Label label = new Label(prettyName(constant.name));
+            Label label = new Label(displayLabel(constant.name));
             label.setMinWidth(220.0);
             label.setWrapText(true);
             label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 800; -fx-text-fill: " + INK + ";");
@@ -1674,6 +1781,132 @@ final class AstraPipelineLauncher {
         return "\"" + clean.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
+    static Map<String, String> parseMarkerKeyMapValues(String rawValue, MarkerMapValueType valueType) {
+        String raw = rawValue == null ? "" : rawValue;
+        Map<String, String> values = new LinkedHashMap<>();
+        Pattern entryPattern = valueType == MarkerMapValueType.TEXT
+                ? Pattern.compile("\"((?:\\\\.|[^\"\\\\])*)\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"")
+                : Pattern.compile("\"((?:\\\\.|[^\"\\\\])*)\"\\s*:\\s*([-+]?\\d+(?:\\.\\d+)?(?:[eE][-+]?\\d+)?[dD]?)");
+        Matcher matcher = entryPattern.matcher(raw);
+        while (matcher.find()) {
+            String key = unescapeGroovyStringFragment(matcher.group(1));
+            String value = valueType == MarkerMapValueType.TEXT
+                    ? unescapeGroovyStringFragment(matcher.group(2))
+                    : matcher.group(2).replaceAll("[dD]$", "");
+            if (!key.isBlank()) {
+                values.put(key, value);
+            }
+        }
+        return values;
+    }
+
+    static String renderMarkerKeyMapValues(Map<String, String> values, MarkerMapValueType valueType) {
+        Map<String, String> filtered = new LinkedHashMap<>();
+        if (values != null) {
+            values.forEach((key, value) -> {
+                String cleanKey = key == null ? "" : key.trim();
+                String cleanValue = value == null ? "" : value.trim();
+                if (!cleanKey.isBlank() && !cleanValue.isBlank()) {
+                    filtered.put(cleanKey, renderMarkerKeyMapValue(cleanKey, cleanValue, valueType));
+                }
+            });
+        }
+        if (filtered.isEmpty()) {
+            return "[:]";
+        }
+        StringBuilder out = new StringBuilder("[\n");
+        filtered.forEach((key, value) -> out.append("        ")
+                .append(quoteGroovy(key))
+                .append(": ")
+                .append(value)
+                .append(",\n"));
+        out.append("]");
+        return out.toString();
+    }
+
+    private static String renderMarkerKeyMapValue(String key, String value, MarkerMapValueType valueType) {
+        if (valueType == MarkerMapValueType.TEXT) {
+            return quoteGroovy(value);
+        }
+        String normalized = value.replaceAll("[dD]$", "");
+        double parsed;
+        try {
+            parsed = Double.parseDouble(normalized);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Marker-key map value for " + key + " must be a finite number.");
+        }
+        if (!Double.isFinite(parsed)) {
+            throw new IllegalArgumentException("Marker-key map value for " + key + " must be finite.");
+        }
+        return Double.toString(parsed) + "d";
+    }
+
+    private static String unescapeGroovyStringFragment(String raw) {
+        String value = raw == null ? "" : raw;
+        return value.replace("\\\"", "\"").replace("\\\\", "\\");
+    }
+
+    static String formatGuiLogText(String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
+        boolean trailingNewline = normalized.endsWith("\n");
+        String[] lines = normalized.split("\n", -1);
+        StringBuilder out = new StringBuilder();
+        int lineCount = trailingNewline ? lines.length - 1 : lines.length;
+        for (int i = 0; i < lineCount; i++) {
+            String formatted = formatGuiLogLine(lines[i]);
+            if (!formatted.isBlank()) {
+                if (!out.isEmpty()) {
+                    out.append("\n");
+                }
+                out.append(formatted);
+            }
+        }
+        if (trailingNewline && !out.isEmpty()) {
+            out.append("\n");
+        }
+        return out.toString();
+    }
+
+    private static String formatGuiLogLine(String line) {
+        String out = line == null ? "" : line.trim();
+        if (out.isBlank()) {
+            return "";
+        }
+        out = out.replaceFirst("^\\[LOG]\\s*", "");
+        out = out.replaceFirst("^(INFO|WARN|ERROR|DEBUG|TRACE)\\s+(COLOCALIZATION|VASCULAR|TRAINING|TUNING|VALIDATION)\\b", "$1: $2");
+        out = out.replaceFirst("^(INFO|WARN|ERROR|DEBUG|TRACE)\\s+[^-]+-\\s*", "$1: ");
+        out = out.replaceFirst("^(INFO|WARN|ERROR|DEBUG|TRACE)\\s+([^:]+):\\s*", "$1: ");
+        out = collapseRepeatedPipelineNames(out);
+
+        Pattern stagePattern = Pattern.compile("^(?:(INFO|WARN|ERROR|DEBUG|TRACE):\\s*)?(COLOCALIZATION|VASCULAR|TRAINING|TUNING|VALIDATION)\\s+\\[([^\\]]+)]\\s*(.*)$");
+        Matcher stageMatcher = stagePattern.matcher(out);
+        if (stageMatcher.matches()) {
+            String severity = stageMatcher.group(1) == null ? "" : stageMatcher.group(1) + ": ";
+            String stage = titleCaseToken(stageMatcher.group(3).replace('_', ' '));
+            String message = stageMatcher.group(4) == null ? "" : stageMatcher.group(4).trim();
+            return severity + stage + (message.isBlank() ? "" : ": " + message);
+        }
+
+        Pattern pipelinePattern = Pattern.compile("^(?:(INFO|WARN|ERROR|DEBUG|TRACE):\\s*)?(COLOCALIZATION|VASCULAR|TRAINING|TUNING|VALIDATION)\\s+(.*)$");
+        Matcher pipelineMatcher = pipelinePattern.matcher(out);
+        if (pipelineMatcher.matches()) {
+            String severity = pipelineMatcher.group(1) == null ? "" : pipelineMatcher.group(1) + ": ";
+            return severity + pipelineMatcher.group(3).trim();
+        }
+        return out;
+    }
+
+    private static String collapseRepeatedPipelineNames(String line) {
+        String out = line;
+        for (String pipeline : List.of("COLOCALIZATION", "VASCULAR", "TRAINING", "TUNING", "VALIDATION")) {
+            out = out.replaceAll("\\b" + pipeline + "\\s+" + pipeline + "\\b", pipeline);
+        }
+        return out;
+    }
+
     private static void installReliableTooltip(Button info, Tooltip tooltip) {
         info.addEventHandler(MouseEvent.MOUSE_ENTERED, event -> {
             var point = info.localToScreen(info.getWidth() + 8.0, info.getHeight() / 2.0);
@@ -1701,7 +1934,6 @@ final class AstraPipelineLauncher {
             setVisible(rows, "THRESHOLD_PROVENANCE_BY_MARKER", isSelected(byName, "THRESHOLD_MODE", "MANUAL"));
             setVisible(rows, "RANGE_THRESHOLD_FRACTION_BY_MARKER", isSelected(byName, "THRESHOLD_MODE", "RANGE_PERCENT"));
             setVisible(rows, "BACKGROUND_SUBTRACTION_BY_CHANNEL", isSelected(byName, "BACKGROUND_MODE", "MANUAL_OFFSET"));
-            setVisible(rows, "MODES_TO_RUN", !isChecked(byName, "RESET_BASELINE"));
             setVisible(rows, "USE_PIXEL_SCALING", isChecked(byName, "USE_BATCH_MODE"));
         };
         byName.values().forEach(c -> c.addOptionListener(update));
@@ -1735,6 +1967,8 @@ final class AstraPipelineLauncher {
         feedback.start();
         runButton.setDisable(true);
         Future<?> future = qupath.getThreadPoolManager().getSingleThreadExecutor(AstraPipelineLauncher.class).submit(() -> {
+            String previousGuiRunActive = System.getProperty(GUI_RUN_ACTIVE_PROPERTY);
+            System.setProperty(GUI_RUN_ACTIVE_PROPERTY, "true");
             try (RunLogCapture ignored = RunLogCapture.attach(feedback::appendLogText)) {
                 logger.info("ASTRA {} started from configuration dialog.", scriptName);
                 feedback.info("Started " + scriptName + ".");
@@ -1767,7 +2001,7 @@ final class AstraPipelineLauncher {
                     feedback.cancelled("Run cancellation was requested before the script stopped.");
                 } else {
                     feedback.error(String.valueOf(e.getMessage()));
-                    Platform.runLater(() -> Dialogs.showErrorMessage("ASTRA " + scriptName, String.valueOf(e.getMessage())));
+                    showRunFailureDialog(scriptName, feedback, String.valueOf(e.getMessage()));
                 }
             } catch (Throwable t) {
                 logger.error("ASTRA {} failed.", scriptName, t);
@@ -1775,13 +2009,32 @@ final class AstraPipelineLauncher {
                     feedback.cancelled("Run cancellation was requested before the script stopped.");
                 } else {
                     feedback.error(t.getClass().getSimpleName() + ": " + t.getMessage());
-                    Platform.runLater(() -> Dialogs.showErrorMessage("ASTRA " + scriptName, t.getClass().getSimpleName() + ": " + t.getMessage()));
+                    showRunFailureDialog(scriptName, feedback, t.getClass().getSimpleName() + ": " + t.getMessage());
                 }
             } finally {
+                restoreGuiRunActiveProperty(previousGuiRunActive);
                 Platform.runLater(() -> runButton.setDisable(false));
             }
         });
         feedback.attachFuture(future);
+    }
+
+    private static void showRunFailureDialog(String scriptName, RunFeedback feedback, String message) {
+        if (!feedback.markErrorDialogShown()) {
+            return;
+        }
+        Platform.runLater(() -> Dialogs.showErrorMessage(
+                "ASTRA " + scriptName,
+                String.valueOf(message) + "\n\nSee the ASTRA run log for full details."
+        ));
+    }
+
+    private static void restoreGuiRunActiveProperty(String previousValue) {
+        if (previousValue == null) {
+            System.clearProperty(GUI_RUN_ACTIVE_PROPERTY);
+        } else {
+            System.setProperty(GUI_RUN_ACTIVE_PROPERTY, previousValue);
+        }
     }
 
     private static int bracketBalance(String line) {
@@ -1829,8 +2082,29 @@ final class AstraPipelineLauncher {
         return -1;
     }
 
-    private static String prettyName(String name) {
-        return name.toLowerCase(Locale.ROOT).replace('_', ' ');
+    static String displayLabel(String name) {
+        if (name == null || name.isBlank()) {
+            return "";
+        }
+        String explicit = EXPLICIT_LABELS.get(name);
+        if (explicit != null) {
+            return explicit;
+        }
+        String[] tokens = name.split("_");
+        List<String> words = new ArrayList<>(tokens.length);
+        for (String token : tokens) {
+            if (token == null || token.isBlank()) {
+                continue;
+            }
+            String mapped = LABEL_TOKENS.get(token);
+            words.add(mapped != null ? mapped : titleCaseToken(token));
+        }
+        return String.join(" ", words);
+    }
+
+    private static String titleCaseToken(String token) {
+        String lower = token.toLowerCase(Locale.ROOT);
+        return lower.substring(0, 1).toUpperCase(Locale.ROOT) + lower.substring(1);
     }
 
     private static List<String> orderedGroups(List<EditableConstant> constants, boolean advanced) {
@@ -1871,7 +2145,6 @@ final class AstraPipelineLauncher {
 
     private static boolean isAdvanced(String name) {
         Set<String> basic = Set.of(
-                "RESET_BASELINE",
                 "MODES_TO_RUN",
                 "TRAIN_TARGET",
                 "TRAINING_MODE",
@@ -1916,7 +2189,6 @@ final class AstraPipelineLauncher {
                 "USE_BATCH_MODE",
                 "USE_PIXEL_SCALING",
                 "SHOW_GUI_NOTIFICATIONS",
-                "EXPORT_RESULTS",
                 "EXPORT_QC_FIGURES",
                 "RESULTS_FOLDER",
                 "RESULTS_BASENAME",
@@ -1954,6 +2226,7 @@ final class AstraPipelineLauncher {
         private final Button killButton;
         private final AtomicReference<Future<?>> currentRun = new AtomicReference<>();
         private final AtomicBoolean cancellationRequested = new AtomicBoolean(false);
+        private final AtomicBoolean errorDialogShown = new AtomicBoolean(false);
 
         private RunFeedback(String scriptName) {
             box = new VBox(8.0);
@@ -1961,8 +2234,8 @@ final class AstraPipelineLauncher {
             box.setStyle("-fx-background-color: #102a3a; -fx-border-color: #284f60; -fx-border-radius: 7; -fx-background-radius: 7;");
             box.setPrefWidth(430.0);
             box.setMinWidth(360.0);
-            box.setMaxWidth(520.0);
-            HBox.setHgrow(box, Priority.NEVER);
+            box.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(box, Priority.ALWAYS);
 
             HBox header = new HBox(10.0);
             header.setAlignment(Pos.CENTER_LEFT);
@@ -2005,6 +2278,7 @@ final class AstraPipelineLauncher {
                 progress.setManaged(true);
                 killButton.setDisable(false);
                 cancellationRequested.set(false);
+                errorDialogShown.set(false);
                 appendLine("ASTRA run started.");
             });
         }
@@ -2015,6 +2289,10 @@ final class AstraPipelineLauncher {
 
         private boolean isCancellationRequested() {
             return cancellationRequested.get();
+        }
+
+        private boolean markErrorDialogShown() {
+            return errorDialogShown.compareAndSet(false, true);
         }
 
         private void requestCancellation() {
@@ -2083,8 +2361,9 @@ final class AstraPipelineLauncher {
         }
 
         private void appendLogText(String text) {
-            append("[LOG] " + text);
-            if (!text.endsWith("\n")) {
+            String formatted = formatGuiLogText(text);
+            append(formatted);
+            if (!formatted.isBlank() && !formatted.endsWith("\n")) {
                 append("\n");
             }
         }
@@ -2135,9 +2414,10 @@ final class AstraPipelineLauncher {
 
         private void emit(String text) {
             if (error) {
-                feedback.append("[ERR] " + text);
+                String formatted = formatGuiLogText(text);
+                feedback.append(formatted.startsWith("ERROR:") ? formatted : "ERROR: " + formatted);
             } else {
-                feedback.append(text);
+                feedback.append(formatGuiLogText(text));
             }
         }
     }
@@ -2389,6 +2669,11 @@ final class AstraPipelineLauncher {
     record ColocalizationCheck(String label, String compartment, List<String> channels) {
     }
 
+    enum MarkerMapValueType {
+        NUMERIC,
+        TEXT
+    }
+
     private static final class ChannelCheckboxEditor extends VBox {
 
         private final Map<String, CheckBox> boxes = new LinkedHashMap<>();
@@ -2501,8 +2786,7 @@ final class AstraPipelineLauncher {
                 compartment.setValue(check.compartment().isBlank() ? "Nucleus" : check.compartment());
                 compartment.setMinWidth(120.0);
                 compartment.setPrefWidth(130.0);
-                compartment.setStyle(EditableConstant.controlStyle());
-                styleComboBoxText(compartment);
+                styleAstraComboBox(compartment);
                 FlowPane channels = new FlowPane(6.0, 6.0);
                 channels.setAlignment(Pos.CENTER_LEFT);
                 for (String channel : imageChannels) {
@@ -2548,6 +2832,103 @@ final class AstraPipelineLauncher {
                                 .toList()
                 );
             }
+        }
+    }
+
+    static final class MarkerKeyMapEditor extends VBox {
+
+        private final MarkerMapValueType valueType;
+        private final String emptyMessage;
+        private final Map<String, String> values = new LinkedHashMap<>();
+        private final Map<String, TextField> fields = new LinkedHashMap<>();
+        private final List<Runnable> listeners = new ArrayList<>();
+        private List<String> markerKeys = List.of();
+
+        MarkerKeyMapEditor(String rawValue, MarkerMapValueType valueType, String emptyMessage) {
+            super(7.0);
+            this.valueType = Objects.requireNonNull(valueType, "valueType");
+            this.emptyMessage = emptyMessage == null || emptyMessage.isBlank()
+                    ? "Marker-key rows appear after colocalization checks define marker keys."
+                    : emptyMessage;
+            values.putAll(parseMarkerKeyMapValues(rawValue, valueType));
+            setStyle("-fx-background-color: white; -fx-border-color: #d7e2e6; -fx-border-radius: 5; -fx-background-radius: 5; -fx-padding: 8;");
+        }
+
+        void refresh(List<String> newMarkerKeys) {
+            storeFieldValues();
+            LinkedHashSet<String> unique = new LinkedHashSet<>();
+            if (newMarkerKeys != null) {
+                newMarkerKeys.stream()
+                        .filter(Objects::nonNull)
+                        .map(String::trim)
+                        .filter(s -> !s.isBlank())
+                        .forEach(unique::add);
+            }
+            markerKeys = List.copyOf(unique);
+            values.keySet().retainAll(markerKeys);
+            rebuildRows();
+        }
+
+        private void rebuildRows() {
+            fields.clear();
+            getChildren().clear();
+            if (markerKeys.isEmpty()) {
+                Label empty = new Label(emptyMessage);
+                empty.setWrapText(true);
+                empty.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-text-fill: " + MUTED + ";");
+                getChildren().add(empty);
+                return;
+            }
+            for (String key : markerKeys) {
+                TextField field = new TextField(values.getOrDefault(key, ""));
+                field.setPromptText(valueType == MarkerMapValueType.TEXT ? "Describe source" : "Finite number");
+                field.setStyle(EditableConstant.controlStyle());
+                field.textProperty().addListener((obs, oldValue, newValue) -> {
+                    values.put(key, newValue == null ? "" : newValue.trim());
+                    notifyListeners();
+                });
+                fields.put(key, field);
+                VBox row = nestedField(key.replace("|", " | "), field);
+                getChildren().add(row);
+            }
+        }
+
+        private void storeFieldValues() {
+            fields.forEach((key, field) -> values.put(key, field.getText() == null ? "" : field.getText().trim()));
+        }
+
+        String render() {
+            storeFieldValues();
+            Map<String, String> ordered = new LinkedHashMap<>();
+            markerKeys.forEach(key -> ordered.put(key, values.getOrDefault(key, "")));
+            return renderMarkerKeyMapValues(ordered, valueType);
+        }
+
+        void setRawValue(String rawValue) {
+            values.clear();
+            values.putAll(parseMarkerKeyMapValues(rawValue, valueType));
+            values.keySet().retainAll(markerKeys);
+            rebuildRows();
+        }
+
+        void addChangeListener(Runnable listener) {
+            listeners.add(listener);
+        }
+
+        List<String> markerKeysForTest() {
+            return markerKeys;
+        }
+
+        void setValueForTest(String key, String value) {
+            if (fields.containsKey(key)) {
+                fields.get(key).setText(value);
+            } else {
+                values.put(key, value);
+            }
+        }
+
+        private void notifyListeners() {
+            listeners.forEach(Runnable::run);
         }
     }
 
@@ -2872,8 +3253,7 @@ final class AstraPipelineLauncher {
                 comboBox.getItems().addAll(options);
                 comboBox.setValue(stripStringQuotes(type, displayValue));
                 comboBox.setMaxWidth(Double.MAX_VALUE);
-                comboBox.setStyle(controlStyle());
-                styleComboBoxText(comboBox);
+                styleAstraComboBox(comboBox);
                 return comboBox;
             }
             if ("boolean".equals(type)) {
@@ -2916,6 +3296,8 @@ final class AstraPipelineLauncher {
                 value = renderStringList(exclusionEditor.selectedKeys());
             } else if (activeEditor instanceof SelectedImageNamesEditor imageNamesEditor) {
                 value = imageNamesEditor.render();
+            } else if (activeEditor instanceof MarkerKeyMapEditor markerMapEditor) {
+                value = markerMapEditor.render();
             } else if (activeEditor instanceof CodeEditor codeEditor) {
                 value = codeEditor.text();
             } else if (activeEditor instanceof TextArea area) {
@@ -2968,6 +3350,8 @@ final class AstraPipelineLauncher {
                 exclusionEditor.setRawValue(displayValue);
             } else if (editor instanceof SelectedImageNamesEditor imageNamesEditor) {
                 imageNamesEditor.setRawValue(displayValue);
+            } else if (editor instanceof MarkerKeyMapEditor markerMapEditor) {
+                markerMapEditor.setRawValue(displayValue);
             } else if (editor instanceof CodeEditor codeEditor) {
                 codeEditor.setText(displayValue);
             } else if (editor instanceof TextArea area) {
@@ -2996,6 +3380,8 @@ final class AstraPipelineLauncher {
                 return renderStringList(exclusionEditor.selectedKeys());
             } else if (activeEditor instanceof SelectedImageNamesEditor imageNamesEditor) {
                 return imageNamesEditor.render();
+            } else if (activeEditor instanceof MarkerKeyMapEditor markerMapEditor) {
+                return markerMapEditor.render();
             } else if (activeEditor instanceof CodeEditor codeEditor) {
                 return codeEditor.text();
             } else if (activeEditor instanceof TextArea area) {
@@ -3025,6 +3411,8 @@ final class AstraPipelineLauncher {
                 channelEditor.setSelected(EditableConstant.csvValues(displayValue));
             } else if (editor instanceof SelectedImageNamesEditor imageNamesEditor) {
                 imageNamesEditor.setRawValue(displayValue);
+            } else if (editor instanceof MarkerKeyMapEditor markerMapEditor) {
+                markerMapEditor.setRawValue(displayValue);
             } else if (editor instanceof CodeEditor codeEditor) {
                 codeEditor.setText(displayValue);
             } else if (editor instanceof TextArea area) {
@@ -3103,6 +3491,8 @@ final class AstraPipelineLauncher {
                 exclusionEditor.addChangeListener(listener);
             } else if (activeEditor instanceof SelectedImageNamesEditor imageNamesEditor) {
                 imageNamesEditor.addChangeListener(listener);
+            } else if (activeEditor instanceof MarkerKeyMapEditor markerMapEditor) {
+                markerMapEditor.addChangeListener(listener);
             } else if (activeEditor instanceof CodeEditor codeEditor) {
                 codeEditor.addChangeListener(listener);
             } else if (activeEditor instanceof TextArea area) {

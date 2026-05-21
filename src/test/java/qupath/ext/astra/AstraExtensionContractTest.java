@@ -66,6 +66,56 @@ class AstraExtensionContractTest {
     }
 
     /**
+     * Verifies extension runtime resources do not vendor repository contract
+     * fixtures or private OME-TIFF images.
+     */
+    @Test
+    void runtimeResourcesDoNotVendorContractsOrVesselFixtures() throws Exception {
+        List<File> inspected = new ArrayList<>();
+        collectFiles(new File(ROOT, "src/main/resources"), inspected);
+        inspected.add(new File(ROOT, "build.gradle.kts"));
+        inspected.add(new File(ROOT, "settings.gradle.kts"));
+
+        for (File file : inspected) {
+            String path = file.getPath().replace(File.separatorChar, '/');
+            assertFalse(path.contains("contracts/src/test/resources"), path);
+            assertFalse(path.contains("test-fixtures"), path);
+            assertFalse(path.endsWith(".ome.tif"), path);
+            assertFalse(path.endsWith(".ome.tiff"), path);
+
+            String text = Files.readString(file.toPath());
+            assertFalse(text.contains("contracts/src/test/resources"), file.getPath());
+            assertFalse(text.contains("test-fixtures"), file.getPath());
+            assertFalse(text.contains(".ome.tif"), file.getPath());
+            assertFalse(text.contains(".ome.tiff"), file.getPath());
+            assertFalse(text.contains("vessels/manifest.json"), file.getPath());
+        }
+    }
+
+    /**
+     * Verifies extension-owned script registration cannot expose contract
+     * fixtures as runtime menu entries.
+     *
+     * @throws Exception if private script map cannot be inspected.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void scriptResourceMapDoesNotExposeContractFixtures() throws Exception {
+        Method method = AstraCellposeExtension.class.getDeclaredMethod("createScriptResources");
+        method.setAccessible(true);
+
+        Map<String, String> scripts = (Map<String, String>) method.invoke(null);
+
+        scripts.values().forEach(path -> {
+            assertFalse(path.contains("contracts"), path);
+            assertFalse(path.contains("test-fixtures"), path);
+            assertFalse(path.contains("vessels"), path);
+            assertFalse(path.endsWith(".ome.tif"), path);
+            assertFalse(path.endsWith(".ome.tiff"), path);
+        });
+    }
+
+    /**
      * Verifies the ASTRA runtime installer uses the pinned public fork and a
      * deterministic user-local runtime path.
      */
@@ -495,6 +545,29 @@ class AstraExtensionContractTest {
             } catch (Exception e) {
                 throw new AssertionError("Failed to inspect " + file.getPath(), e);
             }
+        }
+    }
+
+    /**
+     * Recursively collects files under a root.
+     *
+     * @param root directory or file to collect.
+     * @param files mutable destination list.
+     */
+    private static void collectFiles(File root, List<File> files) {
+        if (!root.exists()) {
+            return;
+        }
+        if (root.isFile()) {
+            files.add(root);
+            return;
+        }
+        File[] children = root.listFiles();
+        if (children == null) {
+            return;
+        }
+        for (File child : children) {
+            collectFiles(child, files);
         }
     }
 
