@@ -709,6 +709,21 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
+    void launcherDelegatesGuiTextPolicyToPresentationRouter() throws Exception {
+        String launcher = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String presentation = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraGuiPresentation.java"));
+
+        assertTrue(launcher.contains("return AstraGuiPresentation.displayLabel(name);"));
+        assertTrue(presentation.contains("final class AstraGuiPresentation"));
+        assertTrue(presentation.contains("static List<String> visibleRunModeOptions"));
+        assertTrue(presentation.contains("static boolean supportsHeaderExport"));
+        assertEquals("Stages To Run", AstraGuiPresentation.displayLabel("MODES_TO_RUN"));
+        assertEquals("Use GPU", AstraGuiPresentation.displayLabel("USE_GPU"));
+        assertEquals(List.of("RESET", "DETECT_CELLS", "QUANTIFY"),
+                AstraGuiPresentation.visibleRunModeOptions("Colocalization", List.of("RESET", "DETECT_CELLS", "QUANTIFY", "EXPORT")));
+    }
+
+    @Test
     void detectionTargetAndThresholdExclusionsAreEditable() {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
                 final List DETECTION_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
@@ -1003,6 +1018,42 @@ class AstraPipelineLauncherTest {
         assertFalse(source.contains("List.of(\"THRESHOLD_MODE\", \"THRESHOLD_SCOPE\", \"BACKGROUND_MODE\", \"BACKGROUND_SCOPE\")"));
         assertTrue(source.contains("panel.requestLayout()"));
         assertTrue(source.contains("row.editor.setDisable(!visible)"));
+    }
+
+    @Test
+    void colocalizationModesUseOrderedMultiSelectAndHeaderExport() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String script = realBaseScript("analysis/src/main/groovy/colocalization/colocalization.groovy");
+
+        assertTrue(script.contains("final List MODES_TO_RUN_OPTIONS = [\"RESET\", \"DETECT_CELLS\", \"QUANTIFY\"]"));
+        assertTrue(script.contains("final List MODES_TO_RUN = [\"DETECT_CELLS\", \"QUANTIFY\"]"));
+        assertTrue(source.contains("private static final class StageModeEditor extends VBox"));
+        assertTrue(source.contains("installColocalizationRunModeEditor(scriptName, constants)"));
+        assertTrue(source.contains("Choose stages in ASTRA's fixed order. RESET runs alone; export is a separate header action."));
+        assertTrue(source.contains("new Button(\"Export\")"));
+        assertTrue(source.contains("Map.of(\"MODES_TO_RUN\", \"[\\\"EXPORT\\\"]\")"));
+        assertFalse(script.contains("MODES_TO_RUN_OPTIONS = [\"RESET\", \"DETECT_CELLS\", \"QUANTIFY\", \"EXPORT\"]"));
+    }
+
+    @Test
+    void headerExportOverrideRendersQuotedGroovyModeList() {
+        String script = """
+                final List MODES_TO_RUN = ["DETECT_CELLS", "QUANTIFY"]
+                final String SETTINGS_SOURCE = "script"
+                final String SETTINGS_PROFILE_NAME = ""
+                final String SETTINGS_PROFILE_PATH = ""
+                final String SETTINGS_PROFILE_SHA256 = ""
+                final String CONFIGURED_CONSTANTS_SHA256 = ""
+                final boolean MANUAL_EDIT_AFTER_PROFILE_LOAD = false
+                final Map cfg = [:]
+                """;
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+
+        String rendered = AstraPipelineLauncher.applyConstants(script, constants, AstraPipelineLauncher.SettingsProfileState.scriptDefaults(),
+                Map.of("MODES_TO_RUN", "[\"EXPORT\"]"));
+
+        assertTrue(rendered.contains("final List MODES_TO_RUN = [\"EXPORT\"]"));
+        assertFalse(rendered.contains("final List MODES_TO_RUN = [EXPORT]"));
     }
 
     @Test
