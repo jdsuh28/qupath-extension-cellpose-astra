@@ -46,7 +46,7 @@ import java.util.concurrent.TimeUnit;
 final class AstraRuntimeInstaller {
 
     static final String ASTRA_CELLPOSE_REPO = "https://github.com/jdsuh28/cellpose-astra.git";
-    static final String DEFAULT_CELLPOSE_REF = "v4.0.8+astra.2";
+    static final String DEFAULT_CELLPOSE_REF = "v4.0.8+astra.3";
     static final String ENVIRONMENT_NAME = "cellpose-astra";
     static final String PYTHON_VERSION = "3.10";
 
