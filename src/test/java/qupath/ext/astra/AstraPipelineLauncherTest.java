@@ -709,6 +709,25 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
+    void launcherDelegatesGuiTextPolicyToPresentationRouter() throws Exception {
+        String launcher = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String presentation = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraGuiPresentation.java"));
+
+        assertTrue(launcher.contains("return AstraGuiPresentation.displayLabel(name);"));
+        assertTrue(presentation.contains("final class AstraGuiPresentation"));
+        assertTrue(presentation.contains("static List<String> visibleRunModeOptions"));
+        assertTrue(presentation.contains("static boolean supportsHeaderExport"));
+        assertTrue(presentation.contains("static String displayOption"));
+        assertEquals("Stages To Run", AstraGuiPresentation.displayLabel("MODES_TO_RUN"));
+        assertEquals("Use GPU", AstraGuiPresentation.displayLabel("USE_GPU"));
+        assertEquals("Current Image", AstraGuiPresentation.displayOption("CURRENT_IMAGE"));
+        assertEquals("Selected Analysis Region", AstraGuiPresentation.displayOption("SELECTED_ANALYSIS_REGION"));
+        assertEquals("Project Image Selection", AstraGuiPresentation.displayOption("PROJECT_IMAGE_SELECTION"));
+        assertEquals(List.of("RESET", "DETECT_CELLS", "QUANTIFY"),
+                AstraGuiPresentation.visibleRunModeOptions("Colocalization", List.of("RESET", "DETECT_CELLS", "QUANTIFY", "EXPORT")));
+    }
+
+    @Test
     void detectionTargetAndThresholdExclusionsAreEditable() {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
                 final List DETECTION_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
@@ -1006,6 +1025,42 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
+    void colocalizationModesUseOrderedMultiSelectAndHeaderExport() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String script = realBaseScript("analysis/src/main/groovy/colocalization/colocalization.groovy");
+
+        assertTrue(script.contains("final List MODES_TO_RUN_OPTIONS = [\"RESET\", \"DETECT_CELLS\", \"QUANTIFY\"]"));
+        assertTrue(script.contains("final List MODES_TO_RUN = [\"DETECT_CELLS\", \"QUANTIFY\"]"));
+        assertTrue(source.contains("private static final class StageModeEditor extends VBox"));
+        assertTrue(source.contains("installColocalizationRunModeEditor(scriptName, constants)"));
+        assertTrue(source.contains("Choose stages in ASTRA's fixed order. RESET runs alone; export is a separate header action."));
+        assertTrue(source.contains("new Button(\"Export\")"));
+        assertTrue(source.contains("Map.of(\"MODES_TO_RUN\", \"[\\\"EXPORT\\\"]\")"));
+        assertFalse(script.contains("MODES_TO_RUN_OPTIONS = [\"RESET\", \"DETECT_CELLS\", \"QUANTIFY\", \"EXPORT\"]"));
+    }
+
+    @Test
+    void headerExportOverrideRendersQuotedGroovyModeList() {
+        String script = """
+                final List MODES_TO_RUN = ["DETECT_CELLS", "QUANTIFY"]
+                final String SETTINGS_SOURCE = "script"
+                final String SETTINGS_PROFILE_NAME = ""
+                final String SETTINGS_PROFILE_PATH = ""
+                final String SETTINGS_PROFILE_SHA256 = ""
+                final String CONFIGURED_CONSTANTS_SHA256 = ""
+                final boolean MANUAL_EDIT_AFTER_PROFILE_LOAD = false
+                final Map cfg = [:]
+                """;
+        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+
+        String rendered = AstraPipelineLauncher.applyConstants(script, constants, AstraPipelineLauncher.SettingsProfileState.scriptDefaults(),
+                Map.of("MODES_TO_RUN", "[\"EXPORT\"]"));
+
+        assertTrue(rendered.contains("final List MODES_TO_RUN = [\"EXPORT\"]"));
+        assertFalse(rendered.contains("final List MODES_TO_RUN = [EXPORT]"));
+    }
+
+    @Test
     void colocalizationThresholdVisibilityDefaultProjectStateIsCompact() {
         Set<String> visible = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LOG_GAUSSIAN_MIXTURE", "PROJECT", "NONE", "PROJECT");
 
@@ -1100,16 +1155,19 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
-    void selectedImageNamesUsesScalableProjectPicker() throws Exception {
+    void selectedImageNamesUsesProjectImageSelectionDialog() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
 
-        assertTrue(source.contains("private static final class SelectedImageNamesEditor extends VBox"));
-        assertTrue(source.contains("ListView<String> list"));
-        assertTrue(source.contains("filter.setPromptText(\"Filter project image names\")"));
-        assertTrue(source.contains("list.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE)"));
-        assertTrue(source.contains("smallButton(\"Select filtered\")"));
-        assertTrue(source.contains("smallButton(\"Clear\")"));
-        assertTrue(source.contains("smallButton(\"Invert filtered\")"));
+        assertTrue(source.contains("private static final class ProjectImageSelectionEditor extends VBox"));
+        assertTrue(source.contains("Dialog<ButtonType> dialog = new Dialog<>()"));
+        assertTrue(source.contains("setTitle(\"ASTRA Project Image Selection\")"));
+        assertTrue(source.contains("ListView<String> available"));
+        assertTrue(source.contains("ListView<String> chosen"));
+        assertTrue(source.contains("transferButton(\"Add >\")"));
+        assertTrue(source.contains("transferButton(\"Add All >>\")"));
+        assertTrue(source.contains("transferButton(\"< Remove\")"));
+        assertTrue(source.contains("transferButton(\"<< Remove All\")"));
+        assertTrue(source.contains("summary.setText(names.size() + \" of \" + allNames.size()"));
         assertTrue(source.contains("smallButton(\"Paste names\")"));
         assertTrue(source.contains("renderStringList(selectedNames())"));
     }
@@ -1137,14 +1195,16 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
-    void allImagesScopeRequiresConfirmationPath() {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
-                final List IMAGE_SCOPE_OPTIONS = ["ALL_IMAGES", "CURRENT_IMAGE"]
-                final String IMAGE_SCOPE = "ALL_IMAGES"
-                final Map cfg = [:]
-                """);
+    void retiredImageScopesAreNotVisibleInExtensionSource() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String presentation = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraGuiPresentation.java"));
 
-        assertTrue(AstraPipelineLauncher.requiresAllImagesConfirmation(constants));
+        assertFalse(source.contains("ALL_IMAGES"));
+        assertFalse(source.contains("SELECTED_IMAGES_BY_NAME"));
+        assertFalse(presentation.contains("ALL_IMAGES"));
+        assertFalse(presentation.contains("SELECTED_IMAGES_BY_NAME"));
+        assertTrue(source.contains("PROJECT_IMAGE_SELECTION"));
+        assertTrue(presentation.contains("SELECTED_ANALYSIS_REGION"));
     }
 
     @Test
