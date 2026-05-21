@@ -1039,10 +1039,11 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
-    void launcherDoesNotPreserveRemovedResetBaselineAlias() throws Exception {
+    void launcherDoesNotPreserveRemovedAnalysisAliases() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
 
         assertFalse(source.contains("RESET_BASELINE"));
+        assertFalse(source.contains("EXPORT_ON_QUANTIFY"));
     }
 
     @Test
