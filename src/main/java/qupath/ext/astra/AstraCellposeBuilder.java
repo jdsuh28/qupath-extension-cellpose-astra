@@ -38,6 +38,7 @@ public class AstraCellposeBuilder extends CellposeBuilder {
 
     private File validationDirectory;
     private File resultsDirectory;
+    private boolean persistTrainingArtifacts = true;
 
     public AstraCellposeBuilder(String executionModelReference) {
         super(executionModelReference);
@@ -217,6 +218,15 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         return this;
     }
 
+    /**
+     * Configure whether {@link AstraCellpose2D#train()} persists training
+     * CSV/PNG artifacts after parsing the Cellpose log.
+     */
+    public AstraCellposeBuilder persistTrainingArtifacts(boolean persist) {
+        this.persistTrainingArtifacts = persist;
+        return this;
+    }
+
     @Override
     public AstraCellpose2D build() {
         File projectDirectory = requireProjectDirectory();
@@ -260,6 +270,7 @@ public class AstraCellposeBuilder extends CellposeBuilder {
                     resolvedValidationDirectory,
                     resolvedResultsDirectory
             );
+            runtime.setPersistTrainingArtifacts(persistTrainingArtifacts);
 
             if (shouldSaveBuilder) {
                 saveSerializedBuilderState(resolvedModelDirectory, builderName);

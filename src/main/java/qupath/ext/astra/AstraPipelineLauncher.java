@@ -1073,15 +1073,17 @@ final class AstraPipelineLauncher {
         exclusionPanel.getChildren().add(exclusionEditor);
 
         VBox thresholdPanel = semanticCard("Thresholds & Background", "Choose how positivity thresholds and explicit background correction are resolved before running colocalization.");
-        addColocalizationConstantRow(thresholdPanel, byName.get("THRESHOLD_MODE"), "Threshold mode", autosave);
-        addColocalizationConstantRow(thresholdPanel, byName.get("THRESHOLD_SCOPE"), "Threshold scope", autosave);
+        Map<String, RowNodes> thresholdRows = new LinkedHashMap<>();
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_MODE"), "Threshold mode", autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_SCOPE"), "Threshold scope", autosave);
         thresholdPanel.getChildren().add(exclusionPanel);
-        addColocalizationConstantRow(thresholdPanel, byName.get("MANUAL_INTENSITY_THRESHOLDS"), "Manual thresholds", autosave);
-        addColocalizationConstantRow(thresholdPanel, byName.get("RANGE_THRESHOLD_FRACTION_BY_MARKER"), "Range fractions", autosave);
-        addColocalizationConstantRow(thresholdPanel, byName.get("BACKGROUND_MODE"), "Background mode", autosave);
-        addColocalizationConstantRow(thresholdPanel, byName.get("BACKGROUND_SCOPE"), "Background scope", autosave);
-        addColocalizationConstantRow(thresholdPanel, byName.get("LOCAL_BACKGROUND_PERCENTILE"), "Local percentile", autosave);
-        addColocalizationConstantRow(thresholdPanel, byName.get("BACKGROUND_SUBTRACTION_BY_CHANNEL"), "Manual background offsets", autosave);
+        thresholdRows.put("THRESHOLD_EXCLUDE_MARKERS", new RowNodes(exclusionPanel, exclusionPanel));
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("MANUAL_INTENSITY_THRESHOLDS"), "Manual thresholds", autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("RANGE_THRESHOLD_FRACTION_BY_MARKER"), "Range fractions", autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("BACKGROUND_MODE"), "Background mode", autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("BACKGROUND_SCOPE"), "Background scope", autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("LOCAL_BACKGROUND_PERCENTILE"), "Local percentile", autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("BACKGROUND_SUBTRACTION_BY_CHANNEL"), "Manual background offsets", autosave);
 
         Runnable updateTargetVisibility = () -> {
             String target = detectionTarget == null ? "BOTH" : detectionTarget.optionValue();
@@ -1095,18 +1097,79 @@ final class AstraPipelineLauncher {
             detectionTarget.addChangeListener(updateTargetVisibility);
         }
         updateTargetVisibility.run();
+        installColocalizationThresholdVisibility(byName, thresholdRows, thresholdPanel);
 
         box.getChildren().addAll(targetPanel, modelPanel, segmentationPanel, checksPanel, thresholdPanel);
         return box;
     }
 
-    private static void addColocalizationConstantRow(VBox panel, EditableConstant constant, String label, SettingsAutosave autosave) {
+    private static void addColocalizationConstantRow(VBox panel, Map<String, RowNodes> rows, EditableConstant constant,
+                                                     String label, SettingsAutosave autosave) {
         if (constant == null) {
             return;
         }
         Node editor = constant.createEditor();
         constant.addChangeListener(autosave::markManualEditAndSave);
-        panel.getChildren().add(labeledRow(label, editor, 180.0));
+        HBox row = labeledRow(label, editor, 180.0);
+        panel.getChildren().add(row);
+        rows.put(constant.name, new RowNodes(row, row));
+    }
+
+    private static void installColocalizationThresholdVisibility(Map<String, EditableConstant> byName,
+                                                                 Map<String, RowNodes> rows,
+                                                                 VBox panel) {
+        Runnable update = () -> {
+            Set<String> visibleRows = colocalizationThresholdVisibilityState(
+                    optionValue(byName, "THRESHOLD_MODE"),
+                    optionValue(byName, "THRESHOLD_SCOPE"),
+                    optionValue(byName, "BACKGROUND_MODE"),
+                    optionValue(byName, "BACKGROUND_SCOPE")
+            );
+            rows.forEach((name, row) -> setVisible(rows, name, visibleRows.contains(name)));
+
+            panel.requestLayout();
+            if (panel.getParent() != null) {
+                panel.getParent().requestLayout();
+            }
+        };
+        List.of("THRESHOLD_MODE", "BACKGROUND_MODE").forEach(name -> {
+            EditableConstant constant = byName.get(name);
+            if (constant != null) {
+                constant.addChangeListener(update);
+                constant.addOptionListener(update);
+            }
+        });
+        update.run();
+    }
+
+    static Set<String> colocalizationThresholdVisibilityState(String thresholdMode,
+                                                              String thresholdScope,
+                                                              String backgroundMode,
+                                                              String backgroundScope) {
+        Set<String> rows = new LinkedHashSet<>();
+        rows.add("THRESHOLD_MODE");
+        rows.add("THRESHOLD_SCOPE");
+        rows.add("THRESHOLD_EXCLUDE_MARKERS");
+        rows.add("BACKGROUND_MODE");
+        if ("MANUAL".equals(thresholdMode)) {
+            rows.add("MANUAL_INTENSITY_THRESHOLDS");
+        }
+        if ("RANGE_PERCENT".equals(thresholdMode)) {
+            rows.add("RANGE_THRESHOLD_FRACTION_BY_MARKER");
+        }
+        if ("MANUAL_OFFSET".equals(backgroundMode)) {
+            rows.add("BACKGROUND_SUBTRACTION_BY_CHANNEL");
+        }
+        if ("LOCAL_ROI_PERCENTILE".equals(backgroundMode) || "LOCAL_SLIDE_PERCENTILE".equals(backgroundMode)) {
+            rows.add("BACKGROUND_SCOPE");
+            rows.add("LOCAL_BACKGROUND_PERCENTILE");
+        }
+        return rows;
+    }
+
+    private static String optionValue(Map<String, EditableConstant> byName, String name) {
+        EditableConstant constant = byName.get(name);
+        return constant == null ? "" : constant.optionValue();
     }
 
     private static VBox semanticCard(String titleText, String subtitleText) {
@@ -1200,6 +1263,7 @@ final class AstraPipelineLauncher {
     private static void setNodeVisible(Node node, boolean visible) {
         node.setVisible(visible);
         node.setManaged(visible);
+        node.setDisable(!visible);
     }
 
     private static Node createPipelineFlow(String scriptName) {
@@ -1240,6 +1304,21 @@ final class AstraPipelineLauncher {
         HBox.setHgrow(editor, Priority.ALWAYS);
         row.getChildren().addAll(label, editor);
         return row;
+    }
+
+    private static VBox nestedField(String labelText, Node editor) {
+        VBox box = new VBox(4.0);
+        Label label = new Label(labelText);
+        label.setStyle(nestedLabelStyle());
+        if (editor instanceof Region region) {
+            region.setMinHeight(PARAMETER_ROW_HEIGHT);
+        }
+        box.getChildren().addAll(label, editor);
+        return box;
+    }
+
+    private static String nestedLabelStyle() {
+        return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900; -fx-text-fill: " + INK + ";";
     }
 
     private static CollapsibleSection createSection(String title, List<EditableConstant> constants, boolean expanded, SettingsAutosave autosave) {
@@ -1520,6 +1599,14 @@ final class AstraPipelineLauncher {
                 "-fx-border-color: #b5cbd2; -fx-border-radius: 4; -fx-background-radius: 4;";
     }
 
+    private static String checkBoxStyle() {
+        return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";";
+    }
+
+    private static void styleCheckBox(CheckBox box) {
+        box.setStyle(checkBoxStyle());
+    }
+
     static List<ColocalizationCheck> parseColocalizationChecks(String rawValue) {
         String raw = rawValue == null ? "" : rawValue;
         List<ColocalizationCheck> out = new ArrayList<>();
@@ -1615,6 +1702,7 @@ final class AstraPipelineLauncher {
             setVisible(rows, "RANGE_THRESHOLD_FRACTION_BY_MARKER", isSelected(byName, "THRESHOLD_MODE", "RANGE_PERCENT"));
             setVisible(rows, "BACKGROUND_SUBTRACTION_BY_CHANNEL", isSelected(byName, "BACKGROUND_MODE", "MANUAL_OFFSET"));
             setVisible(rows, "MODES_TO_RUN", !isChecked(byName, "RESET_BASELINE"));
+            setVisible(rows, "USE_PIXEL_SCALING", isChecked(byName, "USE_BATCH_MODE"));
         };
         byName.values().forEach(c -> c.addOptionListener(update));
         byName.values().forEach(c -> c.addChangeListener(update));
@@ -1640,6 +1728,7 @@ final class AstraPipelineLauncher {
         row.label.setManaged(visible);
         row.editor.setVisible(visible);
         row.editor.setManaged(visible);
+        row.editor.setDisable(!visible);
     }
 
     private static void executeAsync(QuPathGUI qupath, String scriptName, String configuredScript, RunFeedback feedback, Button runButton) {
@@ -2313,7 +2402,7 @@ final class AstraPipelineLauncher {
             for (String channel : channels) {
                 CheckBox box = new CheckBox(channel);
                 box.setSelected(selected.contains(channel));
-                box.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";");
+                styleCheckBox(box);
                 boxes.put(channel, box);
                 options.getChildren().add(box);
             }
@@ -2402,7 +2491,7 @@ final class AstraPipelineLauncher {
 
             private CheckRow(ColocalizationCheck check) {
                 node.setAlignment(Pos.CENTER_LEFT);
-                node.setMinHeight(PARAMETER_ROW_HEIGHT);
+                node.setMinHeight(64.0);
                 node.setStyle("-fx-background-color: white; -fx-border-color: #d7e2e6; -fx-border-radius: 5; -fx-background-radius: 5; -fx-padding: 8;");
                 label.setPromptText("Label");
                 label.setText(check.label());
@@ -2413,12 +2502,13 @@ final class AstraPipelineLauncher {
                 compartment.setMinWidth(120.0);
                 compartment.setPrefWidth(130.0);
                 compartment.setStyle(EditableConstant.controlStyle());
+                styleComboBoxText(compartment);
                 FlowPane channels = new FlowPane(6.0, 6.0);
                 channels.setAlignment(Pos.CENTER_LEFT);
                 for (String channel : imageChannels) {
                     CheckBox box = new CheckBox(channel);
                     box.setSelected(check.channels().contains(channel));
-                    box.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-text-fill: " + INK + ";");
+                    styleCheckBox(box);
                     channelBoxes.put(channel, box);
                     channels.getChildren().add(box);
                     box.selectedProperty().addListener((obs, oldValue, newValue) -> notifyListeners());
@@ -2438,7 +2528,14 @@ final class AstraPipelineLauncher {
                 label.textProperty().addListener((obs, oldValue, newValue) -> notifyListeners());
                 compartment.valueProperty().addListener((obs, oldValue, newValue) -> notifyListeners());
                 HBox.setHgrow(channels, Priority.ALWAYS);
-                node.getChildren().addAll(label, compartment, channels, remove);
+                VBox channelField = nestedField("Channels", channels);
+                HBox.setHgrow(channelField, Priority.ALWAYS);
+                node.getChildren().addAll(
+                        nestedField("Check name", label),
+                        nestedField("Compartment", compartment),
+                        channelField,
+                        remove
+                );
             }
 
             private ColocalizationCheck check() {
@@ -2482,7 +2579,7 @@ final class AstraPipelineLauncher {
             for (String key : markerKeys) {
                 CheckBox box = new CheckBox("Exclude " + key.replace("|", " | ") + " from thresholding/QC");
                 box.setSelected(selected.contains(key));
-                box.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";");
+                styleCheckBox(box);
                 box.selectedProperty().addListener((obs, oldValue, newValue) -> {
                     if (newValue) {
                         selected.add(key);

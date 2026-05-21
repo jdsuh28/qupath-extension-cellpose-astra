@@ -99,6 +99,7 @@ public class AstraCellpose2D extends Cellpose2D {
     private ResultsTable validationResults;
     private boolean batchInferenceEnabled = true;
     private boolean pixelScalingEnabled = true;
+    private boolean persistTrainingArtifacts = true;
     private Double lastCanonicalPixelSizeUsed = null;
     private String trainingAnnotationClass = null;
 
@@ -120,6 +121,10 @@ public class AstraCellpose2D extends Cellpose2D {
 
     public void setPixelScalingEnabled(boolean enabled) {
         this.pixelScalingEnabled = enabled;
+    }
+
+    public void setPersistTrainingArtifacts(boolean enabled) {
+        this.persistTrainingArtifacts = enabled;
     }
 
     public Double getCanonicalPixelSizeUsed() {
@@ -376,10 +381,12 @@ public class AstraCellpose2D extends Cellpose2D {
 
             ResultsTable parsedTrainingResults = parseTrainingResults();
             setTrainingResults(parsedTrainingResults);
-            saveTrainingGraphAfterTraining();
+            if (persistTrainingArtifacts) {
+                saveTrainingGraphAfterTraining();
+            }
             logger.info("Training completed. Results processed and ready.");
 
-            return trainingArtifactReturnValue(getTrainingDirectory());
+            return trainingArtifactReturnValue(this.groundTruthDirectory);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("ASTRA training was interrupted.", e);
@@ -526,9 +533,11 @@ public class AstraCellpose2D extends Cellpose2D {
             }
         }
 
-        File trainingResultsFile = resolveTrainingResultsFile(getTrainingResultsDirectory());
-        logger.info("Saving Training Results to {}", trainingResultsFile.getAbsolutePath());
-        trainingResults.save(trainingResultsFile.getAbsolutePath());
+        if (persistTrainingArtifacts) {
+            File trainingResultsFile = resolveTrainingResultsFile(getTrainingResultsDirectory());
+            logger.info("Saving Training Results to {}", trainingResultsFile.getAbsolutePath());
+            trainingResults.save(trainingResultsFile.getAbsolutePath());
+        }
         return trainingResults;
     }
 
@@ -1028,6 +1037,8 @@ public class AstraCellpose2D extends Cellpose2D {
         cellposeArguments.add("--train");
         cellposeArguments.add("--dir");
         cellposeArguments.add(getTrainingDirectory().getAbsolutePath());
+        cellposeArguments.add("--astra_model_save_root");
+        cellposeArguments.add(this.groundTruthDirectory.getAbsolutePath());
 
         if (this.useTestDir) {
             cellposeArguments.add("--test_dir");
@@ -1772,25 +1783,30 @@ public class AstraCellpose2D extends Cellpose2D {
 
     static File resolveModelDirectory(File rootDirectory, File modelDirectory) {
         Objects.requireNonNull(rootDirectory, "rootDirectory");
-        return modelDirectory != null ? modelDirectory : new File(rootDirectory, "models");
+        return modelDirectory != null ? modelDirectory : new File(resolveAstraRootDirectory(rootDirectory), "models");
     }
 
     static File resolveTrainingRootDirectory(File rootDirectory, File trainingDirectory) {
         Objects.requireNonNull(rootDirectory, "rootDirectory");
         if (trainingDirectory == null || isUpstreamDefaultTrainingDirectory(trainingDirectory)) {
-            return new File(rootDirectory, "training");
+            return new File(resolveAstraRootDirectory(rootDirectory), "training");
         }
         return trainingDirectory;
     }
 
     static File resolveValidationInputDirectory(File rootDirectory, File validationDirectory) {
         Objects.requireNonNull(rootDirectory, "rootDirectory");
-        return validationDirectory != null ? validationDirectory : new File(rootDirectory, "validation");
+        return validationDirectory != null ? validationDirectory : new File(resolveAstraRootDirectory(rootDirectory), "validation");
     }
 
     static File resolveResultsDirectory(File rootDirectory, File resultsDirectory) {
         Objects.requireNonNull(rootDirectory, "rootDirectory");
-        return resultsDirectory != null ? resultsDirectory : new File(rootDirectory, "results");
+        return resultsDirectory != null ? resultsDirectory : new File(resolveAstraRootDirectory(rootDirectory), "results");
+    }
+
+    static File resolveAstraRootDirectory(File rootDirectory) {
+        Objects.requireNonNull(rootDirectory, "rootDirectory");
+        return new File(rootDirectory, "astra");
     }
 
     static File ensureDirectoryExists(File directory) throws IOException {
@@ -1806,7 +1822,7 @@ public class AstraCellpose2D extends Cellpose2D {
 
     static File resolveTrainingDirectory(File groundTruthDirectory) {
         Objects.requireNonNull(groundTruthDirectory, "groundTruthDirectory");
-        return groundTruthDirectory;
+        return new File(groundTruthDirectory, "train");
     }
 
     static File resolveValidationInputDirectory(File validationDirectory) {

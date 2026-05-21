@@ -207,6 +207,42 @@ class AstraExtensionContractTest {
     }
 
     /**
+     * Verifies ASTRA-owned default folders are rooted under projectRoot/astra
+     * when callers do not provide explicit directories.
+     */
+    @Test
+    void astraDefaultDirectoriesResolveUnderAstraRoot() {
+        File project = new File("/tmp/astra-extension-project");
+
+        assertEquals(new File(project, "astra"), AstraCellpose2D.resolveAstraRootDirectory(project));
+        assertEquals(new File(project, "astra/models"), AstraCellpose2D.resolveModelDirectory(project, null));
+        assertEquals(new File(project, "astra/training"), AstraCellpose2D.resolveTrainingRootDirectory(project, null));
+        assertEquals(new File(project, "astra/validation"), AstraCellpose2D.resolveValidationInputDirectory(project, null));
+        assertEquals(new File(project, "astra/results"), AstraCellpose2D.resolveResultsDirectory(project, null));
+    }
+
+    /**
+     * Verifies ASTRA training uses the explicit train/test/models runtime
+     * contract and passes the ASTRA save-root hook to Cellpose-ASTRA.
+     *
+     * @throws Exception if source cannot be read.
+     */
+    @Test
+    void astraTrainingUsesThreeFolderRuntimeContract() throws Exception {
+        File root = new File("/tmp/astra-training-root");
+        String runtime = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraCellpose2D.java").toPath());
+        String builder = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraCellposeBuilder.java").toPath());
+
+        assertEquals(new File(root, "train"), AstraCellpose2D.resolveTrainingDirectory(root));
+        assertEquals(new File(root, "models"), AstraCellpose2D.trainingArtifactReturnValue(root));
+        assertTrue(runtime.contains("cellposeArguments.add(\"--astra_model_save_root\")"));
+        assertTrue(runtime.contains("cellposeArguments.add(this.groundTruthDirectory.getAbsolutePath())"));
+        assertTrue(runtime.contains("return trainingArtifactReturnValue(this.groundTruthDirectory);"));
+        assertTrue(builder.contains("persistTrainingArtifacts(boolean persist)"));
+        assertTrue(builder.contains("runtime.setPersistTrainingArtifacts(persistTrainingArtifacts);"));
+    }
+
+    /**
      * Verifies Cellpose subprocess failure cannot be reported as a successful
      * zero-cell detection.
      *
@@ -303,6 +339,8 @@ class AstraExtensionContractTest {
                 final String SEARCH_MODE = "TEST"
                 final String VALIDATION_MODE = "FULL"
                 final List CHANNELS_FOR_NUCLEUS = ["DAPI"]
+                final boolean USE_BATCH_MODE = true
+                final boolean USE_PIXEL_SCALING = true
                 final double NUC_DIAMETER_UM = 2.5d
                 final boolean LOG_VIEWER_PROGRESS_FAILURES = false
                 final Map cfg = [:]
@@ -319,8 +357,22 @@ class AstraExtensionContractTest {
         assertFalse(isAdvanced(constants, "SEARCH_MODE"));
         assertFalse(isAdvanced(constants, "VALIDATION_MODE"));
         assertFalse(isAdvanced(constants, "CHANNELS_FOR_NUCLEUS"));
+        assertFalse(isAdvanced(constants, "USE_BATCH_MODE"));
+        assertFalse(isAdvanced(constants, "USE_PIXEL_SCALING"));
         assertTrue(isAdvanced(constants, "NUC_DIAMETER_UM"));
         assertTrue(isAdvanced(constants, "LOG_VIEWER_PROGRESS_FAILURES"));
+    }
+
+    /**
+     * Verifies pixel scaling is visible only when batch execution is enabled.
+     *
+     * @throws Exception if source cannot be read.
+     */
+    @Test
+    void launcherGatesPixelScalingByBatchMode() throws Exception {
+        String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraPipelineLauncher.java").toPath());
+
+        assertTrue(source.contains("setVisible(rows, \"USE_PIXEL_SCALING\", isChecked(byName, \"USE_BATCH_MODE\"));"));
     }
 
     /**
