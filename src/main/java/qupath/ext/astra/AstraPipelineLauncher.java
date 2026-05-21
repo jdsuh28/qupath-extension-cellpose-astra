@@ -12,9 +12,11 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.ListCell;
+import javafx.scene.control.MenuButton;
 import javafx.scene.control.TextInputDialog;
 import javafx.stage.FileChooser;
 import javafx.scene.control.Label;
@@ -155,6 +157,8 @@ final class AstraPipelineLauncher {
         RunFeedback feedback = new RunFeedback(scriptName);
         AtomicReference<Button> runButtonRef = new AtomicReference<>();
         AtomicReference<Button> exportButtonRef = new AtomicReference<>();
+        AtomicReference<Button> resetImageButtonRef = new AtomicReference<>();
+        AtomicReference<Button> resetProjectButtonRef = new AtomicReference<>();
         Consumer<ActionEvent> exportAction = event -> {
             event.consume();
             String configuredScript;
@@ -168,7 +172,15 @@ final class AstraPipelineLauncher {
             feedback.info("Standalone export requested from the launcher header.");
             executeAsync(qupath, scriptName, configuredScript, feedback, runButtonRef.get(), exportButtonRef.get());
         };
-        dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants, true, feedback, schemaId, sourceScriptSha256, profileState, exportAction, exportButtonRef::set));
+        Consumer<ActionEvent> resetImageAction = event -> {
+            event.consume();
+            runHeaderReset(qupath, scriptName, scriptText, constants, profileState, schemaId, feedback, runButtonRef.get(), resetImageButtonRef.get(), "RESET_IMAGE", false);
+        };
+        Consumer<ActionEvent> resetProjectAction = event -> {
+            event.consume();
+            runHeaderReset(qupath, scriptName, scriptText, constants, profileState, schemaId, feedback, runButtonRef.get(), resetProjectButtonRef.get(), "RESET_PROJECT", true);
+        };
+        dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants, true, feedback, schemaId, sourceScriptSha256, profileState, exportAction, exportButtonRef::set, resetImageAction, resetImageButtonRef::set, resetProjectAction, resetProjectButtonRef::set));
         dialog.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
         dialog.setResizable(true);
 
@@ -666,7 +678,8 @@ final class AstraPipelineLauncher {
         appendSummary(lines, byName, "CHANNELS_FOR_CELL", "  cell channels");
         appendSummary(lines, byName, "COLOCALIZATION_CHECKS", "  colocalization checks");
         appendSummary(lines, byName, "THRESHOLD_MODE", "  threshold mode");
-        appendSummary(lines, byName, "THRESHOLD_EXCLUDE_MARKERS", "  threshold exclusions");
+        appendSummary(lines, byName, "THRESHOLD_SCOPE", "  threshold scope");
+        appendSummary(lines, byName, "THRESHOLD_SELECTED_IMAGE_NAMES", "  threshold source images");
         appendSummary(lines, byName, "BACKGROUND_MODE", "  background mode");
         appendSummary(lines, byName, "RESULTS_FOLDER", "  results folder");
         return String.join("\n", lines);
@@ -731,19 +744,62 @@ final class AstraPipelineLauncher {
         return false;
     }
 
-    private static void installProjectImageNameSelector(QuPathGUI qupath, List<EditableConstant> constants) {
-        List<String> imageNames = projectImageNames(qupath);
-        if (imageNames.isEmpty()) {
+    private static void runHeaderReset(QuPathGUI qupath, String scriptName, String scriptText, List<EditableConstant> constants,
+                                       SettingsProfileState profileState, String schemaId, RunFeedback feedback,
+                                       Button runButton, Button actionButton, String resetMode, boolean projectReset) {
+        if (!confirmAnalysisReset(qupath, scriptName, projectReset)) {
+            feedback.warn("Analysis reset cancelled before execution.");
             return;
         }
+        Map<String, String> overrides = new LinkedHashMap<>();
+        overrides.put("MODES_TO_RUN", renderStringList(List.of(resetMode)));
+        if (projectReset) {
+            List<String> names = projectImageNames(qupath);
+            if (names.isEmpty()) {
+                Dialogs.showErrorMessage("ASTRA " + scriptName, "Project reset requires an open project with image entries.");
+                return;
+            }
+            overrides.put("IMAGE_SCOPE", quoteGroovy("PROJECT_IMAGE_SELECTION"));
+            overrides.put("SELECTED_IMAGE_NAMES", renderStringList(names));
+        } else {
+            overrides.put("IMAGE_SCOPE", quoteGroovy("CURRENT_IMAGE"));
+        }
+        String configuredScript;
+        try {
+            configuredScript = applyConstants(scriptText, constants, profileState, overrides);
+        } catch (RuntimeException e) {
+            Dialogs.showErrorMessage("ASTRA " + scriptName, e.getMessage());
+            return;
+        }
+        feedback.info(finalConfigSummary(scriptName, schemaId, constants, profileState));
+        feedback.warn((projectReset ? "Project" : "Image") + " reset requested from the launcher header. ASTRA will remove only ledger-recorded object IDs and measurement keys; exported files are not deleted.");
+        executeAsync(qupath, scriptName, configuredScript, feedback, runButton, actionButton);
+    }
+
+    private static boolean confirmAnalysisReset(QuPathGUI qupath, String scriptName, boolean projectReset) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "", ButtonType.OK, ButtonType.CANCEL);
+        alert.initOwner(qupath.getStage());
+        alert.setTitle("ASTRA " + scriptName);
+        alert.setHeaderText(projectReset ? "Reset recorded ASTRA state for the project?" : "Reset recorded ASTRA state for the current image?");
+        alert.setContentText("""
+                This is destructive for ASTRA-generated hierarchy state.
+
+                ASTRA will delete only objects recorded by QuPath object ID in the analysis ledger and remove only recorded ASTRA measurement keys.
+                User ROI, Trace, analysis-region annotations, unledgered objects, and exported CSV/QC files are preserved.
+                """);
+        alert.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
+        return alert.showAndWait().filter(ButtonType.OK::equals).isPresent();
+    }
+
+    private static void installProjectImageNameSelector(QuPathGUI qupath, List<EditableConstant> constants) {
+        List<String> imageNames = projectImageNames(qupath);
         constants.stream()
-                .filter(c -> "SELECTED_IMAGE_NAMES".equals(c.name) && "List".equals(c.type))
-                .findFirst()
-                .ifPresent(c -> c.setCustomEditor(new ProjectImageSelectionEditor(imageNames, c.displayValue)));
+                .filter(c -> ("SELECTED_IMAGE_NAMES".equals(c.name) || "THRESHOLD_SELECTED_IMAGE_NAMES".equals(c.name)) && "List".equals(c.type))
+                .forEach(c -> c.setCustomEditor(new ProjectImageSelectionEditor(imageNames, c.displayValue)));
     }
 
     private static void installColocalizationRunModeEditor(String scriptName, List<EditableConstant> constants) {
-        if (!AstraGuiPresentation.supportsHeaderExport(scriptName)) {
+        if (!AstraGuiPresentation.supportsAnalysisHeaderActions(scriptName)) {
             return;
         }
         constants.stream()
@@ -789,17 +845,6 @@ final class AstraPipelineLauncher {
         return new ColocalizationPanelState(showNucleus, showCell, showNucleus, showCell);
     }
 
-    static List<String> synchronizedThresholdExclusions(List<String> selectedExclusions, List<ColocalizationCheck> checks) {
-        List<String> markerKeys = markerKeysFromChecks(checks);
-        if (selectedExclusions == null || selectedExclusions.isEmpty()) {
-            return List.of();
-        }
-        return selectedExclusions.stream()
-                .filter(markerKeys::contains)
-                .distinct()
-                .toList();
-    }
-
     private static boolean confirmProvisionalVascularAutomation(QuPathGUI qupath, String scriptName) {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.initOwner(qupath.getStage());
@@ -815,7 +860,9 @@ final class AstraPipelineLauncher {
 
     private static Node createContent(QuPathGUI qupath, String scriptName, List<EditableConstant> constants, boolean applyChannelDefaults,
                                       RunFeedback feedback, String schemaId, String sourceScriptSha256, SettingsProfileState profileState,
-                                      Consumer<ActionEvent> exportAction, Consumer<Button> exportButtonSink) {
+                                      Consumer<ActionEvent> exportAction, Consumer<Button> exportButtonSink,
+                                      Consumer<ActionEvent> resetImageAction, Consumer<Button> resetImageButtonSink,
+                                      Consumer<ActionEvent> resetProjectAction, Consumer<Button> resetProjectButtonSink) {
         List<ImageChannel> imageChannels = imageChannels(qupath);
         if (applyChannelDefaults) {
             applyImageChannelDefaults(constants, imageChannels);
@@ -855,18 +902,36 @@ final class AstraPipelineLauncher {
         loadProfile.setFocusTraversable(false);
         loadProfile.setStyle(reset.getStyle());
         loadProfile.setOnAction(event -> loadSettingsProfileWithDialog(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, autosave, feedback));
+        titleRow.getChildren().addAll(title, reset, saveProfile, loadProfile);
+        if (AstraGuiPresentation.supportsAnalysisHeaderActions(scriptName)) {
+            Button resetImage = new Button("Reset Image...");
+            resetImage.setFocusTraversable(false);
+            resetImage.setStyle(reset.getStyle());
+            resetImage.setTooltip(new Tooltip("Delete only ASTRA objects and measurements recorded for the current image in the analysis ledger."));
+            resetImage.setOnAction(resetImageAction::accept);
+            if (resetImageButtonSink != null) {
+                resetImageButtonSink.accept(resetImage);
+            }
+            Button resetProject = new Button("Reset Project...");
+            resetProject.setFocusTraversable(false);
+            resetProject.setStyle(reset.getStyle());
+            resetProject.setTooltip(new Tooltip("Delete only ASTRA objects and measurements recorded for every project image in the analysis ledger."));
+            resetProject.setOnAction(resetProjectAction::accept);
+            if (resetProjectButtonSink != null) {
+                resetProjectButtonSink.accept(resetProject);
+            }
+            titleRow.getChildren().addAll(resetImage, resetProject);
+        }
         if (AstraGuiPresentation.supportsHeaderExport(scriptName)) {
             Button export = new Button("Export");
             export.setFocusTraversable(false);
             export.setStyle(reset.getStyle());
-            export.setTooltip(new Tooltip("Write colocalization result files only if the current hierarchy matches the last successful QUANTIFY."));
+            export.setTooltip(new Tooltip("Write analysis result files only if the current hierarchy matches the last successful QUANTIFY."));
             export.setOnAction(exportAction::accept);
             if (exportButtonSink != null) {
                 exportButtonSink.accept(export);
             }
-            titleRow.getChildren().addAll(title, reset, saveProfile, loadProfile, export);
-        } else {
-            titleRow.getChildren().addAll(title, reset, saveProfile, loadProfile);
+            titleRow.getChildren().add(export);
         }
         Label subtitle = new Label(descriptionFor(scriptName));
         subtitle.setWrapText(true);
@@ -1042,10 +1107,11 @@ final class AstraPipelineLauncher {
                 "CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE", "CELL_SAVED_MODEL_ID",
                 "NUCLEUS_SEGMENTATION_CHANNELS", "CELL_SEGMENTATION_CHANNELS",
                 "COLOCALIZATION_CHECKS",
-                "THRESHOLD_MODE", "THRESHOLD_SCOPE", "THRESHOLD_EXCLUDE_MARKERS",
+                "THRESHOLD_MODE", "THRESHOLD_SCOPE", "THRESHOLD_SELECTED_IMAGE_NAMES",
+                "MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL",
                 "MANUAL_INTENSITY_THRESHOLDS", "THRESHOLD_PROVENANCE_BY_MARKER",
                 "RANGE_THRESHOLD_FRACTION_BY_MARKER",
-                "BACKGROUND_MODE", "BACKGROUND_SCOPE", "LOCAL_BACKGROUND_PERCENTILE",
+                "BACKGROUND_MODE", "LOCAL_BACKGROUND_PERCENTILE",
                 "BACKGROUND_SUBTRACTION_BY_CHANNEL"
         ).contains(name);
     }
@@ -1058,20 +1124,20 @@ final class AstraPipelineLauncher {
         SavedModelDiscovery nucleusModels = discoverSavedModelIds(projectBase, "nucleus");
         SavedModelDiscovery cellModels = discoverSavedModelIds(projectBase, "cell");
 
-        VBox box = sectionShell("Colocalization Setup", "Target-specific controls for segmentation models, segmentation channels, marker checks, and threshold exclusions.");
+        VBox box = sectionShell("Colocalization Setup", "Target-specific controls for segmentation models, segmentation channels, marker checks, thresholding, and background correction.");
         EditableConstant detectionTarget = byName.get("DETECTION_TARGET");
 
-        VBox targetPanel = semanticCard("Detection Target", "Choose whether colocalization runs nucleus segmentation, cell segmentation, or paired nucleus/cell detection.");
+        VBox targetPanel = semanticCard(displayLabel("DETECTION_TARGET"), "Choose whether colocalization runs nucleus segmentation, cell segmentation, or paired nucleus/cell detection.");
         if (detectionTarget != null) {
             Node editor = detectionTarget.createEditor();
-            HBox row = labeledRow("Detection target", editor, 160.0);
+            HBox row = labeledRow(displayLabel("DETECTION_TARGET"), editor, 160.0);
             detectionTarget.addChangeListener(autosave::markManualEditAndSave);
             targetPanel.getChildren().add(row);
         }
 
         VBox modelPanel = semanticCard("Target Models", "Choose nucleus and cell model initializers independently. Generic shared MODEL_* values are not shown as separate colocalization controls.");
-        VBox nucleusModel = targetModelGroup("Nucleus model", byName.get("NUC_MODEL_SOURCE"), byName.get("NUC_MODEL_NAME"), byName.get("NUC_MODEL_FILE"), byName.get("NUC_SAVED_MODEL_ID"), nucleusModels, autosave);
-        VBox cellModel = targetModelGroup("Cell model", byName.get("CELL_MODEL_SOURCE"), byName.get("CELL_MODEL_NAME"), byName.get("CELL_MODEL_FILE"), byName.get("CELL_SAVED_MODEL_ID"), cellModels, autosave);
+        VBox nucleusModel = targetModelGroup("Nucleus Model", byName.get("NUC_MODEL_SOURCE"), byName.get("NUC_MODEL_NAME"), byName.get("NUC_MODEL_FILE"), byName.get("NUC_SAVED_MODEL_ID"), nucleusModels, autosave);
+        VBox cellModel = targetModelGroup("Cell Model", byName.get("CELL_MODEL_SOURCE"), byName.get("CELL_MODEL_NAME"), byName.get("CELL_MODEL_FILE"), byName.get("CELL_SAVED_MODEL_ID"), cellModels, autosave);
         modelPanel.getChildren().addAll(nucleusModel, cellModel);
 
         VBox segmentationPanel = semanticCard("Segmentation Channels", "Checkboxes write explicit Groovy lists into the target-specific segmentation channel constants.");
@@ -1098,17 +1164,6 @@ final class AstraPipelineLauncher {
         }
         checksPanel.getChildren().add(checksEditor);
 
-        VBox exclusionPanel = semanticCard("Threshold Exclusions", "Only marker keys used by the checks above can be excluded from thresholding and threshold QC.");
-        EditableConstant exclusionsConstant = byName.get("THRESHOLD_EXCLUDE_MARKERS");
-        ThresholdExclusionEditor exclusionEditor = new ThresholdExclusionEditor(exclusionsConstant == null ? "[]" : exclusionsConstant.displayValue);
-        exclusionEditor.refresh(markerKeysFromChecks(checksEditor.checks()));
-        if (exclusionsConstant != null) {
-            exclusionsConstant.setCustomEditor(exclusionEditor);
-            exclusionEditor.addChangeListener(autosave::markManualEditAndSave);
-        }
-        checksEditor.addChangeListener(() -> exclusionEditor.refresh(markerKeysFromChecks(checksEditor.checks())));
-        exclusionPanel.getChildren().add(exclusionEditor);
-
         List<MarkerKeyMapEditor> markerMapEditors = new ArrayList<>();
         installMarkerKeyMapEditor(byName.get("MANUAL_INTENSITY_THRESHOLDS"), MarkerMapValueType.NUMERIC,
                 "Manual threshold values appear here after checks define marker keys.", markerMapEditors);
@@ -1119,7 +1174,7 @@ final class AstraPipelineLauncher {
         installMarkerKeyMapEditor(byName.get("BACKGROUND_SUBTRACTION_BY_CHANNEL"), MarkerMapValueType.NUMERIC,
                 "Manual background offsets appear here after checks define marker keys.", markerMapEditors);
         Runnable refreshMarkerKeyEditors = () -> {
-            List<String> markerKeys = markerKeysFromChecks(checksEditor.checks());
+            List<String> markerKeys = thresholdedMarkerKeysFromChecks(checksEditor.checks());
             markerMapEditors.forEach(editor -> editor.refresh(markerKeys));
         };
         refreshMarkerKeyEditors.run();
@@ -1130,17 +1185,16 @@ final class AstraPipelineLauncher {
 
         VBox thresholdPanel = semanticCard("Thresholds & Background", "Choose how positivity thresholds and explicit background correction are resolved before running colocalization.");
         Map<String, RowNodes> thresholdRows = new LinkedHashMap<>();
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_MODE"), "Threshold mode", autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_SCOPE"), "Threshold scope", autosave);
-        thresholdPanel.getChildren().add(exclusionPanel);
-        thresholdRows.put("THRESHOLD_EXCLUDE_MARKERS", new RowNodes(exclusionPanel, exclusionPanel));
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("MANUAL_INTENSITY_THRESHOLDS"), "Manual thresholds", autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_PROVENANCE_BY_MARKER"), "Threshold provenance", autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("RANGE_THRESHOLD_FRACTION_BY_MARKER"), "Range fractions", autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("BACKGROUND_MODE"), "Background mode", autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("BACKGROUND_SCOPE"), "Background scope", autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("LOCAL_BACKGROUND_PERCENTILE"), "Local percentile", autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("BACKGROUND_SUBTRACTION_BY_CHANNEL"), "Manual background offsets", autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_MODE"), displayLabel("THRESHOLD_MODE"), autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_SCOPE"), displayLabel("THRESHOLD_SCOPE"), autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_SELECTED_IMAGE_NAMES"), displayLabel("THRESHOLD_SELECTED_IMAGE_NAMES"), autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL"), displayLabel("MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL"), autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("MANUAL_INTENSITY_THRESHOLDS"), displayLabel("MANUAL_INTENSITY_THRESHOLDS"), autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_PROVENANCE_BY_MARKER"), displayLabel("THRESHOLD_PROVENANCE_BY_MARKER"), autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("RANGE_THRESHOLD_FRACTION_BY_MARKER"), displayLabel("RANGE_THRESHOLD_FRACTION_BY_MARKER"), autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("BACKGROUND_MODE"), displayLabel("BACKGROUND_MODE"), autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("LOCAL_BACKGROUND_PERCENTILE"), displayLabel("LOCAL_BACKGROUND_PERCENTILE"), autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("BACKGROUND_SUBTRACTION_BY_CHANNEL"), displayLabel("BACKGROUND_SUBTRACTION_BY_CHANNEL"), autosave);
 
         Runnable updateTargetVisibility = () -> {
             String target = detectionTarget == null ? "BOTH" : detectionTarget.optionValue();
@@ -1191,8 +1245,7 @@ final class AstraPipelineLauncher {
             Set<String> visibleRows = colocalizationThresholdVisibilityState(
                     optionValue(byName, "THRESHOLD_MODE"),
                     optionValue(byName, "THRESHOLD_SCOPE"),
-                    optionValue(byName, "BACKGROUND_MODE"),
-                    optionValue(byName, "BACKGROUND_SCOPE")
+                    optionValue(byName, "BACKGROUND_MODE")
             );
             rows.forEach((name, row) -> setVisible(rows, name, visibleRows.contains(name)));
 
@@ -1201,7 +1254,7 @@ final class AstraPipelineLauncher {
                 panel.getParent().requestLayout();
             }
         };
-        List.of("THRESHOLD_MODE", "BACKGROUND_MODE").forEach(name -> {
+        List.of("THRESHOLD_MODE", "THRESHOLD_SCOPE", "BACKGROUND_MODE").forEach(name -> {
             EditableConstant constant = byName.get(name);
             if (constant != null) {
                 constant.addChangeListener(update);
@@ -1213,13 +1266,15 @@ final class AstraPipelineLauncher {
 
     static Set<String> colocalizationThresholdVisibilityState(String thresholdMode,
                                                               String thresholdScope,
-                                                              String backgroundMode,
-                                                              String backgroundScope) {
+                                                              String backgroundMode) {
         Set<String> rows = new LinkedHashSet<>();
         rows.add("THRESHOLD_MODE");
         rows.add("THRESHOLD_SCOPE");
-        rows.add("THRESHOLD_EXCLUDE_MARKERS");
         rows.add("BACKGROUND_MODE");
+        if ("SELECTED_IMAGES".equals(thresholdScope)) {
+            rows.add("THRESHOLD_SELECTED_IMAGE_NAMES");
+            rows.add("MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL");
+        }
         if ("MANUAL".equals(thresholdMode)) {
             rows.add("MANUAL_INTENSITY_THRESHOLDS");
             rows.add("THRESHOLD_PROVENANCE_BY_MARKER");
@@ -1230,8 +1285,7 @@ final class AstraPipelineLauncher {
         if ("MANUAL_OFFSET".equals(backgroundMode)) {
             rows.add("BACKGROUND_SUBTRACTION_BY_CHANNEL");
         }
-        if ("LOCAL_REGION_PERCENTILE".equals(backgroundMode) || "LOCAL_IMAGE_PERCENTILE".equals(backgroundMode)) {
-            rows.add("BACKGROUND_SCOPE");
+        if ("LOCAL_PERCENTILE".equals(backgroundMode)) {
             rows.add("LOCAL_BACKGROUND_PERCENTILE");
         }
         return rows;
@@ -1345,6 +1399,17 @@ final class AstraPipelineLauncher {
     }
 
     private static ListCell<String> readableComboCell() {
+        return new ListCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : item);
+                setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";");
+            }
+        };
+    }
+
+    private static ListCell<String> readableListCell() {
         return new ListCell<>() {
             @Override
             protected void updateItem(String item, boolean empty) {
@@ -1717,13 +1782,14 @@ final class AstraPipelineLauncher {
     static List<ColocalizationCheck> parseColocalizationChecks(String rawValue) {
         String raw = rawValue == null ? "" : rawValue;
         List<ColocalizationCheck> out = new ArrayList<>();
-        Pattern entryPattern = Pattern.compile("(?s)\\[\\s*LABEL\\s*:\\s*\"([^\"]*)\"\\s*,\\s*COMPARTMENT\\s*:\\s*\"([^\"]*)\"\\s*,\\s*CHANNELS\\s*:\\s*\\[(.*?)\\]\\s*\\]");
+        Pattern entryPattern = Pattern.compile("(?s)\\[\\s*LABEL\\s*:\\s*\"([^\"]*)\"\\s*,\\s*COMPARTMENT\\s*:\\s*\"([^\"]*)\"\\s*,\\s*CHANNELS\\s*:\\s*\\[(.*?)\\](?:\\s*,\\s*EXCLUDED_CHANNELS\\s*:\\s*\\[(.*?)\\])?\\s*\\]");
         Matcher matcher = entryPattern.matcher(raw);
         while (matcher.find()) {
             out.add(new ColocalizationCheck(
                     matcher.group(1),
                     matcher.group(2),
-                    EditableConstant.csvValues("[" + matcher.group(3) + "]")
+                    EditableConstant.csvValues("[" + matcher.group(3) + "]"),
+                    matcher.group(4) == null ? List.of() : EditableConstant.csvValues("[" + matcher.group(4) + "]")
             ));
         }
         return out;
@@ -1738,7 +1804,8 @@ final class AstraPipelineLauncher {
             out.append("        [\n")
                     .append("                LABEL      : ").append(quoteGroovy(check.label())).append(",\n")
                     .append("                COMPARTMENT: ").append(quoteGroovy(check.compartment())).append(",\n")
-                    .append("                CHANNELS   : ").append(renderStringList(check.channels())).append("\n")
+                    .append("                CHANNELS   : ").append(renderStringList(check.channels())).append(",\n")
+                    .append("                EXCLUDED_CHANNELS: ").append(renderStringList(check.excludedChannels())).append("\n")
                     .append("        ],\n");
         }
         out.append("]");
@@ -1755,6 +1822,27 @@ final class AstraPipelineLauncher {
             for (String channel : check.channels()) {
                 String marker = channel == null ? "" : channel.trim();
                 if (!marker.isBlank() && !compartment.isBlank()) {
+                    String key = marker + "|" + compartment;
+                    if (!keys.contains(key)) {
+                        keys.add(key);
+                    }
+                }
+            }
+        }
+        return keys;
+    }
+
+    static List<String> thresholdedMarkerKeysFromChecks(List<ColocalizationCheck> checks) {
+        if (checks == null) {
+            return List.of();
+        }
+        List<String> keys = new ArrayList<>();
+        for (ColocalizationCheck check : checks) {
+            String compartment = check.compartment() == null ? "" : check.compartment().trim();
+            Set<String> excluded = new LinkedHashSet<>(check.excludedChannels() == null ? List.of() : check.excludedChannels());
+            for (String channel : check.channels()) {
+                String marker = channel == null ? "" : channel.trim();
+                if (!marker.isBlank() && !compartment.isBlank() && !excluded.contains(marker)) {
                     String key = marker + "|" + compartment;
                     if (!keys.contains(key)) {
                         keys.add(key);
@@ -1930,10 +2018,13 @@ final class AstraPipelineLauncher {
             setVisible(rows, "CELL_BEST_PARAMS_FILE", isSelected(byName, "CELL_PARAM_SOURCE", "BEST_PARAMS_FILE"));
             setVisible(rows, "SELECTED_IMAGE_NAMES", isSelected(byName, "IMAGE_SCOPE", "PROJECT_IMAGE_SELECTION"));
             setVisible(rows, "MATCH_SELECTED_IMAGE_NAMES_AGAINST_ORIGINAL", isSelected(byName, "IMAGE_SCOPE", "PROJECT_IMAGE_SELECTION"));
+            setVisible(rows, "THRESHOLD_SELECTED_IMAGE_NAMES", isSelected(byName, "THRESHOLD_SCOPE", "SELECTED_IMAGES"));
+            setVisible(rows, "MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL", isSelected(byName, "THRESHOLD_SCOPE", "SELECTED_IMAGES"));
             setVisible(rows, "MANUAL_INTENSITY_THRESHOLDS", isSelected(byName, "THRESHOLD_MODE", "MANUAL"));
             setVisible(rows, "THRESHOLD_PROVENANCE_BY_MARKER", isSelected(byName, "THRESHOLD_MODE", "MANUAL"));
             setVisible(rows, "RANGE_THRESHOLD_FRACTION_BY_MARKER", isSelected(byName, "THRESHOLD_MODE", "RANGE_PERCENT"));
             setVisible(rows, "BACKGROUND_SUBTRACTION_BY_CHANNEL", isSelected(byName, "BACKGROUND_MODE", "MANUAL_OFFSET"));
+            setVisible(rows, "LOCAL_BACKGROUND_PERCENTILE", isSelected(byName, "BACKGROUND_MODE", "LOCAL_PERCENTILE"));
             setVisible(rows, "USE_PIXEL_SCALING", isChecked(byName, "USE_BATCH_MODE"));
         };
         byName.values().forEach(c -> c.addOptionListener(update));
@@ -2177,9 +2268,10 @@ final class AstraPipelineLauncher {
                 "CELL_SEGMENTATION_CHANNELS",
                 "CELLPOSE_CELL_CHANNELS",
                 "COLOCALIZATION_CHECKS",
-                "THRESHOLD_EXCLUDE_MARKERS",
                 "POSITIVITY_METHOD",
                 "THRESHOLD_MODE",
+                "THRESHOLD_SCOPE",
+                "THRESHOLD_SELECTED_IMAGE_NAMES",
                 "BACKGROUND_MODE",
                 "USE_BATCH_MODE",
                 "USE_PIXEL_SCALING",
@@ -2661,7 +2753,7 @@ final class AstraPipelineLauncher {
         }
     }
 
-    record ColocalizationCheck(String label, String compartment, List<String> channels) {
+    record ColocalizationCheck(String label, String compartment, List<String> channels, List<String> excludedChannels) {
     }
 
     enum MarkerMapValueType {
@@ -2727,7 +2819,7 @@ final class AstraPipelineLauncher {
             add.setFocusTraversable(false);
             add.setStyle(semanticButtonStyle());
             add.setOnAction(event -> {
-                addRow(new ColocalizationCheck("", "Nucleus", List.of()));
+                addRow(new ColocalizationCheck("", "Nucleus", List.of(), List.of()));
                 notifyListeners();
             });
             getChildren().addAll(rows, add);
@@ -2768,6 +2860,7 @@ final class AstraPipelineLauncher {
             private final TextField label = new TextField();
             private final ComboBox<String> compartment = new ComboBox<>();
             private final Map<String, CheckBox> channelBoxes = new LinkedHashMap<>();
+            private final Map<String, CheckBox> excludedChannelBoxes = new LinkedHashMap<>();
 
             private CheckRow(ColocalizationCheck check) {
                 node.setAlignment(Pos.CENTER_LEFT);
@@ -2777,20 +2870,32 @@ final class AstraPipelineLauncher {
                 label.setText(check.label());
                 label.setPrefColumnCount(18);
                 label.setStyle(EditableConstant.controlStyle());
-                compartment.getItems().addAll("Nucleus", "Cell", "Cytoplasm");
+                compartment.getItems().addAll("Nucleus", "Cytoplasm", "Cell");
                 compartment.setValue(check.compartment().isBlank() ? "Nucleus" : check.compartment());
                 compartment.setMinWidth(120.0);
                 compartment.setPrefWidth(130.0);
                 styleAstraComboBox(compartment);
                 FlowPane channels = new FlowPane(6.0, 6.0);
                 channels.setAlignment(Pos.CENTER_LEFT);
+                FlowPane exclusions = new FlowPane(6.0, 6.0);
+                exclusions.setAlignment(Pos.CENTER_LEFT);
                 for (String channel : imageChannels) {
                     CheckBox box = new CheckBox(channel);
                     box.setSelected(check.channels().contains(channel));
                     styleCheckBox(box);
                     channelBoxes.put(channel, box);
                     channels.getChildren().add(box);
-                    box.selectedProperty().addListener((obs, oldValue, newValue) -> notifyListeners());
+                    CheckBox excluded = new CheckBox(channel);
+                    excluded.setSelected(check.excludedChannels().contains(channel) && check.channels().contains(channel));
+                    excluded.setTooltip(new Tooltip("Exclude " + channel + " | selected compartment from thresholding and threshold QC."));
+                    styleCheckBox(excluded);
+                    excludedChannelBoxes.put(channel, excluded);
+                    exclusions.getChildren().add(excluded);
+                    box.selectedProperty().addListener((obs, oldValue, newValue) -> {
+                        refreshExclusionChoices();
+                        notifyListeners();
+                    });
+                    excluded.selectedProperty().addListener((obs, oldValue, newValue) -> notifyListeners());
                 }
                 Button remove = new Button("Delete check");
                 remove.setTooltip(new Tooltip("Delete check"));
@@ -2807,14 +2912,31 @@ final class AstraPipelineLauncher {
                 label.textProperty().addListener((obs, oldValue, newValue) -> notifyListeners());
                 compartment.valueProperty().addListener((obs, oldValue, newValue) -> notifyListeners());
                 HBox.setHgrow(channels, Priority.ALWAYS);
+                HBox.setHgrow(exclusions, Priority.ALWAYS);
                 VBox channelField = nestedField("Channels", channels);
+                VBox exclusionField = nestedField("Threshold Exclusions", exclusions);
                 HBox.setHgrow(channelField, Priority.ALWAYS);
+                HBox.setHgrow(exclusionField, Priority.ALWAYS);
+                refreshExclusionChoices();
                 node.getChildren().addAll(
                         nestedField("Check name", label),
                         nestedField("Compartment", compartment),
                         channelField,
+                        exclusionField,
                         remove
                 );
+            }
+
+            private void refreshExclusionChoices() {
+                excludedChannelBoxes.forEach((channel, box) -> {
+                    boolean selected = channelBoxes.containsKey(channel) && channelBoxes.get(channel).isSelected();
+                    box.setDisable(!selected);
+                    box.setVisible(selected);
+                    box.setManaged(selected);
+                    if (!selected) {
+                        box.setSelected(false);
+                    }
+                });
             }
 
             private ColocalizationCheck check() {
@@ -2822,6 +2944,11 @@ final class AstraPipelineLauncher {
                         label.getText().trim(),
                         String.valueOf(compartment.getValue()).trim(),
                         channelBoxes.entrySet().stream()
+                                .filter(e -> e.getValue().isSelected())
+                                .map(Map.Entry::getKey)
+                                .toList(),
+                        excludedChannelBoxes.entrySet().stream()
+                                .filter(e -> channelBoxes.containsKey(e.getKey()) && channelBoxes.get(e.getKey()).isSelected())
                                 .filter(e -> e.getValue().isSelected())
                                 .map(Map.Entry::getKey)
                                 .toList()
@@ -2927,70 +3054,6 @@ final class AstraPipelineLauncher {
         }
     }
 
-    private static final class ThresholdExclusionEditor extends VBox {
-
-        private final Set<String> selected;
-        private final Map<String, CheckBox> boxes = new LinkedHashMap<>();
-        private final List<Runnable> listeners = new ArrayList<>();
-
-        private ThresholdExclusionEditor(String rawValue) {
-            super(7.0);
-            selected = new java.util.LinkedHashSet<>(EditableConstant.csvValues(rawValue));
-        }
-
-        private void refresh(List<String> markerKeys) {
-            selected.addAll(boxes.entrySet().stream()
-                    .filter(e -> e.getValue().isSelected())
-                    .map(Map.Entry::getKey)
-                    .toList());
-            selected.retainAll(markerKeys);
-            boxes.clear();
-            getChildren().clear();
-            if (markerKeys.isEmpty()) {
-                Label empty = new Label("Add colocalization checks to choose threshold exclusions.");
-                empty.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + MUTED + ";");
-                getChildren().add(empty);
-                return;
-            }
-            for (String key : markerKeys) {
-                CheckBox box = new CheckBox("Exclude " + key.replace("|", " | ") + " from thresholding/QC");
-                box.setSelected(selected.contains(key));
-                styleCheckBox(box);
-                box.selectedProperty().addListener((obs, oldValue, newValue) -> {
-                    if (newValue) {
-                        selected.add(key);
-                    } else {
-                        selected.remove(key);
-                    }
-                    notifyListeners();
-                });
-                boxes.put(key, box);
-                getChildren().add(box);
-            }
-        }
-
-        private List<String> selectedKeys() {
-            return boxes.entrySet().stream()
-                    .filter(e -> e.getValue().isSelected())
-                    .map(Map.Entry::getKey)
-                    .toList();
-        }
-
-        private void setRawValue(String rawValue) {
-            selected.clear();
-            selected.addAll(EditableConstant.csvValues(rawValue));
-            refresh(new ArrayList<>(boxes.keySet()));
-        }
-
-        private void addChangeListener(Runnable listener) {
-            listeners.add(listener);
-        }
-
-        private void notifyListeners() {
-            listeners.forEach(Runnable::run);
-        }
-    }
-
     private static final class ProjectImageSelectionEditor extends VBox {
 
         private final List<String> allNames;
@@ -3043,6 +3106,8 @@ final class AstraPipelineLauncher {
             chosen.setPrefSize(300.0, 320.0);
             available.setStyle(EditableConstant.controlStyle());
             chosen.setStyle(EditableConstant.controlStyle());
+            available.setCellFactory(list -> readableListCell());
+            chosen.setCellFactory(list -> readableListCell());
 
             Runnable refresh = () -> {
                 String query = filter.getText() == null ? "" : filter.getText().trim().toLowerCase(Locale.ROOT);
@@ -3164,58 +3229,41 @@ final class AstraPipelineLauncher {
     private static final class StageModeEditor extends VBox {
 
         private final List<String> orderedModes;
-        private final Map<String, CheckBox> boxes = new LinkedHashMap<>();
+        private final MenuButton selector = new MenuButton();
+        private final Map<String, CheckMenuItem> items = new LinkedHashMap<>();
         private final List<Runnable> listeners = new ArrayList<>();
         private boolean syncing;
 
         private StageModeEditor(List<String> modes, String rawValue) {
             super(7.0);
             this.orderedModes = List.copyOf(modes);
-            FlowPane options = new FlowPane(8.0, 8.0);
             for (String mode : orderedModes) {
-                CheckBox box = new CheckBox(displayMode(mode));
-                box.setUserData(mode);
-                styleCheckBox(box);
-                box.selectedProperty().addListener((obs, oldValue, newValue) -> {
+                CheckMenuItem item = new CheckMenuItem(displayMode(mode));
+                item.setUserData(mode);
+                item.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";");
+                item.selectedProperty().addListener((obs, oldValue, newValue) -> {
                     if (syncing) {
                         return;
                     }
-                    enforceResetExclusivity(mode, Boolean.TRUE.equals(newValue));
+                    updateSelectorText();
                     notifyListeners();
                 });
-                boxes.put(mode, box);
-                options.getChildren().add(box);
+                items.put(mode, item);
+                selector.getItems().add(item);
             }
-            Label hint = new Label("Choose stages in ASTRA's fixed order. RESET runs alone; export is a separate header action.");
+            selector.setMaxWidth(Double.MAX_VALUE);
+            selector.setFocusTraversable(false);
+            selector.setStyle(EditableConstant.controlStyle() + " -fx-mark-color: " + TEAL_DARK + "; -fx-alignment: center-left; -fx-text-fill: " + INK + ";");
+            Label hint = new Label("Choose stages in ASTRA's fixed order. Reset and export are separate header actions.");
             hint.setWrapText(true);
             hint.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-text-fill: " + MUTED + ";");
-            getChildren().addAll(options, hint);
+            getChildren().addAll(selector, hint);
             setRawValue(rawValue);
-        }
-
-        private void enforceResetExclusivity(String changedMode, boolean selected) {
-            if (!selected) {
-                return;
-            }
-            syncing = true;
-            if ("RESET".equals(changedMode)) {
-                boxes.forEach((mode, box) -> {
-                    if (!"RESET".equals(mode)) {
-                        box.setSelected(false);
-                    }
-                });
-            } else {
-                CheckBox reset = boxes.get("RESET");
-                if (reset != null) {
-                    reset.setSelected(false);
-                }
-            }
-            syncing = false;
         }
 
         private List<String> selectedModes() {
             return orderedModes.stream()
-                    .filter(mode -> boxes.containsKey(mode) && boxes.get(mode).isSelected())
+                    .filter(mode -> items.containsKey(mode) && items.get(mode).isSelected())
                     .toList();
         }
 
@@ -3226,11 +3274,9 @@ final class AstraPipelineLauncher {
         private void setRawValue(String rawValue) {
             List<String> selected = EditableConstant.csvValues(rawValue);
             syncing = true;
-            boxes.forEach((mode, box) -> box.setSelected(selected.contains(mode)));
+            items.forEach((mode, item) -> item.setSelected(selected.contains(mode)));
             syncing = false;
-            if (boxes.containsKey("RESET") && boxes.get("RESET").isSelected()) {
-                enforceResetExclusivity("RESET", true);
-            }
+            updateSelectorText();
         }
 
         private void addChangeListener(Runnable listener) {
@@ -3239,6 +3285,13 @@ final class AstraPipelineLauncher {
 
         private void notifyListeners() {
             listeners.forEach(Runnable::run);
+        }
+
+        private void updateSelectorText() {
+            List<String> selected = selectedModes();
+            selector.setText(selected.isEmpty()
+                    ? "Choose stages"
+                    : selected.stream().map(StageModeEditor::displayMode).reduce((a, b) -> a + ", " + b).orElse(""));
         }
 
         private static String displayMode(String mode) {
@@ -3417,8 +3470,6 @@ final class AstraPipelineLauncher {
                 value = renderStringList(channelEditor.selectedChannels());
             } else if (activeEditor instanceof ColocalizationChecksEditor checksEditor) {
                 value = checksEditor.render();
-            } else if (activeEditor instanceof ThresholdExclusionEditor exclusionEditor) {
-                value = renderStringList(exclusionEditor.selectedKeys());
             } else if (activeEditor instanceof ProjectImageSelectionEditor imageNamesEditor) {
                 value = imageNamesEditor.render();
             } else if (activeEditor instanceof MarkerKeyMapEditor markerMapEditor) {
@@ -3473,8 +3524,6 @@ final class AstraPipelineLauncher {
                 channelEditor.setSelected(EditableConstant.csvValues(displayValue));
             } else if (editor instanceof ColocalizationChecksEditor checksEditor) {
                 checksEditor.setRawValue(displayValue);
-            } else if (editor instanceof ThresholdExclusionEditor exclusionEditor) {
-                exclusionEditor.setRawValue(displayValue);
             } else if (editor instanceof ProjectImageSelectionEditor imageNamesEditor) {
                 imageNamesEditor.setRawValue(displayValue);
             } else if (editor instanceof MarkerKeyMapEditor markerMapEditor) {
@@ -3505,8 +3554,6 @@ final class AstraPipelineLauncher {
                 return renderStringList(channelEditor.selectedChannels());
             } else if (activeEditor instanceof ColocalizationChecksEditor checksEditor) {
                 return checksEditor.render();
-            } else if (activeEditor instanceof ThresholdExclusionEditor exclusionEditor) {
-                return renderStringList(exclusionEditor.selectedKeys());
             } else if (activeEditor instanceof ProjectImageSelectionEditor imageNamesEditor) {
                 return imageNamesEditor.render();
             } else if (activeEditor instanceof MarkerKeyMapEditor markerMapEditor) {
@@ -3623,8 +3670,6 @@ final class AstraPipelineLauncher {
                 channelEditor.addChangeListener(listener);
             } else if (activeEditor instanceof ColocalizationChecksEditor checksEditor) {
                 checksEditor.addChangeListener(listener);
-            } else if (activeEditor instanceof ThresholdExclusionEditor exclusionEditor) {
-                exclusionEditor.addChangeListener(listener);
             } else if (activeEditor instanceof ProjectImageSelectionEditor imageNamesEditor) {
                 imageNamesEditor.addChangeListener(listener);
             } else if (activeEditor instanceof MarkerKeyMapEditor markerMapEditor) {
@@ -3650,6 +3695,7 @@ final class AstraPipelineLauncher {
                 protected void updateItem(String item, boolean empty) {
                     super.updateItem(item, empty);
                     setText(empty ? null : AstraGuiPresentation.displayOption(item));
+                    setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";");
                 }
             });
             comboBox.setButtonCell(new ListCell<>() {
@@ -3657,6 +3703,7 @@ final class AstraPipelineLauncher {
                 protected void updateItem(String item, boolean empty) {
                     super.updateItem(item, empty);
                     setText(empty ? null : AstraGuiPresentation.displayOption(item));
+                    setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";");
                 }
             });
         }
