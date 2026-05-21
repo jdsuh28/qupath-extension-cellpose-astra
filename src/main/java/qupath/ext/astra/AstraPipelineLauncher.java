@@ -97,6 +97,7 @@ final class AstraPipelineLauncher {
             "^final\\s+(String|boolean|int|double|List|Map)\\s+([A-Z][A-Z0-9_]*)\\s*=\\s*(.*)$"
     );
     private static final String AUTOSAVE_PROFILE_FILE = "_autosave.json";
+    private static final String GUI_RUN_ACTIVE_PROPERTY = "ASTRA_GUI_RUN_ACTIVE";
     private static final String FONT_STACK = "\"Aptos Display\", \"Segoe UI\", \"Inter\", \"Helvetica Neue\", Arial, sans-serif";
     private static final String MONO_FONT_STACK = "\"JetBrains Mono\", \"SF Mono\", Consolas, monospace";
     private static final String INK = "#172431";
@@ -1796,6 +1797,8 @@ final class AstraPipelineLauncher {
         feedback.start();
         runButton.setDisable(true);
         Future<?> future = qupath.getThreadPoolManager().getSingleThreadExecutor(AstraPipelineLauncher.class).submit(() -> {
+            String previousGuiRunActive = System.getProperty(GUI_RUN_ACTIVE_PROPERTY);
+            System.setProperty(GUI_RUN_ACTIVE_PROPERTY, "true");
             try (RunLogCapture ignored = RunLogCapture.attach(feedback::appendLogText)) {
                 logger.info("ASTRA {} started from configuration dialog.", scriptName);
                 feedback.info("Started " + scriptName + ".");
@@ -1828,7 +1831,7 @@ final class AstraPipelineLauncher {
                     feedback.cancelled("Run cancellation was requested before the script stopped.");
                 } else {
                     feedback.error(String.valueOf(e.getMessage()));
-                    Platform.runLater(() -> Dialogs.showErrorMessage("ASTRA " + scriptName, String.valueOf(e.getMessage())));
+                    showRunFailureDialog(scriptName, feedback, String.valueOf(e.getMessage()));
                 }
             } catch (Throwable t) {
                 logger.error("ASTRA {} failed.", scriptName, t);
@@ -1836,13 +1839,32 @@ final class AstraPipelineLauncher {
                     feedback.cancelled("Run cancellation was requested before the script stopped.");
                 } else {
                     feedback.error(t.getClass().getSimpleName() + ": " + t.getMessage());
-                    Platform.runLater(() -> Dialogs.showErrorMessage("ASTRA " + scriptName, t.getClass().getSimpleName() + ": " + t.getMessage()));
+                    showRunFailureDialog(scriptName, feedback, t.getClass().getSimpleName() + ": " + t.getMessage());
                 }
             } finally {
+                restoreGuiRunActiveProperty(previousGuiRunActive);
                 Platform.runLater(() -> runButton.setDisable(false));
             }
         });
         feedback.attachFuture(future);
+    }
+
+    private static void showRunFailureDialog(String scriptName, RunFeedback feedback, String message) {
+        if (!feedback.markErrorDialogShown()) {
+            return;
+        }
+        Platform.runLater(() -> Dialogs.showErrorMessage(
+                "ASTRA " + scriptName,
+                String.valueOf(message) + "\n\nSee the ASTRA run log for full details."
+        ));
+    }
+
+    private static void restoreGuiRunActiveProperty(String previousValue) {
+        if (previousValue == null) {
+            System.clearProperty(GUI_RUN_ACTIVE_PROPERTY);
+        } else {
+            System.setProperty(GUI_RUN_ACTIVE_PROPERTY, previousValue);
+        }
     }
 
     private static int bracketBalance(String line) {
@@ -2036,6 +2058,7 @@ final class AstraPipelineLauncher {
         private final Button killButton;
         private final AtomicReference<Future<?>> currentRun = new AtomicReference<>();
         private final AtomicBoolean cancellationRequested = new AtomicBoolean(false);
+        private final AtomicBoolean errorDialogShown = new AtomicBoolean(false);
 
         private RunFeedback(String scriptName) {
             box = new VBox(8.0);
@@ -2087,6 +2110,7 @@ final class AstraPipelineLauncher {
                 progress.setManaged(true);
                 killButton.setDisable(false);
                 cancellationRequested.set(false);
+                errorDialogShown.set(false);
                 appendLine("ASTRA run started.");
             });
         }
@@ -2097,6 +2121,10 @@ final class AstraPipelineLauncher {
 
         private boolean isCancellationRequested() {
             return cancellationRequested.get();
+        }
+
+        private boolean markErrorDialogShown() {
+            return errorDialogShown.compareAndSet(false, true);
         }
 
         private void requestCancellation() {

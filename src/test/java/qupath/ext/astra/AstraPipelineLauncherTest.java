@@ -956,6 +956,21 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
+    void launcherOwnsOneModalErrorDialogPerGuiRun() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+
+        assertTrue(source.contains("private static final String GUI_RUN_ACTIVE_PROPERTY = \"ASTRA_GUI_RUN_ACTIVE\";"));
+        assertTrue(source.contains("System.setProperty(GUI_RUN_ACTIVE_PROPERTY, \"true\");"));
+        assertTrue(source.contains("restoreGuiRunActiveProperty(previousGuiRunActive);"));
+        assertTrue(source.contains("private static void showRunFailureDialog(String scriptName, RunFeedback feedback, String message)"));
+        assertTrue(source.contains("if (!feedback.markErrorDialogShown())"));
+        assertTrue(source.contains("private final AtomicBoolean errorDialogShown = new AtomicBoolean(false);"));
+        assertTrue(source.contains("errorDialogShown.set(false);"));
+        assertTrue(source.contains("return errorDialogShown.compareAndSet(false, true);"));
+        assertTrue(source.contains("See the ASTRA run log for full details."));
+    }
+
+    @Test
     void colocalizationThresholdAndBackgroundScopesAreInSetupPanel() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
 
