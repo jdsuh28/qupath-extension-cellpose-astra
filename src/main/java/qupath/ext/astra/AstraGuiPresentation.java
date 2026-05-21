@@ -36,6 +36,7 @@ final class AstraGuiPresentation {
             Map.entry("QC_FILENAME", "QC Filename"),
             Map.entry("RESULTS_FOLDER", "Results Folder"),
             Map.entry("RESULTS_BASENAME", "Results Basename"),
+            Map.entry("IMAGE_SCOPE", "Image Scope"),
             Map.entry("SELECTED_IMAGE_NAMES", "Selected Image Names")
     );
 
@@ -85,6 +86,18 @@ final class AstraGuiPresentation {
 
     static boolean supportsHeaderExport(String pipelineName) {
         return pipelineName != null && pipelineName.toLowerCase(Locale.ROOT).contains("colocalization");
+    }
+
+    static String displayOption(String option) {
+        if (option == null || option.isBlank()) {
+            return "";
+        }
+        return switch (option) {
+            case "CURRENT_IMAGE" -> "Current Image";
+            case "SELECTED_ANALYSIS_REGION" -> "Selected Analysis Region";
+            case "PROJECT_IMAGE_SELECTION" -> "Project Image Selection";
+            default -> displayLabel(option);
+        };
     }
 
     private static String titleCaseToken(String token) {

@@ -4,7 +4,6 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
 import javafx.application.Platform;
-import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.event.ActionEvent;
@@ -183,10 +182,6 @@ final class AstraPipelineLauncher {
                 configuredScript = applyConstants(scriptText, constants, profileState);
             } catch (RuntimeException e) {
                 Dialogs.showErrorMessage("ASTRA " + scriptName, e.getMessage());
-                return;
-            }
-            if (requiresAllImagesConfirmation(constants) && !confirmAllImagesRun(qupath, scriptName)) {
-                feedback.warn("Project-wide run cancelled before execution.");
                 return;
             }
             if (requiresProvisionalVascularConfirmation(constants) && !confirmProvisionalVascularAutomation(qupath, scriptName)) {
@@ -726,15 +721,6 @@ final class AstraPipelineLauncher {
         }
     }
 
-    static boolean requiresAllImagesConfirmation(List<EditableConstant> constants) {
-        for (EditableConstant constant : constants) {
-            if ("IMAGE_SCOPE".equals(constant.name)) {
-                return "ALL_IMAGES".equals(constant.optionValue());
-            }
-        }
-        return false;
-    }
-
     static boolean requiresProvisionalVascularConfirmation(List<EditableConstant> constants) {
         for (EditableConstant constant : constants) {
             if ("MODES_TO_RUN".equals(constant.name)) {
@@ -753,7 +739,7 @@ final class AstraPipelineLauncher {
         constants.stream()
                 .filter(c -> "SELECTED_IMAGE_NAMES".equals(c.name) && "List".equals(c.type))
                 .findFirst()
-                .ifPresent(c -> c.setCustomEditor(new SelectedImageNamesEditor(imageNames, c.displayValue)));
+                .ifPresent(c -> c.setCustomEditor(new ProjectImageSelectionEditor(imageNames, c.displayValue)));
     }
 
     private static void installColocalizationRunModeEditor(String scriptName, List<EditableConstant> constants) {
@@ -812,17 +798,6 @@ final class AstraPipelineLauncher {
                 .filter(markerKeys::contains)
                 .distinct()
                 .toList();
-    }
-
-    private static boolean confirmAllImagesRun(QuPathGUI qupath, String scriptName) {
-        int imageCount = qupath.getProject() == null ? 0 : qupath.getProject().getImageList().size();
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-        alert.initOwner(qupath.getStage());
-        alert.setTitle("ASTRA " + scriptName);
-        alert.setHeaderText("Run across the full project?");
-        alert.setContentText("IMAGE_SCOPE is ALL_IMAGES. ASTRA will run this pipeline on " + imageCount + " project entries.");
-        alert.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
-        return alert.showAndWait().filter(ButtonType.OK::equals).isPresent();
     }
 
     private static boolean confirmProvisionalVascularAutomation(QuPathGUI qupath, String scriptName) {
@@ -1953,8 +1928,8 @@ final class AstraPipelineLauncher {
             setVisible(rows, "BEST_PARAMS_FILE", isSelected(byName, "PARAM_SOURCE", "BEST_PARAMS_FILE"));
             setVisible(rows, "NUC_BEST_PARAMS_FILE", isSelected(byName, "NUC_PARAM_SOURCE", "BEST_PARAMS_FILE"));
             setVisible(rows, "CELL_BEST_PARAMS_FILE", isSelected(byName, "CELL_PARAM_SOURCE", "BEST_PARAMS_FILE"));
-            setVisible(rows, "SELECTED_IMAGE_NAMES", isSelected(byName, "IMAGE_SCOPE", "SELECTED_IMAGES_BY_NAME"));
-            setVisible(rows, "MATCH_SELECTED_IMAGE_NAMES_AGAINST_ORIGINAL", isSelected(byName, "IMAGE_SCOPE", "SELECTED_IMAGES_BY_NAME"));
+            setVisible(rows, "SELECTED_IMAGE_NAMES", isSelected(byName, "IMAGE_SCOPE", "PROJECT_IMAGE_SELECTION"));
+            setVisible(rows, "MATCH_SELECTED_IMAGE_NAMES_AGAINST_ORIGINAL", isSelected(byName, "IMAGE_SCOPE", "PROJECT_IMAGE_SELECTION"));
             setVisible(rows, "MANUAL_INTENSITY_THRESHOLDS", isSelected(byName, "THRESHOLD_MODE", "MANUAL"));
             setVisible(rows, "THRESHOLD_PROVENANCE_BY_MARKER", isSelected(byName, "THRESHOLD_MODE", "MANUAL"));
             setVisible(rows, "RANGE_THRESHOLD_FRACTION_BY_MARKER", isSelected(byName, "THRESHOLD_MODE", "RANGE_PERCENT"));
@@ -3016,77 +2991,31 @@ final class AstraPipelineLauncher {
         }
     }
 
-    private static final class SelectedImageNamesEditor extends VBox {
+    private static final class ProjectImageSelectionEditor extends VBox {
 
         private final List<String> allNames;
         private final LinkedHashSet<String> selected = new LinkedHashSet<>();
-        private final TextField filter = new TextField();
-        private final ListView<String> list = new ListView<>();
+        private final Label summary = new Label();
         private final List<Runnable> listeners = new ArrayList<>();
-        private boolean refreshing;
 
-        private SelectedImageNamesEditor(List<String> imageNames, String rawValue) {
+        private ProjectImageSelectionEditor(List<String> imageNames, String rawValue) {
             super(7.0);
             this.allNames = List.copyOf(imageNames);
             selected.addAll(EditableConstant.csvValues(rawValue));
             selected.retainAll(allNames);
 
-            filter.setPromptText("Filter project image names");
-            filter.setStyle(EditableConstant.controlStyle());
-            filter.textProperty().addListener((obs, oldValue, newValue) -> refreshVisibleNames());
-
-            list.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-            list.setPrefHeight(180.0);
-            list.setStyle(EditableConstant.controlStyle());
-            list.getSelectionModel().getSelectedItems().addListener((ListChangeListener<String>) change -> {
-                if (refreshing) {
-                    return;
-                }
-                Set<String> visible = new LinkedHashSet<>(list.getItems());
-                selected.removeIf(visible::contains);
-                selected.addAll(list.getSelectionModel().getSelectedItems());
-                notifyListeners();
-            });
-
-            Button selectFiltered = smallButton("Select filtered");
-            selectFiltered.setOnAction(event -> {
-                selected.addAll(list.getItems());
-                applySelectionToVisible();
-                notifyListeners();
-            });
-            Button clear = smallButton("Clear");
-            clear.setOnAction(event -> {
-                selected.clear();
-                applySelectionToVisible();
-                notifyListeners();
-            });
-            Button invertFiltered = smallButton("Invert filtered");
-            invertFiltered.setOnAction(event -> {
-                for (String name : list.getItems()) {
-                    if (!selected.remove(name)) {
-                        selected.add(name);
-                    }
-                }
-                applySelectionToVisible();
-                notifyListeners();
-            });
+            summary.setWrapText(true);
+            summary.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11.5px; -fx-text-fill: " + INK + ";");
+            Button choose = smallButton("Choose Images...");
+            choose.setOnAction(event -> openSelectionDialog());
             Button paste = smallButton("Paste names");
-            paste.setOnAction(event -> {
-                String text = Clipboard.getSystemClipboard().getString();
-                if (text != null && !text.isBlank()) {
-                    selected.addAll(parsePastedNames(text));
-                    selected.retainAll(allNames);
-                    applySelectionToVisible();
-                    notifyListeners();
-                }
-            });
-
-            FlowPane actions = new FlowPane(7.0, 7.0, selectFiltered, clear, invertFiltered, paste);
-            Label hint = new Label("Filter and multi-select exact project image names. Paste accepts newline- or comma-separated names.");
+            paste.setOnAction(event -> pasteNamesFromClipboard());
+            FlowPane actions = new FlowPane(7.0, 7.0, choose, paste);
+            Label hint = new Label("Project-scale runs use this explicit selected-image list. Use Choose Images to pick one, several, or all project images.");
             hint.setWrapText(true);
             hint.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-text-fill: " + MUTED + ";");
-            getChildren().addAll(filter, list, actions, hint);
-            refreshVisibleNames();
+            getChildren().addAll(summary, actions, hint);
+            refreshSummary();
         }
 
         private static Button smallButton(String text) {
@@ -3096,26 +3025,107 @@ final class AstraPipelineLauncher {
             return button;
         }
 
-        private void refreshVisibleNames() {
-            String query = filter.getText() == null ? "" : filter.getText().trim().toLowerCase(Locale.ROOT);
-            List<String> visible = allNames.stream()
-                    .filter(name -> query.isBlank() || name.toLowerCase(Locale.ROOT).contains(query))
-                    .toList();
-            refreshing = true;
-            list.getItems().setAll(visible);
-            refreshing = false;
-            applySelectionToVisible();
+        private void openSelectionDialog() {
+            Dialog<ButtonType> dialog = new Dialog<>();
+            dialog.setTitle("ASTRA Project Image Selection");
+            dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+            dialog.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
+
+            LinkedHashSet<String> working = new LinkedHashSet<>(selected);
+            TextField filter = new TextField();
+            filter.setPromptText("Filter available project images");
+            filter.setStyle(EditableConstant.controlStyle());
+            ListView<String> available = new ListView<>();
+            ListView<String> chosen = new ListView<>();
+            available.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+            chosen.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+            available.setPrefSize(300.0, 320.0);
+            chosen.setPrefSize(300.0, 320.0);
+            available.setStyle(EditableConstant.controlStyle());
+            chosen.setStyle(EditableConstant.controlStyle());
+
+            Runnable refresh = () -> {
+                String query = filter.getText() == null ? "" : filter.getText().trim().toLowerCase(Locale.ROOT);
+                available.getItems().setAll(allNames.stream()
+                        .filter(name -> !working.contains(name))
+                        .filter(name -> query.isBlank() || name.toLowerCase(Locale.ROOT).contains(query))
+                        .toList());
+                chosen.getItems().setAll(allNames.stream()
+                        .filter(working::contains)
+                        .toList());
+            };
+
+            Button addSelected = transferButton("Add >");
+            addSelected.setOnAction(event -> {
+                working.addAll(available.getSelectionModel().getSelectedItems());
+                refresh.run();
+            });
+            Button addAll = transferButton("Add All >>");
+            addAll.setOnAction(event -> {
+                working.addAll(available.getItems());
+                refresh.run();
+            });
+            Button removeSelected = transferButton("< Remove");
+            removeSelected.setOnAction(event -> {
+                working.removeAll(new ArrayList<>(chosen.getSelectionModel().getSelectedItems()));
+                refresh.run();
+            });
+            Button removeAll = transferButton("<< Remove All");
+            removeAll.setOnAction(event -> {
+                working.clear();
+                refresh.run();
+            });
+
+            VBox moveButtons = new VBox(8.0, addSelected, addAll, removeSelected, removeAll);
+            moveButtons.setAlignment(Pos.CENTER);
+            VBox availableBox = labeledSelector("Available Images", available);
+            VBox chosenBox = labeledSelector("Selected Images", chosen);
+            HBox chooser = new HBox(12.0, availableBox, moveButtons, chosenBox);
+            chooser.setAlignment(Pos.CENTER);
+            VBox content = new VBox(10.0, filter, chooser);
+            content.setPadding(new Insets(12.0));
+            dialog.getDialogPane().setContent(content);
+            filter.textProperty().addListener((obs, oldValue, newValue) -> refresh.run());
+            refresh.run();
+
+            dialog.showAndWait().filter(ButtonType.OK::equals).ifPresent(button -> {
+                selected.clear();
+                selected.addAll(allNames.stream().filter(working::contains).toList());
+                refreshSummary();
+                notifyListeners();
+            });
         }
 
-        private void applySelectionToVisible() {
-            refreshing = true;
-            list.getSelectionModel().clearSelection();
-            for (int i = 0; i < list.getItems().size(); i++) {
-                if (selected.contains(list.getItems().get(i))) {
-                    list.getSelectionModel().select(i);
-                }
+        private static VBox labeledSelector(String labelText, ListView<String> list) {
+            Label label = new Label(labelText);
+            label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 800; -fx-text-fill: " + INK + ";");
+            return new VBox(5.0, label, list);
+        }
+
+        private static Button transferButton(String text) {
+            Button button = smallButton(text);
+            button.setMaxWidth(Double.MAX_VALUE);
+            return button;
+        }
+
+        private void pasteNamesFromClipboard() {
+            String text = Clipboard.getSystemClipboard().getString();
+            if (text != null && !text.isBlank()) {
+                selected.clear();
+                selected.addAll(parsePastedNames(text));
+                selected.retainAll(allNames);
+                refreshSummary();
+                notifyListeners();
             }
-            refreshing = false;
+        }
+
+        private void refreshSummary() {
+            List<String> names = selectedNames();
+            String preview = names.stream().limit(3).reduce((a, b) -> a + ", " + b).orElse("none");
+            if (names.size() > 3) {
+                preview += ", +" + (names.size() - 3) + " more";
+            }
+            summary.setText(names.size() + " of " + allNames.size() + " project image(s) selected: " + preview);
         }
 
         private List<String> selectedNames() {
@@ -3132,7 +3142,7 @@ final class AstraPipelineLauncher {
             selected.clear();
             selected.addAll(EditableConstant.csvValues(rawValue));
             selected.retainAll(allNames);
-            applySelectionToVisible();
+            refreshSummary();
         }
 
         private void addChangeListener(Runnable listener) {
@@ -3359,6 +3369,7 @@ final class AstraPipelineLauncher {
                 comboBox.setValue(stripStringQuotes(type, displayValue));
                 comboBox.setMaxWidth(Double.MAX_VALUE);
                 styleAstraComboBox(comboBox);
+                installOptionDisplay(comboBox);
                 return comboBox;
             }
             if ("boolean".equals(type)) {
@@ -3408,7 +3419,7 @@ final class AstraPipelineLauncher {
                 value = checksEditor.render();
             } else if (activeEditor instanceof ThresholdExclusionEditor exclusionEditor) {
                 value = renderStringList(exclusionEditor.selectedKeys());
-            } else if (activeEditor instanceof SelectedImageNamesEditor imageNamesEditor) {
+            } else if (activeEditor instanceof ProjectImageSelectionEditor imageNamesEditor) {
                 value = imageNamesEditor.render();
             } else if (activeEditor instanceof MarkerKeyMapEditor markerMapEditor) {
                 value = markerMapEditor.render();
@@ -3464,7 +3475,7 @@ final class AstraPipelineLauncher {
                 checksEditor.setRawValue(displayValue);
             } else if (editor instanceof ThresholdExclusionEditor exclusionEditor) {
                 exclusionEditor.setRawValue(displayValue);
-            } else if (editor instanceof SelectedImageNamesEditor imageNamesEditor) {
+            } else if (editor instanceof ProjectImageSelectionEditor imageNamesEditor) {
                 imageNamesEditor.setRawValue(displayValue);
             } else if (editor instanceof MarkerKeyMapEditor markerMapEditor) {
                 markerMapEditor.setRawValue(displayValue);
@@ -3496,7 +3507,7 @@ final class AstraPipelineLauncher {
                 return checksEditor.render();
             } else if (activeEditor instanceof ThresholdExclusionEditor exclusionEditor) {
                 return renderStringList(exclusionEditor.selectedKeys());
-            } else if (activeEditor instanceof SelectedImageNamesEditor imageNamesEditor) {
+            } else if (activeEditor instanceof ProjectImageSelectionEditor imageNamesEditor) {
                 return imageNamesEditor.render();
             } else if (activeEditor instanceof MarkerKeyMapEditor markerMapEditor) {
                 return markerMapEditor.render();
@@ -3529,7 +3540,7 @@ final class AstraPipelineLauncher {
                 stageModeEditor.setRawValue(displayValue);
             } else if (editor instanceof ChannelCheckboxEditor channelEditor) {
                 channelEditor.setSelected(EditableConstant.csvValues(displayValue));
-            } else if (editor instanceof SelectedImageNamesEditor imageNamesEditor) {
+            } else if (editor instanceof ProjectImageSelectionEditor imageNamesEditor) {
                 imageNamesEditor.setRawValue(displayValue);
             } else if (editor instanceof MarkerKeyMapEditor markerMapEditor) {
                 markerMapEditor.setRawValue(displayValue);
@@ -3614,7 +3625,7 @@ final class AstraPipelineLauncher {
                 checksEditor.addChangeListener(listener);
             } else if (activeEditor instanceof ThresholdExclusionEditor exclusionEditor) {
                 exclusionEditor.addChangeListener(listener);
-            } else if (activeEditor instanceof SelectedImageNamesEditor imageNamesEditor) {
+            } else if (activeEditor instanceof ProjectImageSelectionEditor imageNamesEditor) {
                 imageNamesEditor.addChangeListener(listener);
             } else if (activeEditor instanceof MarkerKeyMapEditor markerMapEditor) {
                 markerMapEditor.addChangeListener(listener);
@@ -3631,6 +3642,23 @@ final class AstraPipelineLauncher {
             return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-background-color: #fbfdff; " +
                     "-fx-border-color: " + CONTROL_BORDER + "; -fx-border-radius: 4; -fx-background-radius: 4; " +
                     "-fx-control-inner-background: #fbfdff; -fx-text-fill: " + INK + ";";
+        }
+
+        private static void installOptionDisplay(ComboBox<String> comboBox) {
+            comboBox.setCellFactory(list -> new ListCell<>() {
+                @Override
+                protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty ? null : AstraGuiPresentation.displayOption(item));
+                }
+            });
+            comboBox.setButtonCell(new ListCell<>() {
+                @Override
+                protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty ? null : AstraGuiPresentation.displayOption(item));
+                }
+            });
         }
 
         private String renderFieldValue(String raw) {
