@@ -163,7 +163,7 @@ final class AstraPipelineLauncher {
             event.consume();
             String configuredScript;
             try {
-                configuredScript = applyConstants(scriptText, constants, profileState, Map.of("ASTRA_HEADER_ACTION", "\"EXPORT\""));
+                configuredScript = applyConstants(scriptText, constants, profileState, Map.of("SCRIPT_ACTION", "\"EXPORT\""));
             } catch (RuntimeException e) {
                 Dialogs.showErrorMessage("ASTRA " + scriptName, e.getMessage());
                 return;
@@ -310,7 +310,7 @@ final class AstraPipelineLauncher {
     private static boolean isInternalConstantName(String name) {
         return name == null
                 || name.startsWith("__")
-                || "ASTRA_HEADER_ACTION".equals(name)
+                || "SCRIPT_ACTION".equals(name)
                 || "localRunnerFile".equals(name)
                 || "USE_LOCAL_CLASSES".equals(name)
                 || "loader".equals(name);
@@ -775,7 +775,7 @@ final class AstraPipelineLauncher {
             return;
         }
         Map<String, String> overrides = new LinkedHashMap<>();
-        overrides.put("ASTRA_HEADER_ACTION", quoteGroovy(resetMode));
+        overrides.put("SCRIPT_ACTION", quoteGroovy(resetMode));
         if (projectReset) {
             List<String> names = projectImageNames(qupath);
             if (names.isEmpty()) {
@@ -3277,7 +3277,7 @@ final class AstraPipelineLauncher {
             selector.setMaxWidth(Double.MAX_VALUE);
             selector.setFocusTraversable(false);
             selector.setStyle(EditableConstant.controlStyle() + " -fx-mark-color: " + TEAL_DARK + "; -fx-alignment: center-left; -fx-text-fill: " + INK + ";");
-            Label hint = new Label("Choose stages in ASTRA's fixed order. Reset and export are separate header actions.");
+            Label hint = new Label("Choose stages in ASTRA's fixed order. Reset and export are separate script actions.");
             hint.setWrapText(true);
             hint.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-text-fill: " + MUTED + ";");
             getChildren().addAll(selector, hint);

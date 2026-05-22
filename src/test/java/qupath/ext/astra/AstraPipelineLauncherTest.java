@@ -1051,19 +1051,19 @@ class AstraPipelineLauncherTest {
         assertTrue(source.contains("private final MenuButton selector = new MenuButton();"));
         assertTrue(source.contains("new CheckMenuItem(displayMode(mode))"));
         assertTrue(source.contains("installColocalizationRunModeEditor(scriptName, constants)"));
-        assertTrue(source.contains("Choose stages in ASTRA's fixed order. Reset and export are separate header actions."));
+        assertTrue(source.contains("Choose stages in ASTRA's fixed order. Reset and export are separate script actions."));
         assertTrue(source.contains("new Button(\"Reset Image...\")"));
         assertTrue(source.contains("new Button(\"Reset Project...\")"));
         assertTrue(source.contains("new Button(\"Export\")"));
-        assertTrue(source.contains("Map.of(\"ASTRA_HEADER_ACTION\", \"\\\"EXPORT\\\"\")"));
+        assertTrue(source.contains("Map.of(\"SCRIPT_ACTION\", \"\\\"EXPORT\\\"\")"));
         assertFalse(script.contains("MODES_TO_RUN_OPTIONS = [\"RESET\", \"DETECT_CELLS\", \"QUANTIFY\", \"EXPORT\"]"));
     }
 
     @Test
-    void headerExportOverrideRendersQuotedGroovyAction() {
+    void scriptActionOverrideRendersQuotedGroovyAction() {
         String script = """
                 final List MODES_TO_RUN = ["DETECT_CELLS", "QUANTIFY"]
-                final String ASTRA_HEADER_ACTION = "RUN"
+                final String SCRIPT_ACTION = "RUN"
                 final String SETTINGS_SOURCE = "script"
                 final String SETTINGS_PROFILE_NAME = ""
                 final String SETTINGS_PROFILE_PATH = ""
@@ -1075,11 +1075,11 @@ class AstraPipelineLauncherTest {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
 
         String rendered = AstraPipelineLauncher.applyConstants(script, constants, AstraPipelineLauncher.SettingsProfileState.scriptDefaults(),
-                Map.of("ASTRA_HEADER_ACTION", "\"EXPORT\""));
+                Map.of("SCRIPT_ACTION", "\"EXPORT\""));
 
         assertTrue(rendered.contains("final List MODES_TO_RUN = [\"DETECT_CELLS\", \"QUANTIFY\"]"));
-        assertTrue(rendered.contains("final String ASTRA_HEADER_ACTION = \"EXPORT\""));
-        assertFalse(rendered.contains("final String ASTRA_HEADER_ACTION = EXPORT"));
+        assertTrue(rendered.contains("final String SCRIPT_ACTION = \"EXPORT\""));
+        assertFalse(rendered.contains("final String SCRIPT_ACTION = EXPORT"));
     }
 
     @Test
