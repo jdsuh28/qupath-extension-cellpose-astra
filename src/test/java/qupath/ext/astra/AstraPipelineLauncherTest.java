@@ -1055,14 +1055,15 @@ class AstraPipelineLauncherTest {
         assertTrue(source.contains("new Button(\"Reset Image...\")"));
         assertTrue(source.contains("new Button(\"Reset Project...\")"));
         assertTrue(source.contains("new Button(\"Export\")"));
-        assertTrue(source.contains("Map.of(\"MODES_TO_RUN\", \"[\\\"EXPORT\\\"]\")"));
+        assertTrue(source.contains("Map.of(\"ASTRA_HEADER_ACTION\", \"\\\"EXPORT\\\"\")"));
         assertFalse(script.contains("MODES_TO_RUN_OPTIONS = [\"RESET\", \"DETECT_CELLS\", \"QUANTIFY\", \"EXPORT\"]"));
     }
 
     @Test
-    void headerExportOverrideRendersQuotedGroovyModeList() {
+    void headerExportOverrideRendersQuotedGroovyAction() {
         String script = """
                 final List MODES_TO_RUN = ["DETECT_CELLS", "QUANTIFY"]
+                final String ASTRA_HEADER_ACTION = "RUN"
                 final String SETTINGS_SOURCE = "script"
                 final String SETTINGS_PROFILE_NAME = ""
                 final String SETTINGS_PROFILE_PATH = ""
@@ -1074,10 +1075,11 @@ class AstraPipelineLauncherTest {
         List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
 
         String rendered = AstraPipelineLauncher.applyConstants(script, constants, AstraPipelineLauncher.SettingsProfileState.scriptDefaults(),
-                Map.of("MODES_TO_RUN", "[\"EXPORT\"]"));
+                Map.of("ASTRA_HEADER_ACTION", "\"EXPORT\""));
 
-        assertTrue(rendered.contains("final List MODES_TO_RUN = [\"EXPORT\"]"));
-        assertFalse(rendered.contains("final List MODES_TO_RUN = [EXPORT]"));
+        assertTrue(rendered.contains("final List MODES_TO_RUN = [\"DETECT_CELLS\", \"QUANTIFY\"]"));
+        assertTrue(rendered.contains("final String ASTRA_HEADER_ACTION = \"EXPORT\""));
+        assertFalse(rendered.contains("final String ASTRA_HEADER_ACTION = EXPORT"));
     }
 
     @Test
