@@ -52,7 +52,20 @@ final class MasterContract {
      * @throws IllegalStateException when neither bundled nor local contract can be read.
      */
     static MasterContract load() {
-        ClassLoader loader = MasterContract.class.getClassLoader();
+        return load(MasterContract.class.getClassLoader(), LOCAL_MANIFEST);
+    }
+
+    /**
+     * Loads a bundled contract resource with an explicit local fallback path.
+     * This exists so tests can prove release JAR resource loading without the
+     * sibling base checkout fallback.
+     *
+     * @param loader class loader used to find bundled resources.
+     * @param localManifest optional local-development manifest fallback.
+     * @return parsed contract wrapper.
+     * @throws IllegalStateException when neither bundled nor local contract can be read.
+     */
+    static MasterContract load(ClassLoader loader, Path localManifest) {
         try (InputStream stream = loader.getResourceAsStream(BUNDLED_RESOURCE)) {
             if (stream != null) {
                 try (Reader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
@@ -63,16 +76,16 @@ final class MasterContract {
             throw new IllegalStateException("Failed to read bundled ASTRA master contract: " + BUNDLED_RESOURCE, e);
         }
 
-        if (Files.isRegularFile(LOCAL_MANIFEST)) {
-            try (Reader reader = Files.newBufferedReader(LOCAL_MANIFEST, StandardCharsets.UTF_8)) {
-                return new MasterContract(parse(reader, LOCAL_MANIFEST.toString()));
+        if (Files.isRegularFile(localManifest)) {
+            try (Reader reader = Files.newBufferedReader(localManifest, StandardCharsets.UTF_8)) {
+                return new MasterContract(parse(reader, localManifest.toString()));
             } catch (IOException e) {
-                throw new IllegalStateException("Failed to read local ASTRA master contract: " + LOCAL_MANIFEST, e);
+                throw new IllegalStateException("Failed to read local ASTRA master contract: " + localManifest, e);
             }
         }
 
         throw new IllegalStateException("Missing ASTRA master contract. Expected resource " + BUNDLED_RESOURCE
-                + " or local file " + LOCAL_MANIFEST + ".");
+                + " or local file " + localManifest + ".");
     }
 
     /**

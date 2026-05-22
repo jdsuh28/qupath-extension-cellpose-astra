@@ -28,6 +28,7 @@ import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
@@ -293,7 +294,7 @@ final class AstraPipelineLauncher {
                 String targetName = name.substring(0, name.length() - "_HELP".length());
                 scriptHelp.put(targetName, EditableConstant.stripStringQuotes("String", value));
             } else {
-                out.add(new EditableConstant(type, name, value, suffix, start, end, isAdvanced(name), scriptOptions.get(name), scriptHelp.get(name)));
+                out.add(new EditableConstant(type, name, value, suffix, start, end, groupFor(name), isAdvanced(name), scriptOptions.get(name), scriptHelp.get(name)));
             }
             for (int j = i; j <= endLine; j++) {
                 if (j > i) {
@@ -331,13 +332,43 @@ final class AstraPipelineLauncher {
                 continue;
             }
             String type = String.valueOf(param.getOrDefault("type", "String"));
-            String value = String.valueOf(param.getOrDefault("defaultGroovy", "\"\""));
+            String value = resolveContractDefaultValueText(String.valueOf(param.getOrDefault("defaultGroovy", "\"\"")));
             List<String> options = parseStringOptions(String.valueOf(param.getOrDefault("optionsGroovy", "[]")));
             String help = stripGroovyString(String.valueOf(param.getOrDefault("helpGroovy", "")));
             boolean advanced = Boolean.TRUE.equals(param.get("advanced"));
-            out.add(new EditableConstant(type, name, value, "", -1, -1, advanced, options, help));
+            String group = String.valueOf(param.getOrDefault("group", groupFor(name)));
+            out.add(new EditableConstant(type, name, value, "", -1, -1, group, advanced, options, help));
         }
         return out;
+    }
+
+    private static String resolveContractDefaultValueText(String expr) {
+        String resolved = expr == null ? "" : expr;
+        for (Map.Entry<String, String> entry : cellposeDefaultLiteralMap().entrySet()) {
+            resolved = resolved.replace("CellposeInferenceDefaults." + entry.getKey(), entry.getValue());
+        }
+        if ("Math.max(1, Runtime.runtime.availableProcessors() - 1)".equals(resolved.trim())) {
+            return String.valueOf(Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
+        }
+        return resolved;
+    }
+
+    private static Map<String, String> cellposeDefaultLiteralMap() {
+        return Map.ofEntries(
+                Map.entry("DIAMETER_UM_AUTO", "0.0d"),
+                Map.entry("CELLPROB_THRESHOLD", "0.0d"),
+                Map.entry("FLOW_THRESHOLD", "0.4d"),
+                Map.entry("NITER_AUTO", "0"),
+                Map.entry("SAM_SIMPLIFY_DISTANCE_PX", "0.0d"),
+                Map.entry("SAM_NORM_PMIN", "1.0d"),
+                Map.entry("SAM_NORM_PMAX", "99.0d"),
+                Map.entry("MODEL_SOURCE_MODEL_NAME", "\"MODEL_NAME\""),
+                Map.entry("MODEL_SOURCE_SAVED", "\"SAVED\""),
+                Map.entry("MODEL_SOURCE_FILE", "\"FILE\""),
+                Map.entry("MODEL_NAME_CPSAM", "\"cpsam\""),
+                Map.entry("COLOCALIZATION_THRESHOLD_MODE", "\"LOG_KDE_VALLEY\""),
+                Map.entry("BACKGROUND_MODE_NONE", "\"NONE\"")
+        );
     }
 
     private static String pipelineIdFor(String scriptName, String scriptText) {
@@ -1068,7 +1099,7 @@ final class AstraPipelineLauncher {
         VBox basic = sectionShell("Basic", "Start here. These are the normal run controls: target, scope, channels, model source, thresholds, and outputs.");
         for (String group : orderedGroups(constants, false)) {
             List<EditableConstant> groupConstants = constants.stream()
-                    .filter(c -> !c.advanced && group.equals(groupFor(c.name)))
+                    .filter(c -> !c.advanced && group.equals(c.group))
                     .filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))
                     .toList();
             if (!groupConstants.isEmpty()) {
@@ -1079,7 +1110,7 @@ final class AstraPipelineLauncher {
         VBox advanced = sectionShell("Advanced", "Defaults are intentionally conservative. Open these only for deliberate tuning, diagnostics, or publication-specific overrides.");
         for (String group : orderedGroups(constants, true)) {
             List<EditableConstant> groupConstants = constants.stream()
-                    .filter(c -> c.advanced && group.equals(groupFor(c.name)))
+                    .filter(c -> c.advanced && group.equals(c.group))
                     .filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))
                     .toList();
             if (!groupConstants.isEmpty()) {
@@ -1351,7 +1382,10 @@ final class AstraPipelineLauncher {
         }
         Node editor = constant.createEditor();
         constant.addChangeListener(autosave::markManualEditAndSave);
-        Node row = editor instanceof MarkerKeyMapEditor
+        if (constant.name.contains("MATCH_") && constant.name.contains("_AGAINST_ORIGINAL")) {
+            Tooltip.install(editor, new Tooltip("Use this when QuPath display names were renamed after import and ASTRA should match against the original imported image names."));
+        }
+        Node row = editor instanceof MarkerKeyMapEditor || editor instanceof ProjectImageSelectionEditor
                 ? labeledVariableBlock(label, editor)
                 : labeledRow(label, editor, 180.0);
         panel.getChildren().add(row);
@@ -2319,7 +2353,7 @@ final class AstraPipelineLauncher {
             if (constant.advanced != advanced) {
                 continue;
             }
-            String group = groupFor(constant.name);
+            String group = constant.group;
             if (!groups.contains(group)) {
                 groups.add(group);
             }
@@ -2429,7 +2463,7 @@ final class AstraPipelineLauncher {
         private final VBox box;
         private final Label status;
         private final ProgressIndicator progress;
-        private final TextArea output;
+        private final StyledLogView output;
         private final Button killButton;
         private final AtomicReference<Future<?>> currentRun = new AtomicReference<>();
         private final AtomicBoolean cancellationRequested = new AtomicBoolean(false);
@@ -2461,11 +2495,7 @@ final class AstraPipelineLauncher {
             HBox.setHgrow(status, Priority.ALWAYS);
             header.getChildren().addAll(progress, status, killButton);
 
-            output = new TextArea();
-            output.setEditable(false);
-            output.setWrapText(true);
-            output.setPrefRowCount(32);
-            output.setStyle("-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 11.5px; -fx-control-inner-background: #071923; -fx-text-fill: #eaf7f4; -fx-highlight-fill: #1f7a7a; -fx-border-color: #4d7583; -fx-border-radius: 4; -fx-background-radius: 4;");
+            output = new StyledLogView();
             VBox.setVgrow(output, Priority.ALWAYS);
 
             box.getChildren().addAll(header, output);
@@ -2563,7 +2593,6 @@ final class AstraPipelineLauncher {
         private void append(String text) {
             Platform.runLater(() -> {
                 output.appendText(text);
-                output.positionCaret(output.getLength());
             });
         }
 
@@ -2577,6 +2606,78 @@ final class AstraPipelineLauncher {
 
         private void appendLine(String text) {
             append(text + "\n");
+        }
+    }
+
+    private static final class StyledLogView extends VBox {
+
+        private final VBox entries = new VBox(4.0);
+        private final StringBuilder plainText = new StringBuilder();
+        private final ScrollPane scroll;
+
+        private StyledLogView() {
+            super(6.0);
+            setStyle("-fx-background-color: #071923; -fx-border-color: #4d7583; -fx-border-radius: 4; -fx-background-radius: 4; -fx-padding: 7;");
+            Button copy = new Button("Copy All");
+            copy.setFocusTraversable(false);
+            copy.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900; -fx-background-color: #163748; -fx-text-fill: #eaf7f4; -fx-border-color: #4d7583; -fx-border-radius: 4; -fx-background-radius: 4;");
+            copy.setOnAction(event -> {
+                ClipboardContent content = new ClipboardContent();
+                content.putString(plainText.toString());
+                Clipboard.getSystemClipboard().setContent(content);
+            });
+            entries.setFillWidth(true);
+            scroll = new ScrollPane(entries);
+            scroll.setFitToWidth(true);
+            scroll.setPrefViewportHeight(520.0);
+            scroll.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
+            VBox.setVgrow(scroll, Priority.ALWAYS);
+            getChildren().addAll(copy, scroll);
+        }
+
+        private void appendText(String text) {
+            if (text == null || text.isEmpty()) {
+                return;
+            }
+            plainText.append(text);
+            String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
+            String[] lines = normalized.split("\n", -1);
+            for (int i = 0; i < lines.length; i++) {
+                if (i == lines.length - 1 && lines[i].isEmpty() && normalized.endsWith("\n")) {
+                    continue;
+                }
+                appendLineNode(lines[i]);
+            }
+            scroll.setVvalue(1.0d);
+        }
+
+        private void clear() {
+            plainText.setLength(0);
+            entries.getChildren().clear();
+        }
+
+        private void appendLineNode(String line) {
+            Label label = new Label(line == null || line.isBlank() ? " " : line);
+            label.setWrapText(true);
+            label.setMaxWidth(Double.MAX_VALUE);
+            label.setStyle(logLineStyle(line));
+            entries.getChildren().add(label);
+        }
+
+        private static String logLineStyle(String line) {
+            String severityColor = "#d9e8ea";
+            String upper = line == null ? "" : line.toUpperCase(Locale.ROOT);
+            if (upper.contains("[ERROR]") || upper.contains(" ERROR ") || upper.startsWith("ERROR")) {
+                severityColor = "#ff9f91";
+            } else if (upper.contains("[WARN]") || upper.contains(" WARN ") || upper.startsWith("WARN")) {
+                severityColor = "#ffd27a";
+            } else if (upper.contains("[DONE]") || upper.contains("[SUCCESS]") || upper.contains(" COMPLETE")) {
+                severityColor = "#9fe5b6";
+            } else if (upper.contains("[CANCELLED]")) {
+                severityColor = "#ffe0a3";
+            }
+            String weight = upper.startsWith("===") || upper.contains(" ASTRA ") ? "900" : "500";
+            return "-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 11.5px; -fx-font-weight: " + weight + "; -fx-text-fill: " + severityColor + ";";
         }
     }
 
@@ -2883,43 +2984,77 @@ final class AstraPipelineLauncher {
 
     private static final class ChannelCheckboxEditor extends VBox {
 
-        private final Map<String, CheckBox> boxes = new LinkedHashMap<>();
+        private final MenuButton button = new MenuButton();
+        private final Map<String, CheckMenuItem> items = new LinkedHashMap<>();
+        private final List<Runnable> listeners = new ArrayList<>();
+        private List<String> choices = List.of();
 
         private ChannelCheckboxEditor(String titleText, List<String> channels, String rawValue) {
             super(7.0);
             Label title = new Label(titleText);
             title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 900; -fx-text-fill: " + INK + ";");
-            FlowPane options = new FlowPane(8.0, 8.0);
-            List<String> selected = EditableConstant.csvValues(rawValue);
-            for (String channel : channels) {
-                CheckBox box = new CheckBox(channel);
-                box.setSelected(selected.contains(channel));
-                styleCheckBox(box);
-                boxes.put(channel, box);
-                options.getChildren().add(box);
-            }
+            button.setMaxWidth(Double.MAX_VALUE);
+            button.setStyle(EditableConstant.controlStyle() + " -fx-alignment: center-left; -fx-text-fill: " + INK + ";");
             if (channels.isEmpty()) {
                 Label empty = new Label("Open an image to choose channels without typing.");
                 empty.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + MUTED + ";");
                 getChildren().addAll(title, empty);
             } else {
-                getChildren().addAll(title, options);
+                getChildren().addAll(title, button);
             }
+            setChoices(channels, EditableConstant.csvValues(rawValue));
+        }
+
+        private void setChoices(List<String> channels, List<String> selected) {
+            choices = channels == null ? List.of() : List.copyOf(channels);
+            LinkedHashSet<String> keepSelected = new LinkedHashSet<>(selected == null ? List.of() : selected);
+            button.getItems().clear();
+            items.clear();
+            for (String channel : choices) {
+                CheckMenuItem item = new CheckMenuItem(channel);
+                item.setSelected(keepSelected.contains(channel));
+                item.selectedProperty().addListener((obs, oldValue, newValue) -> {
+                    updateButtonText();
+                    notifyListeners();
+                });
+                items.put(channel, item);
+                button.getItems().add(item);
+            }
+            updateButtonText();
         }
 
         private List<String> selectedChannels() {
-            return boxes.entrySet().stream()
+            return items.entrySet().stream()
                     .filter(e -> e.getValue().isSelected())
                     .map(Map.Entry::getKey)
                     .toList();
         }
 
         private void setSelected(List<String> values) {
-            boxes.forEach((name, box) -> box.setSelected(values.contains(name)));
+            LinkedHashSet<String> selected = new LinkedHashSet<>(values == null ? List.of() : values);
+            items.forEach((name, item) -> item.setSelected(selected.contains(name)));
+            updateButtonText();
         }
 
         private void addChangeListener(Runnable listener) {
-            boxes.values().forEach(box -> box.selectedProperty().addListener((obs, oldValue, newValue) -> listener.run()));
+            listeners.add(listener);
+        }
+
+        private void notifyListeners() {
+            listeners.forEach(Runnable::run);
+        }
+
+        private void updateButtonText() {
+            List<String> selected = selectedChannels();
+            if (choices.isEmpty()) {
+                button.setText("No channels available");
+            } else if (selected.isEmpty()) {
+                button.setText("Choose channels");
+            } else if (selected.size() <= 2) {
+                button.setText(String.join(", ", selected));
+            } else {
+                button.setText(selected.size() + " channels selected");
+            }
         }
     }
 
@@ -2976,47 +3111,32 @@ final class AstraPipelineLauncher {
 
         private final class CheckRow {
 
-            private final HBox node = new HBox(PARAMETER_ROW_GAP);
+            private final VBox node = new VBox(PARAMETER_ROW_GAP);
             private final TextField label = new TextField();
             private final ComboBox<String> compartment = new ComboBox<>();
-            private final Map<String, CheckBox> channelBoxes = new LinkedHashMap<>();
-            private final Map<String, CheckBox> excludedChannelBoxes = new LinkedHashMap<>();
+            private final ChannelCheckboxEditor channelSelector;
+            private final ChannelCheckboxEditor exclusionSelector;
 
             private CheckRow(ColocalizationCheck check) {
-                node.setAlignment(Pos.CENTER_LEFT);
                 node.setMinHeight(64.0);
                 node.setStyle("-fx-background-color: white; -fx-border-color: #d7e2e6; -fx-border-radius: 5; -fx-background-radius: 5; -fx-padding: 8;");
                 label.setPromptText("Label");
                 label.setText(check.label());
                 label.setPrefColumnCount(18);
+                label.setMinWidth(180.0);
                 label.setStyle(EditableConstant.controlStyle());
                 compartment.getItems().addAll("Nucleus", "Cytoplasm", "Cell");
                 compartment.setValue(check.compartment().isBlank() ? "Nucleus" : check.compartment());
                 compartment.setMinWidth(120.0);
                 compartment.setPrefWidth(130.0);
                 styleAstraComboBox(compartment);
-                FlowPane channels = new FlowPane(6.0, 6.0);
-                channels.setAlignment(Pos.CENTER_LEFT);
-                FlowPane exclusions = new FlowPane(6.0, 6.0);
-                exclusions.setAlignment(Pos.CENTER_LEFT);
-                for (String channel : imageChannels) {
-                    CheckBox box = new CheckBox(channel);
-                    box.setSelected(check.channels().contains(channel));
-                    styleCheckBox(box);
-                    channelBoxes.put(channel, box);
-                    channels.getChildren().add(box);
-                    CheckBox excluded = new CheckBox(channel);
-                    excluded.setSelected(check.excludedChannels().contains(channel) && check.channels().contains(channel));
-                    excluded.setTooltip(new Tooltip("Exclude " + channel + " | selected compartment from thresholding and threshold QC."));
-                    styleCheckBox(excluded);
-                    excludedChannelBoxes.put(channel, excluded);
-                    exclusions.getChildren().add(excluded);
-                    box.selectedProperty().addListener((obs, oldValue, newValue) -> {
-                        refreshExclusionChoices();
-                        notifyListeners();
-                    });
-                    excluded.selectedProperty().addListener((obs, oldValue, newValue) -> notifyListeners());
-                }
+                channelSelector = new ChannelCheckboxEditor("Channels", imageChannels, renderStringList(check.channels()));
+                exclusionSelector = new ChannelCheckboxEditor("Threshold exclusions", check.channels(), renderStringList(check.excludedChannels()));
+                channelSelector.addChangeListener(() -> {
+                    refreshExclusionChoices();
+                    notifyListeners();
+                });
+                exclusionSelector.addChangeListener(() -> notifyListeners());
                 Button remove = new Button("Delete check");
                 remove.setTooltip(new Tooltip("Delete check"));
                 remove.setMinHeight(28.0);
@@ -3031,46 +3151,39 @@ final class AstraPipelineLauncher {
                 });
                 label.textProperty().addListener((obs, oldValue, newValue) -> notifyListeners());
                 compartment.valueProperty().addListener((obs, oldValue, newValue) -> notifyListeners());
-                HBox.setHgrow(channels, Priority.ALWAYS);
-                HBox.setHgrow(exclusions, Priority.ALWAYS);
-                VBox channelField = nestedField("Channels", channels);
-                VBox exclusionField = nestedField("Threshold Exclusions", exclusions);
+                HBox top = new HBox(PARAMETER_ROW_GAP);
+                top.setAlignment(Pos.CENTER_LEFT);
+                VBox nameField = nestedField("Check name", label);
+                VBox compartmentField = nestedField("Compartment", compartment);
+                HBox.setHgrow(nameField, Priority.ALWAYS);
+                top.getChildren().addAll(nameField, compartmentField, remove);
+
+                HBox selectors = new HBox(PARAMETER_ROW_GAP);
+                selectors.setAlignment(Pos.CENTER_LEFT);
+                VBox channelField = nestedField("Check channels", channelSelector);
+                VBox exclusionField = nestedField("Threshold exclusions", exclusionSelector);
                 HBox.setHgrow(channelField, Priority.ALWAYS);
                 HBox.setHgrow(exclusionField, Priority.ALWAYS);
+                selectors.getChildren().addAll(channelField, exclusionField);
                 refreshExclusionChoices();
-                node.getChildren().addAll(
-                        nestedField("Check name", label),
-                        nestedField("Compartment", compartment),
-                        channelField,
-                        exclusionField,
-                        remove
-                );
+                node.getChildren().addAll(top, selectors);
             }
 
             private void refreshExclusionChoices() {
-                excludedChannelBoxes.forEach((channel, box) -> {
-                    boolean selected = channelBoxes.containsKey(channel) && channelBoxes.get(channel).isSelected();
-                    box.setDisable(!selected);
-                    box.setVisible(selected);
-                    box.setManaged(selected);
-                    if (!selected) {
-                        box.setSelected(false);
-                    }
-                });
+                List<String> selectedChannels = channelSelector.selectedChannels();
+                List<String> retainedExclusions = exclusionSelector.selectedChannels().stream()
+                        .filter(selectedChannels::contains)
+                        .toList();
+                exclusionSelector.setChoices(selectedChannels, retainedExclusions);
             }
 
             private ColocalizationCheck check() {
                 return new ColocalizationCheck(
                         label.getText().trim(),
                         String.valueOf(compartment.getValue()).trim(),
-                        channelBoxes.entrySet().stream()
-                                .filter(e -> e.getValue().isSelected())
-                                .map(Map.Entry::getKey)
-                                .toList(),
-                        excludedChannelBoxes.entrySet().stream()
-                                .filter(e -> channelBoxes.containsKey(e.getKey()) && channelBoxes.get(e.getKey()).isSelected())
-                                .filter(e -> e.getValue().isSelected())
-                                .map(Map.Entry::getKey)
+                        channelSelector.selectedChannels(),
+                        exclusionSelector.selectedChannels().stream()
+                                .filter(channelSelector.selectedChannels()::contains)
                                 .toList()
                 );
             }
@@ -3191,7 +3304,8 @@ final class AstraPipelineLauncher {
             summary.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11.5px; -fx-text-fill: " + INK + ";");
             Button choose = smallButton("Choose Images...");
             choose.setOnAction(event -> openSelectionDialog());
-            Button paste = smallButton("Paste names");
+            Button paste = smallButton("Paste Image Names");
+            paste.setTooltip(new Tooltip("Paste one project image name per line, or comma-separated image names."));
             paste.setOnAction(event -> pasteNamesFromClipboard());
             FlowPane actions = new FlowPane(7.0, 7.0, choose, paste);
             Label hint = new Label("Project-scale runs use this explicit selected-image list. Use Choose Images to pick one, several, or all project images.");
@@ -3498,17 +3612,20 @@ final class AstraPipelineLauncher {
         private final String suffix;
         private final int start;
         private final int end;
+        private final String group;
         private final boolean advanced;
         private final List<String> options;
         private final String help;
         private Node editor;
+        private boolean defaultStyleInstalled;
 
-        private EditableConstant(String type, String name, String value, String suffix, int start, int end, boolean advanced, List<String> options, String help) {
+        private EditableConstant(String type, String name, String value, String suffix, int start, int end, String group, boolean advanced, List<String> options, String help) {
             this.type = type;
             this.name = name;
             this.suffix = suffix == null ? "" : suffix;
             this.start = start;
             this.end = end;
+            this.group = group == null || group.isBlank() ? groupFor(name) : group;
             this.advanced = advanced;
             this.options = options == null ? List.of() : List.copyOf(options);
             this.help = help == null || help.isBlank()
@@ -3531,6 +3648,7 @@ final class AstraPipelineLauncher {
         private Node createEditor() {
             if (editor == null) {
                 editor = buildEditor();
+                installDefaultStateStyle();
             }
             return editor;
         }
@@ -3620,6 +3738,7 @@ final class AstraPipelineLauncher {
 
         private void markDefault() {
             defaultDisplayValue = displayValue;
+            updateDefaultStateStyle();
         }
 
         void setDisplayValue(String displayValue) {
@@ -3655,6 +3774,7 @@ final class AstraPipelineLauncher {
             } else if (editor instanceof TextField field) {
                 field.setText(stripStringQuotes(type, displayValue));
             }
+            updateDefaultStateStyle();
         }
 
         String currentDisplayValue() {
@@ -3711,6 +3831,8 @@ final class AstraPipelineLauncher {
                 stageModeEditor.setRawValue(displayValue);
             } else if (editor instanceof ChannelCheckboxEditor channelEditor) {
                 channelEditor.setSelected(EditableConstant.csvValues(displayValue));
+            } else if (editor instanceof ColocalizationChecksEditor checksEditor) {
+                checksEditor.setRawValue(displayValue);
             } else if (editor instanceof ProjectImageSelectionEditor imageNamesEditor) {
                 imageNamesEditor.setRawValue(displayValue);
             } else if (editor instanceof MarkerKeyMapEditor markerMapEditor) {
@@ -3722,6 +3844,7 @@ final class AstraPipelineLauncher {
             } else if (editor instanceof TextField field) {
                 field.setText(stripStringQuotes(type, displayValue));
             }
+            updateDefaultStateStyle();
         }
 
         private void setDisplayString(String channelName) {
@@ -3757,6 +3880,27 @@ final class AstraPipelineLauncher {
 
         private void setCustomEditor(Node editor) {
             this.editor = editor;
+            installDefaultStateStyle();
+        }
+
+        private void installDefaultStateStyle() {
+            if (editor == null || defaultStyleInstalled) {
+                return;
+            }
+            defaultStyleInstalled = true;
+            editor.getProperties().putIfAbsent("astra.baseStyle", editor.getStyle() == null ? "" : editor.getStyle());
+            addChangeListener(this::updateDefaultStateStyle);
+            updateDefaultStateStyle();
+        }
+
+        private void updateDefaultStateStyle() {
+            if (editor == null) {
+                return;
+            }
+            Object base = editor.getProperties().getOrDefault("astra.baseStyle", "");
+            String baseStyle = String.valueOf(base);
+            String changedStyle = " -fx-effect: dropshadow(gaussian, rgba(212,167,44,0.42), 8, 0.2, 0, 0);";
+            editor.setStyle(isAtDefaultValue() ? baseStyle : baseStyle + changedStyle);
         }
 
         private String optionValue() {
@@ -3813,12 +3957,12 @@ final class AstraPipelineLauncher {
                     "-fx-control-inner-background: #fbfdff; -fx-text-fill: " + INK + ";";
         }
 
-        private static void installOptionDisplay(ComboBox<String> comboBox) {
+        private void installOptionDisplay(ComboBox<String> comboBox) {
             comboBox.setCellFactory(list -> new ListCell<>() {
                 @Override
                 protected void updateItem(String item, boolean empty) {
                     super.updateItem(item, empty);
-                    setText(empty ? null : AstraGuiPresentation.displayOption(item));
+                    setText(empty ? null : AstraGuiPresentation.displayOption(name, item));
                     setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";");
                 }
             });
@@ -3826,7 +3970,7 @@ final class AstraPipelineLauncher {
                 @Override
                 protected void updateItem(String item, boolean empty) {
                     super.updateItem(item, empty);
-                    setText(empty ? null : AstraGuiPresentation.displayOption(item));
+                    setText(empty ? null : AstraGuiPresentation.displayOption(name, item));
                     setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";");
                 }
             });
