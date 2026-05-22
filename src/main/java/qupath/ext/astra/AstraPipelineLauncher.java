@@ -140,7 +140,7 @@ final class AstraPipelineLauncher {
             return;
         }
 
-        List<EditableConstant> constants = extractEditableConstants(scriptText);
+        List<EditableConstant> constants = editableConstantsForScript(scriptName, scriptText);
         if (constants.isEmpty()) {
             Dialogs.showErrorMessage("ASTRA " + scriptName, "No editable ASTRA configuration constants were found.");
             return;
@@ -307,6 +307,59 @@ final class AstraPipelineLauncher {
         return out;
     }
 
+    static List<EditableConstant> editableConstantsForScript(String scriptName, String scriptText) {
+        MasterContract contract = MasterContract.load();
+        return contract.pipeline(pipelineIdFor(scriptName, scriptText))
+                .map(pipeline -> editableConstantsFromContract(pipeline))
+                .orElseGet(() -> extractEditableConstants(scriptText));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<EditableConstant> editableConstantsFromContract(Map<String, Object> pipeline) {
+        Object raw = pipeline.get("parameters");
+        if (!(raw instanceof List<?> params)) {
+            return List.of();
+        }
+        List<EditableConstant> out = new ArrayList<>();
+        for (Object item : params) {
+            if (!(item instanceof Map<?, ?> rawParam)) {
+                continue;
+            }
+            Map<String, Object> param = (Map<String, Object>) rawParam;
+            String name = String.valueOf(param.get("name"));
+            if (Boolean.TRUE.equals(param.get("internal")) || Boolean.FALSE.equals(param.get("editable")) || isInternalConstantName(name)) {
+                continue;
+            }
+            String type = String.valueOf(param.getOrDefault("type", "String"));
+            String value = String.valueOf(param.getOrDefault("defaultGroovy", "\"\""));
+            List<String> options = parseStringOptions(String.valueOf(param.getOrDefault("optionsGroovy", "[]")));
+            String help = stripGroovyString(String.valueOf(param.getOrDefault("helpGroovy", "")));
+            boolean advanced = Boolean.TRUE.equals(param.get("advanced"));
+            out.add(new EditableConstant(type, name, value, "", -1, -1, advanced, options, help));
+        }
+        return out;
+    }
+
+    private static String pipelineIdFor(String scriptName, String scriptText) {
+        Matcher matcher = Pattern.compile("(?m)^final\\s+String\\s+PIPELINE_ID\\s*=\\s*\"([^\"]+)\"").matcher(scriptText);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        String name = scriptName == null ? "" : scriptName.trim().toLowerCase(Locale.ROOT);
+        if (name.contains("colocalization")) return "colocalization";
+        if (name.contains("vascular")) return "vascular";
+        if (name.contains("training")) return "training";
+        if (name.contains("tuning")) return "tuning";
+        if (name.contains("validation")) return "validation";
+        if (name.contains("generate")) return "generate-regions";
+        return name;
+    }
+
+    private static String stripGroovyString(String value) {
+        String text = value == null ? "" : value.trim();
+        return EditableConstant.stripStringQuotes("String", text);
+    }
+
     private static boolean isInternalConstantName(String name) {
         return name == null
                 || name.startsWith("__")
@@ -359,6 +412,9 @@ final class AstraPipelineLauncher {
     }
 
     static String applyConstants(String scriptText, List<EditableConstant> constants, Map<String, String> overrides) {
+        if (isCompactEntrypoint(scriptText)) {
+            return applyUserOverrides(scriptText, constants, overrides == null ? Map.of() : overrides);
+        }
         StringBuilder out = new StringBuilder(scriptText);
         List<EditableConstant> reversed = new ArrayList<>(constants);
         Collections.reverse(reversed);
@@ -396,6 +452,11 @@ final class AstraPipelineLauncher {
     }
 
     static String applyConstants(String scriptText, List<EditableConstant> constants, SettingsProfileState profileState, Map<String, String> overrides) {
+        if (isCompactEntrypoint(scriptText)) {
+            Map<String, String> merged = new LinkedHashMap<>(overrides == null ? Map.of() : overrides);
+            merged.putAll(renderSettingsProvenance(constants, profileState, overrides));
+            return applyUserOverrides(scriptText, constants, merged);
+        }
         return applySettingsProvenanceConstants(applyConstants(scriptText, constants, overrides), constants, profileState, overrides);
     }
 
@@ -406,13 +467,7 @@ final class AstraPipelineLauncher {
     static String applySettingsProvenanceConstants(String scriptText, List<EditableConstant> constants, SettingsProfileState profileState, Map<String, String> overrides) {
         Objects.requireNonNull(scriptText, "scriptText");
         SettingsProfileState state = profileState == null ? SettingsProfileState.scriptDefaults() : profileState;
-        Map<String, String> provenance = new LinkedHashMap<>();
-        provenance.put("SETTINGS_SOURCE", quoteGroovy(state.exportSource()));
-        provenance.put("SETTINGS_PROFILE_NAME", quoteGroovy(state.profileName));
-        provenance.put("SETTINGS_PROFILE_PATH", quoteGroovy(state.profilePath));
-        provenance.put("SETTINGS_PROFILE_SHA256", quoteGroovy(state.profileSha256));
-        provenance.put("CONFIGURED_CONSTANTS_SHA256", quoteGroovy(configuredConstantsSha256(constants, overrides)));
-        provenance.put("MANUAL_EDIT_AFTER_PROFILE_LOAD", String.valueOf(state.manualEditAfterLoad()));
+        Map<String, String> provenance = renderSettingsProvenance(constants, state, overrides);
 
         List<String> missing = missingProvenanceConstants(scriptText, provenance.keySet());
         if (!missing.isEmpty()) {
@@ -424,6 +479,43 @@ final class AstraPipelineLauncher {
             configured = replaceProvenanceConstant(configured, entry.getKey(), entry.getValue());
         }
         return configured;
+    }
+
+    private static Map<String, String> renderSettingsProvenance(List<EditableConstant> constants, SettingsProfileState profileState, Map<String, String> overrides) {
+        SettingsProfileState state = profileState == null ? SettingsProfileState.scriptDefaults() : profileState;
+        Map<String, String> provenance = new LinkedHashMap<>();
+        provenance.put("SETTINGS_SOURCE", quoteGroovy(state.exportSource()));
+        provenance.put("SETTINGS_PROFILE_NAME", quoteGroovy(state.profileName));
+        provenance.put("SETTINGS_PROFILE_PATH", quoteGroovy(state.profilePath));
+        provenance.put("SETTINGS_PROFILE_SHA256", quoteGroovy(state.profileSha256));
+        provenance.put("CONFIGURED_CONSTANTS_SHA256", quoteGroovy(configuredConstantsSha256(constants, overrides)));
+        provenance.put("MANUAL_EDIT_AFTER_PROFILE_LOAD", String.valueOf(state.manualEditAfterLoad()));
+        return provenance;
+    }
+
+    private static boolean isCompactEntrypoint(String scriptText) {
+        return scriptText != null && scriptText.contains("final Map USER_OVERRIDES");
+    }
+
+    private static String applyUserOverrides(String scriptText, List<EditableConstant> constants, Map<String, String> overrides) {
+        Map<String, String> values = new LinkedHashMap<>();
+        for (EditableConstant constant : constants) {
+            values.put(constant.name, overrides.getOrDefault(constant.name, constant.currentDisplayValue()));
+        }
+        for (Map.Entry<String, String> entry : overrides.entrySet()) {
+            values.putIfAbsent(entry.getKey(), entry.getValue());
+        }
+
+        StringBuilder rendered = new StringBuilder("final Map USER_OVERRIDES = [\n");
+        values.forEach((name, value) -> rendered.append("        ").append(name).append(": ").append(value).append(",\n"));
+        rendered.append("]\n");
+
+        Pattern pattern = Pattern.compile("(?s)final\\s+Map\\s+USER_OVERRIDES\\s*=\\s*\\[.*?\\]\\s*(?=\\s*final\\s+ClassLoader)");
+        Matcher matcher = pattern.matcher(scriptText);
+        if (!matcher.find()) {
+            throw new IllegalArgumentException("Could not apply ASTRA overrides; compact script is missing USER_OVERRIDES before the class loader bootstrap.");
+        }
+        return matcher.replaceFirst(Matcher.quoteReplacement(rendered.toString()));
     }
 
     private static List<String> missingProvenanceConstants(String scriptText, Collection<String> requiredNames) {

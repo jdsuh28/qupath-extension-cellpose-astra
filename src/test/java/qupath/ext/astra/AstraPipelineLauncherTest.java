@@ -91,7 +91,7 @@ class AstraPipelineLauncherTest {
 
         for (Map.Entry<String, List<String>> entry : requiredByScript.entrySet()) {
             String source = realBaseScript(entry.getKey());
-            List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(source);
+            List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.editableConstantsForScript(entry.getKey(), source);
             List<String> names = constants.stream().map(AstraPipelineLauncher.EditableConstant::name).toList();
 
             assertFalse(constants.isEmpty(), entry.getKey() + " must expose editable constants.");
@@ -103,9 +103,8 @@ class AstraPipelineLauncherTest {
             }
             assertFalse(names.contains("USE_LOCAL_CLASSES"), entry.getKey() + " must not expose bootstrap source mode.");
             assertFalse(names.stream().anyMatch(name -> name.startsWith("__")), entry.getKey() + " must not expose bootstrap internals.");
-            assertTrue(source.indexOf("if (USE_LOCAL_CLASSES)") < source.indexOf("// USER EDIT SECTION"),
-                    entry.getKey() + " must load CellposeInferenceDefaults before editable constants.");
-            assertFalse(source.contains("loadClass(\"CellposeInferenceDefaults\")"), entry.getKey() + " must not probe loaded defaults.");
+            assertTrue(source.contains("final Map USER_OVERRIDES"), entry.getKey() + " must be a compact override entrypoint.");
+            assertTrue(source.contains("PipelineEntrypoint.groovy"), entry.getKey() + " must route through the shared manifest entrypoint.");
             assertFalse(source.contains("catch (ClassNotFoundException"), entry.getKey() + " must not reintroduce fallback-chain loading.");
         }
     }
@@ -1045,8 +1044,9 @@ class AstraPipelineLauncherTest {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
         String script = realBaseScript("analysis/src/main/groovy/colocalization/colocalization.groovy");
 
-        assertTrue(script.contains("final List MODES_TO_RUN_OPTIONS = [\"DETECT_CELLS\", \"QUANTIFY\"]"));
-        assertTrue(script.contains("final List MODES_TO_RUN = [\"DETECT_CELLS\", \"QUANTIFY\"]"));
+        assertEquals(List.of("DETECT_CELLS", "QUANTIFY"),
+                AstraGuiPresentation.visibleRunModeOptions("Colocalization", List.of()));
+        assertTrue(script.contains("final Map USER_OVERRIDES"));
         assertTrue(source.contains("private static final class StageModeEditor extends VBox"));
         assertTrue(source.contains("private final MenuButton selector = new MenuButton();"));
         assertTrue(source.contains("new CheckMenuItem(displayMode(mode))"));
@@ -1233,7 +1233,7 @@ class AstraPipelineLauncherTest {
         assertFalse(presentation.contains("ALL_IMAGES"));
         assertFalse(presentation.contains("SELECTED_IMAGES_BY_NAME"));
         assertTrue(source.contains("PROJECT_IMAGE_SELECTION"));
-        assertTrue(presentation.contains("SELECTED_ANALYSIS_REGION"));
+        assertEquals("Selected Analysis Region", AstraGuiPresentation.displayOption("SELECTED_ANALYSIS_REGION"));
     }
 
     @Test
