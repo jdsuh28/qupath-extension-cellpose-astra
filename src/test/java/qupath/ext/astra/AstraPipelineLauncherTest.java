@@ -1060,6 +1060,33 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
+    void compactEntrypointOmitsUnchangedSymbolicDefaultsFromUserOverrides() throws Exception {
+        String script = realBaseScript("analysis/src/main/groovy/colocalization/colocalization.groovy");
+        List<AstraPipelineLauncher.EditableConstant> constants =
+                AstraPipelineLauncher.editableConstantsForScript("Colocalization", script);
+
+        String rendered = AstraPipelineLauncher.applyConstants(script, constants, AstraPipelineLauncher.SettingsProfileState.scriptDefaults());
+
+        assertFalse(rendered.contains("CellposeInferenceDefaults."),
+                "The launcher must not render symbolic contract defaults before PipelineEntrypoint loads them.");
+        assertFalse(rendered.contains("NUC_CELLPROB:"),
+                "Unchanged contract defaults should be resolved by PipelineEntrypoint, not USER_OVERRIDES.");
+
+        AstraPipelineLauncher.EditableConstant nucCellprob = constants.stream()
+                .filter(c -> "NUC_CELLPROB".equals(c.name()))
+                .findFirst()
+                .orElseThrow();
+        nucCellprob.setDisplayValue("0.125d");
+
+        String changed = AstraPipelineLauncher.applyConstants(script, constants, AstraPipelineLauncher.SettingsProfileState.scriptDefaults());
+
+        assertTrue(changed.contains("NUC_CELLPROB: 0.125d"),
+                "Changed GUI values must still render as explicit USER_OVERRIDES.");
+        assertFalse(changed.contains("CellposeInferenceDefaults."),
+                "Changed overrides must not reintroduce unresolved symbolic defaults.");
+    }
+
+    @Test
     void scriptActionOverrideRendersQuotedGroovyAction() {
         String script = """
                 final List MODES_TO_RUN = ["DETECT_CELLS", "QUANTIFY"]
