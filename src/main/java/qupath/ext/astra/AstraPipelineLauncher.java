@@ -500,9 +500,14 @@ final class AstraPipelineLauncher {
     private static String applyUserOverrides(String scriptText, List<EditableConstant> constants, Map<String, String> overrides) {
         Map<String, String> values = new LinkedHashMap<>();
         for (EditableConstant constant : constants) {
-            values.put(constant.name, overrides.getOrDefault(constant.name, constant.currentDisplayValue()));
+            String override = overrides == null ? null : overrides.get(constant.name);
+            if (override != null) {
+                values.put(constant.name, override);
+            } else if (!constant.isAtDefaultValue()) {
+                values.put(constant.name, constant.currentDisplayValue());
+            }
         }
-        for (Map.Entry<String, String> entry : overrides.entrySet()) {
+        for (Map.Entry<String, String> entry : (overrides == null ? Map.<String, String>of() : overrides).entrySet()) {
             values.putIfAbsent(entry.getKey(), entry.getValue());
         }
 
@@ -3683,6 +3688,10 @@ final class AstraPipelineLauncher {
                         : renderFieldValue(field.getText());
             }
             throw new IllegalStateException("Unsupported editor for " + name);
+        }
+
+        private boolean isAtDefaultValue() {
+            return Objects.equals(currentDisplayValue(), defaultDisplayValue);
         }
 
         private void resetEditor() {
