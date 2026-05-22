@@ -1,13 +1,16 @@
 package qupath.ext.astra;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URLClassLoader;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -126,6 +129,27 @@ class AstraExtensionContractTest {
             assertFalse(path.endsWith(".ome.tif"), path);
             assertFalse(path.endsWith(".ome.tiff"), path);
         });
+    }
+
+    /**
+     * Verifies release builds can load the master contract from the runtime JAR
+     * resource path without the sibling base checkout fallback.
+     *
+     * @param tempDir temporary classpath root.
+     * @throws Exception if the resource fixture cannot be created or loaded.
+     */
+    @Test
+    void masterContractLoadsBundledClasspathResourceWithoutLocalFallback(@TempDir Path tempDir) throws Exception {
+        Path resource = tempDir.resolve(MasterContract.BUNDLED_RESOURCE);
+        Files.createDirectories(resource.getParent());
+        Files.copy(Path.of("../astra/manifests/master-contract.json"), resource);
+
+        try (URLClassLoader loader = new URLClassLoader(new java.net.URL[]{tempDir.toUri().toURL()}, null)) {
+            MasterContract contract = MasterContract.load(loader, tempDir.resolve("missing/master-contract.json"));
+
+            assertEquals("ASTRA Runtime Master Contract", contract.root().get("contractName"));
+            assertTrue(contract.pipeline("colocalization").isPresent());
+        }
     }
 
     /**

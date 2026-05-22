@@ -722,9 +722,13 @@ class AstraPipelineLauncherTest {
         assertEquals("Stages To Run", AstraGuiPresentation.displayLabel("MODES_TO_RUN"));
         assertEquals("Use GPU", AstraGuiPresentation.displayLabel("USE_GPU"));
         assertEquals("Current Image", AstraGuiPresentation.displayOption("CURRENT_IMAGE"));
-        assertEquals("Selected Analysis Region", AstraGuiPresentation.displayOption("SELECTED_ANALYSIS_REGION"));
+        assertEquals("Selected Region", AstraGuiPresentation.displayOption("IMAGE_SCOPE", "SELECTED_ANALYSIS_REGION"));
         assertEquals("Project Image Selection", AstraGuiPresentation.displayOption("PROJECT_IMAGE_SELECTION"));
         assertEquals("Selected Images", AstraGuiPresentation.displayOption("SELECTED_IMAGES"));
+        assertEquals("Selected Region", AstraGuiPresentation.displayOption("IMAGE_SCOPE", "SELECTED_ANALYSIS_REGION"));
+        assertEquals("Selected Images", AstraGuiPresentation.displayOption("IMAGE_SCOPE", "PROJECT_IMAGE_SELECTION"));
+        assertEquals("Per Image", AstraGuiPresentation.displayOption("THRESHOLD_SCOPE", "IMAGE"));
+        assertEquals("Per Region", AstraGuiPresentation.displayOption("THRESHOLD_SCOPE", "REGION"));
         assertEquals("Local Percentile", AstraGuiPresentation.displayOption("LOCAL_PERCENTILE"));
         assertEquals("Detection Target", AstraGuiPresentation.displayLabel("DETECTION_TARGET"));
         assertEquals("Threshold Source Images", AstraGuiPresentation.displayLabel("THRESHOLD_SELECTED_IMAGE_NAMES"));
@@ -809,6 +813,18 @@ class AstraPipelineLauncherTest {
         assertFalse(keys.contains("AF647|Nucleus"));
         assertEquals(List.of("AF488|Nucleus"), AstraPipelineLauncher.thresholdedMarkerKeysFromChecks(checks));
         assertEquals("[\"DAPI|Nucleus\"]", AstraPipelineLauncher.renderStringList(List.of("DAPI|Nucleus")));
+    }
+
+    @Test
+    void markerMapKeysIncludeAllCheckRowsAndCompartments() {
+        List<AstraPipelineLauncher.ColocalizationCheck> checks = List.of(
+                new AstraPipelineLauncher.ColocalizationCheck("nuc", "Nucleus", List.of("DAPI", "AF488"), List.of("DAPI")),
+                new AstraPipelineLauncher.ColocalizationCheck("cyto", "Cytoplasm", List.of("AF555"), List.of()),
+                new AstraPipelineLauncher.ColocalizationCheck("cell", "Cell", List.of("AF647"), List.of())
+        );
+
+        assertEquals(List.of("AF488|Nucleus", "AF555|Cytoplasm", "AF647|Cell"),
+                AstraPipelineLauncher.thresholdedMarkerKeysFromChecks(checks));
     }
 
     @Test
@@ -972,13 +988,16 @@ class AstraPipelineLauncherTest {
         assertFalse(source.contains("setText(\"...\")"));
         assertTrue(source.contains("nestedField(\"Check name\", label)"));
         assertTrue(source.contains("nestedField(\"Compartment\", compartment)"));
-        assertTrue(source.contains("nestedField(\"Channels\", channels)"));
-        assertTrue(source.contains("nestedField(\"Threshold Exclusions\", exclusions)"));
+        assertTrue(source.contains("new ChannelCheckboxEditor(\"Channels\""));
+        assertTrue(source.contains("new ChannelCheckboxEditor(\"Threshold exclusions\""));
+        assertTrue(source.contains("nestedField(\"Check channels\", channelSelector)"));
+        assertTrue(source.contains("nestedField(\"Threshold exclusions\", exclusionSelector)"));
+        assertFalse(source.contains("FlowPane channels"));
         assertTrue(source.contains("compartment.getItems().addAll(\"Nucleus\", \"Cytoplasm\", \"Cell\")"));
         assertTrue(source.contains("compartment.setMinWidth(120.0)"));
         assertTrue(source.contains("compartment.setPrefWidth(130.0)"));
         assertTrue(source.contains("styleAstraComboBox(compartment)"));
-        assertTrue(source.contains("channels.setAlignment(Pos.CENTER_LEFT)"));
+        assertTrue(source.contains("label.setMinWidth(180.0)"));
         assertTrue(source.contains("private static String nestedLabelStyle()"));
         assertTrue(source.contains("private static String checkBoxStyle()"));
         assertTrue(source.contains("private static void styleCheckBox(CheckBox box)"));
@@ -1076,6 +1095,7 @@ class AstraPipelineLauncherTest {
                 .filter(c -> "NUC_CELLPROB".equals(c.name()))
                 .findFirst()
                 .orElseThrow();
+        assertEquals("0.0d", nucCellprob.currentDisplayValue());
         nucCellprob.setDisplayValue("0.125d");
 
         String changed = AstraPipelineLauncher.applyConstants(script, constants, AstraPipelineLauncher.SettingsProfileState.scriptDefaults());
@@ -1221,7 +1241,7 @@ class AstraPipelineLauncherTest {
         assertTrue(source.contains("transferButton(\"< Remove\")"));
         assertTrue(source.contains("transferButton(\"<< Remove All\")"));
         assertTrue(source.contains("summary.setText(names.size() + \" of \" + allNames.size()"));
-        assertTrue(source.contains("smallButton(\"Paste names\")"));
+        assertTrue(source.contains("smallButton(\"Paste Image Names\")"));
         assertTrue(source.contains("renderStringList(selectedNames())"));
         assertTrue(source.contains("\"THRESHOLD_SELECTED_IMAGE_NAMES\".equals(c.name)"));
         assertTrue(source.contains("available.setCellFactory(list -> readableListCell())"));

@@ -62,6 +62,20 @@ final class AstraGuiPresentation {
         return explicit != null ? explicit : displayLabel(option);
     }
 
+    static String displayOption(String constantName, String option) {
+        if ("IMAGE_SCOPE".equals(constantName)) {
+            if ("CURRENT_IMAGE".equals(option)) return "Current Image";
+            if ("SELECTED_ANALYSIS_REGION".equals(option)) return "Selected Region";
+            if ("PROJECT_IMAGE_SELECTION".equals(option)) return "Selected Images";
+        }
+        if ("THRESHOLD_SCOPE".equals(constantName)) {
+            if ("IMAGE".equals(option)) return "Per Image";
+            if ("REGION".equals(option)) return "Per Region";
+            if ("SELECTED_IMAGES".equals(option)) return "Selected Images";
+        }
+        return displayOption(option);
+    }
+
     private static String titleCaseToken(String token) {
         String lower = token.toLowerCase(Locale.ROOT);
         return lower.substring(0, 1).toUpperCase(Locale.ROOT) + lower.substring(1);
