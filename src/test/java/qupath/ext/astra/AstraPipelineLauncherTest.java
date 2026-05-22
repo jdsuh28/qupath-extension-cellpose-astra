@@ -660,7 +660,7 @@ class AstraPipelineLauncherTest {
         assertTrue(source.contains("private static final double PARAMETER_ROW_GAP = 8.0;"));
         assertTrue(source.contains("header.setPadding(new Insets(22.0, CONTENT_HORIZONTAL_MARGIN, 20.0, CONTENT_HORIZONTAL_MARGIN));"));
         assertTrue(source.contains("body.setPadding(new Insets(0, 0, 18.0, 0));"));
-        assertTrue(source.contains("workspace.setPadding(new Insets(0, CONTENT_HORIZONTAL_MARGIN, 18.0, CONTENT_HORIZONTAL_MARGIN));"));
+        assertTrue(source.contains("workspace.setPadding(new Insets(CONTENT_HORIZONTAL_MARGIN, CONTENT_HORIZONTAL_MARGIN, 18.0, CONTENT_HORIZONTAL_MARGIN));"));
         assertFalse(source.contains("BODY_HORIZONTAL_MARGIN"));
         assertFalse(source.contains("BODY_LEFT_MARGIN"));
         assertFalse(source.contains("BODY_RIGHT_MARGIN"));
@@ -998,10 +998,15 @@ class AstraPipelineLauncherTest {
         assertFalse(source.contains("setText(\"...\")"));
         assertTrue(source.contains("nestedField(\"Check name\", label)"));
         assertTrue(source.contains("nestedField(\"Compartment\", compartment)"));
-        assertTrue(source.contains("new ChannelCheckboxEditor(\"Channels\""));
-        assertTrue(source.contains("new ChannelCheckboxEditor(\"Threshold exclusions\""));
+        assertTrue(source.contains("new ChannelCheckboxEditor(\"\", imageChannels"));
+        assertTrue(source.contains("new ChannelCheckboxEditor(\"\", check.channels(), renderStringList(check.excludedChannels()), \"Choose check channels first.\")"));
         assertTrue(source.contains("nestedField(\"Check channels\", channelSelector)"));
         assertTrue(source.contains("nestedField(\"Threshold exclusions\", exclusionSelector)"));
+        assertTrue(source.contains("private static final class MultiSelectListEditor extends VBox"));
+        assertTrue(source.contains("list.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE)"));
+        assertTrue(source.contains("Button selectAll = ProjectImageSelectionEditor.smallButton(\"Select All\")"));
+        assertTrue(source.contains("Button clear = ProjectImageSelectionEditor.smallButton(\"Clear\")"));
+        assertTrue(source.contains("ButtonType.APPLY"));
         assertFalse(source.contains("FlowPane channels"));
         assertTrue(source.contains("compartment.getItems().addAll(\"Nucleus\", \"Cytoplasm\", \"Cell\")"));
         assertTrue(source.contains("compartment.setMinWidth(120.0)"));
@@ -1022,6 +1027,7 @@ class AstraPipelineLauncherTest {
         assertTrue(source.contains("private static void styleComboBoxSubnodes(ComboBox<String> combo)"));
         assertTrue(source.contains("combo.lookup(\".arrow-button\")"));
         assertTrue(source.contains("arrowButton.setStyle(\"-fx-background-color: transparent;"));
+        assertTrue(source.contains("-fx-text-base-color: \" + INK"));
         assertTrue(source.contains("combo.setButtonCell(readableComboCell())"));
         assertTrue(source.contains("combo.setCellFactory(list -> readableComboCell())"));
         assertTrue(source.contains("-fx-text-fill: \" + INK"));
@@ -1058,7 +1064,9 @@ class AstraPipelineLauncherTest {
 
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"POSITIVITY_METHOD\")"));
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"EXPRESSION_CLASSIFICATION_MODE\")"));
-        assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"DISPLAY_COLOCALIZATION_CHECK\")"));
+        assertTrue(source.contains("installDisplayCheckSelector(checksPanel, displayCheckConstant, checksEditor, autosave)"));
+        assertTrue(source.contains("checksPanel.getChildren().add(labeledRow(\"Display in QuPath UI\", displayCheck, 160.0))"));
+        assertFalse(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"DISPLAY_COLOCALIZATION_CHECK\")"));
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"PIXEL_POSITIVE_FRACTION_MIN\")"));
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"THRESHOLD_POPULATION\")"));
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"GMM_COMPONENTS\")"));
@@ -1084,13 +1092,19 @@ class AstraPipelineLauncherTest {
                 AstraGuiPresentation.visibleRunModeOptions("Colocalization", List.of()));
         assertTrue(script.contains("final Map USER_OVERRIDES"));
         assertTrue(source.contains("private static final class StageModeEditor extends VBox"));
-        assertTrue(source.contains("private final MenuButton selector = new MenuButton();"));
-        assertTrue(source.contains("new CheckMenuItem(displayMode(mode))"));
+        assertTrue(source.contains("private final MultiSelectListEditor selector;"));
+        assertTrue(source.contains("new MultiSelectListEditor(\"\", orderedModes, EditableConstant.csvValues(rawValue)"));
         assertTrue(source.contains("installColocalizationRunModeEditor(scriptName, constants)"));
         assertTrue(source.contains("Choose stages in ASTRA's fixed order. Reset and export are separate script actions."));
-        assertTrue(source.contains("new Button(\"Reset Image...\")"));
-        assertTrue(source.contains("new Button(\"Reset Project...\")"));
+        assertTrue(source.contains("new Button(\"Reset Image\")"));
+        assertTrue(source.contains("new Button(\"Reset Project\")"));
+        assertFalse(source.contains("new Button(\"Reset Image...\")"));
+        assertFalse(source.contains("new Button(\"Reset Project...\")"));
         assertTrue(source.contains("new Button(\"Export\")"));
+        assertTrue(source.contains("resetImage.setStyle(analysisHeaderButtonStyle())"));
+        assertTrue(source.contains("resetProject.setStyle(analysisHeaderButtonStyle())"));
+        assertTrue(source.contains("export.setStyle(exportHeaderButtonStyle())"));
+        assertTrue(source.contains("installDynamicHeaderGradient(header, scriptName)"));
         assertTrue(source.contains("Map.of(\"SCRIPT_ACTION\", \"\\\"EXPORT\\\"\")"));
         assertFalse(script.contains("MODES_TO_RUN_OPTIONS = [\"RESET\", \"DETECT_CELLS\", \"QUANTIFY\", \"EXPORT\"]"));
     }
@@ -1150,7 +1164,7 @@ class AstraPipelineLauncherTest {
     void colocalizationThresholdVisibilityDefaultImageStateIsCompact() {
         Set<String> visible = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE");
 
-        assertEquals(Set.of("EXPRESSION_CLASSIFICATION_MODE", "DISPLAY_COLOCALIZATION_CHECK", "POSITIVITY_METHOD", "THRESHOLD_POPULATION", "THRESHOLD_MODE", "THRESHOLD_SCOPE", "BACKGROUND_MODE", "GMM_COMPONENTS"), visible);
+        assertEquals(Set.of("EXPRESSION_CLASSIFICATION_MODE", "POSITIVITY_METHOD", "THRESHOLD_POPULATION", "THRESHOLD_MODE", "THRESHOLD_SCOPE", "BACKGROUND_MODE", "GMM_COMPONENTS"), visible);
     }
 
     @Test
@@ -1354,6 +1368,14 @@ class AstraPipelineLauncherTest {
         assertTrue(formatted.contains("cellpose: 34 tile images processed"));
         assertFalse(formatted.contains("[LOG]"));
         assertFalse(formatted.contains("COLOCALIZATION COLOCALIZATION"));
+
+        String cellpose = AstraPipelineLauncher.formatGuiLogText("""
+                INFO: AstraCellpose2D: 2026-05-22 17:55:45,761 [WARNING] the '--diam_mean' flag is deprecated
+                INFO: AstraCellpose2D: >>>> running cellpose on 1 images using all channels
+                """);
+
+        assertTrue(cellpose.contains("Cellpose WARNING: the '--diam_mean' flag is deprecated"));
+        assertTrue(cellpose.contains("Cellpose: running cellpose on 1 images using all channels"));
     }
 
     @Test
@@ -1362,6 +1384,9 @@ class AstraPipelineLauncherTest {
 
         assertTrue(source.contains("static String formatGuiLogText(String text)"));
         assertTrue(source.contains("feedback.append(formatGuiLogText(text));"));
+        assertTrue(source.contains("copy.setText(\"Copied\")"));
+        assertTrue(source.contains("new PauseTransition(Duration.seconds(1.2))"));
+        assertTrue(source.contains("copy.setStyle(copiedLogButtonStyle())"));
         assertFalse(source.contains("append(\"[LOG] \" + text)"));
         assertFalse(source.contains("feedback.append(\"[ERR] \" + text)"));
     }
