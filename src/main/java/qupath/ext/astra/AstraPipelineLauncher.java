@@ -163,7 +163,7 @@ final class AstraPipelineLauncher {
             event.consume();
             String configuredScript;
             try {
-                configuredScript = applyConstants(scriptText, constants, profileState, Map.of("MODES_TO_RUN", "[\"EXPORT\"]"));
+                configuredScript = applyConstants(scriptText, constants, profileState, Map.of("ASTRA_HEADER_ACTION", "\"EXPORT\""));
             } catch (RuntimeException e) {
                 Dialogs.showErrorMessage("ASTRA " + scriptName, e.getMessage());
                 return;
@@ -310,6 +310,7 @@ final class AstraPipelineLauncher {
     private static boolean isInternalConstantName(String name) {
         return name == null
                 || name.startsWith("__")
+                || "ASTRA_HEADER_ACTION".equals(name)
                 || "localRunnerFile".equals(name)
                 || "USE_LOCAL_CLASSES".equals(name)
                 || "loader".equals(name);
@@ -362,10 +363,32 @@ final class AstraPipelineLauncher {
         List<EditableConstant> reversed = new ArrayList<>(constants);
         Collections.reverse(reversed);
         Map<String, String> safeOverrides = overrides == null ? Map.of() : overrides;
+        Set<String> appliedOverrides = new LinkedHashSet<>();
         for (EditableConstant constant : reversed) {
-            out.replace(constant.start, constant.end, constant.renderDeclaration(safeOverrides.get(constant.name)));
+            String override = safeOverrides.get(constant.name);
+            if (override != null) {
+                appliedOverrides.add(constant.name);
+            }
+            out.replace(constant.start, constant.end, constant.renderDeclaration(override));
+        }
+        for (Map.Entry<String, String> entry : safeOverrides.entrySet()) {
+            if (!appliedOverrides.contains(entry.getKey())) {
+                replaceHiddenConstant(out, entry.getKey(), entry.getValue());
+            }
         }
         return out.toString();
+    }
+
+    private static void replaceHiddenConstant(StringBuilder out, String name, String renderedValue) {
+        if (name == null || name.isBlank() || renderedValue == null) {
+            return;
+        }
+        Pattern pattern = Pattern.compile("(?m)^(\\s*final\\s+(?:String|Object|List|Map|boolean|int|double)\\s+" + Pattern.quote(name) + "\\s*=\\s*)([^\\r\\n]*?)(\\s*(?://.*)?$)");
+        Matcher matcher = pattern.matcher(out);
+        if (!matcher.find()) {
+            throw new IllegalArgumentException("Could not apply override for hidden ASTRA constant: " + name);
+        }
+        out.replace(matcher.start(), matcher.end(), matcher.group(1) + renderedValue + matcher.group(3));
     }
 
     static String applyConstants(String scriptText, List<EditableConstant> constants, SettingsProfileState profileState) {
@@ -752,7 +775,7 @@ final class AstraPipelineLauncher {
             return;
         }
         Map<String, String> overrides = new LinkedHashMap<>();
-        overrides.put("MODES_TO_RUN", renderStringList(List.of(resetMode)));
+        overrides.put("ASTRA_HEADER_ACTION", quoteGroovy(resetMode));
         if (projectReset) {
             List<String> names = projectImageNames(qupath);
             if (names.isEmpty()) {

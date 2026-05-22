@@ -21,6 +21,8 @@ final class AstraGuiPresentation {
             Map.entry("CELL_MODEL_NAME", "Cell Model Name"),
             Map.entry("CELL_MODEL_FILE", "Cell Model File"),
             Map.entry("CELL_SAVED_MODEL_ID", "Cell Saved Model ID"),
+            Map.entry("NUC_MIN_MASK_EQUIVALENT_DIAMETER_UM", "Nucleus Minimum Mask Equivalent Diameter"),
+            Map.entry("CELL_MIN_MASK_EQUIVALENT_DIAMETER_UM", "Cell Minimum Mask Equivalent Diameter"),
             Map.entry("DETECTION_TARGET", "Detection Target"),
             Map.entry("THRESHOLD_MODE", "Threshold Mode"),
             Map.entry("THRESHOLD_SCOPE", "Threshold Scope"),
@@ -89,6 +91,8 @@ final class AstraGuiPresentation {
         if (supportsAnalysisHeaderActions(pipelineName)) {
             return (scriptOptions == null ? List.<String>of() : scriptOptions).stream()
                     .filter(option -> !"RESET".equals(option))
+                    .filter(option -> !"RESET_IMAGE".equals(option))
+                    .filter(option -> !"RESET_PROJECT".equals(option))
                     .filter(option -> !"EXPORT".equals(option))
                     .toList();
         }
