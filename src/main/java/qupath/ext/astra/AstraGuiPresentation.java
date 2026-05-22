@@ -73,6 +73,14 @@ final class AstraGuiPresentation {
             if ("REGION".equals(option)) return "Per Region";
             if ("SELECTED_IMAGES".equals(option)) return "Selected Images";
         }
+        if ("THRESHOLD_POPULATION".equals(constantName)) {
+            if ("CELL_MEAN".equals(option)) return "Cell Mean";
+            if ("PIXEL_INTENSITY".equals(option)) return "Pixel Intensity";
+        }
+        if ("POSITIVITY_METHOD".equals(constantName)) {
+            if ("MEAN_INTENSITY".equals(option)) return "Mean Intensity";
+            if ("PIXEL_POSITIVE_FRACTION".equals(option)) return "Pixel Positive Fraction";
+        }
         return displayOption(option);
     }
 

@@ -1258,6 +1258,8 @@ final class AstraPipelineLauncher {
                 "CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE", "CELL_SAVED_MODEL_ID",
                 "NUCLEUS_SEGMENTATION_CHANNELS", "CELL_SEGMENTATION_CHANNELS",
                 "COLOCALIZATION_CHECKS",
+                "POSITIVITY_METHOD", "PIXEL_POSITIVE_FRACTION_MIN",
+                "THRESHOLD_POPULATION",
                 "THRESHOLD_MODE", "THRESHOLD_SCOPE", "THRESHOLD_SELECTED_IMAGE_NAMES",
                 "MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL",
                 "MANUAL_INTENSITY_THRESHOLDS", "THRESHOLD_PROVENANCE_BY_MARKER",
@@ -1336,6 +1338,9 @@ final class AstraPipelineLauncher {
 
         VBox thresholdPanel = semanticCard("Thresholds & Background", "Choose how positivity thresholds and explicit background correction are resolved before running colocalization.");
         Map<String, RowNodes> thresholdRows = new LinkedHashMap<>();
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("POSITIVITY_METHOD"), displayLabel("POSITIVITY_METHOD"), autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("PIXEL_POSITIVE_FRACTION_MIN"), displayLabel("PIXEL_POSITIVE_FRACTION_MIN"), autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_POPULATION"), displayLabel("THRESHOLD_POPULATION"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_MODE"), displayLabel("THRESHOLD_MODE"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_SCOPE"), displayLabel("THRESHOLD_SCOPE"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_SELECTED_IMAGE_NAMES"), displayLabel("THRESHOLD_SELECTED_IMAGE_NAMES"), autosave);
@@ -1397,6 +1402,7 @@ final class AstraPipelineLauncher {
                                                                  VBox panel) {
         Runnable update = () -> {
             Set<String> visibleRows = colocalizationThresholdVisibilityState(
+                    optionValue(byName, "POSITIVITY_METHOD"),
                     optionValue(byName, "THRESHOLD_MODE"),
                     optionValue(byName, "THRESHOLD_SCOPE"),
                     optionValue(byName, "BACKGROUND_MODE")
@@ -1408,7 +1414,7 @@ final class AstraPipelineLauncher {
                 panel.getParent().requestLayout();
             }
         };
-        List.of("THRESHOLD_MODE", "THRESHOLD_SCOPE", "BACKGROUND_MODE").forEach(name -> {
+        List.of("POSITIVITY_METHOD", "THRESHOLD_MODE", "THRESHOLD_SCOPE", "BACKGROUND_MODE").forEach(name -> {
             EditableConstant constant = byName.get(name);
             if (constant != null) {
                 constant.addChangeListener(update);
@@ -1418,13 +1424,19 @@ final class AstraPipelineLauncher {
         update.run();
     }
 
-    static Set<String> colocalizationThresholdVisibilityState(String thresholdMode,
+    static Set<String> colocalizationThresholdVisibilityState(String positivityMethod,
+                                                              String thresholdMode,
                                                               String thresholdScope,
                                                               String backgroundMode) {
         Set<String> rows = new LinkedHashSet<>();
+        rows.add("POSITIVITY_METHOD");
+        rows.add("THRESHOLD_POPULATION");
         rows.add("THRESHOLD_MODE");
         rows.add("THRESHOLD_SCOPE");
         rows.add("BACKGROUND_MODE");
+        if ("PIXEL_POSITIVE_FRACTION".equals(positivityMethod)) {
+            rows.add("PIXEL_POSITIVE_FRACTION_MIN");
+        }
         if ("SELECTED_IMAGES".equals(thresholdScope)) {
             rows.add("THRESHOLD_SELECTED_IMAGE_NAMES");
             rows.add("MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL");
@@ -2174,6 +2186,7 @@ final class AstraPipelineLauncher {
             setVisible(rows, "MATCH_SELECTED_IMAGE_NAMES_AGAINST_ORIGINAL", isSelected(byName, "IMAGE_SCOPE", "PROJECT_IMAGE_SELECTION"));
             setVisible(rows, "THRESHOLD_SELECTED_IMAGE_NAMES", isSelected(byName, "THRESHOLD_SCOPE", "SELECTED_IMAGES"));
             setVisible(rows, "MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL", isSelected(byName, "THRESHOLD_SCOPE", "SELECTED_IMAGES"));
+            setVisible(rows, "PIXEL_POSITIVE_FRACTION_MIN", isSelected(byName, "POSITIVITY_METHOD", "PIXEL_POSITIVE_FRACTION"));
             setVisible(rows, "MANUAL_INTENSITY_THRESHOLDS", isSelected(byName, "THRESHOLD_MODE", "MANUAL"));
             setVisible(rows, "THRESHOLD_PROVENANCE_BY_MARKER", isSelected(byName, "THRESHOLD_MODE", "MANUAL"));
             setVisible(rows, "RANGE_THRESHOLD_FRACTION_BY_MARKER", isSelected(byName, "THRESHOLD_MODE", "RANGE_PERCENT"));
