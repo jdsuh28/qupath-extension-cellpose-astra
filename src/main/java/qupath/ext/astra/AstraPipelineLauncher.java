@@ -1258,12 +1258,13 @@ final class AstraPipelineLauncher {
                 "CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE", "CELL_SAVED_MODEL_ID",
                 "NUCLEUS_SEGMENTATION_CHANNELS", "CELL_SEGMENTATION_CHANNELS",
                 "COLOCALIZATION_CHECKS",
+                "EXPRESSION_CLASSIFICATION_MODE", "DISPLAY_COLOCALIZATION_CHECK",
                 "POSITIVITY_METHOD", "PIXEL_POSITIVE_FRACTION_MIN",
                 "THRESHOLD_POPULATION",
-                "THRESHOLD_MODE", "THRESHOLD_SCOPE", "THRESHOLD_SELECTED_IMAGE_NAMES",
+                "THRESHOLD_MODE", "GMM_COMPONENTS", "OTSU_CLASS_COUNT", "THRESHOLD_SCOPE", "THRESHOLD_SELECTED_IMAGE_NAMES",
                 "MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL",
-                "MANUAL_INTENSITY_THRESHOLDS", "THRESHOLD_PROVENANCE_BY_MARKER",
-                "RANGE_THRESHOLD_FRACTION_BY_MARKER",
+                "MANUAL_INTENSITY_BOUNDARIES_BY_MARKER", "MANUAL_INTENSITY_THRESHOLDS", "THRESHOLD_PROVENANCE_BY_MARKER",
+                "RANGE_THRESHOLD_FRACTIONS_BY_MARKER", "RANGE_THRESHOLD_FRACTION_BY_MARKER",
                 "BACKGROUND_MODE", "LOCAL_BACKGROUND_PERCENTILE",
                 "BACKGROUND_SUBTRACTION_BY_CHANNEL"
         ).contains(name);
@@ -1318,8 +1319,12 @@ final class AstraPipelineLauncher {
         checksPanel.getChildren().add(checksEditor);
 
         List<MarkerKeyMapEditor> markerMapEditors = new ArrayList<>();
+        installMarkerKeyMapEditor(byName.get("MANUAL_INTENSITY_BOUNDARIES_BY_MARKER"), MarkerMapValueType.NUMERIC,
+                "Manual expression boundaries appear here after checks define marker keys.", markerMapEditors);
         installMarkerKeyMapEditor(byName.get("MANUAL_INTENSITY_THRESHOLDS"), MarkerMapValueType.NUMERIC,
                 "Manual threshold values appear here after checks define marker keys.", markerMapEditors);
+        installMarkerKeyMapEditor(byName.get("RANGE_THRESHOLD_FRACTIONS_BY_MARKER"), MarkerMapValueType.NUMERIC,
+                "Range-percent expression boundary fractions appear here after checks define marker keys.", markerMapEditors);
         installMarkerKeyMapEditor(byName.get("RANGE_THRESHOLD_FRACTION_BY_MARKER"), MarkerMapValueType.NUMERIC,
                 "Range-percent threshold fractions appear here after checks define marker keys.", markerMapEditors);
         installMarkerKeyMapEditor(byName.get("THRESHOLD_PROVENANCE_BY_MARKER"), MarkerMapValueType.TEXT,
@@ -1338,15 +1343,21 @@ final class AstraPipelineLauncher {
 
         VBox thresholdPanel = semanticCard("Thresholds & Background", "Choose how positivity thresholds and explicit background correction are resolved before running colocalization.");
         Map<String, RowNodes> thresholdRows = new LinkedHashMap<>();
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("EXPRESSION_CLASSIFICATION_MODE"), displayLabel("EXPRESSION_CLASSIFICATION_MODE"), autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("DISPLAY_COLOCALIZATION_CHECK"), displayLabel("DISPLAY_COLOCALIZATION_CHECK"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("POSITIVITY_METHOD"), displayLabel("POSITIVITY_METHOD"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("PIXEL_POSITIVE_FRACTION_MIN"), displayLabel("PIXEL_POSITIVE_FRACTION_MIN"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_POPULATION"), displayLabel("THRESHOLD_POPULATION"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_MODE"), displayLabel("THRESHOLD_MODE"), autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("GMM_COMPONENTS"), displayLabel("GMM_COMPONENTS"), autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("OTSU_CLASS_COUNT"), displayLabel("OTSU_CLASS_COUNT"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_SCOPE"), displayLabel("THRESHOLD_SCOPE"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_SELECTED_IMAGE_NAMES"), displayLabel("THRESHOLD_SELECTED_IMAGE_NAMES"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL"), displayLabel("MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL"), autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("MANUAL_INTENSITY_BOUNDARIES_BY_MARKER"), displayLabel("MANUAL_INTENSITY_BOUNDARIES_BY_MARKER"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("MANUAL_INTENSITY_THRESHOLDS"), displayLabel("MANUAL_INTENSITY_THRESHOLDS"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_PROVENANCE_BY_MARKER"), displayLabel("THRESHOLD_PROVENANCE_BY_MARKER"), autosave);
+        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("RANGE_THRESHOLD_FRACTIONS_BY_MARKER"), displayLabel("RANGE_THRESHOLD_FRACTIONS_BY_MARKER"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("RANGE_THRESHOLD_FRACTION_BY_MARKER"), displayLabel("RANGE_THRESHOLD_FRACTION_BY_MARKER"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("BACKGROUND_MODE"), displayLabel("BACKGROUND_MODE"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("LOCAL_BACKGROUND_PERCENTILE"), displayLabel("LOCAL_BACKGROUND_PERCENTILE"), autosave);
@@ -1402,6 +1413,7 @@ final class AstraPipelineLauncher {
                                                                  VBox panel) {
         Runnable update = () -> {
             Set<String> visibleRows = colocalizationThresholdVisibilityState(
+                    optionValue(byName, "EXPRESSION_CLASSIFICATION_MODE"),
                     optionValue(byName, "POSITIVITY_METHOD"),
                     optionValue(byName, "THRESHOLD_MODE"),
                     optionValue(byName, "THRESHOLD_SCOPE"),
@@ -1414,7 +1426,7 @@ final class AstraPipelineLauncher {
                 panel.getParent().requestLayout();
             }
         };
-        List.of("POSITIVITY_METHOD", "THRESHOLD_MODE", "THRESHOLD_SCOPE", "BACKGROUND_MODE").forEach(name -> {
+        List.of("EXPRESSION_CLASSIFICATION_MODE", "POSITIVITY_METHOD", "THRESHOLD_MODE", "THRESHOLD_SCOPE", "BACKGROUND_MODE").forEach(name -> {
             EditableConstant constant = byName.get(name);
             if (constant != null) {
                 constant.addChangeListener(update);
@@ -1424,34 +1436,46 @@ final class AstraPipelineLauncher {
         update.run();
     }
 
-    static Set<String> colocalizationThresholdVisibilityState(String positivityMethod,
+    static Set<String> colocalizationThresholdVisibilityState(String expressionMode,
+                                                              String positivityMethod,
                                                               String thresholdMode,
                                                               String thresholdScope,
                                                               String backgroundMode) {
         Set<String> rows = new LinkedHashSet<>();
-        rows.add("POSITIVITY_METHOD");
-        rows.add("THRESHOLD_POPULATION");
+        boolean pixelLevel = "PIXEL_LEVEL_SCORE".equals(expressionMode);
+        rows.add("EXPRESSION_CLASSIFICATION_MODE");
+        rows.add("DISPLAY_COLOCALIZATION_CHECK");
         rows.add("THRESHOLD_MODE");
         rows.add("THRESHOLD_SCOPE");
-        rows.add("BACKGROUND_MODE");
-        if ("PIXEL_POSITIVE_FRACTION".equals(positivityMethod)) {
-            rows.add("PIXEL_POSITIVE_FRACTION_MIN");
+        if (!pixelLevel) {
+            rows.add("POSITIVITY_METHOD");
+            rows.add("THRESHOLD_POPULATION");
+            rows.add("BACKGROUND_MODE");
+            if ("PIXEL_POSITIVE_FRACTION".equals(positivityMethod)) {
+                rows.add("PIXEL_POSITIVE_FRACTION_MIN");
+            }
         }
         if ("SELECTED_IMAGES".equals(thresholdScope)) {
             rows.add("THRESHOLD_SELECTED_IMAGE_NAMES");
             rows.add("MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL");
         }
+        if ("GAUSSIAN_MIXTURE".equals(thresholdMode) || "LOG_GAUSSIAN_MIXTURE".equals(thresholdMode)) {
+            rows.add("GMM_COMPONENTS");
+        }
+        if ("AUTO_OTSU_PER_CHANNEL".equals(thresholdMode)) {
+            rows.add("OTSU_CLASS_COUNT");
+        }
         if ("MANUAL".equals(thresholdMode)) {
-            rows.add("MANUAL_INTENSITY_THRESHOLDS");
+            rows.add(pixelLevel ? "MANUAL_INTENSITY_BOUNDARIES_BY_MARKER" : "MANUAL_INTENSITY_THRESHOLDS");
             rows.add("THRESHOLD_PROVENANCE_BY_MARKER");
         }
         if ("RANGE_PERCENT".equals(thresholdMode)) {
-            rows.add("RANGE_THRESHOLD_FRACTION_BY_MARKER");
+            rows.add(pixelLevel ? "RANGE_THRESHOLD_FRACTIONS_BY_MARKER" : "RANGE_THRESHOLD_FRACTION_BY_MARKER");
         }
-        if ("MANUAL_OFFSET".equals(backgroundMode)) {
+        if (!pixelLevel && "MANUAL_OFFSET".equals(backgroundMode)) {
             rows.add("BACKGROUND_SUBTRACTION_BY_CHANNEL");
         }
-        if ("LOCAL_PERCENTILE".equals(backgroundMode)) {
+        if (!pixelLevel && "LOCAL_PERCENTILE".equals(backgroundMode)) {
             rows.add("LOCAL_BACKGROUND_PERCENTILE");
         }
         return rows;

@@ -639,6 +639,8 @@ class AstraPipelineLauncherTest {
     @Test
     void colocalizationPanelOwnsDetectionTarget() {
         assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("DETECTION_TARGET", true));
+        assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("EXPRESSION_CLASSIFICATION_MODE", true));
+        assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("DISPLAY_COLOCALIZATION_CHECK", true));
         assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("POSITIVITY_METHOD", true));
         assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("PIXEL_POSITIVE_FRACTION_MIN", true));
         assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("THRESHOLD_POPULATION", true));
@@ -735,6 +737,8 @@ class AstraPipelineLauncherTest {
         assertEquals("Cell Mean", AstraGuiPresentation.displayOption("THRESHOLD_POPULATION", "CELL_MEAN"));
         assertEquals("Pixel Intensity", AstraGuiPresentation.displayOption("THRESHOLD_POPULATION", "PIXEL_INTENSITY"));
         assertEquals("Pixel Positive Fraction", AstraGuiPresentation.displayOption("POSITIVITY_METHOD", "PIXEL_POSITIVE_FRACTION"));
+        assertEquals("Pixel Level Score", AstraGuiPresentation.displayOption("EXPRESSION_CLASSIFICATION_MODE", "PIXEL_LEVEL_SCORE"));
+        assertEquals("Legacy Binary", AstraGuiPresentation.displayOption("EXPRESSION_CLASSIFICATION_MODE", "LEGACY_BINARY"));
         assertEquals("Local Percentile", AstraGuiPresentation.displayOption("LOCAL_PERCENTILE"));
         assertEquals("Detection Target", AstraGuiPresentation.displayLabel("DETECTION_TARGET"));
         assertEquals("Threshold Source Images", AstraGuiPresentation.displayLabel("THRESHOLD_SELECTED_IMAGE_NAMES"));
@@ -1053,15 +1057,19 @@ class AstraPipelineLauncherTest {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
 
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"POSITIVITY_METHOD\")"));
+        assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"EXPRESSION_CLASSIFICATION_MODE\")"));
+        assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"DISPLAY_COLOCALIZATION_CHECK\")"));
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"PIXEL_POSITIVE_FRACTION_MIN\")"));
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"THRESHOLD_POPULATION\")"));
+        assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"GMM_COMPONENTS\")"));
+        assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"OTSU_CLASS_COUNT\")"));
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"THRESHOLD_SCOPE\")"));
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"THRESHOLD_SELECTED_IMAGE_NAMES\")"));
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"THRESHOLD_PROVENANCE_BY_MARKER\")"));
         assertFalse(source.contains("THRESHOLD_EXCLUDE_MARKERS"));
         assertTrue(source.contains("installColocalizationThresholdVisibility(byName, thresholdRows, thresholdPanel)"));
         assertTrue(source.contains("static Set<String> colocalizationThresholdVisibilityState("));
-        assertTrue(source.contains("List.of(\"POSITIVITY_METHOD\", \"THRESHOLD_MODE\", \"THRESHOLD_SCOPE\", \"BACKGROUND_MODE\")"));
+        assertTrue(source.contains("List.of(\"EXPRESSION_CLASSIFICATION_MODE\", \"POSITIVITY_METHOD\", \"THRESHOLD_MODE\", \"THRESHOLD_SCOPE\", \"BACKGROUND_MODE\")"));
         assertFalse(source.contains("BACKGROUND_SCOPE"));
         assertTrue(source.contains("panel.requestLayout()"));
         assertTrue(source.contains("row.editor.setDisable(!visible)"));
@@ -1140,16 +1148,16 @@ class AstraPipelineLauncherTest {
 
     @Test
     void colocalizationThresholdVisibilityDefaultImageStateIsCompact() {
-        Set<String> visible = AstraPipelineLauncher.colocalizationThresholdVisibilityState("MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE");
+        Set<String> visible = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE");
 
-        assertEquals(Set.of("POSITIVITY_METHOD", "THRESHOLD_POPULATION", "THRESHOLD_MODE", "THRESHOLD_SCOPE", "BACKGROUND_MODE"), visible);
+        assertEquals(Set.of("EXPRESSION_CLASSIFICATION_MODE", "DISPLAY_COLOCALIZATION_CHECK", "POSITIVITY_METHOD", "THRESHOLD_POPULATION", "THRESHOLD_MODE", "THRESHOLD_SCOPE", "BACKGROUND_MODE", "GMM_COMPONENTS"), visible);
     }
 
     @Test
     void colocalizationSelectedThresholdSourceRevealsImageSelector() {
-        Set<String> image = AstraPipelineLauncher.colocalizationThresholdVisibilityState("MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE");
-        Set<String> region = AstraPipelineLauncher.colocalizationThresholdVisibilityState("MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "REGION", "NONE");
-        Set<String> selected = AstraPipelineLauncher.colocalizationThresholdVisibilityState("MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "SELECTED_IMAGES", "NONE");
+        Set<String> image = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE");
+        Set<String> region = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "REGION", "NONE");
+        Set<String> selected = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "SELECTED_IMAGES", "NONE");
 
         assertEquals(image, region);
         assertTrue(selected.contains("THRESHOLD_SELECTED_IMAGE_NAMES"));
@@ -1158,23 +1166,28 @@ class AstraPipelineLauncherTest {
 
     @Test
     void colocalizationThresholdVisibilityIsModeDriven() {
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MEAN_INTENSITY", "MANUAL", "IMAGE", "NONE")
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "MANUAL", "IMAGE", "NONE")
                 .contains("MANUAL_INTENSITY_THRESHOLDS"));
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MEAN_INTENSITY", "MANUAL", "IMAGE", "NONE")
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "MANUAL", "IMAGE", "NONE")
                 .contains("THRESHOLD_PROVENANCE_BY_MARKER"));
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MEAN_INTENSITY", "RANGE_PERCENT", "IMAGE", "NONE")
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "RANGE_PERCENT", "IMAGE", "NONE")
                 .contains("RANGE_THRESHOLD_FRACTION_BY_MARKER"));
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "MANUAL_OFFSET")
+        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "MANUAL_OFFSET")
                 .contains("BACKGROUND_SUBTRACTION_BY_CHANNEL"));
 
-        Set<String> local = AstraPipelineLauncher.colocalizationThresholdVisibilityState("MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "LOCAL_PERCENTILE");
+        Set<String> local = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "LOCAL_PERCENTILE");
         assertTrue(local.contains("LOCAL_BACKGROUND_PERCENTILE"));
+
+        Set<String> pixelManual = AstraPipelineLauncher.colocalizationThresholdVisibilityState("PIXEL_LEVEL_SCORE", "MEAN_INTENSITY", "MANUAL", "IMAGE", "NONE");
+        assertTrue(pixelManual.contains("MANUAL_INTENSITY_BOUNDARIES_BY_MARKER"));
+        assertFalse(pixelManual.contains("MANUAL_INTENSITY_THRESHOLDS"));
+        assertFalse(pixelManual.contains("BACKGROUND_MODE"));
     }
 
     @Test
     void colocalizationPixelFractionVisibilityKeepsCutoffBesidePositivityMethod() {
-        Set<String> mean = AstraPipelineLauncher.colocalizationThresholdVisibilityState("MEAN_INTENSITY", "LOG_KDE_VALLEY", "IMAGE", "NONE");
-        Set<String> fraction = AstraPipelineLauncher.colocalizationThresholdVisibilityState("PIXEL_POSITIVE_FRACTION", "LOG_KDE_VALLEY", "IMAGE", "NONE");
+        Set<String> mean = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_KDE_VALLEY", "IMAGE", "NONE");
+        Set<String> fraction = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "PIXEL_POSITIVE_FRACTION", "LOG_KDE_VALLEY", "IMAGE", "NONE");
 
         assertFalse(mean.contains("PIXEL_POSITIVE_FRACTION_MIN"));
         assertTrue(fraction.contains("PIXEL_POSITIVE_FRACTION_MIN"));
