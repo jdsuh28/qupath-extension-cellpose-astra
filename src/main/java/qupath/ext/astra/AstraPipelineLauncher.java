@@ -3,7 +3,11 @@ package qupath.ext.astra;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
+import javafx.animation.KeyFrame;
+import javafx.animation.PauseTransition;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
+import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.event.ActionEvent;
@@ -12,11 +16,9 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
-import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.ListCell;
-import javafx.scene.control.MenuButton;
 import javafx.scene.control.TextInputDialog;
 import javafx.stage.FileChooser;
 import javafx.scene.control.Label;
@@ -38,6 +40,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.shape.Rectangle;
+import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.fx.dialogs.Dialogs;
@@ -79,6 +82,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -1031,14 +1035,14 @@ final class AstraPipelineLauncher {
 
         VBox header = new VBox(12.0);
         header.setPadding(new Insets(22.0, CONTENT_HORIZONTAL_MARGIN, 20.0, CONTENT_HORIZONTAL_MARGIN));
-        header.setStyle("-fx-background-color: linear-gradient(to right, #102a3a, #1f7a7a 62%, #d9604c);");
+        installDynamicHeaderGradient(header, scriptName);
         HBox titleRow = new HBox(12.0);
         titleRow.setAlignment(Pos.CENTER_LEFT);
         Label title = new Label(scriptName);
         title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 24px; -fx-font-weight: 800; -fx-text-fill: white;");
         Button reset = new Button("Reset settings");
         reset.setFocusTraversable(false);
-        reset.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; -fx-background-color: rgba(255,255,255,0.92); -fx-text-fill: " + TEAL_DARK + "; -fx-border-color: white; -fx-border-radius: 5; -fx-background-radius: 5;");
+        reset.setStyle(settingsHeaderButtonStyle());
         reset.setOnAction(event -> {
             constants.forEach(EditableConstant::resetEditor);
             profileState.resetToScriptDefaults();
@@ -1047,26 +1051,26 @@ final class AstraPipelineLauncher {
         });
         Button saveProfile = new Button("Save settings profile");
         saveProfile.setFocusTraversable(false);
-        saveProfile.setStyle(reset.getStyle());
+        saveProfile.setStyle(settingsHeaderButtonStyle());
         saveProfile.setOnAction(event -> saveSettingsProfileWithDialog(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, autosave, feedback));
         Button loadProfile = new Button("Load settings profile");
         loadProfile.setFocusTraversable(false);
-        loadProfile.setStyle(reset.getStyle());
+        loadProfile.setStyle(settingsHeaderButtonStyle());
         loadProfile.setOnAction(event -> loadSettingsProfileWithDialog(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, autosave, feedback));
         titleRow.getChildren().addAll(title, reset, saveProfile, loadProfile);
         if (AstraGuiPresentation.supportsAnalysisHeaderActions(scriptName)) {
-            Button resetImage = new Button("Reset Image...");
+            Button resetImage = new Button("Reset Image");
             resetImage.setFocusTraversable(false);
-            resetImage.setStyle(reset.getStyle());
-            resetImage.setTooltip(new Tooltip("Delete only ASTRA objects and measurements recorded for the current image in the analysis ledger."));
+            resetImage.setStyle(analysisHeaderButtonStyle());
+            resetImage.setTooltip(new Tooltip("Analysis action: delete only ASTRA objects and measurements recorded for the current image in the analysis ledger."));
             resetImage.setOnAction(resetImageAction::accept);
             if (resetImageButtonSink != null) {
                 resetImageButtonSink.accept(resetImage);
             }
-            Button resetProject = new Button("Reset Project...");
+            Button resetProject = new Button("Reset Project");
             resetProject.setFocusTraversable(false);
-            resetProject.setStyle(reset.getStyle());
-            resetProject.setTooltip(new Tooltip("Delete only ASTRA objects and measurements recorded for every project image in the analysis ledger."));
+            resetProject.setStyle(analysisHeaderButtonStyle());
+            resetProject.setTooltip(new Tooltip("Analysis action: delete only ASTRA objects and measurements recorded for every project image in the analysis ledger."));
             resetProject.setOnAction(resetProjectAction::accept);
             if (resetProjectButtonSink != null) {
                 resetProjectButtonSink.accept(resetProject);
@@ -1076,8 +1080,8 @@ final class AstraPipelineLauncher {
         if (AstraGuiPresentation.supportsHeaderExport(scriptName)) {
             Button export = new Button("Export");
             export.setFocusTraversable(false);
-            export.setStyle(reset.getStyle());
-            export.setTooltip(new Tooltip("Write analysis result files only if the current hierarchy matches the last successful QUANTIFY."));
+            export.setStyle(exportHeaderButtonStyle());
+            export.setTooltip(new Tooltip("Analysis action: write result files only if the current hierarchy matches the last successful QUANTIFY."));
             export.setOnAction(exportAction::accept);
             if (exportButtonSink != null) {
                 exportButtonSink.accept(export);
@@ -1114,7 +1118,11 @@ final class AstraPipelineLauncher {
                     .filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))
                     .toList();
             if (!groupConstants.isEmpty()) {
-                advanced.getChildren().add(createSection(group, groupConstants, false, autosave));
+                if ("Advanced".equalsIgnoreCase(group)) {
+                    advanced.getChildren().add(createUngroupedSection(groupConstants, false, autosave));
+                } else {
+                    advanced.getChildren().add(createSection(group, groupConstants, false, autosave));
+                }
             }
         }
 
@@ -1128,7 +1136,7 @@ final class AstraPipelineLauncher {
         HBox.setHgrow(scroll, Priority.ALWAYS);
 
         HBox workspace = new HBox(14.0);
-        workspace.setPadding(new Insets(0, CONTENT_HORIZONTAL_MARGIN, 18.0, CONTENT_HORIZONTAL_MARGIN));
+        workspace.setPadding(new Insets(CONTENT_HORIZONTAL_MARGIN, CONTENT_HORIZONTAL_MARGIN, 18.0, CONTENT_HORIZONTAL_MARGIN));
         workspace.setStyle("-fx-background-color: " + PAPER + ";");
         Node feedbackNode = feedback.node();
         workspace.getChildren().addAll(scroll, feedbackNode);
@@ -1294,7 +1302,7 @@ final class AstraPipelineLauncher {
         VBox cellModel = targetModelGroup("Cell Model", byName.get("CELL_MODEL_SOURCE"), byName.get("CELL_MODEL_NAME"), byName.get("CELL_MODEL_FILE"), byName.get("CELL_SAVED_MODEL_ID"), cellModels, autosave);
         modelPanel.getChildren().addAll(nucleusModel, cellModel);
 
-        VBox segmentationPanel = semanticCard("Segmentation Channels", "Checkboxes write explicit Groovy lists into the target-specific segmentation channel constants.");
+        VBox segmentationPanel = semanticCard("Segmentation Channels", "Choose one or more image channels for the target-specific segmentation inputs.");
         EditableConstant nucChannels = byName.get("NUCLEUS_SEGMENTATION_CHANNELS");
         EditableConstant cellChannels = byName.get("CELL_SEGMENTATION_CHANNELS");
         ChannelCheckboxEditor nucEditor = new ChannelCheckboxEditor("Nucleus segmentation channels", channelNames, nucChannels == null ? "[]" : nucChannels.displayValue);
@@ -1317,6 +1325,8 @@ final class AstraPipelineLauncher {
             checksEditor.addChangeListener(autosave::markManualEditAndSave);
         }
         checksPanel.getChildren().add(checksEditor);
+        EditableConstant displayCheckConstant = byName.get("DISPLAY_COLOCALIZATION_CHECK");
+        installDisplayCheckSelector(checksPanel, displayCheckConstant, checksEditor, autosave);
 
         List<MarkerKeyMapEditor> markerMapEditors = new ArrayList<>();
         installMarkerKeyMapEditor(byName.get("MANUAL_INTENSITY_BOUNDARIES_BY_MARKER"), MarkerMapValueType.NUMERIC,
@@ -1344,7 +1354,6 @@ final class AstraPipelineLauncher {
         VBox thresholdPanel = semanticCard("Thresholds & Background", "Choose how positivity thresholds and explicit background correction are resolved before running colocalization.");
         Map<String, RowNodes> thresholdRows = new LinkedHashMap<>();
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("EXPRESSION_CLASSIFICATION_MODE"), displayLabel("EXPRESSION_CLASSIFICATION_MODE"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("DISPLAY_COLOCALIZATION_CHECK"), displayLabel("DISPLAY_COLOCALIZATION_CHECK"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("POSITIVITY_METHOD"), displayLabel("POSITIVITY_METHOD"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("PIXEL_POSITIVE_FRACTION_MIN"), displayLabel("PIXEL_POSITIVE_FRACTION_MIN"), autosave);
         addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_POPULATION"), displayLabel("THRESHOLD_POPULATION"), autosave);
@@ -1389,6 +1398,39 @@ final class AstraPipelineLauncher {
         MarkerKeyMapEditor editor = new MarkerKeyMapEditor(constant.displayValue, valueType, emptyMessage);
         constant.setCustomEditor(editor);
         editors.add(editor);
+    }
+
+    private static void installDisplayCheckSelector(VBox checksPanel, EditableConstant displayCheckConstant,
+                                                    ColocalizationChecksEditor checksEditor,
+                                                    SettingsAutosave autosave) {
+        if (displayCheckConstant == null) {
+            return;
+        }
+        ComboBox<String> displayCheck = new ComboBox<>();
+        displayCheck.setPromptText("First check");
+        displayCheck.setMaxWidth(Double.MAX_VALUE);
+        styleAstraComboBox(displayCheck);
+        displayCheck.setValue(EditableConstant.stripStringQuotes(displayCheckConstant.type, displayCheckConstant.displayValue));
+        displayCheckConstant.setCustomEditor(displayCheck);
+        displayCheckConstant.addChangeListener(autosave::markManualEditAndSave);
+        Runnable refreshChoices = () -> {
+            List<String> labels = checksEditor.checks().stream()
+                    .map(ColocalizationCheck::label)
+                    .map(label -> label == null ? "" : label.trim())
+                    .filter(label -> !label.isBlank())
+                    .distinct()
+                    .toList();
+            String current = displayCheck.getValue();
+            displayCheck.getItems().setAll(labels);
+            if (labels.isEmpty()) {
+                displayCheck.setValue("");
+            } else if (current == null || current.isBlank() || !labels.contains(current)) {
+                displayCheck.setValue(labels.get(0));
+            }
+        };
+        checksPanel.getChildren().add(labeledRow("Display in QuPath UI", displayCheck, 160.0));
+        checksEditor.addChangeListener(refreshChoices);
+        refreshChoices.run();
     }
 
     private static void addColocalizationConstantRow(VBox panel, Map<String, RowNodes> rows, EditableConstant constant,
@@ -1444,7 +1486,6 @@ final class AstraPipelineLauncher {
         Set<String> rows = new LinkedHashSet<>();
         boolean pixelLevel = "PIXEL_LEVEL_SCORE".equals(expressionMode);
         rows.add("EXPRESSION_CLASSIFICATION_MODE");
-        rows.add("DISPLAY_COLOCALIZATION_CHECK");
         rows.add("THRESHOLD_MODE");
         rows.add("THRESHOLD_SCOPE");
         if (!pixelLevel) {
@@ -1558,7 +1599,7 @@ final class AstraPipelineLauncher {
     }
 
     private static void styleAstraComboBox(ComboBox<String> combo) {
-        combo.setStyle(EditableConstant.controlStyle() + " -fx-mark-color: " + TEAL_DARK + ";");
+        combo.setStyle(EditableConstant.controlStyle() + " -fx-mark-color: " + TEAL_DARK + "; -fx-text-base-color: " + INK + ";");
         styleComboBoxText(combo);
         if (combo.isEditable()) {
             combo.getEditor().setStyle(EditableConstant.controlStyle());
@@ -1585,6 +1626,10 @@ final class AstraPipelineLauncher {
         Node editor = combo.lookup(".text-field");
         if (editor instanceof TextField textField) {
             textField.setStyle(EditableConstant.controlStyle());
+        }
+        Node selectedCell = combo.lookup(".list-cell");
+        if (selectedCell != null) {
+            selectedCell.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";");
         }
     }
 
@@ -1724,6 +1769,26 @@ final class AstraPipelineLauncher {
         installConditionalVisibility(constants, rows);
 
         return new CollapsibleSection(title, grid, expanded);
+    }
+
+    private static GridPane createUngroupedSection(List<EditableConstant> constants, boolean expanded, SettingsAutosave autosave) {
+        GridPane grid = new GridPane();
+        grid.setPadding(new Insets(0));
+        grid.setHgap(12.0);
+        grid.setVgap(PARAMETER_ROW_GAP);
+        int row = 0;
+        for (EditableConstant constant : constants) {
+            Node editor = constant.createEditor();
+            Label label = new Label(displayLabel(constant.name));
+            label.setMinWidth(170.0);
+            label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 800; -fx-text-fill: " + INK + ";");
+            grid.add(label, 0, row);
+            grid.add(editor, 1, row);
+            GridPane.setHgrow(editor, Priority.ALWAYS);
+            constant.addChangeListener(autosave::markManualEditAndSave);
+            row++;
+        }
+        return grid;
     }
 
     private static Node createChannelPanel(List<ImageChannel> channels) {
@@ -1961,6 +2026,64 @@ final class AstraPipelineLauncher {
                 "-fx-border-color: #b5cbd2; -fx-border-radius: 4; -fx-background-radius: 4;";
     }
 
+    private static String settingsHeaderButtonStyle() {
+        return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; " +
+                "-fx-background-color: rgba(255,255,255,0.92); -fx-text-fill: " + TEAL_DARK + "; " +
+                "-fx-border-color: rgba(255,255,255,0.95); -fx-border-radius: 5; -fx-background-radius: 5;";
+    }
+
+    private static String analysisHeaderButtonStyle() {
+        return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; " +
+                "-fx-background-color: #ffe3dc; -fx-text-fill: #7c2417; " +
+                "-fx-border-color: #ffb8aa; -fx-border-radius: 5; -fx-background-radius: 5;";
+    }
+
+    private static String exportHeaderButtonStyle() {
+        return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; " +
+                "-fx-background-color: #dff4e8; -fx-text-fill: #17623b; " +
+                "-fx-border-color: #9fd9b7; -fx-border-radius: 5; -fx-background-radius: 5;";
+    }
+
+    private static void installDynamicHeaderGradient(VBox header, String scriptName) {
+        String[] gradients = headerGradients(scriptName);
+        AtomicReference<Integer> index = new AtomicReference<>(0);
+        header.setStyle(gradients[0]);
+        Timeline timeline = new Timeline(new KeyFrame(Duration.seconds(7.0), event -> {
+            int next = (index.updateAndGet(i -> (i + 1) % gradients.length));
+            header.setStyle(gradients[next]);
+        }));
+        timeline.setCycleCount(Timeline.INDEFINITE);
+        timeline.play();
+        header.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene == null) {
+                timeline.stop();
+            } else {
+                timeline.play();
+            }
+        });
+    }
+
+    private static String[] headerGradients(String scriptName) {
+        String stage = pipelineStage(scriptName);
+        if ("Training".equals(stage)) {
+            return new String[]{
+                    "-fx-background-color: linear-gradient(to right, #102a3a, #1f7a7a 62%, #d9604c);",
+                    "-fx-background-color: linear-gradient(to right, #173747, #246b83 58%, #d4a72c);"
+            };
+        }
+        if ("Validation".equals(stage)) {
+            return new String[]{
+                    "-fx-background-color: linear-gradient(to right, #173747, #5c6f3d 58%, #d4a72c);",
+                    "-fx-background-color: linear-gradient(to right, #102a3a, #1f7a7a 62%, #8f6db8);"
+            };
+        }
+        return new String[]{
+                "-fx-background-color: linear-gradient(to right, #102a3a, #1f7a7a 62%, #d9604c);",
+                "-fx-background-color: linear-gradient(to right, #173747, #246b83 58%, #d4a72c);",
+                "-fx-background-color: linear-gradient(to right, #102a3a, #387269 62%, #c86673);"
+        };
+    }
+
     private static String checkBoxStyle() {
         return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";";
     }
@@ -2154,6 +2277,10 @@ final class AstraPipelineLauncher {
             return "";
         }
         out = out.replaceFirst("^\\[LOG]\\s*", "");
+        out = out.replaceFirst("^(INFO|WARN|ERROR|DEBUG|TRACE):\\s*AstraCellpose2D:\\s*", "Cellpose: ");
+        out = out.replaceFirst("^AstraCellpose2D:\\s*", "Cellpose: ");
+        out = out.replaceFirst("^Cellpose:\\s*\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2},\\d{3}\\s+\\[(INFO|WARNING|ERROR|DEBUG)]\\s*", "Cellpose $1: ");
+        out = out.replace(">>>> ", "");
         out = out.replaceFirst("^(INFO|WARN|ERROR|DEBUG|TRACE)\\s+(COLOCALIZATION|VASCULAR|TRAINING|TUNING|VALIDATION)\\b", "$1: $2");
         out = out.replaceFirst("^(INFO|WARN|ERROR|DEBUG|TRACE)\\s+[^-]+-\\s*", "$1: ");
         out = out.replaceFirst("^(INFO|WARN|ERROR|DEBUG|TRACE)\\s+([^:]+):\\s*", "$1: ");
@@ -2657,11 +2784,19 @@ final class AstraPipelineLauncher {
             setStyle("-fx-background-color: #071923; -fx-border-color: #4d7583; -fx-border-radius: 4; -fx-background-radius: 4; -fx-padding: 7;");
             Button copy = new Button("Copy All");
             copy.setFocusTraversable(false);
-            copy.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900; -fx-background-color: #163748; -fx-text-fill: #eaf7f4; -fx-border-color: #4d7583; -fx-border-radius: 4; -fx-background-radius: 4;");
+            copy.setStyle(copyLogButtonStyle());
             copy.setOnAction(event -> {
                 ClipboardContent content = new ClipboardContent();
                 content.putString(plainText.toString());
                 Clipboard.getSystemClipboard().setContent(content);
+                copy.setText("Copied");
+                copy.setStyle(copiedLogButtonStyle());
+                PauseTransition reset = new PauseTransition(Duration.seconds(1.2));
+                reset.setOnFinished(done -> {
+                    copy.setText("Copy All");
+                    copy.setStyle(copyLogButtonStyle());
+                });
+                reset.play();
             });
             entries.setFillWidth(true);
             scroll = new ScrollPane(entries);
@@ -2706,7 +2841,7 @@ final class AstraPipelineLauncher {
             String upper = line == null ? "" : line.toUpperCase(Locale.ROOT);
             if (upper.contains("[ERROR]") || upper.contains(" ERROR ") || upper.startsWith("ERROR")) {
                 severityColor = "#ff9f91";
-            } else if (upper.contains("[WARN]") || upper.contains(" WARN ") || upper.startsWith("WARN")) {
+            } else if (upper.contains("[WARN]") || upper.contains(" WARN ") || upper.contains("WARNING") || upper.startsWith("WARN")) {
                 severityColor = "#ffd27a";
             } else if (upper.contains("[DONE]") || upper.contains("[SUCCESS]") || upper.contains(" COMPLETE")) {
                 severityColor = "#9fe5b6";
@@ -2715,6 +2850,14 @@ final class AstraPipelineLauncher {
             }
             String weight = upper.startsWith("===") || upper.contains(" ASTRA ") ? "900" : "500";
             return "-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 11.5px; -fx-font-weight: " + weight + "; -fx-text-fill: " + severityColor + ";";
+        }
+
+        private static String copyLogButtonStyle() {
+            return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900; -fx-background-color: #163748; -fx-text-fill: #eaf7f4; -fx-border-color: #4d7583; -fx-border-radius: 4; -fx-background-radius: 4;";
+        }
+
+        private static String copiedLogButtonStyle() {
+            return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900; -fx-background-color: #dff4e8; -fx-text-fill: #17623b; -fx-border-color: #9fd9b7; -fx-border-radius: 4; -fx-background-radius: 4;";
         }
     }
 
@@ -3019,58 +3162,59 @@ final class AstraPipelineLauncher {
         TEXT
     }
 
-    private static final class ChannelCheckboxEditor extends VBox {
+    private static final class MultiSelectListEditor extends VBox {
 
-        private final MenuButton button = new MenuButton();
-        private final Map<String, CheckMenuItem> items = new LinkedHashMap<>();
+        private final Button selector = new Button();
+        private final Label summary = new Label();
+        private final String titleText;
+        private final String emptyMessage;
+        private final Function<String, String> display;
+        private final LinkedHashSet<String> selected = new LinkedHashSet<>();
         private final List<Runnable> listeners = new ArrayList<>();
         private List<String> choices = List.of();
 
-        private ChannelCheckboxEditor(String titleText, List<String> channels, String rawValue) {
+        private MultiSelectListEditor(String titleText, List<String> choices, List<String> initialSelection,
+                                      String emptyMessage, Function<String, String> display) {
             super(7.0);
-            Label title = new Label(titleText);
-            title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 900; -fx-text-fill: " + INK + ";");
-            button.setMaxWidth(Double.MAX_VALUE);
-            button.setStyle(EditableConstant.controlStyle() + " -fx-alignment: center-left; -fx-text-fill: " + INK + ";");
-            if (channels.isEmpty()) {
-                Label empty = new Label("Open an image to choose channels without typing.");
-                empty.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + MUTED + ";");
-                getChildren().addAll(title, empty);
-            } else {
-                getChildren().addAll(title, button);
+            this.titleText = titleText == null ? "" : titleText;
+            this.emptyMessage = emptyMessage == null || emptyMessage.isBlank()
+                    ? "No choices available."
+                    : emptyMessage;
+            this.display = display == null ? Function.identity() : display;
+            selector.setMaxWidth(Double.MAX_VALUE);
+            selector.setFocusTraversable(false);
+            selector.setStyle(EditableConstant.controlStyle() + " -fx-alignment: center-left; -fx-text-fill: " + INK + ";");
+            selector.setOnAction(event -> openSelectionDialog());
+            summary.setWrapText(true);
+            summary.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-text-fill: " + MUTED + ";");
+            if (!this.titleText.isBlank()) {
+                Label title = new Label(this.titleText);
+                title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 900; -fx-text-fill: " + INK + ";");
+                getChildren().add(title);
             }
-            setChoices(channels, EditableConstant.csvValues(rawValue));
+            getChildren().addAll(selector, summary);
+            setChoices(choices, initialSelection);
         }
 
-        private void setChoices(List<String> channels, List<String> selected) {
-            choices = channels == null ? List.of() : List.copyOf(channels);
-            LinkedHashSet<String> keepSelected = new LinkedHashSet<>(selected == null ? List.of() : selected);
-            button.getItems().clear();
-            items.clear();
-            for (String channel : choices) {
-                CheckMenuItem item = new CheckMenuItem(channel);
-                item.setSelected(keepSelected.contains(channel));
-                item.selectedProperty().addListener((obs, oldValue, newValue) -> {
-                    updateButtonText();
-                    notifyListeners();
-                });
-                items.put(channel, item);
-                button.getItems().add(item);
-            }
-            updateButtonText();
+        private void setChoices(List<String> newChoices, List<String> newSelected) {
+            choices = newChoices == null ? List.of() : List.copyOf(newChoices);
+            selected.clear();
+            selected.addAll(newSelected == null ? List.of() : newSelected);
+            selected.retainAll(choices);
+            updateSummary();
         }
 
-        private List<String> selectedChannels() {
-            return items.entrySet().stream()
-                    .filter(e -> e.getValue().isSelected())
-                    .map(Map.Entry::getKey)
+        private List<String> selectedValues() {
+            return choices.stream()
+                    .filter(selected::contains)
                     .toList();
         }
 
         private void setSelected(List<String> values) {
-            LinkedHashSet<String> selected = new LinkedHashSet<>(values == null ? List.of() : values);
-            items.forEach((name, item) -> item.setSelected(selected.contains(name)));
-            updateButtonText();
+            selected.clear();
+            selected.addAll(values == null ? List.of() : values);
+            selected.retainAll(choices);
+            updateSummary();
         }
 
         private void addChangeListener(Runnable listener) {
@@ -3081,17 +3225,155 @@ final class AstraPipelineLauncher {
             listeners.forEach(Runnable::run);
         }
 
-        private void updateButtonText() {
-            List<String> selected = selectedChannels();
+        private void updateSummary() {
+            List<String> selectedValues = selectedValues();
             if (choices.isEmpty()) {
-                button.setText("No channels available");
-            } else if (selected.isEmpty()) {
-                button.setText("Choose channels");
-            } else if (selected.size() <= 2) {
-                button.setText(String.join(", ", selected));
+                selector.setText("No choices available");
+                selector.setDisable(true);
+                summary.setText(emptyMessage);
+            } else if (selectedValues.isEmpty()) {
+                selector.setText("Choose");
+                selector.setDisable(false);
+                summary.setText("None selected.");
+            } else if (selectedValues.size() <= 2) {
+                selector.setText(selectedValues.stream().map(display).reduce((a, b) -> a + ", " + b).orElse(""));
+                selector.setDisable(false);
+                summary.setText(selectedValues.size() + " of " + choices.size() + " selected.");
             } else {
-                button.setText(selected.size() + " channels selected");
+                selector.setText(selectedValues.size() + " selected");
+                selector.setDisable(false);
+                summary.setText(selectedValues.stream()
+                        .limit(4)
+                        .map(display)
+                        .reduce((a, b) -> a + ", " + b)
+                        .orElse("") + (selectedValues.size() > 4 ? ", +" + (selectedValues.size() - 4) + " more" : ""));
             }
+        }
+
+        private void openSelectionDialog() {
+            if (choices.isEmpty()) {
+                return;
+            }
+            Dialog<ButtonType> dialog = new Dialog<>();
+            dialog.setTitle(titleText.isBlank() ? "ASTRA Selection" : "ASTRA " + titleText);
+            dialog.getDialogPane().getButtonTypes().addAll(ButtonType.APPLY, ButtonType.CANCEL);
+            dialog.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
+
+            LinkedHashSet<String> working = new LinkedHashSet<>(selected);
+            TextField filter = new TextField();
+            filter.setPromptText("Search");
+            filter.setStyle(EditableConstant.controlStyle());
+            ListView<String> list = new ListView<>();
+            list.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+            list.setPrefSize(420.0, 280.0);
+            list.setStyle(EditableConstant.controlStyle());
+            list.setCellFactory(view -> new ListCell<>() {
+                @Override
+                protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty ? null : display.apply(item));
+                    setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";");
+                }
+            });
+            Label dialogSummary = new Label();
+            dialogSummary.setWrapText(true);
+            dialogSummary.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-text-fill: " + MUTED + ";");
+            AtomicBoolean syncing = new AtomicBoolean(false);
+
+            Runnable syncVisibleSelection = () -> {
+                if (syncing.get()) {
+                    return;
+                }
+                LinkedHashSet<String> visibleSelection = new LinkedHashSet<>(list.getSelectionModel().getSelectedItems());
+                for (String choice : list.getItems()) {
+                    if (visibleSelection.contains(choice)) {
+                        working.add(choice);
+                    } else {
+                        working.remove(choice);
+                    }
+                }
+                dialogSummary.setText(working.size() + " of " + choices.size() + " selected.");
+            };
+            Runnable refresh = () -> {
+                String query = filter.getText() == null ? "" : filter.getText().trim().toLowerCase(Locale.ROOT);
+                List<String> visible = choices.stream()
+                        .filter(choice -> query.isBlank() || display.apply(choice).toLowerCase(Locale.ROOT).contains(query)
+                                || choice.toLowerCase(Locale.ROOT).contains(query))
+                        .toList();
+                syncing.set(true);
+                list.getItems().setAll(visible);
+                list.getSelectionModel().clearSelection();
+                for (int i = 0; i < visible.size(); i++) {
+                    if (working.contains(visible.get(i))) {
+                        list.getSelectionModel().select(i);
+                    }
+                }
+                syncing.set(false);
+                dialogSummary.setText(working.size() + " of " + choices.size() + " selected.");
+            };
+            list.getSelectionModel().getSelectedItems().addListener((ListChangeListener<String>) change -> syncVisibleSelection.run());
+            filter.textProperty().addListener((obs, oldValue, newValue) -> {
+                syncVisibleSelection.run();
+                refresh.run();
+            });
+
+            Button selectAll = ProjectImageSelectionEditor.smallButton("Select All");
+            selectAll.setOnAction(event -> {
+                working.addAll(list.getItems());
+                refresh.run();
+            });
+            Button clear = ProjectImageSelectionEditor.smallButton("Clear");
+            clear.setOnAction(event -> {
+                working.clear();
+                refresh.run();
+            });
+            FlowPane actions = new FlowPane(7.0, 7.0, selectAll, clear);
+            Label hint = new Label("Use shift or command/control to select multiple rows, then Apply.");
+            hint.setWrapText(true);
+            hint.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-text-fill: " + MUTED + ";");
+            VBox content = new VBox(9.0, filter, list, actions, dialogSummary, hint);
+            content.setPadding(new Insets(12.0));
+            dialog.getDialogPane().setContent(content);
+            refresh.run();
+
+            dialog.showAndWait().filter(ButtonType.APPLY::equals).ifPresent(button -> {
+                syncVisibleSelection.run();
+                selected.clear();
+                selected.addAll(choices.stream().filter(working::contains).toList());
+                updateSummary();
+                notifyListeners();
+            });
+        }
+    }
+
+    private static final class ChannelCheckboxEditor extends VBox {
+
+        private final MultiSelectListEditor editor;
+
+        private ChannelCheckboxEditor(String titleText, List<String> channels, String rawValue) {
+            this(titleText, channels, rawValue, "Open an image to choose channels without typing.");
+        }
+
+        private ChannelCheckboxEditor(String titleText, List<String> channels, String rawValue, String emptyMessage) {
+            super(0.0);
+            editor = new MultiSelectListEditor(titleText, channels, EditableConstant.csvValues(rawValue), emptyMessage, Function.identity());
+            getChildren().add(editor);
+        }
+
+        private void setChoices(List<String> channels, List<String> selected) {
+            editor.setChoices(channels, selected);
+        }
+
+        private List<String> selectedChannels() {
+            return editor.selectedValues();
+        }
+
+        private void setSelected(List<String> values) {
+            editor.setSelected(values);
+        }
+
+        private void addChangeListener(Runnable listener) {
+            editor.addChangeListener(listener);
         }
     }
 
@@ -3167,8 +3449,8 @@ final class AstraPipelineLauncher {
                 compartment.setMinWidth(120.0);
                 compartment.setPrefWidth(130.0);
                 styleAstraComboBox(compartment);
-                channelSelector = new ChannelCheckboxEditor("Channels", imageChannels, renderStringList(check.channels()));
-                exclusionSelector = new ChannelCheckboxEditor("Threshold exclusions", check.channels(), renderStringList(check.excludedChannels()));
+                channelSelector = new ChannelCheckboxEditor("", imageChannels, renderStringList(check.channels()));
+                exclusionSelector = new ChannelCheckboxEditor("", check.channels(), renderStringList(check.excludedChannels()), "Choose check channels first.");
                 channelSelector.addChangeListener(() -> {
                     refreshExclusionChoices();
                     notifyListeners();
@@ -3500,41 +3782,24 @@ final class AstraPipelineLauncher {
     private static final class StageModeEditor extends VBox {
 
         private final List<String> orderedModes;
-        private final MenuButton selector = new MenuButton();
-        private final Map<String, CheckMenuItem> items = new LinkedHashMap<>();
+        private final MultiSelectListEditor selector;
         private final List<Runnable> listeners = new ArrayList<>();
-        private boolean syncing;
 
         private StageModeEditor(List<String> modes, String rawValue) {
             super(7.0);
             this.orderedModes = List.copyOf(modes);
-            for (String mode : orderedModes) {
-                CheckMenuItem item = new CheckMenuItem(displayMode(mode));
-                item.setUserData(mode);
-                item.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";");
-                item.selectedProperty().addListener((obs, oldValue, newValue) -> {
-                    if (syncing) {
-                        return;
-                    }
-                    updateSelectorText();
-                    notifyListeners();
-                });
-                items.put(mode, item);
-                selector.getItems().add(item);
-            }
-            selector.setMaxWidth(Double.MAX_VALUE);
-            selector.setFocusTraversable(false);
-            selector.setStyle(EditableConstant.controlStyle() + " -fx-mark-color: " + TEAL_DARK + "; -fx-alignment: center-left; -fx-text-fill: " + INK + ";");
+            selector = new MultiSelectListEditor("", orderedModes, EditableConstant.csvValues(rawValue),
+                    "No stages available.", StageModeEditor::displayMode);
+            selector.addChangeListener(this::notifyListeners);
             Label hint = new Label("Choose stages in ASTRA's fixed order. Reset and export are separate script actions.");
             hint.setWrapText(true);
             hint.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-text-fill: " + MUTED + ";");
             getChildren().addAll(selector, hint);
-            setRawValue(rawValue);
         }
 
         private List<String> selectedModes() {
             return orderedModes.stream()
-                    .filter(mode -> items.containsKey(mode) && items.get(mode).isSelected())
+                    .filter(selector.selectedValues()::contains)
                     .toList();
         }
 
@@ -3543,11 +3808,7 @@ final class AstraPipelineLauncher {
         }
 
         private void setRawValue(String rawValue) {
-            List<String> selected = EditableConstant.csvValues(rawValue);
-            syncing = true;
-            items.forEach((mode, item) -> item.setSelected(selected.contains(mode)));
-            syncing = false;
-            updateSelectorText();
+            selector.setSelected(EditableConstant.csvValues(rawValue));
         }
 
         private void addChangeListener(Runnable listener) {
@@ -3556,13 +3817,6 @@ final class AstraPipelineLauncher {
 
         private void notifyListeners() {
             listeners.forEach(Runnable::run);
-        }
-
-        private void updateSelectorText() {
-            List<String> selected = selectedModes();
-            selector.setText(selected.isEmpty()
-                    ? "Choose stages"
-                    : selected.stream().map(StageModeEditor::displayMode).reduce((a, b) -> a + ", " + b).orElse(""));
         }
 
         private static String displayMode(String mode) {
