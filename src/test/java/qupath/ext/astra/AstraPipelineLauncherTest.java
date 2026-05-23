@@ -88,7 +88,7 @@ class AstraPipelineLauncherTest {
                 "analysis/src/main/groovy/colocalization/colocalization.groovy",
                 List.of("DETECTION_TARGET", "NUC_MODEL_NAME", "NUC_CELLPROB", "COLOCALIZATION_CHECKS"),
                 "tools/src/main/groovy/smaAf647Oneshot.groovy",
-                List.of("FITC_RAW_THRESHOLD", "AF647_RAW_THRESHOLD", "FITC_OVERLAP_FRACTION_MIN", "AF647_POSITIVE_PIXEL_FRACTION_MIN")
+                List.of("CLASS_ANALYSIS_REGION", "NUC_MODEL_NAME", "NUC_CELLPROB", "EXPORT_TECHNICAL_CSV")
         );
 
         for (Map.Entry<String, List<String>> entry : requiredByScript.entrySet()) {
