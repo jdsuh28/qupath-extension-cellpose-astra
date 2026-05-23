@@ -81,6 +81,7 @@ public class AstraCellposeExtension extends CellposeExtension {
         scripts.put("Validation", "astra/validation/src/main/groovy/validation.groovy");
         scripts.put("Analysis>Vascular", "astra/analysis/src/main/groovy/vascular/vascular.groovy");
         scripts.put("Analysis>Colocalization", "astra/analysis/src/main/groovy/colocalization/colocalization.groovy");
+        scripts.put("Analysis>One-Shot SMA AF647", "astra/tools/src/main/groovy/smaAf647Oneshot.groovy");
         scripts.put("Analysis>Generate Regions", "astra/tools/src/main/groovy/generateRegions.groovy");
         return Collections.unmodifiableMap(scripts);
     }
