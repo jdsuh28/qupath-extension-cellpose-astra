@@ -6,7 +6,7 @@
 - `src/main/java/qupath/ext/astra/AstraCellposeExtension.java`
   - Provides the ASTRA-specific QuPath extension entrypoint and menu
     registration.
-  - Registers the single ASTRA runtime Python executable preference.
+  - Registers the single Cellpose runtime Python executable preference.
 - `src/main/java/qupath/ext/astra/AstraCellposeBuilder.java`
   - Provides the ASTRA builder surface used by base ASTRA Groovy pipelines.
 - `src/main/java/qupath/ext/astra/AstraCellpose2D.java`
@@ -15,7 +15,7 @@
   - Supports deterministic training export, validation metrics, and multi-entry
     batch inference used by training, tuning, validation, and analysis
     pipelines.
-- `src/main/java/qupath/ext/astra/AstraQcFigures.java`
+- `src/main/java/qupath/ext/astra/QcFigures.java`
   - Renders ASTRA training, tuning, and validation QC figures as PNG artifacts.
 
 ### Changed
@@ -29,4 +29,4 @@
   model/parameter source policy, and publication-facing analysis decisions.
 - This extension owns QuPath registration, Cellpose runtime integration, batch
   inference, validation metrics, and QC figure rendering.
-- Non-active comparison files are archived under `_archive/`.
+- Non-active comparison files are archived on the `legacy` branch.

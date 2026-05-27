@@ -32,12 +32,12 @@ public class AstraCellposeExtension extends CellposeExtension {
 
     private static final Logger logger = LoggerFactory.getLogger(AstraCellposeExtension.class);
 
-    private static final String ASTRA_PREFERENCE_CATEGORY = "ASTRA/Cellpose";
-    private static final String ASTRA_RUNTIME_PYTHON_PATH_KEY = "astraRuntimePythonPath";
-    private static final String ASTRA_RUNTIME_PYTHON_PATH_NAME = "ASTRA runtime Python executable";
-    private static final String ASTRA_RUNTIME_PYTHON_PATH_DESCRIPTION =
-            "Enter the full path to the ASTRA Cellpose Python executable.\n" +
-            "This is the only runtime environment used by the ASTRA extension.\n" +
+    private static final String PREFERENCE_CATEGORY = "Automated Structural Tissue Research and Analysis (ASTRA)";
+    private static final String RUNTIME_PYTHON_PATH_KEY = "qupath.ext.astra.runtimePythonPath";
+    private static final String RUNTIME_PYTHON_PATH_NAME = "Cellpose Runtime Python Executable";
+    private static final String RUNTIME_PYTHON_PATH_DESCRIPTION =
+            "Enter the full path to the Python executable used for Cellpose runtime operations.\n" +
+            "This is the only runtime environment used by Automated Structural Tissue Research and Analysis (ASTRA).\n" +
             "Do not include quotes (') or double quotes (\") around the path.";
 
     private static final Map<String, String> SCRIPT_RESOURCES = createScriptResources();
@@ -105,7 +105,7 @@ public class AstraCellposeExtension extends CellposeExtension {
             String menuPath = menuPath(commandName);
             String scriptName = actionName(commandName);
             Action runAction = new Action(scriptName, event ->
-                    AstraPipelineLauncher.configureAndRun(qupath, scriptName, script));
+                    PipelineLauncher.configureAndRun(qupath, scriptName, script));
             MenuTools.addMenuItems(qupath.getMenu(menuPath, true), runAction);
         });
 
@@ -147,7 +147,7 @@ public class AstraCellposeExtension extends CellposeExtension {
 
     private void registerRuntimePreference(QuPathGUI qupath) {
         CellposeSetup cellposeSetup = CellposeSetup.getInstance();
-        runtimePythonPath = PathPrefs.createPersistentPreference(ASTRA_RUNTIME_PYTHON_PATH_KEY, "");
+        runtimePythonPath = PathPrefs.createPersistentPreference(RUNTIME_PYTHON_PATH_KEY, "");
         String normalizedInitialPath = normalizePythonPath(runtimePythonPath.get());
         if (!normalizedInitialPath.equals(runtimePythonPath.get())) {
             runtimePythonPath.set(normalizedInitialPath);
@@ -159,17 +159,17 @@ public class AstraCellposeExtension extends CellposeExtension {
 
         var propertySheet = qupath.getPreferencePane().getPropertySheet();
         boolean alreadyRegistered = propertySheet.getItems().stream()
-                .anyMatch(item -> ASTRA_RUNTIME_PYTHON_PATH_NAME.equals(item.getName())
-                        && ASTRA_PREFERENCE_CATEGORY.equals(item.getCategory()));
+                .anyMatch(item -> RUNTIME_PYTHON_PATH_NAME.equals(item.getName())
+                        && PREFERENCE_CATEGORY.equals(item.getCategory()));
         if (alreadyRegistered) {
             return;
         }
 
         PropertySheet.Item runtimePythonPathItem = new PropertyItemBuilder<>(runtimePythonPath, String.class)
                 .propertyType(PropertyItemBuilder.PropertyType.GENERAL)
-                .name(ASTRA_RUNTIME_PYTHON_PATH_NAME)
-                .category(ASTRA_PREFERENCE_CATEGORY)
-                .description(ASTRA_RUNTIME_PYTHON_PATH_DESCRIPTION)
+                .name(RUNTIME_PYTHON_PATH_NAME)
+                .category(PREFERENCE_CATEGORY)
+                .description(RUNTIME_PYTHON_PATH_DESCRIPTION)
                 .build();
 
         propertySheet.getItems().add(runtimePythonPathItem);
@@ -177,7 +177,7 @@ public class AstraCellposeExtension extends CellposeExtension {
 
     private void installSetupActions(QuPathGUI qupath) {
         Action installRuntime = new Action("Install/Repair Python Runtime", event ->
-                AstraRuntimeInstaller.installOrRepairAsync(runtimePythonPath));
+                RuntimeInstaller.installOrRepairAsync(runtimePythonPath));
         MenuTools.addMenuItems(qupath.getMenu("Extensions>ASTRA", true), installRuntime);
     }
 

@@ -2,22 +2,22 @@ package qupath.ext.astra;
 
 import java.util.Locale;
 
-final class AstraRunLogErrorAdvisor {
+final class RunLogErrorAdvisor {
 
-    private AstraRunLogErrorAdvisor() {
+    private RunLogErrorAdvisor() {
         throw new AssertionError("No instances");
     }
 
-    static AstraRunLogErrorAdvice advise(AstraRunLogEvent event) {
-        AstraRunLogEntry entry = event == null ? null : event.entry();
+    static RunLogErrorAdvice advise(RunLogEvent event) {
+        RunLogEntry entry = event == null ? null : event.entry();
         String stage = event == null ? "" : event.stageLabel();
         return advise(entry, stage);
     }
 
-    static AstraRunLogErrorAdvice advise(AstraRunLogEntry entry, String stageLabel) {
+    static RunLogErrorAdvice advise(RunLogEntry entry, String stageLabel) {
         String text = entry == null ? "" : entry.text();
         String upper = text.toUpperCase(Locale.ROOT);
-        AstraRunLogSource source = entry == null ? AstraRunLogSource.SYSTEM : entry.source();
+        RunLogSource source = entry == null ? RunLogSource.SYSTEM : entry.source();
         String stage = stageLabel == null ? "" : stageLabel.trim();
 
         if (upper.contains("CANCEL")) {
@@ -64,26 +64,26 @@ final class AstraRunLogErrorAdvisor {
                 "Review the original error line and nearby log context.", source, stage);
     }
 
-    private static AstraRunLogErrorAdvice advice(String family, String message, String likelyCause, String nextAction,
-                                                AstraRunLogSource source, String stage) {
-        return new AstraRunLogErrorAdvice(family, message, likelyCause, nextAction, source, stage);
+    private static RunLogErrorAdvice advice(String family, String message, String likelyCause, String nextAction,
+                                                RunLogSource source, String stage) {
+        return new RunLogErrorAdvice(family, message, likelyCause, nextAction, source, stage);
     }
 }
 
-record AstraRunLogErrorAdvice(
+record RunLogErrorAdvice(
         String family,
         String message,
         String likelyCause,
         String nextAction,
-        AstraRunLogSource source,
+        RunLogSource source,
         String stage
 ) {
-    AstraRunLogErrorAdvice {
+    RunLogErrorAdvice {
         family = family == null ? "" : family.trim();
         message = message == null ? "" : message.trim();
         likelyCause = likelyCause == null ? "" : likelyCause.trim();
         nextAction = nextAction == null ? "" : nextAction.trim();
-        source = source == null ? AstraRunLogSource.SYSTEM : source;
+        source = source == null ? RunLogSource.SYSTEM : source;
         stage = stage == null ? "" : stage.trim();
     }
 }

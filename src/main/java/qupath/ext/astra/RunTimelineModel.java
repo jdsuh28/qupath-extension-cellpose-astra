@@ -8,20 +8,20 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-final class AstraRunTimelineModel {
+final class RunTimelineModel {
 
     private static final Pattern PIPELINE_ID = Pattern.compile("PIPELINE_ID\\s*=\\s*\"([^\"]+)\"");
     private static final Pattern SCRIPT_ACTION = Pattern.compile("(?:SCRIPT_ACTION\\s*=\\s*|[\"']?SCRIPT_ACTION[\"']?\\s*:\\s*)[\"']([A-Z_]+)[\"']");
     private static final Pattern MODES_TO_RUN = Pattern.compile("(?:MODES_TO_RUN\\s*=\\s*|[\"']?MODES_TO_RUN[\"']?\\s*:\\s*)\\[(.*?)]", Pattern.DOTALL);
     private static final Pattern QUOTED = Pattern.compile("[\"']([^\"']+)[\"']");
 
-    private final LinkedHashMap<String, AstraRunTimelineStep> steps = new LinkedHashMap<>();
+    private final LinkedHashMap<String, RunTimelineStep> steps = new LinkedHashMap<>();
     private String pipelineId = "";
     private String pipelineName = "";
     private String currentStageId = "RUN_STARTED";
     private int warnings;
     private int errors;
-    private AstraRunTimelineOutcome outcome = AstraRunTimelineOutcome.RUNNING;
+    private RunTimelineOutcome outcome = RunTimelineOutcome.RUNNING;
     private long runStartedNanos;
     private long lastObservedNanos;
 
@@ -29,18 +29,18 @@ final class AstraRunTimelineModel {
         steps.clear();
         warnings = 0;
         errors = 0;
-        outcome = AstraRunTimelineOutcome.RUNNING;
+        outcome = RunTimelineOutcome.RUNNING;
         runStartedNanos = System.nanoTime();
         lastObservedNanos = runStartedNanos;
         pipelineId = extractPipelineId(configuredScript);
         pipelineName = scriptName == null || scriptName.isBlank() ? displayPipelineName(pipelineId) : scriptName;
-        addStep("RUN_STARTED", "Run Started", AstraRunTimelineState.ACTIVE);
+        addStep("RUN_STARTED", "Run Started", RunTimelineState.ACTIVE);
         currentStageId = "RUN_STARTED";
         seedConfiguredStages(configuredScript);
-        addStep("COMPLETE", "Complete", AstraRunTimelineState.PENDING);
+        addStep("COMPLETE", "Complete", RunTimelineState.PENDING);
     }
 
-    void accept(AstraRunLogEvent event) {
+    void accept(RunLogEvent event) {
         if (event == null) {
             return;
         }
@@ -70,7 +70,7 @@ final class AstraRunTimelineModel {
         }
     }
 
-    List<AstraRunTimelineStep> steps() {
+    List<RunTimelineStep> steps() {
         return List.copyOf(steps.values());
     }
 
@@ -100,8 +100,8 @@ final class AstraRunTimelineModel {
         if (runStartedNanos <= 0L) {
             return "";
         }
-        long end = outcome == AstraRunTimelineOutcome.RUNNING ? System.nanoTime() : Math.max(lastObservedNanos, runStartedNanos);
-        return "elapsed " + AstraRunTimelineStep.formatDuration(Math.max(0L, end - runStartedNanos));
+        long end = outcome == RunTimelineOutcome.RUNNING ? System.nanoTime() : Math.max(lastObservedNanos, runStartedNanos);
+        return "elapsed " + RunTimelineStep.formatDuration(Math.max(0L, end - runStartedNanos));
     }
 
     int warningCount() {
@@ -112,22 +112,22 @@ final class AstraRunTimelineModel {
         return errors;
     }
 
-    AstraRunTimelineOutcome outcome() {
+    RunTimelineOutcome outcome() {
         return outcome;
     }
 
     List<String> labelsForTest() {
-        return steps.values().stream().map(AstraRunTimelineStep::label).toList();
+        return steps.values().stream().map(RunTimelineStep::label).toList();
     }
 
     private void seedConfiguredStages(String configuredScript) {
         String action = extractScriptAction(configuredScript);
         if ("EXPORT".equals(action)) {
-            addStep("EXPORT", "Export", AstraRunTimelineState.PENDING);
+            addStep("EXPORT", "Export", RunTimelineState.PENDING);
             return;
         }
         if ("RESET_IMAGE".equals(action) || "RESET_PROJECT".equals(action)) {
-            addStep(action, action.equals("RESET_IMAGE") ? "Reset Image" : "Reset Project", AstraRunTimelineState.PENDING);
+            addStep(action, action.equals("RESET_IMAGE") ? "Reset Image" : "Reset Project", RunTimelineState.PENDING);
             return;
         }
         List<String> modes = extractModes(configuredScript);
@@ -135,55 +135,55 @@ final class AstraRunTimelineModel {
             return;
         }
         for (String mode : modes) {
-            addStep(AstraRunLogPresenter.normalizeStageId(mode), displayStage(mode), AstraRunTimelineState.PENDING);
+            addStep(RunLogPresenter.normalizeStageId(mode), displayStage(mode), RunTimelineState.PENDING);
         }
     }
 
     private void activate(String id, String label) {
         String stageId = blankDefault(id, "MESSAGE");
         completeActiveIfRunning();
-        addStep(stageId, blankDefault(label, displayStage(stageId)), AstraRunTimelineState.ACTIVE);
+        addStep(stageId, blankDefault(label, displayStage(stageId)), RunTimelineState.ACTIVE);
         currentStageId = stageId;
     }
 
     private void complete(String id, String label) {
         String stageId = blankDefault(id, currentStageId);
-        addStep(stageId, blankDefault(label, displayStage(stageId)), AstraRunTimelineState.COMPLETE);
-        steps.computeIfPresent(stageId, (key, step) -> step.withState(AstraRunTimelineState.COMPLETE));
+        addStep(stageId, blankDefault(label, displayStage(stageId)), RunTimelineState.COMPLETE);
+        steps.computeIfPresent(stageId, (key, step) -> step.withState(RunTimelineState.COMPLETE));
         currentStageId = stageId;
     }
 
     private void completeRun() {
         completeActiveIfRunning();
-        steps.computeIfPresent("COMPLETE", (key, step) -> step.withState(AstraRunTimelineState.COMPLETE));
+        steps.computeIfPresent("COMPLETE", (key, step) -> step.withState(RunTimelineState.COMPLETE));
         currentStageId = "COMPLETE";
-        outcome = AstraRunTimelineOutcome.COMPLETED;
+        outcome = RunTimelineOutcome.COMPLETED;
     }
 
     private void cancelRun() {
-        steps.computeIfPresent(currentStageId, (key, step) -> step.withState(AstraRunTimelineState.CANCELLED));
-        steps.computeIfPresent("COMPLETE", (key, step) -> step.withState(AstraRunTimelineState.CANCELLED).withLabel("Cancelled"));
+        steps.computeIfPresent(currentStageId, (key, step) -> step.withState(RunTimelineState.CANCELLED));
+        steps.computeIfPresent("COMPLETE", (key, step) -> step.withState(RunTimelineState.CANCELLED).withLabel("Cancelled"));
         currentStageId = "COMPLETE";
-        outcome = AstraRunTimelineOutcome.CANCELLED;
+        outcome = RunTimelineOutcome.CANCELLED;
     }
 
-    private void markWarning(AstraRunLogEvent event) {
+    private void markWarning(RunLogEvent event) {
         warnings++;
         String id = blankDefault(event.stageId(), currentStageId);
         if (!id.isBlank()) {
-            addStep(id, blankDefault(event.stageLabel(), displayStage(id)), AstraRunTimelineState.WARNING);
-            steps.computeIfPresent(id, (key, step) -> step.withState(AstraRunTimelineState.WARNING));
+            addStep(id, blankDefault(event.stageLabel(), displayStage(id)), RunTimelineState.WARNING);
+            steps.computeIfPresent(id, (key, step) -> step.withState(RunTimelineState.WARNING));
             currentStageId = id;
         }
     }
 
-    private void markError(AstraRunLogEvent event) {
+    private void markError(RunLogEvent event) {
         errors++;
-        outcome = AstraRunTimelineOutcome.FAILED;
+        outcome = RunTimelineOutcome.FAILED;
         String id = blankDefault(event.stageId(), currentStageId);
-        addStep(id, blankDefault(event.stageLabel(), displayStage(id)), AstraRunTimelineState.ERROR);
-        steps.computeIfPresent(id, (key, step) -> step.withState(AstraRunTimelineState.ERROR));
-        steps.computeIfPresent("COMPLETE", (key, step) -> step.withState(AstraRunTimelineState.ERROR).withLabel("Failed"));
+        addStep(id, blankDefault(event.stageLabel(), displayStage(id)), RunTimelineState.ERROR);
+        steps.computeIfPresent(id, (key, step) -> step.withState(RunTimelineState.ERROR));
+        steps.computeIfPresent("COMPLETE", (key, step) -> step.withState(RunTimelineState.ERROR).withLabel("Failed"));
         currentStageId = id;
     }
 
@@ -192,13 +192,13 @@ final class AstraRunTimelineModel {
             return;
         }
         steps.computeIfPresent(currentStageId, (key, step) ->
-                step.state() == AstraRunTimelineState.ACTIVE ? step.withState(AstraRunTimelineState.COMPLETE) : step);
+                step.state() == RunTimelineState.ACTIVE ? step.withState(RunTimelineState.COMPLETE) : step);
     }
 
-    private void addStep(String id, String label, AstraRunTimelineState state) {
+    private void addStep(String id, String label, RunTimelineState state) {
         String stageId = blankDefault(id, "MESSAGE");
-        steps.putIfAbsent(stageId, new AstraRunTimelineStep(stageId, blankDefault(label, displayStage(stageId)), AstraRunTimelineState.PENDING, Map.of(), 0L, 0L));
-        if (state != AstraRunTimelineState.PENDING) {
+        steps.putIfAbsent(stageId, new RunTimelineStep(stageId, blankDefault(label, displayStage(stageId)), RunTimelineState.PENDING, Map.of(), 0L, 0L));
+        if (state != RunTimelineState.PENDING) {
             steps.computeIfPresent(stageId, (key, step) -> step.withState(state));
         }
     }
@@ -230,14 +230,14 @@ final class AstraRunTimelineModel {
         if (id == null || id.isBlank()) {
             return "ASTRA";
         }
-        return AstraRunLogPresenter.titleCase(id.replace('-', ' ').replace('_', ' '));
+        return RunLogPresenter.titleCase(id.replace('-', ' ').replace('_', ' '));
     }
 
     private static String displayStage(String id) {
-        return AstraRunLogPresenter.titleCase(String.valueOf(id == null ? "" : id).replace('_', ' '));
+        return RunLogPresenter.titleCase(String.valueOf(id == null ? "" : id).replace('_', ' '));
     }
 
-    private static String imageLabel(AstraRunLogEvent event, String fallback) {
+    private static String imageLabel(RunLogEvent event, String fallback) {
         if (event.imageIndex() != null && event.imageCount() != null) {
             return fallback + " " + event.imageIndex() + "/" + event.imageCount();
         }
@@ -249,22 +249,22 @@ final class AstraRunTimelineModel {
     }
 }
 
-record AstraRunTimelineStep(String id, String label, AstraRunTimelineState state, Map<String, String> metrics,
+record RunTimelineStep(String id, String label, RunTimelineState state, Map<String, String> metrics,
                             long startedNanos, long endedNanos) {
-    AstraRunTimelineStep {
+    RunTimelineStep {
         id = id == null ? "" : id;
         label = label == null ? "" : label;
-        state = state == null ? AstraRunTimelineState.PENDING : state;
+        state = state == null ? RunTimelineState.PENDING : state;
         metrics = metrics == null ? Map.of() : Map.copyOf(metrics);
         startedNanos = Math.max(0L, startedNanos);
         endedNanos = Math.max(0L, endedNanos);
     }
 
-    AstraRunTimelineStep withState(AstraRunTimelineState next) {
+    RunTimelineStep withState(RunTimelineState next) {
         long now = System.nanoTime();
         long start = startedNanos;
         long end = endedNanos;
-        if (next == AstraRunTimelineState.ACTIVE && start == 0L) {
+        if (next == RunTimelineState.ACTIVE && start == 0L) {
             start = now;
         }
         if (isTerminal(next)) {
@@ -273,20 +273,20 @@ record AstraRunTimelineStep(String id, String label, AstraRunTimelineState state
             }
             end = now;
         }
-        return new AstraRunTimelineStep(id, label, next, metrics, start, end);
+        return new RunTimelineStep(id, label, next, metrics, start, end);
     }
 
-    AstraRunTimelineStep withLabel(String nextLabel) {
-        return new AstraRunTimelineStep(id, nextLabel, state, metrics, startedNanos, endedNanos);
+    RunTimelineStep withLabel(String nextLabel) {
+        return new RunTimelineStep(id, nextLabel, state, metrics, startedNanos, endedNanos);
     }
 
-    AstraRunTimelineStep withMetrics(Map<String, String> nextMetrics) {
+    RunTimelineStep withMetrics(Map<String, String> nextMetrics) {
         if (nextMetrics == null || nextMetrics.isEmpty()) {
             return this;
         }
         Map<String, String> merged = new LinkedHashMap<>(metrics);
         merged.putAll(nextMetrics);
-        return new AstraRunTimelineStep(id, label, state, merged, startedNanos, endedNanos);
+        return new RunTimelineStep(id, label, state, merged, startedNanos, endedNanos);
     }
 
     String durationLabel() {
@@ -307,15 +307,15 @@ record AstraRunTimelineStep(String id, String label, AstraRunTimelineState state
         return remaining + "s";
     }
 
-    private static boolean isTerminal(AstraRunTimelineState state) {
-        return state == AstraRunTimelineState.COMPLETE
-                || state == AstraRunTimelineState.WARNING
-                || state == AstraRunTimelineState.ERROR
-                || state == AstraRunTimelineState.CANCELLED;
+    private static boolean isTerminal(RunTimelineState state) {
+        return state == RunTimelineState.COMPLETE
+                || state == RunTimelineState.WARNING
+                || state == RunTimelineState.ERROR
+                || state == RunTimelineState.CANCELLED;
     }
 }
 
-enum AstraRunTimelineState {
+enum RunTimelineState {
     PENDING,
     ACTIVE,
     COMPLETE,
@@ -324,7 +324,7 @@ enum AstraRunTimelineState {
     CANCELLED
 }
 
-enum AstraRunTimelineOutcome {
+enum RunTimelineOutcome {
     RUNNING,
     COMPLETED,
     FAILED,

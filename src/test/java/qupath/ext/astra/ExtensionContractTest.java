@@ -13,19 +13,27 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Contract tests for ASTRA extension registration and archive hygiene.
+ * Contract tests for ASTRA extension registration and active-source hygiene.
  */
-class AstraExtensionContractTest {
+class ExtensionContractTest {
 
     private static final File ROOT = new File(".").getAbsoluteFile();
+
+    private static final Set<String> ASTRA_PREFIXED_CLASS_ALLOWLIST = Set.of(
+            "AstraCellpose2D.java",
+            "AstraCellposeBuilder.java",
+            "AstraCellposeExtension.java"
+    );
 
     /**
      * Verifies the installed extension service points to the ASTRA entrypoint
@@ -40,6 +48,30 @@ class AstraExtensionContractTest {
 
         assertTrue(service.isFile());
         assertEquals("qupath.ext.astra.AstraCellposeExtension", Files.readString(service.toPath()).trim());
+    }
+
+    /**
+     * Verifies internal extension implementation classes do not carry an
+     * unnecessary ASTRA prefix when the package and menu branding already
+     * provide that identity.
+     *
+     * @throws Exception if source files cannot be inspected.
+     */
+    @Test
+    void internalImplementationClassesDoNotUseAstraPrefix() throws Exception {
+        File sourceDir = new File(ROOT, "src/main/java/qupath/ext/astra");
+        List<File> sourceFiles = new ArrayList<>();
+        Set<String> violations = new HashSet<>();
+
+        collectFiles(sourceDir, sourceFiles);
+        sourceFiles.stream()
+                .filter(file -> file.getName().endsWith(".java"))
+                .filter(file -> file.getName().startsWith("Astra"))
+                .filter(file -> !ASTRA_PREFIXED_CLASS_ALLOWLIST.contains(file.getName()))
+                .map(File::getName)
+                .forEach(violations::add);
+
+        assertTrue(violations.isEmpty(), "Internal extension classes must not use pointless Astra prefixes: " + violations);
     }
 
     /**
@@ -88,7 +120,7 @@ class AstraExtensionContractTest {
             assertFalse(path.endsWith(".ome.tiff"), path);
 
             String text = Files.readString(file.toPath());
-            if (!isVendoredAstraTestSource(path)) {
+            if (!isVendoredTestSource(path)) {
                 assertFalse(text.contains("contracts/src/test/resources"), file.getPath());
                 assertFalse(text.contains("test-fixtures"), file.getPath());
                 assertFalse(text.contains(".ome.tif"), file.getPath());
@@ -104,7 +136,7 @@ class AstraExtensionContractTest {
      * strategy.  The runtime guardrail still rejects actual fixture files and
      * production/runtime fixture references.
      */
-    private static boolean isVendoredAstraTestSource(String path) {
+    private static boolean isVendoredTestSource(String path) {
         return path.contains("/src/main/resources/astra/")
                 && path.contains("/src/test/");
     }
@@ -160,12 +192,12 @@ class AstraExtensionContractTest {
      * deterministic user-local runtime path.
      */
     @Test
-    void runtimeInstallerUsesDeterministicAstraRuntime() {
-        assertEquals("v4.0.8+astra.3", AstraRuntimeInstaller.DEFAULT_CELLPOSE_REF);
+    void runtimeInstallerUsesDeterministicRuntime() {
+        assertEquals("v4.0.8+astra.3", RuntimeInstaller.DEFAULT_CELLPOSE_REF);
         assertEquals("git+https://github.com/jdsuh28/cellpose-astra.git@v4.0.8+astra.3",
-                AstraRuntimeInstaller.cellposePackageSpec());
-        assertEquals("cellpose-astra", AstraRuntimeInstaller.runtimeDirectory().getName());
-        assertTrue(AstraRuntimeInstaller.runtimePythonExecutable(new File("runtime")).getPath().contains("runtime"));
+                RuntimeInstaller.cellposePackageSpec());
+        assertEquals("cellpose-astra", RuntimeInstaller.runtimeDirectory().getName());
+        assertTrue(RuntimeInstaller.runtimePythonExecutable(new File("runtime")).getPath().contains("runtime"));
     }
 
     /**
@@ -174,7 +206,7 @@ class AstraExtensionContractTest {
      */
     @Test
     void runtimeInstallerBuildsCondaPrefixCommand() {
-        List<String> command = AstraRuntimeInstaller.condaCreateCommand("conda", new File("/tmp/cellpose-astra"));
+        List<String> command = RuntimeInstaller.condaCreateCommand("conda", new File("/tmp/cellpose-astra"));
 
         assertEquals(List.of("conda", "create", "-y", "-p", "/tmp/cellpose-astra", "python=3.10"), command);
     }
@@ -185,7 +217,7 @@ class AstraExtensionContractTest {
      */
     @Test
     void runtimeInstallerValidationCommandsCoverRequiredImports() {
-        List<List<String>> commands = AstraRuntimeInstaller.validationCommands(new File("/runtime/bin/python"));
+        List<List<String>> commands = RuntimeInstaller.validationCommands(new File("/runtime/bin/python"));
         String joined = commands.toString();
 
         assertTrue(joined.contains("--version"));
@@ -203,9 +235,9 @@ class AstraExtensionContractTest {
      */
     @Test
     void runtimeInstallerFormatsValidationFailureDetails() {
-        String message = AstraRuntimeInstaller.formatCommandFailure(
+        String message = RuntimeInstaller.formatCommandFailure(
                 List.of("python", "-c", "import cellpose"),
-                new AstraRuntimeInstaller.CommandResult(7, "line1\nline2\nline3")
+                new RuntimeInstaller.CommandResult(7, "line1\nline2\nline3")
         );
 
         assertTrue(message.contains("exit code 7"));
@@ -220,7 +252,7 @@ class AstraExtensionContractTest {
     void runtimeInstallerCancellationTerminatesActiveProcess() {
         FakeProcess process = new FakeProcess();
 
-        assertTrue(AstraRuntimeInstaller.terminateProcessForCancellation(process, Duration.ofMillis(1)));
+        assertTrue(RuntimeInstaller.terminateProcessForCancellation(process, Duration.ofMillis(1)));
         assertTrue(process.destroyCalled);
         assertTrue(process.destroyForciblyCalled);
     }
@@ -232,7 +264,7 @@ class AstraExtensionContractTest {
      */
     @Test
     void runtimeInstallerAppliesRuntimePathOnlyAfterValidation() throws Exception {
-        String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraRuntimeInstaller.java").toPath());
+        String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/RuntimeInstaller.java").toPath());
         int verify = source.indexOf("verifyRuntime(python, progress, logFile);");
         int apply = source.indexOf("applyRuntimePath(runtimePythonPath, python);");
 
@@ -248,7 +280,7 @@ class AstraExtensionContractTest {
      */
     @Test
     void runtimeInstallerCancellationCannotReachSuccessPath() throws Exception {
-        String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraRuntimeInstaller.java").toPath());
+        String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/RuntimeInstaller.java").toPath());
 
         assertTrue(source.contains("throw new CancellationException(\"ASTRA runtime installation cancelled by user"));
         assertTrue(source.contains("progress.failed(t, logFile);"));
@@ -262,17 +294,17 @@ class AstraExtensionContractTest {
      * @throws Exception if source cannot be read.
      */
     @Test
-    void cellposeRunnerSyncsAstraRuntimePreferenceDirectly() throws Exception {
+    void cellposeRunnerSyncsRuntimePreferenceDirectly() throws Exception {
         String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraCellpose2D.java").toPath());
 
-        assertTrue(source.contains("ASTRA_RUNTIME_PYTHON_PATH_KEY = \"astraRuntimePythonPath\""));
-        assertTrue(source.contains("syncAstraRuntimePythonPreference()"));
-        assertTrue(source.contains("PathPrefs.createPersistentPreference(ASTRA_RUNTIME_PYTHON_PATH_KEY, \"\")"));
+        assertTrue(source.contains("RUNTIME_PYTHON_PATH_KEY = \"qupath.ext.astra.runtimePythonPath\""));
+        assertTrue(source.contains("syncRuntimePythonPreference()"));
+        assertTrue(source.contains("PathPrefs.createPersistentPreference(RUNTIME_PYTHON_PATH_KEY, \"\")"));
         assertTrue(source.contains("pythonExecutable.isAbsolute()"));
         assertTrue(source.contains("pythonExecutable.isFile()"));
         assertTrue(source.contains("cellposeSetup.setCellposePythonPath(absolutePath);"));
         assertTrue(source.contains("CellposeSetup may not have been synchronized yet"));
-        assertTrue(source.contains("ASTRA/Cellpose > ASTRA runtime Python executable"));
+        assertTrue(source.contains("Automated Structural Tissue Research and Analysis (ASTRA) > Cellpose Runtime Python Executable"));
         assertFalse(source.contains("cellposeSAMPythonPath"));
     }
 
@@ -283,17 +315,17 @@ class AstraExtensionContractTest {
      * @throws Exception if source cannot be read.
      */
     @Test
-    void astraCellposeOverridesBiopRuntimeSelection() throws Exception {
+    void cellposeOverridesBiopRuntimeSelection() throws Exception {
         String base = Files.readString(new File(ROOT, "src/main/java/qupath/ext/biop/cellpose/Cellpose2D.java").toPath());
-        String astra = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraCellpose2D.java").toPath());
+        String runtimeSource = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraCellpose2D.java").toPath());
 
         assertTrue(base.contains("protected VirtualEnvironmentRunner getVirtualEnvironmentRunner()"));
-        assertTrue(astra.contains("protected VirtualEnvironmentRunner getVirtualEnvironmentRunner()"));
-        assertTrue(astra.contains("return createRuntimeRunner();"));
-        assertTrue(astra.contains("VirtualEnvironmentRunner.EnvType.EXE"));
-        assertFalse(astra.contains("EnvType.CONDA"));
-        assertFalse(astra.contains("\"CALL\""));
-        assertFalse(astra.contains("\"activate\""));
+        assertTrue(runtimeSource.contains("protected VirtualEnvironmentRunner getVirtualEnvironmentRunner()"));
+        assertTrue(runtimeSource.contains("return createRuntimeRunner();"));
+        assertTrue(runtimeSource.contains("VirtualEnvironmentRunner.EnvType.EXE"));
+        assertFalse(runtimeSource.contains("EnvType.CONDA"));
+        assertFalse(runtimeSource.contains("\"CALL\""));
+        assertFalse(runtimeSource.contains("\"activate\""));
     }
 
     /**
@@ -301,10 +333,10 @@ class AstraExtensionContractTest {
      * when callers do not provide explicit directories.
      */
     @Test
-    void astraDefaultDirectoriesResolveUnderAstraRoot() {
+    void defaultDirectoriesResolveUnderArtifactRoot() {
         File project = new File("/tmp/astra-extension-project");
 
-        assertEquals(new File(project, "astra"), AstraCellpose2D.resolveAstraRootDirectory(project));
+        assertEquals(new File(project, "astra"), AstraCellpose2D.resolveArtifactRootDirectory(project));
         assertEquals(new File(project, "astra/models"), AstraCellpose2D.resolveModelDirectory(project, null));
         assertEquals(new File(project, "astra/training"), AstraCellpose2D.resolveTrainingRootDirectory(project, null));
         assertEquals(new File(project, "astra/validation"), AstraCellpose2D.resolveValidationInputDirectory(project, null));
@@ -318,14 +350,14 @@ class AstraExtensionContractTest {
      * @throws Exception if source cannot be read.
      */
     @Test
-    void astraTrainingUsesThreeFolderRuntimeContract() throws Exception {
+    void trainingUsesThreeFolderRuntimeContract() throws Exception {
         File root = new File("/tmp/astra-training-root");
         String runtime = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraCellpose2D.java").toPath());
         String builder = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraCellposeBuilder.java").toPath());
 
         assertEquals(new File(root, "train"), AstraCellpose2D.resolveTrainingDirectory(root));
         assertEquals(new File(root, "models"), AstraCellpose2D.trainingArtifactReturnValue(root));
-        assertTrue(runtime.contains("cellposeArguments.add(\"--astra_model_save_root\")"));
+        assertTrue(runtime.contains("cellposeArguments.add(\"--model_save_root\")"));
         assertTrue(runtime.contains("cellposeArguments.add(this.groundTruthDirectory.getAbsolutePath())"));
         assertTrue(runtime.contains("return trainingArtifactReturnValue(this.groundTruthDirectory);"));
         assertTrue(builder.contains("persistTrainingArtifacts(boolean persist)"));
@@ -341,7 +373,7 @@ class AstraExtensionContractTest {
     @Test
     void cellposeDetectionFailureIsFatal() throws Exception {
         String base = Files.readString(new File(ROOT, "src/main/java/qupath/ext/biop/cellpose/Cellpose2D.java").toPath());
-        String astra = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraCellpose2D.java").toPath());
+        String runtimeSource = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraCellpose2D.java").toPath());
 
         assertTrue(base.contains("requireSuccessfulProcessExit(veRunner, \"Cellpose process\")"));
         assertTrue(base.contains("throw e;"));
@@ -351,9 +383,9 @@ class AstraExtensionContractTest {
         assertTrue(base.contains("Thread.currentThread().interrupt();"));
         assertTrue(base.contains("pool.submit(runnable).get();"));
         assertTrue(base.contains("throw new IllegalStateException(\"Cellpose detection was interrupted.\", e);"));
-        assertTrue(astra.contains("requireSuccessfulProcessExit(veRunner, \"Cellpose process\")"));
-        assertTrue(astra.contains("exited with value"));
-        assertTrue(astra.contains("Process log:"));
+        assertTrue(runtimeSource.contains("requireSuccessfulProcessExit(veRunner, \"Cellpose process\")"));
+        assertTrue(runtimeSource.contains("exited with value"));
+        assertTrue(runtimeSource.contains("Process log:"));
     }
 
     private static final class FakeProcess extends Process {
@@ -436,7 +468,7 @@ class AstraExtensionContractTest {
                 final Map cfg = [:]
                 """;
 
-        List<?> constants = AstraPipelineLauncher.extractEditableConstants(script);
+        List<?> constants = PipelineLauncher.extractEditableConstants(script);
 
         assertFalse(isAdvanced(constants, "CLASS_ANALYSIS_REGION"));
         assertFalse(isAdvanced(constants, "CHANNEL_DAPI"));
@@ -460,7 +492,7 @@ class AstraExtensionContractTest {
      */
     @Test
     void launcherGatesPixelScalingByBatchMode() throws Exception {
-        String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraPipelineLauncher.java").toPath());
+        String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/PipelineLauncher.java").toPath());
 
         assertTrue(source.contains("setVisible(rows, \"USE_PIXEL_SCALING\", isChecked(byName, \"USE_BATCH_MODE\"));"));
     }
@@ -481,7 +513,7 @@ class AstraExtensionContractTest {
                 final Map cfg = [:]
                 """;
 
-        List<?> constants = AstraPipelineLauncher.extractEditableConstants(script);
+        List<?> constants = PipelineLauncher.extractEditableConstants(script);
 
         assertEquals(2, constants.size());
         assertFalse(hasConstant(constants, "NUC_MODEL_SOURCE_OPTIONS"));
@@ -498,7 +530,7 @@ class AstraExtensionContractTest {
                 final Map cfg = [:]
                 """;
 
-        List<?> constants = AstraPipelineLauncher.extractEditableConstants(script);
+        List<?> constants = PipelineLauncher.extractEditableConstants(script);
 
         assertFalse(hasConstant(constants, "CELLPOSE_CELL_CHANNELS_HELP"));
         assertTrue(helpFor(constants, "CELLPOSE_CELL_CHANNELS").contains("Segmentation channels"));
@@ -520,8 +552,8 @@ class AstraExtensionContractTest {
                 final Map cfg = [:]
                 """;
 
-        String firstSchema = AstraPipelineLauncher.schemaIdentity(AstraPipelineLauncher.extractEditableConstants(first));
-        String secondSchema = AstraPipelineLauncher.schemaIdentity(AstraPipelineLauncher.extractEditableConstants(second));
+        String firstSchema = PipelineLauncher.schemaIdentity(PipelineLauncher.extractEditableConstants(first));
+        String secondSchema = PipelineLauncher.schemaIdentity(PipelineLauncher.extractEditableConstants(second));
 
         assertFalse(firstSchema.equals(secondSchema));
     }
@@ -537,22 +569,22 @@ class AstraExtensionContractTest {
                 final Map cfg = [:]
                 """;
 
-        String configured = AstraPipelineLauncher.applyConstants(script, AstraPipelineLauncher.extractEditableConstants(script));
+        String configured = PipelineLauncher.applyConstants(script, PipelineLauncher.extractEditableConstants(script));
 
         assertTrue(configured.contains("\"ROI\"\nfinal boolean USE_WHOLE_IMAGE_IF_NO_REGION"));
         assertFalse(configured.contains("\"ROI\"final boolean"));
     }
 
     /**
-     * Verifies the extension archive is quarantined away from active source and
-     * resource roots.
+     * Verifies retired implementation snapshots live only on the dedicated
+     * legacy branch, not under wrapper folders on dev.
      */
     @Test
-    void archiveRootDoesNotLeakIntoActiveSources() {
+    void legacySnapshotsDoNotLiveOnDevBranch() {
+        assertFalse(new File(ROOT, "_archive").exists());
         assertFalse(new File(ROOT, "_legacy").exists());
         assertFalse(new File(ROOT, "_broken").exists());
         assertFalse(new File(ROOT, "_original").exists());
-        assertTrue(new File(ROOT, "_archive/README.md").isFile());
 
         assertActiveTreeDoesNotReferenceArchive(new File(ROOT, "src/main/java"));
         assertActiveTreeDoesNotReferenceArchive(new File(ROOT, "src/main/resources"));

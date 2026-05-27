@@ -94,9 +94,9 @@ import java.util.regex.Pattern;
  * through QuPath's Groovy scripting runtime.  This keeps the extension-side GUI
  * generic while avoiding a second divergent configuration schema.</p>
  */
-final class AstraPipelineLauncher {
+final class PipelineLauncher {
 
-    private static final Logger logger = LoggerFactory.getLogger(AstraPipelineLauncher.class);
+    private static final Logger logger = LoggerFactory.getLogger(PipelineLauncher.class);
     private static final Pattern DECLARATION_PATTERN = Pattern.compile(
             "^final\\s+(String|boolean|int|double|List|Map)\\s+([A-Z][A-Z0-9_]*)\\s*=\\s*(.*)$"
     );
@@ -121,7 +121,7 @@ final class AstraPipelineLauncher {
     private static final double CARD_CONTENT_GAP = 8.0;
     private static final Gson PROFILE_GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    private AstraPipelineLauncher() {
+    private PipelineLauncher() {
         throw new AssertionError("No instances");
     }
 
@@ -780,7 +780,7 @@ final class AstraPipelineLauncher {
     }
 
     private static String runtimeProperty(String name, String fallback) {
-        Package pkg = AstraPipelineLauncher.class.getPackage();
+        Package pkg = PipelineLauncher.class.getPackage();
         if ("Implementation-Version".equals(name) && pkg != null && pkg.getImplementationVersion() != null) {
             return pkg.getImplementationVersion();
         }
@@ -952,14 +952,14 @@ final class AstraPipelineLauncher {
     }
 
     private static void installColocalizationRunModeEditor(String scriptName, List<EditableConstant> constants) {
-        if (!AstraGuiPresentation.supportsAnalysisHeaderActions(scriptName)) {
+        if (!GuiPresentation.supportsAnalysisHeaderActions(scriptName)) {
             return;
         }
         constants.stream()
                 .filter(c -> "MODES_TO_RUN".equals(c.name) && "List".equals(c.type))
                 .findFirst()
                 .ifPresent(c -> c.setCustomEditor(new StageModeEditor(
-                        AstraGuiPresentation.visibleRunModeOptions(scriptName, c.options),
+                        GuiPresentation.visibleRunModeOptions(scriptName, c.options),
                         c.displayValue
                 )));
     }
@@ -1056,7 +1056,7 @@ final class AstraPipelineLauncher {
         loadProfile.setStyle(settingsHeaderButtonStyle());
         loadProfile.setOnAction(event -> loadSettingsProfileWithDialog(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, autosave, feedback));
         titleRow.getChildren().addAll(title, reset, saveProfile, loadProfile);
-        if (AstraGuiPresentation.supportsAnalysisHeaderActions(scriptName)) {
+        if (GuiPresentation.supportsAnalysisHeaderActions(scriptName)) {
             Button resetImage = new Button("Reset Image");
             resetImage.setFocusTraversable(false);
             resetImage.setStyle(analysisHeaderButtonStyle());
@@ -1075,7 +1075,7 @@ final class AstraPipelineLauncher {
             }
             titleRow.getChildren().addAll(resetImage, resetProject);
         }
-        if (AstraGuiPresentation.supportsHeaderExport(scriptName)) {
+        if (GuiPresentation.supportsHeaderExport(scriptName)) {
             Button export = new Button("Export");
             export.setFocusTraversable(false);
             export.setStyle(exportHeaderButtonStyle());
@@ -1407,7 +1407,7 @@ final class AstraPipelineLauncher {
         ComboBox<String> displayCheck = new ComboBox<>();
         displayCheck.setPromptText("First check");
         displayCheck.setMaxWidth(Double.MAX_VALUE);
-        styleAstraComboBox(displayCheck);
+        styleComboBox(displayCheck);
         displayCheck.setValue(EditableConstant.stripStringQuotes(displayCheckConstant.type, displayCheckConstant.displayValue));
         displayCheckConstant.setCustomEditor(displayCheck);
         displayCheckConstant.addChangeListener(autosave::markManualEditAndSave);
@@ -1592,11 +1592,11 @@ final class AstraPipelineLauncher {
         combo.getItems().addAll(validIds);
         combo.setValue(EditableConstant.stripStringQuotes(constant.type, constant.displayValue));
         combo.setMaxWidth(Double.MAX_VALUE);
-        styleAstraComboBox(combo);
+        styleComboBox(combo);
         return combo;
     }
 
-    private static void styleAstraComboBox(ComboBox<String> combo) {
+    private static void styleComboBox(ComboBox<String> combo) {
         combo.setStyle(EditableConstant.controlStyle() + " -fx-mark-color: " + TEAL_DARK + "; -fx-text-base-color: " + INK + ";");
         styleComboBoxText(combo);
         if (combo.isEditable()) {
@@ -1975,7 +1975,7 @@ final class AstraPipelineLauncher {
                 .distinct()
                 .toList();
         List<String> nucleusChannels = names.stream()
-                .filter(AstraPipelineLauncher::isNuclearChannel)
+                .filter(PipelineLauncher::isNuclearChannel)
                 .toList();
         List<String> nonNuclearChannels = names.stream()
                 .filter(name -> !isNuclearChannel(name))
@@ -2170,7 +2170,7 @@ final class AstraPipelineLauncher {
         }
         return "[" + values.stream()
                 .filter(s -> s != null && !s.isBlank())
-                .map(AstraPipelineLauncher::quoteGroovy)
+                .map(PipelineLauncher::quoteGroovy)
                 .reduce((a, b) -> a + ", " + b)
                 .orElse("") + "]";
     }
@@ -2246,7 +2246,7 @@ final class AstraPipelineLauncher {
     }
 
     static String formatGuiLogText(String text) {
-        return AstraRunLogParser.formatCleanText(text, AstraRunLogSource.QUPATH, AstraRunLogSeverity.NEUTRAL);
+        return RunLogParser.formatCleanText(text, RunLogSource.QUPATH, RunLogSeverity.NEUTRAL);
     }
 
     private static void installReliableTooltip(Button info, Tooltip tooltip) {
@@ -2312,7 +2312,7 @@ final class AstraPipelineLauncher {
     private static void executeAsync(QuPathGUI qupath, String scriptName, String configuredScript, RunFeedback feedback, Button... actionButtons) {
         feedback.start(configuredScript);
         setActionButtonsDisabled(true, actionButtons);
-        Future<?> future = qupath.getThreadPoolManager().getSingleThreadExecutor(AstraPipelineLauncher.class).submit(() -> {
+        Future<?> future = qupath.getThreadPoolManager().getSingleThreadExecutor(PipelineLauncher.class).submit(() -> {
             String previousGuiRunActive = System.getProperty(GUI_RUN_ACTIVE_PROPERTY);
             System.setProperty(GUI_RUN_ACTIVE_PROPERTY, "true");
             try (RunLogCapture ignored = RunLogCapture.attach(feedback::appendLogText)) {
@@ -2440,7 +2440,7 @@ final class AstraPipelineLauncher {
     }
 
     static String displayLabel(String name) {
-        return AstraGuiPresentation.displayLabel(name);
+        return GuiPresentation.displayLabel(name);
     }
 
     private static String titleCaseToken(String token) {
@@ -2564,7 +2564,7 @@ final class AstraPipelineLauncher {
         private final VBox box;
         private final Label status;
         private final ProgressIndicator progress;
-        private final AstraStyledLogView output;
+        private final StyledLogView output;
         private final Button killButton;
         private final String scriptName;
         private final AtomicReference<Future<?>> currentRun = new AtomicReference<>();
@@ -2598,7 +2598,7 @@ final class AstraPipelineLauncher {
             HBox.setHgrow(status, Priority.ALWAYS);
             header.getChildren().addAll(progress, status, killButton);
 
-            output = new AstraStyledLogView();
+            output = new StyledLogView();
             VBox.setVgrow(output, Priority.ALWAYS);
 
             box.getChildren().addAll(header, output);
@@ -2619,7 +2619,7 @@ final class AstraPipelineLauncher {
                 killButton.setDisable(false);
                 cancellationRequested.set(false);
                 errorDialogShown.set(false);
-                appendMessage(AstraRunLogSource.ASTRA, AstraRunLogSeverity.INFO, "ASTRA run started.");
+                appendMessage(RunLogSource.ASTRA, RunLogSeverity.INFO, "ASTRA run started.");
             });
         }
 
@@ -2642,7 +2642,7 @@ final class AstraPipelineLauncher {
             // The launcher owns the Java/Groovy Future, not the active VirtualEnvironmentRunner
             // Process instance inside Cellpose. Keep the status honest unless a future
             // runtime API exposes direct process termination.
-            appendMessage(AstraRunLogSource.SYSTEM, AstraRunLogSeverity.CANCELLED, requested
+            appendMessage(RunLogSource.SYSTEM, RunLogSeverity.CANCELLED, requested
                     ? "Cancellation requested. Java/Groovy task interruption was requested. Native Cellpose process may continue until the current operation exits."
                     : "Cancellation marked. The current Java/Groovy task could not be interrupted directly. Native Cellpose process may continue until the current operation exits.");
             Platform.runLater(() -> {
@@ -2653,11 +2653,11 @@ final class AstraPipelineLauncher {
         }
 
         private void info(String message) {
-            appendMessage(AstraRunLogSource.ASTRA, AstraRunLogSeverity.INFO, message);
+            appendMessage(RunLogSource.ASTRA, RunLogSeverity.INFO, message);
         }
 
         private void warn(String message) {
-            appendMessage(AstraRunLogSource.ASTRA, AstraRunLogSeverity.WARNING, message);
+            appendMessage(RunLogSource.ASTRA, RunLogSeverity.WARNING, message);
         }
 
         private void success(String message) {
@@ -2667,7 +2667,7 @@ final class AstraPipelineLauncher {
                 progress.setVisible(false);
                 progress.setManaged(false);
                 killButton.setDisable(true);
-                output.appendMessage(AstraRunLogSource.ASTRA, AstraRunLogSeverity.SUCCESS, message);
+                output.appendMessage(RunLogSource.ASTRA, RunLogSeverity.SUCCESS, message);
             });
         }
 
@@ -2678,7 +2678,7 @@ final class AstraPipelineLauncher {
                 progress.setVisible(false);
                 progress.setManaged(false);
                 killButton.setDisable(true);
-                output.appendMessage(AstraRunLogSource.ASTRA, AstraRunLogSeverity.ERROR, message);
+                output.appendMessage(RunLogSource.ASTRA, RunLogSeverity.ERROR, message);
             });
         }
 
@@ -2689,21 +2689,21 @@ final class AstraPipelineLauncher {
                 progress.setVisible(false);
                 progress.setManaged(false);
                 killButton.setDisable(true);
-                output.appendMessage(AstraRunLogSource.ASTRA, AstraRunLogSeverity.CANCELLED, message);
+                output.appendMessage(RunLogSource.ASTRA, RunLogSeverity.CANCELLED, message);
             });
         }
 
-        private void appendMessage(AstraRunLogSource source, AstraRunLogSeverity severity, String text) {
+        private void appendMessage(RunLogSource source, RunLogSeverity severity, String text) {
             Platform.runLater(() -> output.appendMessage(source, severity, text));
         }
 
         private void appendLogText(String text) {
-            Platform.runLater(() -> output.appendText(text, AstraRunLogSource.QUPATH, AstraRunLogSeverity.NEUTRAL));
+            Platform.runLater(() -> output.appendText(text, RunLogSource.QUPATH, RunLogSeverity.NEUTRAL));
         }
 
         private void appendScriptText(String text, boolean error) {
-            Platform.runLater(() -> output.appendText(text, AstraRunLogSource.SCRIPT,
-                    error ? AstraRunLogSeverity.ERROR : AstraRunLogSeverity.NEUTRAL));
+            Platform.runLater(() -> output.appendText(text, RunLogSource.SCRIPT,
+                    error ? RunLogSeverity.ERROR : RunLogSeverity.NEUTRAL));
         }
     }
 
@@ -2941,15 +2941,15 @@ final class AstraPipelineLauncher {
         String notes;
 
         SettingsProfile(int schemaVersion, String pipelineName, String scriptName, String scriptSchemaId, String sourceScriptSha256,
-                        String astraBaseCommitOrVersion, String astraExtensionCommitOrVersion, String savedTimestamp,
+                        String baseCommitOrVersion, String extensionCommitOrVersion, String savedTimestamp,
                         Map<String, String> constants, Map<String, String> modelReferences, String notes) {
             this.schema_version = schemaVersion;
             this.pipeline_name = pipelineName;
             this.script_name = scriptName;
             this.script_schema_id = scriptSchemaId;
             this.source_script_sha256 = sourceScriptSha256;
-            this.astra_base_commit_or_version = astraBaseCommitOrVersion;
-            this.astra_extension_commit_or_version = astraExtensionCommitOrVersion;
+            this.astra_base_commit_or_version = baseCommitOrVersion;
+            this.astra_extension_commit_or_version = extensionCommitOrVersion;
             this.saved_timestamp = savedTimestamp;
             this.constants = constants;
             this.model_references = modelReferences;
@@ -3289,7 +3289,7 @@ final class AstraPipelineLauncher {
                 compartment.setValue(check.compartment().isBlank() ? "Nucleus" : check.compartment());
                 compartment.setMinWidth(120.0);
                 compartment.setPrefWidth(130.0);
-                styleAstraComboBox(compartment);
+                styleComboBox(compartment);
                 channelSelector = new ChannelCheckboxEditor("", imageChannels, renderStringList(check.channels()));
                 exclusionSelector = new ChannelCheckboxEditor("", check.channels(), renderStringList(check.excludedChannels()), "Choose check channels first.");
                 channelSelector.addChangeListener(() -> {
@@ -3661,7 +3661,7 @@ final class AstraPipelineLauncher {
         }
 
         private static String displayMode(String mode) {
-            return AstraGuiPresentation.displayLabel(mode);
+            return GuiPresentation.displayLabel(mode);
         }
     }
 
@@ -3791,7 +3791,7 @@ final class AstraPipelineLauncher {
                 comboBox.getItems().addAll(options);
                 comboBox.setValue(stripStringQuotes(type, displayValue));
                 comboBox.setMaxWidth(Double.MAX_VALUE);
-                styleAstraComboBox(comboBox);
+                styleComboBox(comboBox);
                 installOptionDisplay(comboBox);
                 return comboBox;
             }
@@ -4094,7 +4094,7 @@ final class AstraPipelineLauncher {
                 @Override
                 protected void updateItem(String item, boolean empty) {
                     super.updateItem(item, empty);
-                    setText(empty ? null : AstraGuiPresentation.displayOption(name, item));
+                    setText(empty ? null : GuiPresentation.displayOption(name, item));
                     setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";");
                 }
             });
@@ -4102,7 +4102,7 @@ final class AstraPipelineLauncher {
                 @Override
                 protected void updateItem(String item, boolean empty) {
                     super.updateItem(item, empty);
-                    setText(empty ? null : AstraGuiPresentation.displayOption(name, item));
+                    setText(empty ? null : GuiPresentation.displayOption(name, item));
                     setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";");
                 }
             });

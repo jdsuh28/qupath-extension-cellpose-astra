@@ -88,9 +88,9 @@ public class AstraCellpose2D extends Cellpose2D {
 
     private static final Logger logger = LoggerFactory.getLogger(AstraCellpose2D.class);
 
-    private static final String ASTRA_RUNTIME_PYTHON_PATH_KEY = "astraRuntimePythonPath";
-    private static final String ASTRA_RUNTIME_PYTHON_PATH_NAME =
-            "ASTRA/Cellpose > ASTRA runtime Python executable";
+    private static final String RUNTIME_PYTHON_PATH_KEY = "qupath.ext.astra.runtimePythonPath";
+    private static final String RUNTIME_PYTHON_PATH_NAME =
+            "Automated Structural Tissue Research and Analysis (ASTRA) > Cellpose Runtime Python Executable";
 
     private static final String VALIDATION_METRICS_HELPER_RELATIVE_PATH = "QC/run-cellpose-qc.py";
 
@@ -545,12 +545,12 @@ public class AstraCellpose2D extends Cellpose2D {
     private void saveTrainingGraphAfterTraining() throws IOException {
         ResultsTable trainingResults = getTrainingResults();
         File trainingGraphFile = resolveTrainingGraphFile(getTrainingResultsDirectory());
-        AstraQcFigures.saveTrainingLossFigure(trainingResults, trainingGraphFile);
+        QcFigures.saveTrainingLossFigure(trainingResults, trainingGraphFile);
     }
 
     private void saveValidationQcFigureAfterValidation(ResultsTable results) throws IOException {
         File qcFigureFile = resolveValidationQcFigureFile(getValidationResultsDirectory());
-        AstraQcFigures.saveValidationQcFigure(results, qcFigureFile);
+        QcFigures.saveValidationQcFigure(results, qcFigureFile);
     }
 
     private List<BatchEntryContext> buildBatchContexts(List<BatchInferenceRequest> requests) {
@@ -1037,7 +1037,7 @@ public class AstraCellpose2D extends Cellpose2D {
         cellposeArguments.add("--train");
         cellposeArguments.add("--dir");
         cellposeArguments.add(getTrainingDirectory().getAbsolutePath());
-        cellposeArguments.add("--astra_model_save_root");
+        cellposeArguments.add("--model_save_root");
         cellposeArguments.add(this.groundTruthDirectory.getAbsolutePath());
 
         if (this.useTestDir) {
@@ -1075,7 +1075,7 @@ public class AstraCellpose2D extends Cellpose2D {
     private VirtualEnvironmentRunner createRuntimeRunner() {
         requireSupportedRuntimeConfiguration();
 
-        String pythonPath = syncAstraRuntimePythonPreference();
+        String pythonPath = syncRuntimePythonPreference();
         File pythonExecutable = new File(pythonPath);
 
         return new VirtualEnvironmentRunner(
@@ -1086,14 +1086,14 @@ public class AstraCellpose2D extends Cellpose2D {
         );
     }
 
-    private String syncAstraRuntimePythonPreference() {
-        String pythonPath = PathPrefs.createPersistentPreference(ASTRA_RUNTIME_PYTHON_PATH_KEY, "").get();
+    private String syncRuntimePythonPreference() {
+        String pythonPath = PathPrefs.createPersistentPreference(RUNTIME_PYTHON_PATH_KEY, "").get();
         if (pythonPath == null || pythonPath.isBlank()) {
             cellposeSetup.setCellposePythonPath("");
             throw new IllegalStateException(
-                    "ASTRA runtime Python path is empty. Configure "
-                            + ASTRA_RUNTIME_PYTHON_PATH_NAME
-                            + " (key: " + ASTRA_RUNTIME_PYTHON_PATH_KEY + ") in Edit > Preferences. "
+                    "Cellpose runtime Python path is empty. Configure "
+                            + RUNTIME_PYTHON_PATH_NAME
+                            + " (key: " + RUNTIME_PYTHON_PATH_KEY + ") in Edit > Preferences. "
                             + "CellposeSetup may not have been synchronized yet."
             );
         }
@@ -1101,17 +1101,17 @@ public class AstraCellpose2D extends Cellpose2D {
         File pythonExecutable = new File(normalized);
         if (!pythonExecutable.isAbsolute()) {
             throw new IllegalStateException(
-                    "ASTRA runtime Python path must be an absolute path from "
-                            + ASTRA_RUNTIME_PYTHON_PATH_NAME
-                            + " (key: " + ASTRA_RUNTIME_PYTHON_PATH_KEY + "): "
+                    "Cellpose runtime Python path must be an absolute path from "
+                            + RUNTIME_PYTHON_PATH_NAME
+                            + " (key: " + RUNTIME_PYTHON_PATH_KEY + "): "
                             + normalized
             );
         }
         if (!pythonExecutable.isFile()) {
             throw new IllegalStateException(
-                    "ASTRA runtime Python path from "
-                            + ASTRA_RUNTIME_PYTHON_PATH_NAME
-                            + " (key: " + ASTRA_RUNTIME_PYTHON_PATH_KEY + ") is not an existing regular file: "
+                    "Cellpose runtime Python path from "
+                            + RUNTIME_PYTHON_PATH_NAME
+                            + " (key: " + RUNTIME_PYTHON_PATH_KEY + ") is not an existing regular file: "
                             + pythonExecutable.getAbsolutePath()
             );
         }
@@ -1783,28 +1783,28 @@ public class AstraCellpose2D extends Cellpose2D {
 
     static File resolveModelDirectory(File rootDirectory, File modelDirectory) {
         Objects.requireNonNull(rootDirectory, "rootDirectory");
-        return modelDirectory != null ? modelDirectory : new File(resolveAstraRootDirectory(rootDirectory), "models");
+        return modelDirectory != null ? modelDirectory : new File(resolveArtifactRootDirectory(rootDirectory), "models");
     }
 
     static File resolveTrainingRootDirectory(File rootDirectory, File trainingDirectory) {
         Objects.requireNonNull(rootDirectory, "rootDirectory");
         if (trainingDirectory == null || isUpstreamDefaultTrainingDirectory(trainingDirectory)) {
-            return new File(resolveAstraRootDirectory(rootDirectory), "training");
+            return new File(resolveArtifactRootDirectory(rootDirectory), "training");
         }
         return trainingDirectory;
     }
 
     static File resolveValidationInputDirectory(File rootDirectory, File validationDirectory) {
         Objects.requireNonNull(rootDirectory, "rootDirectory");
-        return validationDirectory != null ? validationDirectory : new File(resolveAstraRootDirectory(rootDirectory), "validation");
+        return validationDirectory != null ? validationDirectory : new File(resolveArtifactRootDirectory(rootDirectory), "validation");
     }
 
     static File resolveResultsDirectory(File rootDirectory, File resultsDirectory) {
         Objects.requireNonNull(rootDirectory, "rootDirectory");
-        return resultsDirectory != null ? resultsDirectory : new File(resolveAstraRootDirectory(rootDirectory), "results");
+        return resultsDirectory != null ? resultsDirectory : new File(resolveArtifactRootDirectory(rootDirectory), "results");
     }
 
-    static File resolveAstraRootDirectory(File rootDirectory) {
+    static File resolveArtifactRootDirectory(File rootDirectory) {
         Objects.requireNonNull(rootDirectory, "rootDirectory");
         return new File(rootDirectory, "astra");
     }

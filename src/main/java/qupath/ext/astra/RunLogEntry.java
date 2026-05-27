@@ -2,18 +2,18 @@ package qupath.ext.astra;
 
 import java.util.Objects;
 
-record AstraRunLogEntry(
-        AstraRunLogSource source,
-        AstraRunLogSeverity severity,
-        AstraRunLogKind kind,
+record RunLogEntry(
+        RunLogSource source,
+        RunLogSeverity severity,
+        RunLogKind kind,
         String text,
         String rawText
 ) {
 
-    AstraRunLogEntry {
-        source = source == null ? AstraRunLogSource.SYSTEM : source;
-        severity = severity == null ? AstraRunLogSeverity.NEUTRAL : severity;
-        kind = kind == null ? AstraRunLogKind.MESSAGE : kind;
+    RunLogEntry {
+        source = source == null ? RunLogSource.SYSTEM : source;
+        severity = severity == null ? RunLogSeverity.NEUTRAL : severity;
+        kind = kind == null ? RunLogKind.MESSAGE : kind;
         text = Objects.requireNonNullElse(text, "").trim();
         rawText = Objects.requireNonNullElse(rawText, "");
     }
@@ -30,14 +30,14 @@ record AstraRunLogEntry(
     }
 }
 
-enum AstraRunLogKind {
+enum RunLogKind {
     MESSAGE,
     KEY_VALUE,
     SEPARATOR,
     PROGRESS
 }
 
-enum AstraRunLogSeverity {
+enum RunLogSeverity {
     INFO("INFO"),
     WARNING("WARNING"),
     ERROR("ERROR"),
@@ -48,7 +48,7 @@ enum AstraRunLogSeverity {
 
     private final String displayName;
 
-    AstraRunLogSeverity(String displayName) {
+    RunLogSeverity(String displayName) {
         this.displayName = displayName;
     }
 
@@ -56,7 +56,7 @@ enum AstraRunLogSeverity {
         return displayName;
     }
 
-    static AstraRunLogSeverity fromToken(String token, AstraRunLogSeverity fallback) {
+    static RunLogSeverity fromToken(String token, RunLogSeverity fallback) {
         if (token == null || token.isBlank()) {
             return fallback == null ? NEUTRAL : fallback;
         }
@@ -72,7 +72,7 @@ enum AstraRunLogSeverity {
     }
 }
 
-enum AstraRunLogSource {
+enum RunLogSource {
     ASTRA("ASTRA"),
     QUPATH("QuPath"),
     CELLPOSE("Cellpose"),
@@ -82,7 +82,7 @@ enum AstraRunLogSource {
 
     private final String displayName;
 
-    AstraRunLogSource(String displayName) {
+    RunLogSource(String displayName) {
         this.displayName = displayName;
     }
 

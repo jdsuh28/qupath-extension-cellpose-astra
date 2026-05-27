@@ -3,8 +3,8 @@ package qupath.ext.astra;
 import java.util.List;
 import java.util.Map;
 
-record AstraRunLogEvent(
-        AstraRunLogEventType type,
+record RunLogEvent(
+        RunLogEventType type,
         String pipelineId,
         String pipelineName,
         String stageId,
@@ -12,12 +12,12 @@ record AstraRunLogEvent(
         Integer imageIndex,
         Integer imageCount,
         Map<String, String> metrics,
-        List<AstraRunLogKeyValue> keyValues,
-        AstraRunLogEntry entry
+        List<RunLogKeyValue> keyValues,
+        RunLogEntry entry
 ) {
 
-    AstraRunLogEvent {
-        type = type == null ? AstraRunLogEventType.MESSAGE : type;
+    RunLogEvent {
+        type = type == null ? RunLogEventType.MESSAGE : type;
         pipelineId = pipelineId == null ? "" : pipelineId;
         pipelineName = pipelineName == null ? "" : pipelineName;
         stageId = stageId == null ? "" : stageId;
@@ -26,19 +26,19 @@ record AstraRunLogEvent(
         keyValues = keyValues == null ? List.of() : List.copyOf(keyValues);
     }
 
-    static AstraRunLogEvent of(AstraRunLogEventType type, String stageId, String stageLabel, AstraRunLogEntry entry) {
-        return new AstraRunLogEvent(type, "", "", stageId, stageLabel, null, null, Map.of(), List.of(), entry);
+    static RunLogEvent of(RunLogEventType type, String stageId, String stageLabel, RunLogEntry entry) {
+        return new RunLogEvent(type, "", "", stageId, stageLabel, null, null, Map.of(), List.of(), entry);
     }
 }
 
-record AstraRunLogKeyValue(String key, String value) {
-    AstraRunLogKeyValue {
+record RunLogKeyValue(String key, String value) {
+    RunLogKeyValue {
         key = key == null ? "" : key.trim();
         value = value == null ? "" : value.trim();
     }
 }
 
-enum AstraRunLogEventType {
+enum RunLogEventType {
     START,
     PREFLIGHT,
     SCOPE,

@@ -3,26 +3,26 @@ package qupath.ext.astra;
 import java.util.ArrayList;
 import java.util.List;
 
-final class AstraRunLogGrouper {
+final class RunLogGrouper {
 
-    private AstraRunLogGrouper() {
+    private RunLogGrouper() {
         throw new AssertionError("No instances");
     }
 
-    static List<AstraRunLogBlock> groupBySource(List<AstraRunLogEntry> entries) {
+    static List<RunLogBlock> groupBySource(List<RunLogEntry> entries) {
         if (entries == null || entries.isEmpty()) {
             return List.of();
         }
-        List<AstraRunLogBlock> blocks = new ArrayList<>();
-        AstraRunLogSource currentSource = null;
-        List<AstraRunLogEntry> currentEntries = new ArrayList<>();
-        for (AstraRunLogEntry entry : entries) {
+        List<RunLogBlock> blocks = new ArrayList<>();
+        RunLogSource currentSource = null;
+        List<RunLogEntry> currentEntries = new ArrayList<>();
+        for (RunLogEntry entry : entries) {
             if (entry == null) {
                 continue;
             }
             if (currentSource == null || entry.source() != currentSource) {
                 if (!currentEntries.isEmpty()) {
-                    blocks.add(new AstraRunLogBlock(currentSource, List.copyOf(currentEntries)));
+                    blocks.add(new RunLogBlock(currentSource, List.copyOf(currentEntries)));
                     currentEntries.clear();
                 }
                 currentSource = entry.source();
@@ -30,11 +30,11 @@ final class AstraRunLogGrouper {
             currentEntries.add(entry);
         }
         if (!currentEntries.isEmpty()) {
-            blocks.add(new AstraRunLogBlock(currentSource, List.copyOf(currentEntries)));
+            blocks.add(new RunLogBlock(currentSource, List.copyOf(currentEntries)));
         }
         return blocks;
     }
 }
 
-record AstraRunLogBlock(AstraRunLogSource source, List<AstraRunLogEntry> entries) {
+record RunLogBlock(RunLogSource source, List<RunLogEntry> entries) {
 }

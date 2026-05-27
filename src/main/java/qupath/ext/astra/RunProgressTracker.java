@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-final class AstraRunProgressTracker {
+final class RunProgressTracker {
 
     private static final Pattern CELLPOSE_PERCENT = Pattern.compile("^(\\d{1,3})%\\|");
     private static final Pattern CELLPOSE_INDEX = Pattern.compile("\\|\\s*(\\d+)/(\\d+)\\s*\\[");
@@ -30,7 +30,7 @@ final class AstraRunProgressTracker {
         regions = "";
     }
 
-    void accept(AstraRunLogEvent event) {
+    void accept(RunLogEvent event) {
         if (event == null) {
             return;
         }
@@ -77,7 +77,7 @@ final class AstraRunProgressTracker {
         }
     }
 
-    private void updateEntry(AstraRunLogEntry entry) {
+    private void updateEntry(RunLogEntry entry) {
         if (entry == null) {
             return;
         }
@@ -86,7 +86,7 @@ final class AstraRunProgressTracker {
             regionIndex = parsePositiveInt(region.group(1));
             regionCount = parsePositiveInt(region.group(2));
         }
-        if (entry.source() != AstraRunLogSource.CELLPOSE || entry.kind() != AstraRunLogKind.PROGRESS) {
+        if (entry.source() != RunLogSource.CELLPOSE || entry.kind() != RunLogKind.PROGRESS) {
             return;
         }
         String progress = cellposeProgress(entry.text());

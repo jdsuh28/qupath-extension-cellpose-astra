@@ -17,7 +17,7 @@ import javafx.util.Duration;
 import java.util.List;
 import java.util.Map;
 
-final class AstraStyledLogView extends VBox {
+final class StyledLogView extends VBox {
 
     private static final String FONT_STACK = "\"Inter\", \"Avenir Next\", \"Segoe UI\", sans-serif";
     private static final String MONO_FONT_STACK = "\"JetBrains Mono\", \"SFMono-Regular\", \"Consolas\", monospace";
@@ -26,16 +26,16 @@ final class AstraStyledLogView extends VBox {
     private final StringBuilder plainText = new StringBuilder();
     private final StringBuilder rawText = new StringBuilder();
     private final ScrollPane scroll;
-    private final AstraRunTimelineModel timeline = new AstraRunTimelineModel();
-    private final AstraRunProgressTracker progressTracker = new AstraRunProgressTracker();
-    private final AstraRunLogBlockAccumulator blockAccumulator = new AstraRunLogBlockAccumulator();
+    private final RunTimelineModel timeline = new RunTimelineModel();
+    private final RunProgressTracker progressTracker = new RunProgressTracker();
+    private final RunLogBlockAccumulator blockAccumulator = new RunLogBlockAccumulator();
     private final Label statusTitle = new Label("Ready");
     private final Label statusDetail = new Label("Waiting for an ASTRA run.");
     private final Button warningsChip = new Button("Warnings 0");
     private final Button errorsChip = new Button("Errors 0");
     private final VBox failureSummary = new VBox(5.0);
     private final HBox timelineRail = new HBox(6.0);
-    private AstraRunLogSource currentSource;
+    private RunLogSource currentSource;
     private VBox currentGroupBody;
     private VBox currentHiddenBody;
     private Button currentHiddenToggle;
@@ -46,7 +46,7 @@ final class AstraStyledLogView extends VBox {
     private Region firstErrorTarget;
     private boolean autoScroll = true;
 
-    AstraStyledLogView() {
+    StyledLogView() {
         super(7.0);
         setStyle("-fx-background-color: #061720; -fx-border-color: #355b69; -fx-border-radius: 6; -fx-background-radius: 6; -fx-padding: 8;");
 
@@ -70,8 +70,8 @@ final class AstraStyledLogView extends VBox {
         HBox toolbar = new HBox(8.0, copy);
         toolbar.setAlignment(Pos.CENTER_RIGHT);
 
-        styleCountChip(warningsChip, AstraRunLogSeverity.WARNING);
-        styleCountChip(errorsChip, AstraRunLogSeverity.ERROR);
+        styleCountChip(warningsChip, RunLogSeverity.WARNING);
+        styleCountChip(errorsChip, RunLogSeverity.ERROR);
         warningsChip.setVisible(false);
         warningsChip.setManaged(false);
         errorsChip.setVisible(false);
@@ -113,12 +113,12 @@ final class AstraStyledLogView extends VBox {
         renderTimeline();
     }
 
-    void appendMessage(AstraRunLogSource source, AstraRunLogSeverity severity, String text) {
-        appendEntries(AstraRunLogParser.parse(text, source, severity), text);
+    void appendMessage(RunLogSource source, RunLogSeverity severity, String text) {
+        appendEntries(RunLogParser.parse(text, source, severity), text);
     }
 
-    void appendText(String text, AstraRunLogSource defaultSource, AstraRunLogSeverity defaultSeverity) {
-        appendEntries(AstraRunLogParser.parse(text, defaultSource, defaultSeverity), text);
+    void appendText(String text, RunLogSource defaultSource, RunLogSeverity defaultSeverity) {
+        appendEntries(RunLogParser.parse(text, defaultSource, defaultSeverity), text);
     }
 
     void clear() {
@@ -150,11 +150,11 @@ final class AstraStyledLogView extends VBox {
         return rawText.toString();
     }
 
-    private void appendEntries(List<AstraRunLogEntry> parsed, String rawInput) {
+    private void appendEntries(List<RunLogEntry> parsed, String rawInput) {
         if (rawInput != null && !rawInput.isEmpty()) {
             rawText.append(rawInput);
         }
-        for (AstraRunLogEntry entry : parsed) {
+        for (RunLogEntry entry : parsed) {
             String copy = entry.copyText();
             if (!copy.isBlank()) {
                 if (!plainText.isEmpty()) {
@@ -163,22 +163,22 @@ final class AstraStyledLogView extends VBox {
                 plainText.append(copy);
             }
 
-            AstraRunLogEvent event = AstraRunLogPresenter.eventFor(entry);
+            RunLogEvent event = RunLogPresenter.eventFor(entry);
             timeline.accept(event);
             progressTracker.accept(event);
             renderTimeline();
-            boolean interruptsAstraBlock = AstraRunLogPresenter.isCommand(entry)
-                    || entry.source() == AstraRunLogSource.CELLPOSE
-                    || entry.source() == AstraRunLogSource.PYTHON
-                    || entry.source() == AstraRunLogSource.SCRIPT;
-            if (interruptsAstraBlock) {
-                flushAstraBlock();
+            boolean interruptsPipelineBlock = RunLogPresenter.isCommand(entry)
+                    || entry.source() == RunLogSource.CELLPOSE
+                    || entry.source() == RunLogSource.PYTHON
+                    || entry.source() == RunLogSource.SCRIPT;
+            if (interruptsPipelineBlock) {
+                flushPipelineBlock();
             }
-            if (AstraRunLogPresenter.isCommand(entry)) {
+            if (RunLogPresenter.isCommand(entry)) {
                 appendStandalone(createCommandBlock(entry), entry);
                 continue;
             }
-            if (entry.source() == AstraRunLogSource.ASTRA || blockAccumulator.isCapturing()) {
+            if (entry.source() == RunLogSource.ASTRA || blockAccumulator.isCapturing()) {
                 var renderedBlock = blockAccumulator.accept(entry);
                 if (renderedBlock.isPresent()) {
                     appendRenderedBlock(renderedBlock.get());
@@ -188,18 +188,18 @@ final class AstraStyledLogView extends VBox {
                     continue;
                 }
             }
-            if (entry.source() == AstraRunLogSource.CELLPOSE && entry.kind() == AstraRunLogKind.PROGRESS) {
+            if (entry.source() == RunLogSource.CELLPOSE && entry.kind() == RunLogKind.PROGRESS) {
                 appendProgressLine(entry);
                 continue;
             }
             if (isRedundantProgress(entry)) {
                 continue;
             }
-            if (AstraRunLogPresenter.isStageCard(entry)) {
+            if (RunLogPresenter.isStageCard(entry)) {
                 appendStandalone(createStageCard(entry, event), entry);
                 continue;
             }
-            if (entry.kind() == AstraRunLogKind.KEY_VALUE && entry.source() == AstraRunLogSource.ASTRA) {
+            if (entry.kind() == RunLogKind.KEY_VALUE && entry.source() == RunLogSource.ASTRA) {
                 appendStandalone(createKeyValueCard(entry), entry);
                 continue;
             }
@@ -210,8 +210,8 @@ final class AstraStyledLogView extends VBox {
         }
     }
 
-    private boolean isRedundantProgress(AstraRunLogEntry entry) {
-        if (entry.kind() != AstraRunLogKind.PROGRESS) {
+    private boolean isRedundantProgress(RunLogEntry entry) {
+        if (entry.kind() != RunLogKind.PROGRESS) {
             lastRenderedProgress = "";
             return false;
         }
@@ -221,19 +221,19 @@ final class AstraStyledLogView extends VBox {
         return redundant;
     }
 
-    private void flushAstraBlock() {
+    private void flushPipelineBlock() {
         blockAccumulator.flush().ifPresent(this::appendRenderedBlock);
     }
 
-    private void appendRenderedBlock(AstraRunLogRenderedBlock block) {
+    private void appendRenderedBlock(RunLogRenderedBlock block) {
         appendStandalone(createRenderedBlockCard(block), block.entries().isEmpty() ? null : block.entries().get(0));
         block.entries().stream()
-                .filter(entry -> entry.severity() == AstraRunLogSeverity.ERROR || entry.severity() == AstraRunLogSeverity.WARNING)
+                .filter(entry -> entry.severity() == RunLogSeverity.ERROR || entry.severity() == RunLogSeverity.WARNING)
                 .findFirst()
-                .ifPresent(entry -> registerSeverityTarget(entry, (Region) entries.getChildren().get(entries.getChildren().size() - 1), AstraRunLogPresenter.eventFor(entry)));
+                .ifPresent(entry -> registerSeverityTarget(entry, (Region) entries.getChildren().get(entries.getChildren().size() - 1), RunLogPresenter.eventFor(entry)));
     }
 
-    private void startSourceGroup(AstraRunLogSource source) {
+    private void startSourceGroup(RunLogSource source) {
         currentSource = source;
         VBox wrapper = new VBox(0.0);
         wrapper.setFillWidth(true);
@@ -253,7 +253,7 @@ final class AstraStyledLogView extends VBox {
         currentProgressRow = null;
     }
 
-    private void appendRawLine(AstraRunLogEntry entry) {
+    private void appendRawLine(RunLogEntry entry) {
         if (entry.source() != currentSource || currentGroupBody == null) {
             startSourceGroup(entry.source());
         }
@@ -264,10 +264,10 @@ final class AstraStyledLogView extends VBox {
         } else {
             currentGroupBody.getChildren().add(line);
         }
-        registerSeverityTarget(entry, line, AstraRunLogPresenter.eventFor(entry));
+        registerSeverityTarget(entry, line, RunLogPresenter.eventFor(entry));
     }
 
-    private void appendProgressLine(AstraRunLogEntry entry) {
+    private void appendProgressLine(RunLogEntry entry) {
         if (entry.source() != currentSource || currentGroupBody == null) {
             startSourceGroup(entry.source());
         }
@@ -278,7 +278,7 @@ final class AstraStyledLogView extends VBox {
         currentGroupBody.getChildren().add(currentProgressRow);
     }
 
-    private void appendStandalone(Region node, AstraRunLogEntry entry) {
+    private void appendStandalone(Region node, RunLogEntry entry) {
         currentSource = null;
         currentGroupBody = null;
         currentHiddenBody = null;
@@ -287,16 +287,16 @@ final class AstraStyledLogView extends VBox {
         currentProgressRow = null;
         entries.getChildren().add(node);
         if (entry != null) {
-            registerSeverityTarget(entry, node, AstraRunLogPresenter.eventFor(entry));
+            registerSeverityTarget(entry, node, RunLogPresenter.eventFor(entry));
         }
     }
 
-    private boolean shouldCollapseInCurrentGroup(AstraRunLogEntry entry) {
-        if (entry.source() != AstraRunLogSource.CELLPOSE || entry.severity() == AstraRunLogSeverity.ERROR || entry.severity() == AstraRunLogSeverity.WARNING) {
+    private boolean shouldCollapseInCurrentGroup(RunLogEntry entry) {
+        if (entry.source() != RunLogSource.CELLPOSE || entry.severity() == RunLogSeverity.ERROR || entry.severity() == RunLogSeverity.WARNING) {
             return false;
         }
         currentCellposeVisibleCount++;
-        return currentCellposeVisibleCount > 8 || AstraRunLogPresenter.isNoisyCellposeDetail(entry);
+        return currentCellposeVisibleCount > 8 || RunLogPresenter.isNoisyCellposeDetail(entry);
     }
 
     private void ensureHiddenBody() {
@@ -319,7 +319,7 @@ final class AstraStyledLogView extends VBox {
         currentGroupBody.getChildren().add(currentHiddenBody);
     }
 
-    private HBox createLine(AstraRunLogEntry entry) {
+    private HBox createLine(RunLogEntry entry) {
         HBox row = new HBox(7.0);
         row.setAlignment(Pos.TOP_LEFT);
         row.setMaxWidth(Double.MAX_VALUE);
@@ -331,7 +331,7 @@ final class AstraStyledLogView extends VBox {
         accent.setMinHeight(16.0);
         accent.setStyle("-fx-background-color: " + severityAccent(entry.severity()) + "; -fx-background-radius: 4;");
 
-        Label text = new Label(AstraRunLogPresenter.shortDisplayText(entry.text()));
+        Label text = new Label(RunLogPresenter.shortDisplayText(entry.text()));
         text.setWrapText(true);
         text.setMaxWidth(Double.MAX_VALUE);
         text.setStyle(lineTextStyle(entry));
@@ -349,11 +349,11 @@ final class AstraStyledLogView extends VBox {
         return row;
     }
 
-    private VBox createStageCard(AstraRunLogEntry entry, AstraRunLogEvent event) {
+    private VBox createStageCard(RunLogEntry entry, RunLogEvent event) {
         VBox card = new VBox(6.0);
         card.setPadding(new Insets(9.0, 10.0, 10.0, 10.0));
         card.setStyle(cardStyle(entry.severity()));
-        Label title = new Label(AstraRunLogPresenter.shortDisplayText(entry.text()));
+        Label title = new Label(RunLogPresenter.shortDisplayText(entry.text()));
         title.setWrapText(true);
         title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 900; -fx-text-fill: #eefaf6;");
         card.getChildren().add(title);
@@ -365,45 +365,45 @@ final class AstraStyledLogView extends VBox {
         return card;
     }
 
-    private VBox createKeyValueCard(AstraRunLogEntry entry) {
+    private VBox createKeyValueCard(RunLogEntry entry) {
         VBox card = new VBox(5.0);
         card.setPadding(new Insets(7.0, 9.0, 7.0, 9.0));
         card.setStyle("-fx-background-color: #102733; -fx-border-color: #2f5360; -fx-border-radius: 5; -fx-background-radius: 5;");
-        AstraRunLogMetrics.keyValue(entry).ifPresent(kv -> {
+        RunLogMetrics.keyValue(entry).ifPresent(kv -> {
             HBox row = new HBox(8.0);
             row.setAlignment(Pos.BASELINE_LEFT);
             Label key = new Label(kv.key());
             key.setMinWidth(118.0);
             key.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900; -fx-text-fill: #8fb8c0;");
-            Label value = new Label(AstraRunLogPresenter.shortDisplayText(kv.value()));
+            Label value = new Label(RunLogPresenter.shortDisplayText(kv.value()));
             value.setWrapText(true);
             value.setStyle("-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: #dcebed;");
             HBox.setHgrow(value, Priority.ALWAYS);
             row.getChildren().addAll(key, value);
             card.getChildren().add(row);
         });
-        HBox badgeRow = badgeRow(AstraRunLogMetrics.badges(entry));
+        HBox badgeRow = badgeRow(RunLogMetrics.badges(entry));
         if (!badgeRow.getChildren().isEmpty()) {
             card.getChildren().add(badgeRow);
         }
         return card;
     }
 
-    private VBox createRenderedBlockCard(AstraRunLogRenderedBlock block) {
+    private VBox createRenderedBlockCard(RunLogRenderedBlock block) {
         VBox card = new VBox(6.0);
         card.setPadding(new Insets(10.0, 11.0, 11.0, 11.0));
         card.setStyle(cardStyle(block.severity()));
-        Label title = new Label(AstraRunLogPresenter.shortDisplayText(block.title()));
+        Label title = new Label(RunLogPresenter.shortDisplayText(block.title()));
         title.setWrapText(true);
         title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 900; -fx-text-fill: #eefaf6;");
         card.getChildren().add(title);
         if (!block.subtitle().isBlank()) {
-            Label subtitle = new Label(AstraRunLogPresenter.shortDisplayText(block.subtitle()));
+            Label subtitle = new Label(RunLogPresenter.shortDisplayText(block.subtitle()));
             subtitle.setWrapText(true);
             subtitle.setStyle("-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 10.8px; -fx-font-weight: 600; -fx-text-fill: #bcd3d8;");
             card.getChildren().add(subtitle);
         }
-        for (AstraRunLogKeyValue kv : block.keyValues()) {
+        for (RunLogKeyValue kv : block.keyValues()) {
             card.getChildren().add(createKeyValueRow(kv));
         }
         HBox badgeRow = badgeRow(block.metrics());
@@ -413,13 +413,13 @@ final class AstraStyledLogView extends VBox {
         return card;
     }
 
-    private HBox createKeyValueRow(AstraRunLogKeyValue kv) {
+    private HBox createKeyValueRow(RunLogKeyValue kv) {
         HBox row = new HBox(8.0);
         row.setAlignment(Pos.BASELINE_LEFT);
         Label key = new Label(kv.key());
         key.setMinWidth(132.0);
         key.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900; -fx-text-fill: #8fb8c0;");
-        Label value = new Label(AstraRunLogPresenter.shortDisplayText(kv.value()));
+        Label value = new Label(RunLogPresenter.shortDisplayText(kv.value()));
         value.setWrapText(true);
         value.setStyle("-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: #dcebed;");
         HBox.setHgrow(value, Priority.ALWAYS);
@@ -427,13 +427,13 @@ final class AstraStyledLogView extends VBox {
         return row;
     }
 
-    private VBox createCommandBlock(AstraRunLogEntry entry) {
+    private VBox createCommandBlock(RunLogEntry entry) {
         VBox card = new VBox(5.0);
         card.setPadding(new Insets(8.0, 9.0, 9.0, 9.0));
         card.setStyle("-fx-background-color: #121d27; -fx-border-color: #586879; -fx-border-radius: 5; -fx-background-radius: 5;");
         Label title = new Label("Command");
         title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900; -fx-text-fill: #b9c7cf;");
-        Label command = new Label(AstraRunLogPresenter.shortDisplayText(entry.text()));
+        Label command = new Label(RunLogPresenter.shortDisplayText(entry.text()));
         command.setWrapText(true);
         command.setStyle("-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: #e6edf2;");
         card.getChildren().addAll(title, command);
@@ -448,7 +448,7 @@ final class AstraStyledLogView extends VBox {
         }
         badges.forEach((key, value) -> {
             if (key != null && !key.isBlank() && value != null && !value.isBlank()) {
-                Label badge = new Label(key + " " + AstraRunLogPresenter.shortDisplayText(value));
+                Label badge = new Label(key + " " + RunLogPresenter.shortDisplayText(value));
                 badge.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 9.5px; -fx-font-weight: 900; -fx-text-fill: #06202b; -fx-background-color: #b9efe6; -fx-background-radius: 999; -fx-padding: 2 7 2 7;");
                 row.getChildren().add(badge);
             }
@@ -466,12 +466,12 @@ final class AstraStyledLogView extends VBox {
         errorsChip.setVisible(timeline.errorCount() > 0);
         errorsChip.setManaged(timeline.errorCount() > 0);
         timelineRail.getChildren().clear();
-        for (AstraRunTimelineStep step : timeline.steps()) {
+        for (RunTimelineStep step : timeline.steps()) {
             timelineRail.getChildren().add(timelineNode(step));
         }
     }
 
-    private HBox timelineNode(AstraRunTimelineStep step) {
+    private HBox timelineNode(RunTimelineStep step) {
         HBox node = new HBox(4.0);
         node.setAlignment(Pos.CENTER_LEFT);
         Region dot = new Region();
@@ -482,7 +482,7 @@ final class AstraStyledLogView extends VBox {
         Label label = new Label(step.label());
         label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10px; -fx-font-weight: 900; -fx-text-fill: " + timelineTextColor(step.state()) + ";");
         node.getChildren().addAll(dot, label);
-        if (!step.durationLabel().isBlank() && step.state() != AstraRunTimelineState.PENDING) {
+        if (!step.durationLabel().isBlank() && step.state() != RunTimelineState.PENDING) {
             Label duration = new Label(step.durationLabel());
             duration.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 9px; -fx-font-weight: 800; -fx-text-fill: #8fb8c0;");
             node.getChildren().add(duration);
@@ -490,19 +490,19 @@ final class AstraStyledLogView extends VBox {
         return node;
     }
 
-    private void registerSeverityTarget(AstraRunLogEntry entry, Region node, AstraRunLogEvent event) {
+    private void registerSeverityTarget(RunLogEntry entry, Region node, RunLogEvent event) {
         if (entry == null || node == null) {
             return;
         }
-        if (entry.severity() == AstraRunLogSeverity.ERROR && firstErrorTarget == null) {
+        if (entry.severity() == RunLogSeverity.ERROR && firstErrorTarget == null) {
             firstErrorTarget = node;
-            renderFailureAdvice(AstraRunLogErrorAdvisor.advise(event));
-        } else if (entry.severity() == AstraRunLogSeverity.WARNING && firstWarningTarget == null) {
+            renderFailureAdvice(RunLogErrorAdvisor.advise(event));
+        } else if (entry.severity() == RunLogSeverity.WARNING && firstWarningTarget == null) {
             firstWarningTarget = node;
         }
     }
 
-    private void renderFailureAdvice(AstraRunLogErrorAdvice advice) {
+    private void renderFailureAdvice(RunLogErrorAdvice advice) {
         if (advice == null) {
             return;
         }
@@ -510,7 +510,7 @@ final class AstraStyledLogView extends VBox {
         Label title = new Label(advice.family());
         title.setWrapText(true);
         title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 900; -fx-text-fill: #ffe1dc;");
-        Label message = new Label(AstraRunLogPresenter.shortDisplayText(advice.message()));
+        Label message = new Label(RunLogPresenter.shortDisplayText(advice.message()));
         message.setWrapText(true);
         message.setStyle("-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 10.8px; -fx-font-weight: 600; -fx-text-fill: #ffd3cb;");
         failureSummary.getChildren().addAll(title, message);
@@ -528,7 +528,7 @@ final class AstraStyledLogView extends VBox {
         Label label = new Label(labelText);
         label.setMinWidth(86.0);
         label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10px; -fx-font-weight: 900; -fx-text-fill: #ffad9f;");
-        Label value = new Label(AstraRunLogPresenter.shortDisplayText(valueText));
+        Label value = new Label(RunLogPresenter.shortDisplayText(valueText));
         value.setWrapText(true);
         value.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 700; -fx-text-fill: #ffe9e5;");
         HBox.setHgrow(value, Priority.ALWAYS);
@@ -548,14 +548,14 @@ final class AstraStyledLogView extends VBox {
         target.requestFocus();
     }
 
-    private static boolean showsSeverityBadge(AstraRunLogSeverity severity) {
-        return severity == AstraRunLogSeverity.ERROR
-                || severity == AstraRunLogSeverity.WARNING
-                || severity == AstraRunLogSeverity.SUCCESS
-                || severity == AstraRunLogSeverity.CANCELLED;
+    private static boolean showsSeverityBadge(RunLogSeverity severity) {
+        return severity == RunLogSeverity.ERROR
+                || severity == RunLogSeverity.WARNING
+                || severity == RunLogSeverity.SUCCESS
+                || severity == RunLogSeverity.CANCELLED;
     }
 
-    private static void styleCountChip(Button chip, AstraRunLogSeverity severity) {
+    private static void styleCountChip(Button chip, RunLogSeverity severity) {
         chip.setFocusTraversable(false);
         chip.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 9.5px; -fx-font-weight: 900;"
                 + " -fx-text-fill: #061720; -fx-padding: 2 7 2 7;"
@@ -563,7 +563,7 @@ final class AstraStyledLogView extends VBox {
                 + " -fx-border-color: transparent; -fx-background-radius: 999;");
     }
 
-    private static String lineTextStyle(AstraRunLogEntry entry) {
+    private static String lineTextStyle(RunLogEntry entry) {
         String color = switch (entry.severity()) {
             case ERROR -> "#ffd3cb";
             case WARNING -> "#ffe0a3";
@@ -572,13 +572,13 @@ final class AstraStyledLogView extends VBox {
             case DEBUG -> "#9fb3bd";
             default -> "#dcebed";
         };
-        String weight = entry.kind() == AstraRunLogKind.SEPARATOR ? "800" : "500";
-        String opacity = entry.kind() == AstraRunLogKind.SEPARATOR ? "0.72" : "1.0";
+        String weight = entry.kind() == RunLogKind.SEPARATOR ? "800" : "500";
+        String opacity = entry.kind() == RunLogKind.SEPARATOR ? "0.72" : "1.0";
         return "-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 11.5px; -fx-font-weight: " + weight
                 + "; -fx-text-fill: " + color + "; -fx-opacity: " + opacity + ";";
     }
 
-    private static String sourceTabStyle(AstraRunLogSource source) {
+    private static String sourceTabStyle(RunLogSource source) {
         return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900;"
                 + " -fx-text-fill: #061720; -fx-padding: 3 9 3 9;"
                 + " -fx-background-color: " + sourceAccent(source) + ";"
@@ -587,20 +587,20 @@ final class AstraStyledLogView extends VBox {
                 + " -fx-border-radius: 5 5 0 0;";
     }
 
-    private static String sourceBlockStyle(AstraRunLogSource source) {
+    private static String sourceBlockStyle(RunLogSource source) {
         return "-fx-background-color: " + sourceBackground(source) + ";"
                 + " -fx-border-color: " + sourceBorder(source) + ";"
                 + " -fx-border-radius: 6; -fx-background-radius: 6;";
     }
 
-    private static String severityBadgeStyle(AstraRunLogSeverity severity) {
+    private static String severityBadgeStyle(RunLogSeverity severity) {
         return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 9.5px; -fx-font-weight: 900;"
                 + " -fx-text-fill: #061720; -fx-padding: 2 5 2 5;"
                 + " -fx-background-color: " + severityAccent(severity) + ";"
                 + " -fx-background-radius: 4;";
     }
 
-    private static String severityAccent(AstraRunLogSeverity severity) {
+    private static String severityAccent(RunLogSeverity severity) {
         return switch (severity) {
             case ERROR -> "#ff8f7f";
             case WARNING -> "#ffd166";
@@ -612,7 +612,7 @@ final class AstraStyledLogView extends VBox {
         };
     }
 
-    private static String cardStyle(AstraRunLogSeverity severity) {
+    private static String cardStyle(RunLogSeverity severity) {
         String border = switch (severity) {
             case ERROR -> "#b9675b";
             case WARNING -> "#a98234";
@@ -623,7 +623,7 @@ final class AstraStyledLogView extends VBox {
         return "-fx-background-color: #0e2a34; -fx-border-color: " + border + "; -fx-border-radius: 6; -fx-background-radius: 6;";
     }
 
-    private static String timelineColor(AstraRunTimelineState state) {
+    private static String timelineColor(RunTimelineState state) {
         return switch (state) {
             case ACTIVE -> "#6fd6cb";
             case COMPLETE -> "#8ee6a8";
@@ -634,7 +634,7 @@ final class AstraStyledLogView extends VBox {
         };
     }
 
-    private static String timelineTextColor(AstraRunTimelineState state) {
+    private static String timelineTextColor(RunTimelineState state) {
         return switch (state) {
             case ACTIVE, COMPLETE -> "#e7fbf5";
             case WARNING -> "#ffe0a3";
@@ -650,7 +650,7 @@ final class AstraStyledLogView extends VBox {
                 + " -fx-border-color: #405b68; -fx-border-radius: 4; -fx-background-radius: 4;";
     }
 
-    private static String sourceAccent(AstraRunLogSource source) {
+    private static String sourceAccent(RunLogSource source) {
         return switch (source) {
             case ASTRA -> "#64d7c7";
             case QUPATH -> "#9fc4ff";
@@ -661,7 +661,7 @@ final class AstraStyledLogView extends VBox {
         };
     }
 
-    private static String sourceBorder(AstraRunLogSource source) {
+    private static String sourceBorder(RunLogSource source) {
         return switch (source) {
             case ASTRA -> "#2f8077";
             case QUPATH -> "#4e6f9d";
@@ -672,7 +672,7 @@ final class AstraStyledLogView extends VBox {
         };
     }
 
-    private static String sourceBackground(AstraRunLogSource source) {
+    private static String sourceBackground(RunLogSource source) {
         return switch (source) {
             case ASTRA -> "#0c2a2d";
             case QUPATH -> "#0d2235";
