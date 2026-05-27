@@ -4,7 +4,6 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
 import javafx.animation.KeyFrame;
-import javafx.animation.PauseTransition;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.collections.ListChangeListener;
@@ -30,7 +29,6 @@ import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.Clipboard;
-import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
@@ -2248,68 +2246,7 @@ final class AstraPipelineLauncher {
     }
 
     static String formatGuiLogText(String text) {
-        if (text == null || text.isBlank()) {
-            return "";
-        }
-        String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
-        boolean trailingNewline = normalized.endsWith("\n");
-        String[] lines = normalized.split("\n", -1);
-        StringBuilder out = new StringBuilder();
-        int lineCount = trailingNewline ? lines.length - 1 : lines.length;
-        for (int i = 0; i < lineCount; i++) {
-            String formatted = formatGuiLogLine(lines[i]);
-            if (!formatted.isBlank()) {
-                if (!out.isEmpty()) {
-                    out.append("\n");
-                }
-                out.append(formatted);
-            }
-        }
-        if (trailingNewline && !out.isEmpty()) {
-            out.append("\n");
-        }
-        return out.toString();
-    }
-
-    private static String formatGuiLogLine(String line) {
-        String out = line == null ? "" : line.trim();
-        if (out.isBlank()) {
-            return "";
-        }
-        out = out.replaceFirst("^\\[LOG]\\s*", "");
-        out = out.replaceFirst("^(INFO|WARN|ERROR|DEBUG|TRACE):\\s*AstraCellpose2D:\\s*", "Cellpose: ");
-        out = out.replaceFirst("^AstraCellpose2D:\\s*", "Cellpose: ");
-        out = out.replaceFirst("^Cellpose:\\s*\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2},\\d{3}\\s+\\[(INFO|WARNING|ERROR|DEBUG)]\\s*", "Cellpose $1: ");
-        out = out.replace(">>>> ", "");
-        out = out.replaceFirst("^(INFO|WARN|ERROR|DEBUG|TRACE)\\s+(COLOCALIZATION|VASCULAR|TRAINING|TUNING|VALIDATION)\\b", "$1: $2");
-        out = out.replaceFirst("^(INFO|WARN|ERROR|DEBUG|TRACE)\\s+[^-]+-\\s*", "$1: ");
-        out = out.replaceFirst("^(INFO|WARN|ERROR|DEBUG|TRACE)\\s+([^:]+):\\s*", "$1: ");
-        out = collapseRepeatedPipelineNames(out);
-
-        Pattern stagePattern = Pattern.compile("^(?:(INFO|WARN|ERROR|DEBUG|TRACE):\\s*)?(COLOCALIZATION|VASCULAR|TRAINING|TUNING|VALIDATION)\\s+\\[([^\\]]+)]\\s*(.*)$");
-        Matcher stageMatcher = stagePattern.matcher(out);
-        if (stageMatcher.matches()) {
-            String severity = stageMatcher.group(1) == null ? "" : stageMatcher.group(1) + ": ";
-            String stage = titleCaseToken(stageMatcher.group(3).replace('_', ' '));
-            String message = stageMatcher.group(4) == null ? "" : stageMatcher.group(4).trim();
-            return severity + stage + (message.isBlank() ? "" : ": " + message);
-        }
-
-        Pattern pipelinePattern = Pattern.compile("^(?:(INFO|WARN|ERROR|DEBUG|TRACE):\\s*)?(COLOCALIZATION|VASCULAR|TRAINING|TUNING|VALIDATION)\\s+(.*)$");
-        Matcher pipelineMatcher = pipelinePattern.matcher(out);
-        if (pipelineMatcher.matches()) {
-            String severity = pipelineMatcher.group(1) == null ? "" : pipelineMatcher.group(1) + ": ";
-            return severity + pipelineMatcher.group(3).trim();
-        }
-        return out;
-    }
-
-    private static String collapseRepeatedPipelineNames(String line) {
-        String out = line;
-        for (String pipeline : List.of("COLOCALIZATION", "VASCULAR", "TRAINING", "TUNING", "VALIDATION")) {
-            out = out.replaceAll("\\b" + pipeline + "\\s+" + pipeline + "\\b", pipeline);
-        }
-        return out;
+        return AstraRunLogParser.formatCleanText(text, AstraRunLogSource.QUPATH, AstraRunLogSeverity.NEUTRAL);
     }
 
     private static void installReliableTooltip(Button info, Tooltip tooltip) {
@@ -2373,7 +2310,7 @@ final class AstraPipelineLauncher {
     }
 
     private static void executeAsync(QuPathGUI qupath, String scriptName, String configuredScript, RunFeedback feedback, Button... actionButtons) {
-        feedback.start();
+        feedback.start(configuredScript);
         setActionButtonsDisabled(true, actionButtons);
         Future<?> future = qupath.getThreadPoolManager().getSingleThreadExecutor(AstraPipelineLauncher.class).submit(() -> {
             String previousGuiRunActive = System.getProperty(GUI_RUN_ACTIVE_PROPERTY);
@@ -2627,13 +2564,15 @@ final class AstraPipelineLauncher {
         private final VBox box;
         private final Label status;
         private final ProgressIndicator progress;
-        private final StyledLogView output;
+        private final AstraStyledLogView output;
         private final Button killButton;
+        private final String scriptName;
         private final AtomicReference<Future<?>> currentRun = new AtomicReference<>();
         private final AtomicBoolean cancellationRequested = new AtomicBoolean(false);
         private final AtomicBoolean errorDialogShown = new AtomicBoolean(false);
 
         private RunFeedback(String scriptName) {
+            this.scriptName = scriptName;
             box = new VBox(8.0);
             box.setPadding(new Insets(14.0));
             box.setStyle("-fx-background-color: #102a3a; -fx-border-color: #284f60; -fx-border-radius: 7; -fx-background-radius: 7;");
@@ -2659,7 +2598,7 @@ final class AstraPipelineLauncher {
             HBox.setHgrow(status, Priority.ALWAYS);
             header.getChildren().addAll(progress, status, killButton);
 
-            output = new StyledLogView();
+            output = new AstraStyledLogView();
             VBox.setVgrow(output, Priority.ALWAYS);
 
             box.getChildren().addAll(header, output);
@@ -2670,9 +2609,9 @@ final class AstraPipelineLauncher {
             return box;
         }
 
-        private void start() {
+        private void start(String configuredScript) {
             Platform.runLater(() -> {
-                output.clear();
+                output.beginRun(scriptName, configuredScript);
                 status.setText("Running...");
                 status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: white;");
                 progress.setVisible(true);
@@ -2680,7 +2619,7 @@ final class AstraPipelineLauncher {
                 killButton.setDisable(false);
                 cancellationRequested.set(false);
                 errorDialogShown.set(false);
-                appendLine("ASTRA run started.");
+                appendMessage(AstraRunLogSource.ASTRA, AstraRunLogSeverity.INFO, "ASTRA run started.");
             });
         }
 
@@ -2703,9 +2642,9 @@ final class AstraPipelineLauncher {
             // The launcher owns the Java/Groovy Future, not the active VirtualEnvironmentRunner
             // Process instance inside Cellpose. Keep the status honest unless a future
             // runtime API exposes direct process termination.
-            appendLine(requested
-                    ? "[CANCELLED] Cancellation requested. Java/Groovy task interruption was requested. Native Cellpose process may continue until the current operation exits."
-                    : "[CANCELLED] Cancellation marked. The current Java/Groovy task could not be interrupted directly. Native Cellpose process may continue until the current operation exits.");
+            appendMessage(AstraRunLogSource.SYSTEM, AstraRunLogSeverity.CANCELLED, requested
+                    ? "Cancellation requested. Java/Groovy task interruption was requested. Native Cellpose process may continue until the current operation exits."
+                    : "Cancellation marked. The current Java/Groovy task could not be interrupted directly. Native Cellpose process may continue until the current operation exits.");
             Platform.runLater(() -> {
                 status.setText("Cancellation requested.");
                 status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: #ffe0a3;");
@@ -2714,11 +2653,11 @@ final class AstraPipelineLauncher {
         }
 
         private void info(String message) {
-            append("[INFO] " + message + "\n");
+            appendMessage(AstraRunLogSource.ASTRA, AstraRunLogSeverity.INFO, message);
         }
 
         private void warn(String message) {
-            append("[WARN] " + message + "\n");
+            appendMessage(AstraRunLogSource.ASTRA, AstraRunLogSeverity.WARNING, message);
         }
 
         private void success(String message) {
@@ -2728,7 +2667,7 @@ final class AstraPipelineLauncher {
                 progress.setVisible(false);
                 progress.setManaged(false);
                 killButton.setDisable(true);
-                appendLine("[DONE] " + message);
+                output.appendMessage(AstraRunLogSource.ASTRA, AstraRunLogSeverity.SUCCESS, message);
             });
         }
 
@@ -2739,7 +2678,7 @@ final class AstraPipelineLauncher {
                 progress.setVisible(false);
                 progress.setManaged(false);
                 killButton.setDisable(true);
-                appendLine("[ERROR] " + message);
+                output.appendMessage(AstraRunLogSource.ASTRA, AstraRunLogSeverity.ERROR, message);
             });
         }
 
@@ -2750,114 +2689,21 @@ final class AstraPipelineLauncher {
                 progress.setVisible(false);
                 progress.setManaged(false);
                 killButton.setDisable(true);
-                appendLine("[CANCELLED] " + message);
+                output.appendMessage(AstraRunLogSource.ASTRA, AstraRunLogSeverity.CANCELLED, message);
             });
         }
 
-        private void append(String text) {
-            Platform.runLater(() -> {
-                output.appendText(text);
-            });
+        private void appendMessage(AstraRunLogSource source, AstraRunLogSeverity severity, String text) {
+            Platform.runLater(() -> output.appendMessage(source, severity, text));
         }
 
         private void appendLogText(String text) {
-            String formatted = formatGuiLogText(text);
-            append(formatted);
-            if (!formatted.isBlank() && !formatted.endsWith("\n")) {
-                append("\n");
-            }
+            Platform.runLater(() -> output.appendText(text, AstraRunLogSource.QUPATH, AstraRunLogSeverity.NEUTRAL));
         }
 
-        private void appendLine(String text) {
-            append(text + "\n");
-        }
-    }
-
-    private static final class StyledLogView extends VBox {
-
-        private final VBox entries = new VBox(4.0);
-        private final StringBuilder plainText = new StringBuilder();
-        private final ScrollPane scroll;
-
-        private StyledLogView() {
-            super(6.0);
-            setStyle("-fx-background-color: #071923; -fx-border-color: #4d7583; -fx-border-radius: 4; -fx-background-radius: 4; -fx-padding: 7;");
-            Button copy = new Button("Copy All");
-            copy.setFocusTraversable(false);
-            copy.setStyle(copyLogButtonStyle());
-            copy.setOnAction(event -> {
-                ClipboardContent content = new ClipboardContent();
-                content.putString(plainText.toString());
-                Clipboard.getSystemClipboard().setContent(content);
-                copy.setText("Copied");
-                copy.setStyle(copiedLogButtonStyle());
-                PauseTransition reset = new PauseTransition(Duration.seconds(1.2));
-                reset.setOnFinished(done -> {
-                    copy.setText("Copy All");
-                    copy.setStyle(copyLogButtonStyle());
-                });
-                reset.play();
-            });
-            entries.setFillWidth(true);
-            scroll = new ScrollPane(entries);
-            scroll.setFitToWidth(true);
-            scroll.setPrefViewportHeight(520.0);
-            scroll.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
-            VBox.setVgrow(scroll, Priority.ALWAYS);
-            getChildren().addAll(copy, scroll);
-        }
-
-        private void appendText(String text) {
-            if (text == null || text.isEmpty()) {
-                return;
-            }
-            plainText.append(text);
-            String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
-            String[] lines = normalized.split("\n", -1);
-            for (int i = 0; i < lines.length; i++) {
-                if (i == lines.length - 1 && lines[i].isEmpty() && normalized.endsWith("\n")) {
-                    continue;
-                }
-                appendLineNode(lines[i]);
-            }
-            scroll.setVvalue(1.0d);
-        }
-
-        private void clear() {
-            plainText.setLength(0);
-            entries.getChildren().clear();
-        }
-
-        private void appendLineNode(String line) {
-            Label label = new Label(line == null || line.isBlank() ? " " : line);
-            label.setWrapText(true);
-            label.setMaxWidth(Double.MAX_VALUE);
-            label.setStyle(logLineStyle(line));
-            entries.getChildren().add(label);
-        }
-
-        private static String logLineStyle(String line) {
-            String severityColor = "#d9e8ea";
-            String upper = line == null ? "" : line.toUpperCase(Locale.ROOT);
-            if (upper.contains("[ERROR]") || upper.contains(" ERROR ") || upper.startsWith("ERROR")) {
-                severityColor = "#ff9f91";
-            } else if (upper.contains("[WARN]") || upper.contains(" WARN ") || upper.contains("WARNING") || upper.startsWith("WARN")) {
-                severityColor = "#ffd27a";
-            } else if (upper.contains("[DONE]") || upper.contains("[SUCCESS]") || upper.contains(" COMPLETE")) {
-                severityColor = "#9fe5b6";
-            } else if (upper.contains("[CANCELLED]")) {
-                severityColor = "#ffe0a3";
-            }
-            String weight = upper.startsWith("===") || upper.contains(" ASTRA ") ? "900" : "500";
-            return "-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 11.5px; -fx-font-weight: " + weight + "; -fx-text-fill: " + severityColor + ";";
-        }
-
-        private static String copyLogButtonStyle() {
-            return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900; -fx-background-color: #163748; -fx-text-fill: #eaf7f4; -fx-border-color: #4d7583; -fx-border-radius: 4; -fx-background-radius: 4;";
-        }
-
-        private static String copiedLogButtonStyle() {
-            return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900; -fx-background-color: #dff4e8; -fx-text-fill: #17623b; -fx-border-color: #9fd9b7; -fx-border-radius: 4; -fx-background-radius: 4;";
+        private void appendScriptText(String text, boolean error) {
+            Platform.runLater(() -> output.appendText(text, AstraRunLogSource.SCRIPT,
+                    error ? AstraRunLogSeverity.ERROR : AstraRunLogSeverity.NEUTRAL));
         }
     }
 
@@ -2901,12 +2747,7 @@ final class AstraPipelineLauncher {
         }
 
         private void emit(String text) {
-            if (error) {
-                String formatted = formatGuiLogText(text);
-                feedback.append(formatted.startsWith("ERROR:") ? formatted : "ERROR: " + formatted);
-            } else {
-                feedback.append(formatGuiLogText(text));
-            }
+            feedback.appendScriptText(text, error);
         }
     }
 

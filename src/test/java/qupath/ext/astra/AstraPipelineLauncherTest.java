@@ -1358,7 +1358,38 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
-    void guiLogFormatterRemovesLauncherClutterWithoutChangingCellposeLines() {
+    void runLogParserClassifiesAstraQuPathCellposeAndPythonOutput() {
+        List<AstraRunLogEntry> entries = AstraRunLogParser.parse("""
+                [INFO] Started Colocalization.
+                [WARN] Settings autosave skipped.
+                ERROR qupath.ext.astra.Runner - QuPath bridge failed
+                INFO: AstraCellpose2D: 2026-05-22 17:55:45,761 [WARNING] the '--diam_mean' flag is deprecated
+                INFO: AstraCellpose2D: >>>> running cellpose on 1 images using all channels
+                INFO: ASTRA Colocalization started from configuration dialog.
+                ERROR: Quantify: resolved threshold for AF647|Nucleus must be finite.
+                Traceback (most recent call last):
+                """, AstraRunLogSource.QUPATH, AstraRunLogSeverity.NEUTRAL);
+
+        assertEquals(AstraRunLogSource.ASTRA, entries.get(0).source());
+        assertEquals(AstraRunLogSeverity.INFO, entries.get(0).severity());
+        assertEquals(AstraRunLogSeverity.WARNING, entries.get(1).severity());
+        assertEquals(AstraRunLogSource.QUPATH, entries.get(2).source());
+        assertEquals(AstraRunLogSeverity.ERROR, entries.get(2).severity());
+        assertEquals(AstraRunLogSource.CELLPOSE, entries.get(3).source());
+        assertEquals(AstraRunLogSeverity.WARNING, entries.get(3).severity());
+        assertTrue(entries.get(3).text().contains("--diam_mean"));
+        assertEquals(AstraRunLogSource.CELLPOSE, entries.get(4).source());
+        assertFalse(entries.get(4).text().contains(">>>>"));
+        assertEquals(AstraRunLogSource.ASTRA, entries.get(5).source());
+        assertEquals(AstraRunLogSeverity.INFO, entries.get(5).severity());
+        assertEquals(AstraRunLogSource.ASTRA, entries.get(6).source());
+        assertEquals(AstraRunLogSeverity.ERROR, entries.get(6).severity());
+        assertEquals(AstraRunLogSource.PYTHON, entries.get(7).source());
+        assertEquals(AstraRunLogSeverity.ERROR, entries.get(7).severity());
+    }
+
+    @Test
+    void runLogParserFormatsCompatibilityTextThroughStructuredEntries() {
         String formatted = AstraPipelineLauncher.formatGuiLogText("""
                 [LOG] COLOCALIZATION COLOCALIZATION [PREFLIGHT] Runtime Python synchronized.
                 ERROR COLOCALIZATION [QUANTIFY] Non-finite AF647|Nucleus measurements detected.
@@ -1367,7 +1398,7 @@ class AstraPipelineLauncherTest {
 
         assertTrue(formatted.contains("Preflight: Runtime Python synchronized."));
         assertTrue(formatted.contains("ERROR: Quantify: Non-finite AF647|Nucleus measurements detected."));
-        assertTrue(formatted.contains("cellpose: 34 tile images processed"));
+        assertTrue(formatted.contains("34 tile images processed"));
         assertFalse(formatted.contains("[LOG]"));
         assertFalse(formatted.contains("COLOCALIZATION COLOCALIZATION"));
 
@@ -1376,19 +1407,225 @@ class AstraPipelineLauncherTest {
                 INFO: AstraCellpose2D: >>>> running cellpose on 1 images using all channels
                 """);
 
-        assertTrue(cellpose.contains("Cellpose WARNING: the '--diam_mean' flag is deprecated"));
-        assertTrue(cellpose.contains("Cellpose: running cellpose on 1 images using all channels"));
+        assertTrue(cellpose.contains("the '--diam_mean' flag is deprecated"));
+        assertTrue(cellpose.contains("running cellpose on 1 images using all channels"));
+        assertFalse(cellpose.contains("AstraCellpose2D"));
+        assertFalse(cellpose.contains(">>>>"));
+    }
+
+    @Test
+    void runLogGrouperKeepsConsecutiveSameSourceEntriesInOneBlock() {
+        List<AstraRunLogEntry> entries = List.of(
+                new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.INFO, AstraRunLogKind.MESSAGE, "start", "start"),
+                new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.WARNING, AstraRunLogKind.MESSAGE, "warn", "warn"),
+                new AstraRunLogEntry(AstraRunLogSource.CELLPOSE, AstraRunLogSeverity.INFO, AstraRunLogKind.MESSAGE, "gpu", "gpu"),
+                new AstraRunLogEntry(AstraRunLogSource.CELLPOSE, AstraRunLogSeverity.ERROR, AstraRunLogKind.MESSAGE, "failed", "failed"),
+                new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.SUCCESS, AstraRunLogKind.MESSAGE, "done", "done")
+        );
+
+        List<AstraRunLogBlock> blocks = AstraRunLogGrouper.groupBySource(entries);
+
+        assertEquals(3, blocks.size());
+        assertEquals(AstraRunLogSource.ASTRA, blocks.get(0).source());
+        assertEquals(2, blocks.get(0).entries().size());
+        assertEquals(AstraRunLogSource.CELLPOSE, blocks.get(1).source());
+        assertEquals(2, blocks.get(1).entries().size());
+        assertEquals(AstraRunLogSource.ASTRA, blocks.get(2).source());
+    }
+
+    @Test
+    void runLogBlockAccumulatorMergesDelimitedAstraBlocksIntoOneCardModel() {
+        List<AstraRunLogEntry> entries = AstraRunLogParser.parse("""
+                Detect cells: ==============================================================================
+                Detect cells: DETECT_CELLS COMPLETE
+                Detect cells: Cells created     : 125
+                Detect cells: Regions processed : 1
+                Detect cells: ==============================================================================
+                """, AstraRunLogSource.QUPATH, AstraRunLogSeverity.NEUTRAL);
+
+        AstraRunLogBlockAccumulator accumulator = new AstraRunLogBlockAccumulator();
+        List<AstraRunLogRenderedBlock> blocks = new ArrayList<>();
+        for (AstraRunLogEntry entry : entries) {
+            accumulator.accept(entry).ifPresent(blocks::add);
+        }
+
+        assertEquals(1, blocks.size());
+        assertEquals("DETECT_CELLS COMPLETE", blocks.get(0).title());
+        assertTrue(blocks.get(0).keyValues().stream().anyMatch(kv -> kv.key().contains("Cells created") && kv.value().equals("125")));
+        assertEquals("125", blocks.get(0).metrics().get("Cells"));
+        assertEquals(AstraRunLogKind.SEPARATOR, entries.get(0).kind());
+        assertEquals(AstraRunLogSource.ASTRA, entries.get(0).source());
+    }
+
+    @Test
+    void runTimelineSeedsAnalysisModesOnlyWhenSelected() {
+        AstraRunTimelineModel colocalization = new AstraRunTimelineModel();
+        colocalization.start("Colocalization", """
+                final String PIPELINE_ID = "colocalization"
+                final Map USER_OVERRIDES = [
+                        SCRIPT_ACTION: "RUN",
+                        MODES_TO_RUN: ["DETECT_CELLS", "QUANTIFY"]
+                ]
+                """);
+
+        List<String> labels = colocalization.labelsForTest();
+        assertTrue(labels.contains("Run Started"));
+        assertTrue(labels.contains("Detect Cells"));
+        assertTrue(labels.contains("Quantify"));
+        assertTrue(labels.contains("Complete"));
+        assertFalse(labels.contains("Generate Regions"));
+        assertFalse(labels.contains("Auto Build Classifiers"));
+
+        AstraRunTimelineModel vascular = new AstraRunTimelineModel();
+        vascular.start("Vascular", """
+                final String PIPELINE_ID = "vascular"
+                final Map USER_OVERRIDES = [
+                        SCRIPT_ACTION: "RUN",
+                        MODES_TO_RUN: ["QUANTIFY"]
+                ]
+                """);
+
+        List<String> vascularLabels = vascular.labelsForTest();
+        assertTrue(vascularLabels.contains("Quantify"));
+        assertFalse(vascularLabels.contains("Detect Cells"));
+        assertFalse(vascularLabels.contains("Generate Regions"));
+        assertFalse(vascularLabels.contains("Auto Select Rois"));
+    }
+
+    @Test
+    void runTimelineScriptActionsReplaceNormalAnalysisModeTimeline() {
+        AstraRunTimelineModel export = new AstraRunTimelineModel();
+        export.start("Colocalization", """
+                final String PIPELINE_ID = "colocalization"
+                final Map USER_OVERRIDES = [
+                        SCRIPT_ACTION: "EXPORT",
+                        MODES_TO_RUN: ["DETECT_CELLS", "QUANTIFY"]
+                ]
+                """);
+
+        assertTrue(export.labelsForTest().contains("Export"));
+        assertFalse(export.labelsForTest().contains("Detect Cells"));
+        assertFalse(export.labelsForTest().contains("Quantify"));
+
+        AstraRunTimelineModel reset = new AstraRunTimelineModel();
+        reset.start("Vascular", """
+                final String PIPELINE_ID = "vascular"
+                final Map USER_OVERRIDES = [
+                        SCRIPT_ACTION: "RESET_PROJECT",
+                        MODES_TO_RUN: ["GENERATE_REGIONS", "DETECT_CELLS", "QUANTIFY"]
+                ]
+                """);
+
+        assertTrue(reset.labelsForTest().contains("Reset Project"));
+        assertFalse(reset.labelsForTest().contains("Generate Regions"));
+        assertFalse(reset.labelsForTest().contains("Detect Cells"));
+        assertFalse(reset.labelsForTest().contains("Quantify"));
+    }
+
+    @Test
+    void runTimelineEventsUpdateWarningsErrorsAndOutcome() {
+        AstraRunTimelineModel model = new AstraRunTimelineModel();
+        model.start("Colocalization", """
+                final String PIPELINE_ID = "colocalization"
+                final Map USER_OVERRIDES = [SCRIPT_ACTION: "RUN", MODES_TO_RUN: ["DETECT_CELLS", "QUANTIFY"]]
+                """);
+
+        AstraRunLogEntry warning = new AstraRunLogEntry(AstraRunLogSource.CELLPOSE, AstraRunLogSeverity.WARNING, AstraRunLogKind.MESSAGE, "the '--diam_mean' flag is deprecated", "");
+        model.accept(AstraRunLogPresenter.eventFor(warning));
+        assertEquals(1, model.warningCount());
+        assertEquals(AstraRunTimelineOutcome.RUNNING, model.outcome());
+
+        AstraRunLogEntry error = new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.ERROR, AstraRunLogKind.MESSAGE, "Quantify: failed", "");
+        model.accept(AstraRunLogPresenter.eventFor(error));
+        assertEquals(1, model.errorCount());
+        assertEquals(AstraRunTimelineOutcome.FAILED, model.outcome());
+        assertTrue(model.statusTitle().contains("Failed"));
+        assertTrue(model.elapsedLabel().startsWith("elapsed "));
+        assertTrue(model.statusDetail("Image 3/20 | Cells 125").contains("Image 3/20"));
+    }
+
+    @Test
+    void runLogPresenterRecognizesCardsCommandsAndMetrics() {
+        AstraRunLogEntry summary = new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.SUCCESS, AstraRunLogKind.MESSAGE, "DETECT_CELLS COMPLETE", "");
+        assertTrue(AstraRunLogPresenter.isStageCard(summary));
+        assertEquals(AstraRunLogEventType.STAGE_COMPLETE, AstraRunLogPresenter.eventFor(summary).type());
+
+        AstraRunLogEntry kv = new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.INFO, AstraRunLogKind.KEY_VALUE, "Cells quantified : 78", "");
+        assertEquals("78", AstraRunLogMetrics.badges(kv).get("Cells"));
+
+        AstraRunLogEntry command = new AstraRunLogEntry(AstraRunLogSource.SCRIPT, AstraRunLogSeverity.NEUTRAL, AstraRunLogKind.MESSAGE, "bash -c \"/env/bin/python -m cellpose --dir /tmp\"", "");
+        assertTrue(AstraRunLogPresenter.isCommand(command));
+        AstraRunLogEntry version = new AstraRunLogEntry(AstraRunLogSource.CELLPOSE, AstraRunLogSeverity.INFO, AstraRunLogKind.MESSAGE, "cellpose version: 4.0.8+astra.2", "");
+        assertFalse(AstraRunLogPresenter.isCommand(version));
+
+        AstraRunLogEntry progress = new AstraRunLogEntry(AstraRunLogSource.CELLPOSE, AstraRunLogSeverity.INFO, AstraRunLogKind.PROGRESS, "100%|##########| 1/1 [00:19<00:00, 19.22s/it]", "");
+        assertTrue(AstraRunLogPresenter.isNoisyCellposeDetail(progress));
+    }
+
+    @Test
+    void runProgressTrackerSummarizesImageRegionCellposeAndCellCounts() {
+        AstraRunProgressTracker tracker = new AstraRunProgressTracker();
+        AstraRunLogEntry image = new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.INFO, AstraRunLogKind.MESSAGE,
+                "Image start : [3/20] 'slide'", "");
+        tracker.accept(AstraRunLogPresenter.eventFor(image));
+
+        AstraRunLogEntry region = new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.INFO, AstraRunLogKind.MESSAGE,
+                "Region detected: [2/5] 'Region' | nuclei=78 | cells=78", "");
+        tracker.accept(AstraRunLogPresenter.eventFor(region));
+
+        AstraRunLogEntry progress = new AstraRunLogEntry(AstraRunLogSource.CELLPOSE, AstraRunLogSeverity.INFO, AstraRunLogKind.PROGRESS,
+                "75%|#######5  | 3/4 [00:38<00:12, 12.72s/it]", "");
+        tracker.accept(AstraRunLogPresenter.eventFor(progress));
+
+        AstraRunLogEntry cells = new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.INFO, AstraRunLogKind.KEY_VALUE,
+                "Cells quantified : 78", "");
+        tracker.accept(AstraRunLogPresenter.eventFor(cells));
+
+        String detail = tracker.detail();
+        assertTrue(detail.contains("Image 3/20"));
+        assertTrue(detail.contains("Region 2/5"));
+        assertTrue(detail.contains("Cellpose 75% (3/4)"));
+        assertTrue(detail.contains("Cells 78"));
+    }
+
+    @Test
+    void runLogErrorAdvisorMapsKnownFailuresConservatively() {
+        AstraRunLogEntry finite = new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.ERROR, AstraRunLogKind.MESSAGE,
+                "Quantify: resolved threshold for AF647|Nucleus must be finite.", "");
+        AstraRunLogErrorAdvice finiteAdvice = AstraRunLogErrorAdvisor.advise(AstraRunLogPresenter.eventFor(finite));
+        assertEquals("Non-finite measurement or threshold", finiteAdvice.family());
+        assertTrue(finiteAdvice.nextAction().contains("finite measurements"));
+
+        AstraRunLogEntry missingClass = new AstraRunLogEntry(AstraRunLogSource.SCRIPT, AstraRunLogSeverity.ERROR, AstraRunLogKind.MESSAGE,
+                "Unable to resolve class JsonSlurper", "");
+        assertEquals("Missing runtime class/property", AstraRunLogErrorAdvisor.advise(AstraRunLogPresenter.eventFor(missingClass)).family());
+
+        AstraRunLogEntry unknown = new AstraRunLogEntry(AstraRunLogSource.QUPATH, AstraRunLogSeverity.ERROR, AstraRunLogKind.MESSAGE,
+                "Unexpected failure in QuPathScript", "");
+        AstraRunLogErrorAdvice unknownAdvice = AstraRunLogErrorAdvisor.advise(AstraRunLogPresenter.eventFor(unknown));
+        assertEquals("Run failed", unknownAdvice.family());
+        assertTrue(unknownAdvice.nextAction().contains("nearby log context"));
     }
 
     @Test
     void launcherSourceAvoidsGuiLogAndErrDoublePrefixes() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String view = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraStyledLogView.java"));
 
         assertTrue(source.contains("static String formatGuiLogText(String text)"));
-        assertTrue(source.contains("feedback.append(formatGuiLogText(text));"));
-        assertTrue(source.contains("copy.setText(\"Copied\")"));
-        assertTrue(source.contains("new PauseTransition(Duration.seconds(1.2))"));
-        assertTrue(source.contains("copy.setStyle(copiedLogButtonStyle())"));
+        assertTrue(source.contains("AstraRunLogParser.formatCleanText"));
+        assertTrue(source.contains("output.appendText(text, AstraRunLogSource.QUPATH"));
+        assertTrue(source.contains("feedback.appendScriptText(text, error);"));
+        assertTrue(view.contains("copy.setText(\"Copied\")"));
+        assertTrue(view.contains("new PauseTransition(Duration.seconds(1.2))"));
+        assertTrue(view.contains("copy.setStyle(copiedLogButtonStyle())"));
+        assertTrue(view.contains("startSourceGroup(entry.source())"));
+        assertTrue(view.contains("sourceTabStyle(source)"));
+        assertTrue(view.contains("beginRun(String scriptName, String configuredScript)"));
+        assertTrue(view.contains("AstraRunLogPresenter.eventFor(entry)"));
+        assertTrue(view.contains("AstraRunLogBlockAccumulator"));
+        assertTrue(view.contains("AstraRunLogErrorAdvisor.advise"));
+        assertTrue(view.contains("appendProgressLine(entry)"));
         assertFalse(source.contains("append(\"[LOG] \" + text)"));
         assertFalse(source.contains("feedback.append(\"[ERR] \" + text)"));
     }
