@@ -43,11 +43,11 @@ class PipelineLauncherTest {
     void extractionIgnoresBootstrapConstantsBeforeUserEditSection() {
         List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final File localRunnerFile =
-                    new File("training/src/main/groovy/TrainingRunner.groovy")
+                    new File("modules/pipelines/training/src/main/groovy/TrainingRunner.groovy")
                 final boolean USE_LOCAL_CLASSES =
                     localRunnerFile.exists() && localRunnerFile.isFile()
                 final ClassLoader loader = this.class.classLoader
-                File __cellposeDefaultsLocalFile = new File("shared/src/main/groovy/CellposeInferenceDefaults.groovy")
+                File __cellposeDefaultsLocalFile = new File("modules/shared/core/src/main/groovy/CellposeInferenceDefaults.groovy")
                 if (USE_LOCAL_CLASSES) {
                     loader.parseClass(__cellposeDefaultsLocalFile)
                 }
@@ -77,17 +77,17 @@ class PipelineLauncherTest {
     @Test
     void realCurrentScriptsExposeEditableConstantsAfterDefaultsBootstrap() throws Exception {
         Map<String, List<String>> requiredByScript = Map.of(
-                "training/src/main/groovy/training.groovy",
+                "modules/pipelines/training/src/main/groovy/training.groovy",
                 List.of("TRAIN_TARGET", "TRAINING_MODE", "NUC_MODEL_NAME", "CHANNELS_FOR_NUCLEUS"),
-                "tuning/src/main/groovy/tuning.groovy",
+                "modules/pipelines/tuning/src/main/groovy/tuning.groovy",
                 List.of("TUNE_TARGET", "SEARCH_MODE", "NUC_MODEL_NAME", "PARAM_DEFAULTS_BY_TARGET"),
-                "validation/src/main/groovy/validation.groovy",
+                "modules/pipelines/validation/src/main/groovy/validation.groovy",
                 List.of("VALIDATE_TARGET", "VALIDATION_MODE", "NUC_MODEL_NAME", "PARAM_DEFAULTS_BY_TARGET"),
-                "analysis/src/main/groovy/vascular/vascular.groovy",
+                "modules/pipelines/analysis/src/main/groovy/vascular/vascular.groovy",
                 List.of("NUC_MODEL_NAME", "NUC_CELLPROB", "CELL_CELLPROB", "RESULTS_FOLDER"),
-                "analysis/src/main/groovy/colocalization/colocalization.groovy",
+                "modules/pipelines/analysis/src/main/groovy/colocalization/colocalization.groovy",
                 List.of("DETECTION_TARGET", "NUC_MODEL_NAME", "NUC_CELLPROB", "COLOCALIZATION_CHECKS"),
-                "tools/src/main/groovy/smaAf647Oneshot.groovy",
+                "modules/tools/sma-af647-oneshot/src/main/groovy/smaAf647Oneshot.groovy",
                 List.of("CLASS_ANALYSIS_REGION", "NUC_MODEL_NAME", "NUC_CELLPROB", "EXPORT_TECHNICAL_CSV")
         );
 
@@ -1088,7 +1088,7 @@ class PipelineLauncherTest {
     @Test
     void colocalizationModesUseOrderedMultiSelectAndHeaderExport() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
-        String script = realBaseScript("analysis/src/main/groovy/colocalization/colocalization.groovy");
+        String script = realBaseScript("modules/pipelines/analysis/src/main/groovy/colocalization/colocalization.groovy");
 
         assertEquals(List.of("DETECT_CELLS", "QUANTIFY"),
                 GuiPresentation.visibleRunModeOptions("Colocalization", List.of()));
@@ -1113,7 +1113,7 @@ class PipelineLauncherTest {
 
     @Test
     void compactEntrypointOmitsUnchangedSymbolicDefaultsFromUserOverrides() throws Exception {
-        String script = realBaseScript("analysis/src/main/groovy/colocalization/colocalization.groovy");
+        String script = realBaseScript("modules/pipelines/analysis/src/main/groovy/colocalization/colocalization.groovy");
         List<PipelineLauncher.EditableConstant> constants =
                 PipelineLauncher.editableConstantsForScript("Colocalization", script);
 
