@@ -23,14 +23,14 @@ import java.util.Optional;
  * Reads ASTRA's manifest-backed runtime contract for the launcher.
  *
  * <p>The extension has no committed copy of the contract. Installed releases
- * read {@code astra/manifests/master-contract.json} from the runtime JAR.
+ * read {@code astra/rulebook/manifests/master-contract.json} from the runtime JAR.
  * Local development and tests read the sibling base repo manifest when the
  * packaged resource is absent.</p>
  */
 final class MasterContract {
 
-    static final String BUNDLED_RESOURCE = "astra/manifests/master-contract.json";
-    static final Path LOCAL_MANIFEST = Path.of("../astra/manifests/master-contract.json");
+    static final String BUNDLED_RESOURCE = "astra/rulebook/manifests/master-contract.json";
+    static final Path LOCAL_MANIFEST = Path.of("../astra/rulebook/manifests/master-contract.json");
     private static final Gson GSON = new Gson();
     private static final Type MAP_TYPE = new TypeToken<LinkedHashMap<String, Object>>() {}.getType();
 

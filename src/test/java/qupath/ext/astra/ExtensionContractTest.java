@@ -176,7 +176,7 @@ class ExtensionContractTest {
         Path resource = tempDir.resolve(MasterContract.BUNDLED_RESOURCE);
         Files.createDirectories(resource.getParent());
         Path vendored = Path.of("src/main/resources").resolve(MasterContract.BUNDLED_RESOURCE);
-        Path localBase = Path.of("../astra/manifests/master-contract.json");
+        Path localBase = Path.of("../astra/rulebook/manifests/master-contract.json");
         Files.copy(Files.isRegularFile(vendored) ? vendored : localBase, resource);
 
         try (URLClassLoader loader = new URLClassLoader(new java.net.URL[]{tempDir.toUri().toURL()}, null)) {
