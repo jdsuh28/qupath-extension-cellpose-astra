@@ -10,11 +10,11 @@ import java.util.Map;
  * launcher.  Scientific behavior belongs in the base Groovy scripts; this
  * adapter owns user-facing labels, option visibility, and GUI-only routing.
  */
-final class AstraGuiPresentation {
+final class GuiPresentation {
 
     private static final MasterContract CONTRACT = MasterContract.load();
 
-    private AstraGuiPresentation() {
+    private GuiPresentation() {
         throw new AssertionError("No instances");
     }
 

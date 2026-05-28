@@ -43,7 +43,7 @@ import java.util.concurrent.TimeUnit;
  * when explicitly requested with {@code ASTRA_RUNTIME_INSTALL_STRATEGY=venv};
  * it is not used silently when conda is missing.</p>
  */
-final class AstraRuntimeInstaller {
+final class RuntimeInstaller {
 
     static final String ASTRA_CELLPOSE_REPO = "https://github.com/jdsuh28/cellpose-astra.git";
     static final String DEFAULT_CELLPOSE_REF = "v4.0.8+astra.3";
@@ -54,13 +54,13 @@ final class AstraRuntimeInstaller {
     private static final String RELEASE_PROPERTIES_RESOURCE = "qupath/ext/astra/release/runtime.properties";
     private static final Duration COMMAND_TIMEOUT = Duration.ofMinutes(45);
 
-    private AstraRuntimeInstaller() {
+    private RuntimeInstaller() {
     }
 
     /**
      * Starts an asynchronous install-or-repair run from the QuPath menu.
      *
-     * @param runtimePythonPath persistent ASTRA runtime Python preference.
+     * @param runtimePythonPath persistent Cellpose runtime Python preference.
      */
     static void installOrRepairAsync(StringProperty runtimePythonPath) {
         Objects.requireNonNull(runtimePythonPath, "runtimePythonPath");
@@ -83,7 +83,7 @@ final class AstraRuntimeInstaller {
     /**
      * Performs the runtime installation and preference update.
      *
-     * @param runtimePythonPath persistent ASTRA runtime Python preference.
+     * @param runtimePythonPath persistent Cellpose runtime Python preference.
      */
     private static void installOrRepair(StringProperty runtimePythonPath, InstallProgress progress) {
         File logFile = installLogFile();
@@ -149,7 +149,7 @@ final class AstraRuntimeInstaller {
      * @return release-pinned Cellpose-ASTRA ref, or the development fallback.
      */
     static String pinnedCellposeRef() {
-        try (var stream = AstraRuntimeInstaller.class.getClassLoader().getResourceAsStream(RELEASE_PROPERTIES_RESOURCE)) {
+        try (var stream = RuntimeInstaller.class.getClassLoader().getResourceAsStream(RELEASE_PROPERTIES_RESOURCE)) {
             if (stream == null) {
                 return DEFAULT_CELLPOSE_REF;
             }
@@ -327,7 +327,7 @@ final class AstraRuntimeInstaller {
     /**
      * Updates the QuPath preference and BIOP runtime singleton on the JavaFX thread.
      *
-     * @param runtimePythonPath persistent ASTRA runtime Python preference.
+     * @param runtimePythonPath persistent Cellpose runtime Python preference.
      * @param python verified Python executable.
      */
     private static void applyRuntimePath(StringProperty runtimePythonPath, File python) {

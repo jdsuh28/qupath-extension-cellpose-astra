@@ -35,12 +35,12 @@ import java.util.concurrent.TimeUnit;
  * pipelines own biological and execution logic; the extension owns Cellpose-adjacent interface artifacts, including
  * QC figure rendering. All methods write deterministic PNG files and fail loudly if inputs cannot be rendered.</p>
  */
-public final class AstraQcFigures {
+public final class QcFigures {
 
     /**
      * Prevents construction of the static QC renderer utility.
      */
-    private AstraQcFigures() {
+    private QcFigures() {
     }
 
     /**

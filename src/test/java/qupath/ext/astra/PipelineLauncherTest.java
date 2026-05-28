@@ -20,14 +20,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Focused tests for the generic ASTRA pipeline launcher contract.
  */
-class AstraPipelineLauncherTest {
+class PipelineLauncherTest {
 
     private static final Path LOCAL_BASE_ASTRA_ROOT = Path.of("..", "astra");
     private static final Path VENDORED_BASE_ASTRA_ROOT = Path.of("src", "main", "resources", "astra");
 
     @Test
     void helpConstantsAttachToTargetVariables() {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final String DETECTION_TARGET_HELP = "Choose the segmentation target."
                 final List DETECTION_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
                 final String DETECTION_TARGET = "NUCLEUS"
@@ -41,15 +41,15 @@ class AstraPipelineLauncherTest {
 
     @Test
     void extractionIgnoresBootstrapConstantsBeforeUserEditSection() {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final File localRunnerFile =
-                    new File("training/src/main/groovy/TrainingRunner.groovy")
+                    new File("modules/pipelines/training/src/main/groovy/TrainingRunner.groovy")
                 final boolean USE_LOCAL_CLASSES =
                     localRunnerFile.exists() && localRunnerFile.isFile()
                 final ClassLoader loader = this.class.classLoader
-                File __astraCellposeDefaultsLocalFile = new File("shared/src/main/groovy/CellposeInferenceDefaults.groovy")
+                File __cellposeDefaultsLocalFile = new File("modules/shared/core/src/main/groovy/CellposeInferenceDefaults.groovy")
                 if (USE_LOCAL_CLASSES) {
-                    loader.parseClass(__astraCellposeDefaultsLocalFile)
+                    loader.parseClass(__cellposeDefaultsLocalFile)
                 }
 
                 // -----------------------------------------------------------------------------
@@ -68,33 +68,33 @@ class AstraPipelineLauncherTest {
                 final Map cfg = [:]
                 """);
 
-        List<String> names = constants.stream().map(AstraPipelineLauncher.EditableConstant::name).toList();
+        List<String> names = constants.stream().map(PipelineLauncher.EditableConstant::name).toList();
         assertEquals(List.of("NUC_MODEL_NAME", "NUC_CELLPROB"), names);
         assertFalse(names.contains("USE_LOCAL_CLASSES"));
         assertFalse(names.contains("localRunnerFile"));
     }
 
     @Test
-    void realCurrentAstraScriptsExposeEditableConstantsAfterDefaultsBootstrap() throws Exception {
+    void realCurrentScriptsExposeEditableConstantsAfterDefaultsBootstrap() throws Exception {
         Map<String, List<String>> requiredByScript = Map.of(
-                "training/src/main/groovy/training.groovy",
+                "modules/pipelines/training/src/main/groovy/training.groovy",
                 List.of("TRAIN_TARGET", "TRAINING_MODE", "NUC_MODEL_NAME", "CHANNELS_FOR_NUCLEUS"),
-                "tuning/src/main/groovy/tuning.groovy",
+                "modules/pipelines/tuning/src/main/groovy/tuning.groovy",
                 List.of("TUNE_TARGET", "SEARCH_MODE", "NUC_MODEL_NAME", "PARAM_DEFAULTS_BY_TARGET"),
-                "validation/src/main/groovy/validation.groovy",
+                "modules/pipelines/validation/src/main/groovy/validation.groovy",
                 List.of("VALIDATE_TARGET", "VALIDATION_MODE", "NUC_MODEL_NAME", "PARAM_DEFAULTS_BY_TARGET"),
-                "analysis/src/main/groovy/vascular/vascular.groovy",
+                "modules/pipelines/analysis/src/main/groovy/vascular/vascular.groovy",
                 List.of("NUC_MODEL_NAME", "NUC_CELLPROB", "CELL_CELLPROB", "RESULTS_FOLDER"),
-                "analysis/src/main/groovy/colocalization/colocalization.groovy",
+                "modules/pipelines/analysis/src/main/groovy/colocalization/colocalization.groovy",
                 List.of("DETECTION_TARGET", "NUC_MODEL_NAME", "NUC_CELLPROB", "COLOCALIZATION_CHECKS"),
-                "tools/src/main/groovy/smaAf647Oneshot.groovy",
+                "modules/tools/sma-af647-oneshot/src/main/groovy/smaAf647Oneshot.groovy",
                 List.of("CLASS_ANALYSIS_REGION", "NUC_MODEL_NAME", "NUC_CELLPROB", "EXPORT_TECHNICAL_CSV")
         );
 
         for (Map.Entry<String, List<String>> entry : requiredByScript.entrySet()) {
             String source = realBaseScript(entry.getKey());
-            List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.editableConstantsForScript(entry.getKey(), source);
-            List<String> names = constants.stream().map(AstraPipelineLauncher.EditableConstant::name).toList();
+            List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.editableConstantsForScript(entry.getKey(), source);
+            List<String> names = constants.stream().map(PipelineLauncher.EditableConstant::name).toList();
 
             assertFalse(constants.isEmpty(), entry.getKey() + " must expose editable constants.");
             assertFalse(names.contains("MODEL_SOURCE"), entry.getKey() + " must not expose generic MODEL_SOURCE.");
@@ -113,7 +113,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void launcherDoesNotHardcodeScientificTooltipDefinitions() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertFalse(source.contains("private static String helpFor"));
         assertFalse(source.contains("CELLPOSE_CELL_CHANNELS\" ->"));
@@ -130,9 +130,9 @@ class AstraPipelineLauncherTest {
                 """;
         String changed = script.replace("[\"A\", \"B\"]", "[\"A\", \"B\", \"C\"]");
 
-        String first = AstraPipelineLauncher.schemaIdentity(AstraPipelineLauncher.extractEditableConstants(script));
-        String second = AstraPipelineLauncher.schemaIdentity(AstraPipelineLauncher.extractEditableConstants(script));
-        String third = AstraPipelineLauncher.schemaIdentity(AstraPipelineLauncher.extractEditableConstants(changed));
+        String first = PipelineLauncher.schemaIdentity(PipelineLauncher.extractEditableConstants(script));
+        String second = PipelineLauncher.schemaIdentity(PipelineLauncher.extractEditableConstants(script));
+        String third = PipelineLauncher.schemaIdentity(PipelineLauncher.extractEditableConstants(changed));
 
         assertEquals(first, second);
         assertNotEquals(first, third);
@@ -140,7 +140,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void launcherDoesNotAutoRestoreOrSaveScientificConstantsThroughJavaPreferences() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertFalse(source.contains("java.util.prefs.Preferences"));
         assertFalse(source.contains("applyPersistentSettings("));
@@ -150,30 +150,30 @@ class AstraPipelineLauncherTest {
 
     @Test
     void settingsProfilesRoundTripConstants(@TempDir Path tempDir) throws Exception {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final String MODE = "A"
                 final String NUC_MODEL_NAME = "cpsam"
                 final Map cfg = [:]
                 """);
-        String schema = AstraPipelineLauncher.schemaIdentity(constants);
-        String sourceHash = AstraPipelineLauncher.sha256Hex("script");
+        String schema = PipelineLauncher.schemaIdentity(constants);
+        String sourceHash = PipelineLauncher.sha256Hex("script");
         constants.get(0).setDisplayValue("\"B\"");
         File file = tempDir.resolve("profile.json").toFile();
 
-        AstraPipelineLauncher.writeSettingsProfile(
+        PipelineLauncher.writeSettingsProfile(
                 file,
-                AstraPipelineLauncher.createSettingsProfile("Training", schema, sourceHash, constants)
+                PipelineLauncher.createSettingsProfile("Training", schema, sourceHash, constants)
         );
 
-        List<AstraPipelineLauncher.EditableConstant> fresh = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> fresh = PipelineLauncher.extractEditableConstants("""
                 final String MODE = "A"
                 final String NUC_MODEL_NAME = "cpsam"
                 final Map cfg = [:]
                 """);
-        AstraPipelineLauncher.applySettingsProfile(
-                AstraPipelineLauncher.readSettingsProfile(file),
+        PipelineLauncher.applySettingsProfile(
+                PipelineLauncher.readSettingsProfile(file),
                 "Training",
-                AstraPipelineLauncher.schemaIdentity(fresh),
+                PipelineLauncher.schemaIdentity(fresh),
                 sourceHash,
                 fresh
         );
@@ -184,34 +184,34 @@ class AstraPipelineLauncherTest {
 
     @Test
     void autosaveUsesProjectLocalSettingsFileAndRestoresMatchingState(@TempDir Path tempDir) throws Exception {
-        File autosave = AstraPipelineLauncher.autosaveSettingsFile(tempDir.toFile(), "Training");
+        File autosave = PipelineLauncher.autosaveSettingsFile(tempDir.toFile(), "Training");
         assertEquals(tempDir.resolve("astra/settings/training/_autosave.json").normalize(), autosave.toPath().normalize());
 
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final String MODE = "A"
                 final String NUC_MODEL_NAME = "cpsam"
                 final Map cfg = [:]
                 """);
-        String schema = AstraPipelineLauncher.schemaIdentity(constants);
-        String sourceHash = AstraPipelineLauncher.sha256Hex("script");
+        String schema = PipelineLauncher.schemaIdentity(constants);
+        String sourceHash = PipelineLauncher.sha256Hex("script");
         constants.get(0).setDisplayValue("\"B\"");
 
-        AstraPipelineLauncher.writeAutosaveSettings(autosave, "Training", schema, sourceHash, constants);
+        PipelineLauncher.writeAutosaveSettings(autosave, "Training", schema, sourceHash, constants);
         assertTrue(autosave.isFile());
 
-        List<AstraPipelineLauncher.EditableConstant> fresh = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> fresh = PipelineLauncher.extractEditableConstants("""
                 final String MODE = "A"
                 final String NUC_MODEL_NAME = "cpsam"
                 final Map cfg = [:]
                 """);
-        AstraPipelineLauncher.SettingsProfileState state = AstraPipelineLauncher.SettingsProfileState.scriptDefaults();
+        PipelineLauncher.SettingsProfileState state = PipelineLauncher.SettingsProfileState.scriptDefaults();
         List<String> info = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
 
-        assertTrue(AstraPipelineLauncher.restoreAutosaveSettings(
+        assertTrue(PipelineLauncher.restoreAutosaveSettings(
                 autosave,
                 "Training",
-                AstraPipelineLauncher.schemaIdentity(fresh),
+                PipelineLauncher.schemaIdentity(fresh),
                 sourceHash,
                 fresh,
                 state,
@@ -227,28 +227,28 @@ class AstraPipelineLauncherTest {
 
     @Test
     void autosaveIgnoresSchemaAndSourceMismatches(@TempDir Path tempDir) throws Exception {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final List MODE_OPTIONS = ["A", "B"]
                 final String MODE = "A"
                 final Map cfg = [:]
                 """);
-        String schema = AstraPipelineLauncher.schemaIdentity(constants);
-        String sourceHash = AstraPipelineLauncher.sha256Hex("script");
+        String schema = PipelineLauncher.schemaIdentity(constants);
+        String sourceHash = PipelineLauncher.sha256Hex("script");
         constants.get(0).setDisplayValue("\"B\"");
-        File autosave = AstraPipelineLauncher.autosaveSettingsFile(tempDir.toFile(), "Training");
-        AstraPipelineLauncher.writeAutosaveSettings(autosave, "Training", schema, sourceHash, constants);
+        File autosave = PipelineLauncher.autosaveSettingsFile(tempDir.toFile(), "Training");
+        PipelineLauncher.writeAutosaveSettings(autosave, "Training", schema, sourceHash, constants);
 
-        List<AstraPipelineLauncher.EditableConstant> schemaChanged = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> schemaChanged = PipelineLauncher.extractEditableConstants("""
                 final List MODE_OPTIONS = ["A", "B", "C"]
                 final String MODE = "A"
                 final Map cfg = [:]
                 """);
-        AstraPipelineLauncher.SettingsProfileState schemaState = AstraPipelineLauncher.SettingsProfileState.scriptDefaults();
+        PipelineLauncher.SettingsProfileState schemaState = PipelineLauncher.SettingsProfileState.scriptDefaults();
         List<String> schemaWarnings = new ArrayList<>();
-        assertFalse(AstraPipelineLauncher.restoreAutosaveSettings(
+        assertFalse(PipelineLauncher.restoreAutosaveSettings(
                 autosave,
                 "Training",
-                AstraPipelineLauncher.schemaIdentity(schemaChanged),
+                PipelineLauncher.schemaIdentity(schemaChanged),
                 sourceHash,
                 schemaChanged,
                 schemaState,
@@ -259,19 +259,19 @@ class AstraPipelineLauncherTest {
         assertEquals("\"A\"", schemaChanged.get(0).currentDisplayValue());
         assertTrue(schemaWarnings.stream().anyMatch(line -> line.contains("schema")));
 
-        List<AstraPipelineLauncher.EditableConstant> sourceChanged = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> sourceChanged = PipelineLauncher.extractEditableConstants("""
                 final List MODE_OPTIONS = ["A", "B"]
                 final String MODE = "A"
                 final Map cfg = [:]
                 """);
         List<String> sourceWarnings = new ArrayList<>();
-        assertFalse(AstraPipelineLauncher.restoreAutosaveSettings(
+        assertFalse(PipelineLauncher.restoreAutosaveSettings(
                 autosave,
                 "Training",
-                AstraPipelineLauncher.schemaIdentity(sourceChanged),
-                AstraPipelineLauncher.sha256Hex("changed script"),
+                PipelineLauncher.schemaIdentity(sourceChanged),
+                PipelineLauncher.sha256Hex("changed script"),
                 sourceChanged,
-                AstraPipelineLauncher.SettingsProfileState.scriptDefaults(),
+                PipelineLauncher.SettingsProfileState.scriptDefaults(),
                 ignored -> {
                 },
                 sourceWarnings::add
@@ -282,22 +282,22 @@ class AstraPipelineLauncherTest {
 
     @Test
     void resetCanClearAutosaveDeterministically(@TempDir Path tempDir) throws Exception {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final String MODE = "A"
                 final Map cfg = [:]
                 """);
-        File autosave = AstraPipelineLauncher.autosaveSettingsFile(tempDir.toFile(), "Training");
-        AstraPipelineLauncher.writeAutosaveSettings(autosave, "Training", AstraPipelineLauncher.schemaIdentity(constants), "abc", constants);
+        File autosave = PipelineLauncher.autosaveSettingsFile(tempDir.toFile(), "Training");
+        PipelineLauncher.writeAutosaveSettings(autosave, "Training", PipelineLauncher.schemaIdentity(constants), "abc", constants);
         assertTrue(autosave.isFile());
 
-        AstraPipelineLauncher.clearAutosaveSettings(autosave);
+        PipelineLauncher.clearAutosaveSettings(autosave);
 
         assertFalse(autosave.exists());
     }
 
     @Test
     void manualGuiEditsUseProjectLocalAutosaveNotJavaPreferences() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertTrue(source.contains("markManualEditAndSave"));
         assertTrue(source.contains("_autosave.json"));
@@ -306,15 +306,15 @@ class AstraPipelineLauncherTest {
 
     @Test
     void profileLoadReportsMissingImageChannelsWithoutChangingDefaults() {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final List CHANNELS_FOR_NUCLEUS = ["DAPI"]
                 final List CHANNELS_FOR_CELL = ["FITC"]
                 final Map cfg = [:]
                 """);
-        String schema = AstraPipelineLauncher.schemaIdentity(constants);
-        AstraPipelineLauncher.SettingsProfile profile = AstraPipelineLauncher.createSettingsProfile("Training", schema, "abc", constants);
+        String schema = PipelineLauncher.schemaIdentity(constants);
+        PipelineLauncher.SettingsProfile profile = PipelineLauncher.createSettingsProfile("Training", schema, "abc", constants);
 
-        List<String> missing = AstraPipelineLauncher.missingProfileChannels(profile, List.of("DAPI"));
+        List<String> missing = PipelineLauncher.missingProfileChannels(profile, List.of("DAPI"));
 
         assertEquals(List.of("FITC"), missing);
         assertTrue(constants.get(0).currentDisplayValue().contains("DAPI"));
@@ -322,7 +322,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void resetToScriptDefaultsClearsLoadedProfileState() {
-        AstraPipelineLauncher.SettingsProfileState state = AstraPipelineLauncher.SettingsProfileState.scriptDefaults();
+        PipelineLauncher.SettingsProfileState state = PipelineLauncher.SettingsProfileState.scriptDefaults();
         state.loadedProfile("profile.json", "/tmp/profile.json", "1234567890abcdef");
         assertTrue(state.summary().contains("loaded settings profile"));
 
@@ -333,16 +333,16 @@ class AstraPipelineLauncherTest {
 
     @Test
     void applyConstantsInjectsSettingsProvenanceForRunExports() {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final String NUC_MODEL_NAME = "cpsam"
                 final Map cfg = [:]
                 """);
         constants.get(0).setDisplayValue("\"nuc-special\"");
-        AstraPipelineLauncher.SettingsProfileState state = AstraPipelineLauncher.SettingsProfileState.scriptDefaults();
+        PipelineLauncher.SettingsProfileState state = PipelineLauncher.SettingsProfileState.scriptDefaults();
         state.loadedAutosave("_autosave.json", "/project/astra/settings/training/_autosave.json", "1234567890abcdef");
         state.markManualEdit();
 
-        String configured = AstraPipelineLauncher.applySettingsProvenanceConstants("""
+        String configured = PipelineLauncher.applySettingsProvenanceConstants("""
                 final String SETTINGS_SOURCE = "script defaults or manual GUI values"
                 final String SETTINGS_PROFILE_NAME = ""
                 final String SETTINGS_PROFILE_PATH = ""
@@ -363,37 +363,37 @@ class AstraPipelineLauncherTest {
 
     @Test
     void applySettingsProvenanceFailsWhenOneRequiredConstantIsMissing() {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final String NUC_MODEL_NAME = "cpsam"
                 final Map cfg = [:]
                 """);
 
         IllegalStateException error = assertThrows(IllegalStateException.class, () ->
-                AstraPipelineLauncher.applySettingsProvenanceConstants("""
+                PipelineLauncher.applySettingsProvenanceConstants("""
                         final String SETTINGS_SOURCE = ""
                         final String SETTINGS_PROFILE_NAME = ""
                         final String SETTINGS_PROFILE_PATH = ""
                         final String SETTINGS_PROFILE_SHA256 = ""
                         final String CONFIGURED_CONSTANTS_SHA256 = ""
                         final Map cfg = [:]
-                        """, constants, AstraPipelineLauncher.SettingsProfileState.scriptDefaults()));
+                        """, constants, PipelineLauncher.SettingsProfileState.scriptDefaults()));
 
         assertTrue(error.getMessage().contains("MANUAL_EDIT_AFTER_PROFILE_LOAD"));
     }
 
     @Test
     void applySettingsProvenanceFailsWithAllMissingConstantsListed() {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final String NUC_MODEL_NAME = "cpsam"
                 final Map cfg = [:]
                 """);
 
         IllegalStateException error = assertThrows(IllegalStateException.class, () ->
-                AstraPipelineLauncher.applySettingsProvenanceConstants("""
+                PipelineLauncher.applySettingsProvenanceConstants("""
                         final String SETTINGS_SOURCE = ""
                         final String SETTINGS_PROFILE_SHA256 = ""
                         final Map cfg = [:]
-                        """, constants, AstraPipelineLauncher.SettingsProfileState.scriptDefaults()));
+                        """, constants, PipelineLauncher.SettingsProfileState.scriptDefaults()));
 
         assertTrue(error.getMessage().contains("SETTINGS_PROFILE_NAME"));
         assertTrue(error.getMessage().contains("SETTINGS_PROFILE_PATH"));
@@ -405,19 +405,19 @@ class AstraPipelineLauncherTest {
     void savedModelDiscoveryHandlesZeroOneMultipleAndMalformed(@TempDir Path tempDir) throws Exception {
         File projectBase = tempDir.toFile();
 
-        assertEquals(List.of(), AstraPipelineLauncher.discoverSavedModelIds(projectBase, "nucleus").validIds());
+        assertEquals(List.of(), PipelineLauncher.discoverSavedModelIds(projectBase, "nucleus").validIds());
 
         writeModelMetadata(projectBase, "nucleus", "nuc_a", "NUCLEUS");
-        AstraPipelineLauncher.SavedModelDiscovery one = AstraPipelineLauncher.discoverSavedModelIds(projectBase, "nucleus");
+        PipelineLauncher.SavedModelDiscovery one = PipelineLauncher.discoverSavedModelIds(projectBase, "nucleus");
         assertEquals(List.of("nuc_a"), one.validIds());
         assertTrue(one.invalidModels().isEmpty());
 
         writeModelMetadata(projectBase, "nucleus", "nuc_b", "NUCLEUS");
-        AstraPipelineLauncher.SavedModelDiscovery multiple = AstraPipelineLauncher.discoverSavedModelIds(projectBase, "nucleus");
+        PipelineLauncher.SavedModelDiscovery multiple = PipelineLauncher.discoverSavedModelIds(projectBase, "nucleus");
         assertEquals(List.of("nuc_a", "nuc_b"), multiple.validIds());
 
         Files.createDirectories(tempDir.resolve("astra/models/nucleus/bad"));
-        AstraPipelineLauncher.SavedModelDiscovery malformed = AstraPipelineLauncher.discoverSavedModelIds(projectBase, "nucleus");
+        PipelineLauncher.SavedModelDiscovery malformed = PipelineLauncher.discoverSavedModelIds(projectBase, "nucleus");
         assertTrue(malformed.invalidModels().containsKey("bad"));
     }
 
@@ -425,28 +425,28 @@ class AstraPipelineLauncherTest {
     void savedModelDiscoveryDoesNotAutoselectWhenMultipleModelsExist(@TempDir Path tempDir) throws Exception {
         writeModelMetadata(tempDir.toFile(), "cell", "cell_a", "CELL");
         writeModelMetadata(tempDir.toFile(), "cell", "cell_b", "CELL");
-        AstraPipelineLauncher.SavedModelDiscovery discovery = AstraPipelineLauncher.discoverSavedModelIds(tempDir.toFile(), "cell");
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+        PipelineLauncher.SavedModelDiscovery discovery = PipelineLauncher.discoverSavedModelIds(tempDir.toFile(), "cell");
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final String CELL_SAVED_MODEL_ID = ""
                 final Map cfg = [:]
                 """);
 
         assertEquals(List.of("cell_a", "cell_b"), discovery.validIds());
-        assertFalse(Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java")).contains("prefillSingleSavedModelId"));
+        assertFalse(Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java")).contains("prefillSingleSavedModelId"));
         assertEquals("\"\"", constants.get(0).currentDisplayValue());
     }
 
     @Test
     void savedModelDiscoveryDoesNotAutoselectWhenExactlyOneModelExists(@TempDir Path tempDir) throws Exception {
         writeModelMetadata(tempDir.toFile(), "nucleus", "nuc_only", "NUCLEUS");
-        AstraPipelineLauncher.SavedModelDiscovery discovery = AstraPipelineLauncher.discoverSavedModelIds(tempDir.toFile(), "nucleus");
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+        PipelineLauncher.SavedModelDiscovery discovery = PipelineLauncher.discoverSavedModelIds(tempDir.toFile(), "nucleus");
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final String NUC_SAVED_MODEL_ID = ""
                 final Map cfg = [:]
                 """);
 
         assertEquals(List.of("nuc_only"), discovery.validIds());
-        assertFalse(Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java")).contains("prefillSingleSavedModelId"));
+        assertFalse(Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java")).contains("prefillSingleSavedModelId"));
         assertEquals("\"\"", constants.get(0).currentDisplayValue());
     }
 
@@ -459,10 +459,10 @@ class AstraPipelineLauncherTest {
                 final List CELL_SEGMENTATION_CHANNELS = []
                 final Map cfg = [:]
                 """;
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants(script);
 
-        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("DAPI", "AF488", "AF555", "AF647"));
-        String configured = AstraPipelineLauncher.applyConstants(script, constants);
+        PipelineLauncher.applyImageChannelDefaultNames(constants, List.of("DAPI", "AF488", "AF555", "AF647"));
+        String configured = PipelineLauncher.applyConstants(script, constants);
 
         assertTrue(configured.contains("final List CHANNELS_FOR_NUCLEUS = [\"DAPI\"]"));
         assertTrue(configured.contains("final List CHANNELS_FOR_CELL = [\"AF488\", \"AF555\", \"AF647\"]"));
@@ -477,10 +477,10 @@ class AstraPipelineLauncherTest {
                 final List CELL_SEGMENTATION_CHANNELS = []
                 final Map cfg = [:]
                 """;
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants(script);
 
-        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Only"));
-        String configured = AstraPipelineLauncher.applyConstants(script, constants);
+        PipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Only"));
+        String configured = PipelineLauncher.applyConstants(script, constants);
 
         assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = []"));
         assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = []"));
@@ -493,10 +493,10 @@ class AstraPipelineLauncherTest {
                 final List CHANNELS_FOR_CELL = ["AF555", "AF488", "DAPI"]
                 final Map cfg = [:]
                 """;
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants(script);
 
-        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Channel 1", "Channel 2"));
-        String configured = AstraPipelineLauncher.applyConstants(script, constants);
+        PipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Channel 1", "Channel 2"));
+        String configured = PipelineLauncher.applyConstants(script, constants);
 
         assertTrue(configured.contains("final List CHANNELS_FOR_NUCLEUS = []"));
         assertTrue(configured.contains("final List CHANNELS_FOR_CELL = []"));
@@ -512,10 +512,10 @@ class AstraPipelineLauncherTest {
                 final List CHANNELS_FOR_CELL = ["AF555"]
                 final Map cfg = [:]
                 """;
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants(script);
 
-        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Hoechst"));
-        String configured = AstraPipelineLauncher.applyConstants(script, constants);
+        PipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Hoechst"));
+        String configured = PipelineLauncher.applyConstants(script, constants);
 
         assertTrue(configured.contains("final List CHANNELS_FOR_NUCLEUS = [\"Hoechst\"]"));
         assertTrue(configured.contains("final List CHANNELS_FOR_CELL = []"));
@@ -531,10 +531,10 @@ class AstraPipelineLauncherTest {
                 final List CELL_SEGMENTATION_CHANNELS = []
                 final Map cfg = [:]
                 """;
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants(script);
 
-        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("DAPI", "Channel 2"));
-        String configured = AstraPipelineLauncher.applyConstants(script, constants);
+        PipelineLauncher.applyImageChannelDefaultNames(constants, List.of("DAPI", "Channel 2"));
+        String configured = PipelineLauncher.applyConstants(script, constants);
 
         assertTrue(configured.contains("final List CHANNELS_FOR_NUCLEUS = [\"DAPI\"]"));
         assertTrue(configured.contains("final List CHANNELS_FOR_CELL = [\"Channel 2\"]"));
@@ -551,10 +551,10 @@ class AstraPipelineLauncherTest {
                 final List CELL_SEGMENTATION_CHANNELS = []
                 final Map cfg = [:]
                 """;
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants(script);
 
-        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Hoechst", "Membrane"));
-        String configured = AstraPipelineLauncher.applyConstants(script, constants);
+        PipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Hoechst", "Membrane"));
+        String configured = PipelineLauncher.applyConstants(script, constants);
 
         assertTrue(configured.contains("final List CHANNELS_FOR_NUCLEUS = [\"Hoechst\"]"));
         assertTrue(configured.contains("final List CHANNELS_FOR_CELL = [\"Membrane\"]"));
@@ -571,10 +571,10 @@ class AstraPipelineLauncherTest {
                 final List CELL_SEGMENTATION_CHANNELS = ["AF555"]
                 final Map cfg = [:]
                 """;
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants(script);
 
-        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Channel 1", "Channel 2"));
-        String configured = AstraPipelineLauncher.applyConstants(script, constants);
+        PipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Channel 1", "Channel 2"));
+        String configured = PipelineLauncher.applyConstants(script, constants);
 
         assertTrue(configured.contains("final List CHANNELS_FOR_NUCLEUS = []"));
         assertTrue(configured.contains("final List CHANNELS_FOR_CELL = []"));
@@ -584,10 +584,10 @@ class AstraPipelineLauncherTest {
 
     @Test
     void twoOpenedChannelsOnlyPopulateColocalizationSegmentationChannels() {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
 
-        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("DAPI", "FITC"));
-        String configured = AstraPipelineLauncher.applyConstants(colocalizationDefaultsScript(), constants);
+        PipelineLauncher.applyImageChannelDefaultNames(constants, List.of("DAPI", "FITC"));
+        String configured = PipelineLauncher.applyConstants(colocalizationDefaultsScript(), constants);
 
         assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = [\"DAPI\"]"));
         assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = [\"FITC\"]"));
@@ -598,10 +598,10 @@ class AstraPipelineLauncherTest {
 
     @Test
     void hoechstAndAf555DoNotGenerateColocalizationChecks() {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
 
-        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Hoechst", "AF555"));
-        String configured = AstraPipelineLauncher.applyConstants(colocalizationDefaultsScript(), constants);
+        PipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Hoechst", "AF555"));
+        String configured = PipelineLauncher.applyConstants(colocalizationDefaultsScript(), constants);
 
         assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = [\"Hoechst\"]"));
         assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = [\"AF555\"]"));
@@ -612,10 +612,10 @@ class AstraPipelineLauncherTest {
 
     @Test
     void arbitraryOpenedChannelsDoNotRewriteScientificColocalizationDefaults() {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
 
-        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Channel 1", "Channel 2"));
-        String configured = AstraPipelineLauncher.applyConstants(colocalizationDefaultsScript(), constants);
+        PipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Channel 1", "Channel 2"));
+        String configured = PipelineLauncher.applyConstants(colocalizationDefaultsScript(), constants);
 
         assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = []"));
         assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = []"));
@@ -627,10 +627,10 @@ class AstraPipelineLauncherTest {
 
     @Test
     void oneNonNuclearOpenedChannelDoesNotCreateNucleusCheck() {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants(colocalizationDefaultsScript());
 
-        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Only"));
-        String configured = AstraPipelineLauncher.applyConstants(colocalizationDefaultsScript(), constants);
+        PipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Only"));
+        String configured = PipelineLauncher.applyConstants(colocalizationDefaultsScript(), constants);
 
         assertTrue(configured.contains("final List NUCLEUS_SEGMENTATION_CHANNELS = []"));
         assertTrue(configured.contains("final List CELL_SEGMENTATION_CHANNELS = []"));
@@ -640,22 +640,22 @@ class AstraPipelineLauncherTest {
 
     @Test
     void colocalizationPanelOwnsDetectionTarget() {
-        assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("DETECTION_TARGET", true));
-        assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("EXPRESSION_CLASSIFICATION_MODE", true));
-        assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("DISPLAY_COLOCALIZATION_CHECK", true));
-        assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("POSITIVITY_METHOD", true));
-        assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("PIXEL_POSITIVE_FRACTION_MIN", true));
-        assertTrue(AstraPipelineLauncher.isHandledByColocalizationPanel("THRESHOLD_POPULATION", true));
-        assertFalse(AstraPipelineLauncher.isHandledByColocalizationPanel("MODEL_SOURCE", true));
-        assertFalse(AstraPipelineLauncher.isHandledByColocalizationPanel("MODEL_NAME", true));
-        assertFalse(AstraPipelineLauncher.isHandledByColocalizationPanel("MODEL_FILE", true));
-        assertFalse(AstraPipelineLauncher.isHandledByColocalizationPanel("DETECTION_TARGET", false));
-        assertFalse(AstraPipelineLauncher.isHandledByColocalizationPanel("MODEL_SOURCE", false));
+        assertTrue(PipelineLauncher.isHandledByColocalizationPanel("DETECTION_TARGET", true));
+        assertTrue(PipelineLauncher.isHandledByColocalizationPanel("EXPRESSION_CLASSIFICATION_MODE", true));
+        assertTrue(PipelineLauncher.isHandledByColocalizationPanel("DISPLAY_COLOCALIZATION_CHECK", true));
+        assertTrue(PipelineLauncher.isHandledByColocalizationPanel("POSITIVITY_METHOD", true));
+        assertTrue(PipelineLauncher.isHandledByColocalizationPanel("PIXEL_POSITIVE_FRACTION_MIN", true));
+        assertTrue(PipelineLauncher.isHandledByColocalizationPanel("THRESHOLD_POPULATION", true));
+        assertFalse(PipelineLauncher.isHandledByColocalizationPanel("MODEL_SOURCE", true));
+        assertFalse(PipelineLauncher.isHandledByColocalizationPanel("MODEL_NAME", true));
+        assertFalse(PipelineLauncher.isHandledByColocalizationPanel("MODEL_FILE", true));
+        assertFalse(PipelineLauncher.isHandledByColocalizationPanel("DETECTION_TARGET", false));
+        assertFalse(PipelineLauncher.isHandledByColocalizationPanel("MODEL_SOURCE", false));
     }
 
     @Test
     void launcherSourceUsesOneContentRailAndSharedRowHeight() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertTrue(source.contains("private static final double CONTENT_HORIZONTAL_MARGIN = 24.0;"));
         assertTrue(source.contains("private static final double PARAMETER_ROW_HEIGHT = 34.0;"));
@@ -670,7 +670,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void launcherArchitectureUsesDeclaredSectionsAndNoDuplicatedSetupControls() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertTrue(source.contains("VBox header = new VBox(12.0);"));
         assertTrue(source.contains("VBox body = new VBox(14.0);"));
@@ -689,7 +689,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void launcherSourceUsesSharedLabeledRowsForConsistentVerticalSpacing() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertTrue(source.contains("private static HBox labeledRow(String labelText, Node editor, double labelWidth)"));
         assertTrue(source.contains("row.setMinHeight(PARAMETER_ROW_HEIGHT);"));
@@ -704,53 +704,53 @@ class AstraPipelineLauncherTest {
 
     @Test
     void launcherUsesProfessionalLabelsForPipelineControls() {
-        assertEquals("Nucleus Model Source", AstraPipelineLauncher.displayLabel("NUC_MODEL_SOURCE"));
-        assertEquals("Nucleus Saved Model ID", AstraPipelineLauncher.displayLabel("NUC_SAVED_MODEL_ID"));
-        assertEquals("Cell Saved Model ID", AstraPipelineLauncher.displayLabel("CELL_SAVED_MODEL_ID"));
-        assertEquals("Threshold Scope", AstraPipelineLauncher.displayLabel("THRESHOLD_SCOPE"));
-        assertEquals("Manual Background Offsets", AstraPipelineLauncher.displayLabel("BACKGROUND_SUBTRACTION_BY_CHANNEL"));
-        assertEquals("Detection Target", AstraPipelineLauncher.displayLabel("DETECTION_TARGET"));
-        assertEquals("Threshold Source Images", AstraPipelineLauncher.displayLabel("THRESHOLD_SELECTED_IMAGE_NAMES"));
-        assertEquals("Use GPU", AstraPipelineLauncher.displayLabel("USE_GPU"));
-        assertEquals("QC Filename", AstraPipelineLauncher.displayLabel("QC_FILENAME"));
-        assertEquals("Selected Image Names", AstraPipelineLauncher.displayLabel("SELECTED_IMAGE_NAMES"));
+        assertEquals("Nucleus Model Source", PipelineLauncher.displayLabel("NUC_MODEL_SOURCE"));
+        assertEquals("Nucleus Saved Model ID", PipelineLauncher.displayLabel("NUC_SAVED_MODEL_ID"));
+        assertEquals("Cell Saved Model ID", PipelineLauncher.displayLabel("CELL_SAVED_MODEL_ID"));
+        assertEquals("Threshold Scope", PipelineLauncher.displayLabel("THRESHOLD_SCOPE"));
+        assertEquals("Manual Background Offsets", PipelineLauncher.displayLabel("BACKGROUND_SUBTRACTION_BY_CHANNEL"));
+        assertEquals("Detection Target", PipelineLauncher.displayLabel("DETECTION_TARGET"));
+        assertEquals("Threshold Source Images", PipelineLauncher.displayLabel("THRESHOLD_SELECTED_IMAGE_NAMES"));
+        assertEquals("Use GPU", PipelineLauncher.displayLabel("USE_GPU"));
+        assertEquals("QC Filename", PipelineLauncher.displayLabel("QC_FILENAME"));
+        assertEquals("Selected Image Names", PipelineLauncher.displayLabel("SELECTED_IMAGE_NAMES"));
     }
 
     @Test
     void launcherDelegatesGuiTextPolicyToPresentationRouter() throws Exception {
-        String launcher = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
-        String presentation = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraGuiPresentation.java"));
+        String launcher = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+        String presentation = Files.readString(Path.of("src/main/java/qupath/ext/astra/GuiPresentation.java"));
 
-        assertTrue(launcher.contains("return AstraGuiPresentation.displayLabel(name);"));
-        assertTrue(presentation.contains("final class AstraGuiPresentation"));
+        assertTrue(launcher.contains("return GuiPresentation.displayLabel(name);"));
+        assertTrue(presentation.contains("final class GuiPresentation"));
         assertTrue(presentation.contains("static List<String> visibleRunModeOptions"));
         assertTrue(presentation.contains("static boolean supportsHeaderExport"));
         assertTrue(presentation.contains("static String displayOption"));
-        assertEquals("Stages To Run", AstraGuiPresentation.displayLabel("MODES_TO_RUN"));
-        assertEquals("Use GPU", AstraGuiPresentation.displayLabel("USE_GPU"));
-        assertEquals("Current Image", AstraGuiPresentation.displayOption("CURRENT_IMAGE"));
-        assertEquals("Selected Region", AstraGuiPresentation.displayOption("IMAGE_SCOPE", "SELECTED_ANALYSIS_REGION"));
-        assertEquals("Project Image Selection", AstraGuiPresentation.displayOption("PROJECT_IMAGE_SELECTION"));
-        assertEquals("Selected Images", AstraGuiPresentation.displayOption("SELECTED_IMAGES"));
-        assertEquals("Selected Region", AstraGuiPresentation.displayOption("IMAGE_SCOPE", "SELECTED_ANALYSIS_REGION"));
-        assertEquals("Selected Images", AstraGuiPresentation.displayOption("IMAGE_SCOPE", "PROJECT_IMAGE_SELECTION"));
-        assertEquals("Per Image", AstraGuiPresentation.displayOption("THRESHOLD_SCOPE", "IMAGE"));
-        assertEquals("Per Region", AstraGuiPresentation.displayOption("THRESHOLD_SCOPE", "REGION"));
-        assertEquals("Cell Mean", AstraGuiPresentation.displayOption("THRESHOLD_POPULATION", "CELL_MEAN"));
-        assertEquals("Pixel Intensity", AstraGuiPresentation.displayOption("THRESHOLD_POPULATION", "PIXEL_INTENSITY"));
-        assertEquals("Pixel Positive Fraction", AstraGuiPresentation.displayOption("POSITIVITY_METHOD", "PIXEL_POSITIVE_FRACTION"));
-        assertEquals("Pixel Level Score", AstraGuiPresentation.displayOption("EXPRESSION_CLASSIFICATION_MODE", "PIXEL_LEVEL_SCORE"));
-        assertEquals("Legacy Binary", AstraGuiPresentation.displayOption("EXPRESSION_CLASSIFICATION_MODE", "LEGACY_BINARY"));
-        assertEquals("Local Percentile", AstraGuiPresentation.displayOption("LOCAL_PERCENTILE"));
-        assertEquals("Detection Target", AstraGuiPresentation.displayLabel("DETECTION_TARGET"));
-        assertEquals("Threshold Source Images", AstraGuiPresentation.displayLabel("THRESHOLD_SELECTED_IMAGE_NAMES"));
+        assertEquals("Stages To Run", GuiPresentation.displayLabel("MODES_TO_RUN"));
+        assertEquals("Use GPU", GuiPresentation.displayLabel("USE_GPU"));
+        assertEquals("Current Image", GuiPresentation.displayOption("CURRENT_IMAGE"));
+        assertEquals("Selected Region", GuiPresentation.displayOption("IMAGE_SCOPE", "SELECTED_ANALYSIS_REGION"));
+        assertEquals("Project Image Selection", GuiPresentation.displayOption("PROJECT_IMAGE_SELECTION"));
+        assertEquals("Selected Images", GuiPresentation.displayOption("SELECTED_IMAGES"));
+        assertEquals("Selected Region", GuiPresentation.displayOption("IMAGE_SCOPE", "SELECTED_ANALYSIS_REGION"));
+        assertEquals("Selected Images", GuiPresentation.displayOption("IMAGE_SCOPE", "PROJECT_IMAGE_SELECTION"));
+        assertEquals("Per Image", GuiPresentation.displayOption("THRESHOLD_SCOPE", "IMAGE"));
+        assertEquals("Per Region", GuiPresentation.displayOption("THRESHOLD_SCOPE", "REGION"));
+        assertEquals("Cell Mean", GuiPresentation.displayOption("THRESHOLD_POPULATION", "CELL_MEAN"));
+        assertEquals("Pixel Intensity", GuiPresentation.displayOption("THRESHOLD_POPULATION", "PIXEL_INTENSITY"));
+        assertEquals("Pixel Positive Fraction", GuiPresentation.displayOption("POSITIVITY_METHOD", "PIXEL_POSITIVE_FRACTION"));
+        assertEquals("Pixel Level Score", GuiPresentation.displayOption("EXPRESSION_CLASSIFICATION_MODE", "PIXEL_LEVEL_SCORE"));
+        assertEquals("Legacy Binary", GuiPresentation.displayOption("EXPRESSION_CLASSIFICATION_MODE", "LEGACY_BINARY"));
+        assertEquals("Local Percentile", GuiPresentation.displayOption("LOCAL_PERCENTILE"));
+        assertEquals("Detection Target", GuiPresentation.displayLabel("DETECTION_TARGET"));
+        assertEquals("Threshold Source Images", GuiPresentation.displayLabel("THRESHOLD_SELECTED_IMAGE_NAMES"));
         assertEquals(List.of("DETECT_CELLS", "QUANTIFY"),
-                AstraGuiPresentation.visibleRunModeOptions("Colocalization", List.of("RESET", "DETECT_CELLS", "QUANTIFY", "EXPORT")));
+                GuiPresentation.visibleRunModeOptions("Colocalization", List.of("RESET", "DETECT_CELLS", "QUANTIFY", "EXPORT")));
     }
 
     @Test
     void detectionTargetAndPerCheckThresholdExclusionsAreEditable() {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final List DETECTION_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
                 final String DETECTION_TARGET = "NUCLEUS"
                 final List COLOCALIZATION_CHECKS = [
@@ -760,27 +760,27 @@ class AstraPipelineLauncherTest {
                 """);
 
         assertTrue(constants.stream().anyMatch(c -> c.name().equals("DETECTION_TARGET")));
-        AstraPipelineLauncher.EditableConstant checks = constants.stream()
+        PipelineLauncher.EditableConstant checks = constants.stream()
                 .filter(c -> c.name().equals("COLOCALIZATION_CHECKS"))
                 .findFirst()
                 .orElseThrow();
-        assertEquals(List.of("DAPI"), AstraPipelineLauncher.parseColocalizationChecks(checks.currentDisplayValue()).get(0).excludedChannels());
+        assertEquals(List.of("DAPI"), PipelineLauncher.parseColocalizationChecks(checks.currentDisplayValue()).get(0).excludedChannels());
     }
 
     @Test
     void targetSpecificModelControlsRemainAvailableForBothTarget() {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationModelScript("BOTH"));
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants(colocalizationModelScript("BOTH"));
 
         assertEquals(List.of("NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE", "NUC_SAVED_MODEL_ID"),
-                AstraPipelineLauncher.targetModelControlNames("NUCLEUS"));
+                PipelineLauncher.targetModelControlNames("NUCLEUS"));
         assertEquals(List.of("CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE", "CELL_SAVED_MODEL_ID"),
-                AstraPipelineLauncher.targetModelControlNames("CELL"));
+                PipelineLauncher.targetModelControlNames("CELL"));
         assertEquals(List.of("NUC_MODEL_SOURCE", "NUC_MODEL_NAME", "NUC_MODEL_FILE", "NUC_SAVED_MODEL_ID",
                         "CELL_MODEL_SOURCE", "CELL_MODEL_NAME", "CELL_MODEL_FILE", "CELL_SAVED_MODEL_ID"),
-                AstraPipelineLauncher.targetModelControlNames("BOTH"));
-        assertFalse(AstraPipelineLauncher.targetModelControlNames("BOTH").contains("MODEL_SOURCE"));
-        assertFalse(AstraPipelineLauncher.targetModelControlNames("BOTH").contains("MODEL_NAME"));
-        assertFalse(AstraPipelineLauncher.targetModelControlNames("BOTH").contains("MODEL_FILE"));
+                PipelineLauncher.targetModelControlNames("BOTH"));
+        assertFalse(PipelineLauncher.targetModelControlNames("BOTH").contains("MODEL_SOURCE"));
+        assertFalse(PipelineLauncher.targetModelControlNames("BOTH").contains("MODEL_NAME"));
+        assertFalse(PipelineLauncher.targetModelControlNames("BOTH").contains("MODEL_FILE"));
         assertTrue(constants.stream().anyMatch(c -> c.name().equals("NUC_MODEL_SOURCE")));
         assertTrue(constants.stream().anyMatch(c -> c.name().equals("NUC_MODEL_NAME")));
         assertTrue(constants.stream().anyMatch(c -> c.name().equals("NUC_MODEL_FILE")));
@@ -791,7 +791,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void colocalizationModelDefaultsAreTargetSpecificValues() {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(colocalizationModelScript("BOTH"));
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants(colocalizationModelScript("BOTH"));
 
         Map<String, String> values = new java.util.LinkedHashMap<>();
         constants.forEach(c -> values.put(c.name(), c.currentDisplayValue()));
@@ -804,49 +804,49 @@ class AstraPipelineLauncherTest {
 
     @Test
     void colocalizationPanelStateFollowsDetectionTarget() {
-        assertEquals(new AstraPipelineLauncher.ColocalizationPanelState(true, false, true, false),
-                AstraPipelineLauncher.colocalizationPanelState("NUCLEUS"));
-        assertEquals(new AstraPipelineLauncher.ColocalizationPanelState(false, true, false, true),
-                AstraPipelineLauncher.colocalizationPanelState("CELL"));
-        assertEquals(new AstraPipelineLauncher.ColocalizationPanelState(true, true, true, true),
-                AstraPipelineLauncher.colocalizationPanelState("BOTH"));
+        assertEquals(new PipelineLauncher.ColocalizationPanelState(true, false, true, false),
+                PipelineLauncher.colocalizationPanelState("NUCLEUS"));
+        assertEquals(new PipelineLauncher.ColocalizationPanelState(false, true, false, true),
+                PipelineLauncher.colocalizationPanelState("CELL"));
+        assertEquals(new PipelineLauncher.ColocalizationPanelState(true, true, true, true),
+                PipelineLauncher.colocalizationPanelState("BOTH"));
     }
 
     @Test
     void markerExclusionKeysComeOnlyFromColocalizationChecks() {
-        List<AstraPipelineLauncher.ColocalizationCheck> checks = List.of(
-                new AstraPipelineLauncher.ColocalizationCheck("DAPI_AF488", "Nucleus", List.of("DAPI", "AF488"), List.of("DAPI"))
+        List<PipelineLauncher.ColocalizationCheck> checks = List.of(
+                new PipelineLauncher.ColocalizationCheck("DAPI_AF488", "Nucleus", List.of("DAPI", "AF488"), List.of("DAPI"))
         );
 
-        List<String> keys = AstraPipelineLauncher.markerKeysFromChecks(checks);
+        List<String> keys = PipelineLauncher.markerKeysFromChecks(checks);
 
         assertTrue(keys.contains("DAPI|Nucleus"));
         assertTrue(keys.contains("AF488|Nucleus"));
         assertFalse(keys.contains("AF647|Nucleus"));
-        assertEquals(List.of("AF488|Nucleus"), AstraPipelineLauncher.thresholdedMarkerKeysFromChecks(checks));
-        assertEquals("[\"DAPI|Nucleus\"]", AstraPipelineLauncher.renderStringList(List.of("DAPI|Nucleus")));
+        assertEquals(List.of("AF488|Nucleus"), PipelineLauncher.thresholdedMarkerKeysFromChecks(checks));
+        assertEquals("[\"DAPI|Nucleus\"]", PipelineLauncher.renderStringList(List.of("DAPI|Nucleus")));
     }
 
     @Test
     void markerMapKeysIncludeAllCheckRowsAndCompartments() {
-        List<AstraPipelineLauncher.ColocalizationCheck> checks = List.of(
-                new AstraPipelineLauncher.ColocalizationCheck("nuc", "Nucleus", List.of("DAPI", "AF488"), List.of("DAPI")),
-                new AstraPipelineLauncher.ColocalizationCheck("cyto", "Cytoplasm", List.of("AF555"), List.of()),
-                new AstraPipelineLauncher.ColocalizationCheck("cell", "Cell", List.of("AF647"), List.of())
+        List<PipelineLauncher.ColocalizationCheck> checks = List.of(
+                new PipelineLauncher.ColocalizationCheck("nuc", "Nucleus", List.of("DAPI", "AF488"), List.of("DAPI")),
+                new PipelineLauncher.ColocalizationCheck("cyto", "Cytoplasm", List.of("AF555"), List.of()),
+                new PipelineLauncher.ColocalizationCheck("cell", "Cell", List.of("AF647"), List.of())
         );
 
         assertEquals(List.of("AF488|Nucleus", "AF555|Cytoplasm", "AF647|Cell"),
-                AstraPipelineLauncher.thresholdedMarkerKeysFromChecks(checks));
+                PipelineLauncher.thresholdedMarkerKeysFromChecks(checks));
     }
 
     @Test
     void perCheckThresholdExclusionsAreRenderedInsideEachCheck() {
-        List<AstraPipelineLauncher.ColocalizationCheck> checks = List.of(
-                new AstraPipelineLauncher.ColocalizationCheck("fitc", "Nucleus", List.of("FITC"), List.of("FITC")),
-                new AstraPipelineLauncher.ColocalizationCheck("af647", "Cell", List.of("AF647"), List.of())
+        List<PipelineLauncher.ColocalizationCheck> checks = List.of(
+                new PipelineLauncher.ColocalizationCheck("fitc", "Nucleus", List.of("FITC"), List.of("FITC")),
+                new PipelineLauncher.ColocalizationCheck("af647", "Cell", List.of("AF647"), List.of())
         );
-        String rendered = AstraPipelineLauncher.renderColocalizationChecks(checks);
-        List<AstraPipelineLauncher.ColocalizationCheck> parsed = AstraPipelineLauncher.parseColocalizationChecks(rendered);
+        String rendered = PipelineLauncher.renderColocalizationChecks(checks);
+        List<PipelineLauncher.ColocalizationCheck> parsed = PipelineLauncher.parseColocalizationChecks(rendered);
 
         assertEquals(List.of("FITC"), parsed.get(0).excludedChannels());
         assertEquals(List.of(), parsed.get(1).excludedChannels());
@@ -854,7 +854,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void finalSummaryShowsEffectiveTargetSpecificModels() {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final List DETECTION_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
                 final String DETECTION_TARGET = "BOTH"
                 final List NUC_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
@@ -870,7 +870,7 @@ class AstraPipelineLauncherTest {
                 final Map cfg = [:]
                 """);
 
-        String summary = AstraPipelineLauncher.finalConfigSummary("Colocalization", "123456789012", constants);
+        String summary = PipelineLauncher.finalConfigSummary("Colocalization", "123456789012", constants);
 
         assertTrue(summary.contains("effective nucleus model source: MODEL_NAME"));
         assertTrue(summary.contains("effective nucleus model: nuc-special"));
@@ -881,7 +881,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void finalSummaryShowsEffectiveSavedModelIds() {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final List DETECTION_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
                 final String DETECTION_TARGET = "NUCLEUS"
                 final List NUC_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
@@ -892,7 +892,7 @@ class AstraPipelineLauncherTest {
                 final Map cfg = [:]
                 """);
 
-        String summary = AstraPipelineLauncher.finalConfigSummary("Colocalization", "123456789012", constants);
+        String summary = PipelineLauncher.finalConfigSummary("Colocalization", "123456789012", constants);
 
         assertTrue(summary.contains("effective nucleus model source: SAVED"));
         assertTrue(summary.contains("effective nucleus model: nuc_v1"));
@@ -901,7 +901,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void finalSummaryUsesTrainingTargetForEffectiveModels() {
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final List TRAIN_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
                 final String TRAIN_TARGET = "NUCLEUS"
                 final List NUC_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
@@ -917,7 +917,7 @@ class AstraPipelineLauncherTest {
                 final Map cfg = [:]
                 """);
 
-        String summary = AstraPipelineLauncher.finalConfigSummary("Training", "123456789012", constants);
+        String summary = PipelineLauncher.finalConfigSummary("Training", "123456789012", constants);
 
         assertTrue(summary.contains("training target: \"NUCLEUS\""));
         assertTrue(summary.contains("effective nucleus model: nuc-train"));
@@ -927,7 +927,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void finalSummaryUsesTuningAndValidationTargetsForEffectiveModels() {
-        List<AstraPipelineLauncher.EditableConstant> tuning = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> tuning = PipelineLauncher.extractEditableConstants("""
                 final List TUNE_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
                 final String TUNE_TARGET = "CELL"
                 final List NUC_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
@@ -942,7 +942,7 @@ class AstraPipelineLauncherTest {
                 final String CELL_SAVED_MODEL_ID = ""
                 final Map cfg = [:]
                 """);
-        List<AstraPipelineLauncher.EditableConstant> validation = AstraPipelineLauncher.extractEditableConstants("""
+        List<PipelineLauncher.EditableConstant> validation = PipelineLauncher.extractEditableConstants("""
                 final List VALIDATE_TARGET_OPTIONS = ["NUCLEUS", "CELL", "BOTH"]
                 final String VALIDATE_TARGET = "BOTH"
                 final List NUC_MODEL_SOURCE_OPTIONS = ["MODEL_NAME", "SAVED", "FILE"]
@@ -958,8 +958,8 @@ class AstraPipelineLauncherTest {
                 final Map cfg = [:]
                 """);
 
-        String tuningSummary = AstraPipelineLauncher.finalConfigSummary("Tuning", "123456789012", tuning);
-        String validationSummary = AstraPipelineLauncher.finalConfigSummary("Validation", "123456789012", validation);
+        String tuningSummary = PipelineLauncher.finalConfigSummary("Tuning", "123456789012", tuning);
+        String validationSummary = PipelineLauncher.finalConfigSummary("Validation", "123456789012", validation);
 
         assertTrue(tuningSummary.contains("effective nucleus model: not used for TUNE_TARGET=CELL"));
         assertTrue(tuningSummary.contains("effective cell model: cell-tune"));
@@ -969,9 +969,9 @@ class AstraPipelineLauncherTest {
 
     @Test
     void colocalizationCheckBuilderRendersGroovyMapList() {
-        String rendered = AstraPipelineLauncher.renderColocalizationChecks(List.of(
-                new AstraPipelineLauncher.ColocalizationCheck("A_B_nucleus", "Nucleus", List.of("A", "B"), List.of("A")),
-                new AstraPipelineLauncher.ColocalizationCheck("C_cell", "Cell", List.of("C"), List.of())
+        String rendered = PipelineLauncher.renderColocalizationChecks(List.of(
+                new PipelineLauncher.ColocalizationCheck("A_B_nucleus", "Nucleus", List.of("A", "B"), List.of("A")),
+                new PipelineLauncher.ColocalizationCheck("C_cell", "Cell", List.of("C"), List.of())
         ));
 
         assertTrue(rendered.contains("LABEL      : \"A_B_nucleus\""));
@@ -982,7 +982,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void colocalizationCheckEditorDoesNotCreateHardcodedFallbackRow() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertFalse(source.contains("new ColocalizationCheck(\"DAPI_AND_AF488_nucleus\""));
         assertFalse(source.contains("setRawConstant(constants, \"COLOCALIZATION_CHECKS\""));
@@ -991,7 +991,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void colocalizationCheckRowUsesReadableDeleteControl() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertTrue(source.contains("Button remove = new Button(\"Delete check\")"));
         assertTrue(source.contains("new Tooltip(\"Delete check\")"));
@@ -1013,7 +1013,7 @@ class AstraPipelineLauncherTest {
         assertTrue(source.contains("compartment.getItems().addAll(\"Nucleus\", \"Cytoplasm\", \"Cell\")"));
         assertTrue(source.contains("compartment.setMinWidth(120.0)"));
         assertTrue(source.contains("compartment.setPrefWidth(130.0)"));
-        assertTrue(source.contains("styleAstraComboBox(compartment)"));
+        assertTrue(source.contains("styleComboBox(compartment)"));
         assertTrue(source.contains("label.setMinWidth(180.0)"));
         assertTrue(source.contains("private static String nestedLabelStyle()"));
         assertTrue(source.contains("private static String checkBoxStyle()"));
@@ -1022,9 +1022,9 @@ class AstraPipelineLauncherTest {
 
     @Test
     void comboBoxSelectedValueUsesReadableTextColor() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
-        assertTrue(source.contains("private static void styleAstraComboBox(ComboBox<String> combo)"));
+        assertTrue(source.contains("private static void styleComboBox(ComboBox<String> combo)"));
         assertTrue(source.contains("combo.getEditor().setStyle(EditableConstant.controlStyle())"));
         assertTrue(source.contains("private static void styleComboBoxSubnodes(ComboBox<String> combo)"));
         assertTrue(source.contains("combo.lookup(\".arrow-button\")"));
@@ -1037,7 +1037,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void runFeedbackPaneResizesWithLauncherWidth() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertTrue(source.contains("box.setMaxWidth(Double.MAX_VALUE);"));
         assertTrue(source.contains("HBox.setHgrow(box, Priority.ALWAYS);"));
@@ -1047,7 +1047,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void launcherOwnsOneModalErrorDialogPerGuiRun() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertTrue(source.contains("private static final String GUI_RUN_ACTIVE_PROPERTY = \"ASTRA_GUI_RUN_ACTIVE\";"));
         assertTrue(source.contains("System.setProperty(GUI_RUN_ACTIVE_PROPERTY, \"true\");"));
@@ -1062,7 +1062,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void colocalizationThresholdAndBackgroundScopesAreInSetupPanel() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"POSITIVITY_METHOD\")"));
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"EXPRESSION_CLASSIFICATION_MODE\")"));
@@ -1087,11 +1087,11 @@ class AstraPipelineLauncherTest {
 
     @Test
     void colocalizationModesUseOrderedMultiSelectAndHeaderExport() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
-        String script = realBaseScript("analysis/src/main/groovy/colocalization/colocalization.groovy");
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+        String script = realBaseScript("modules/pipelines/analysis/src/main/groovy/colocalization/colocalization.groovy");
 
         assertEquals(List.of("DETECT_CELLS", "QUANTIFY"),
-                AstraGuiPresentation.visibleRunModeOptions("Colocalization", List.of()));
+                GuiPresentation.visibleRunModeOptions("Colocalization", List.of()));
         assertTrue(script.contains("final Map USER_OVERRIDES"));
         assertTrue(source.contains("private static final class StageModeEditor extends VBox"));
         assertTrue(source.contains("private final MultiSelectListEditor selector;"));
@@ -1113,25 +1113,25 @@ class AstraPipelineLauncherTest {
 
     @Test
     void compactEntrypointOmitsUnchangedSymbolicDefaultsFromUserOverrides() throws Exception {
-        String script = realBaseScript("analysis/src/main/groovy/colocalization/colocalization.groovy");
-        List<AstraPipelineLauncher.EditableConstant> constants =
-                AstraPipelineLauncher.editableConstantsForScript("Colocalization", script);
+        String script = realBaseScript("modules/pipelines/analysis/src/main/groovy/colocalization/colocalization.groovy");
+        List<PipelineLauncher.EditableConstant> constants =
+                PipelineLauncher.editableConstantsForScript("Colocalization", script);
 
-        String rendered = AstraPipelineLauncher.applyConstants(script, constants, AstraPipelineLauncher.SettingsProfileState.scriptDefaults());
+        String rendered = PipelineLauncher.applyConstants(script, constants, PipelineLauncher.SettingsProfileState.scriptDefaults());
 
         assertFalse(rendered.contains("CellposeInferenceDefaults."),
                 "The launcher must not render symbolic contract defaults before PipelineEntrypoint loads them.");
         assertFalse(rendered.contains("NUC_CELLPROB:"),
                 "Unchanged contract defaults should be resolved by PipelineEntrypoint, not USER_OVERRIDES.");
 
-        AstraPipelineLauncher.EditableConstant nucCellprob = constants.stream()
+        PipelineLauncher.EditableConstant nucCellprob = constants.stream()
                 .filter(c -> "NUC_CELLPROB".equals(c.name()))
                 .findFirst()
                 .orElseThrow();
         assertEquals("0.0d", nucCellprob.currentDisplayValue());
         nucCellprob.setDisplayValue("0.125d");
 
-        String changed = AstraPipelineLauncher.applyConstants(script, constants, AstraPipelineLauncher.SettingsProfileState.scriptDefaults());
+        String changed = PipelineLauncher.applyConstants(script, constants, PipelineLauncher.SettingsProfileState.scriptDefaults());
 
         assertTrue(changed.contains("NUC_CELLPROB: 0.125d"),
                 "Changed GUI values must still render as explicit USER_OVERRIDES.");
@@ -1152,9 +1152,9 @@ class AstraPipelineLauncherTest {
                 final boolean MANUAL_EDIT_AFTER_PROFILE_LOAD = false
                 final Map cfg = [:]
                 """;
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants(script);
 
-        String rendered = AstraPipelineLauncher.applyConstants(script, constants, AstraPipelineLauncher.SettingsProfileState.scriptDefaults(),
+        String rendered = PipelineLauncher.applyConstants(script, constants, PipelineLauncher.SettingsProfileState.scriptDefaults(),
                 Map.of("SCRIPT_ACTION", "\"EXPORT\""));
 
         assertTrue(rendered.contains("final List MODES_TO_RUN = [\"DETECT_CELLS\", \"QUANTIFY\"]"));
@@ -1164,16 +1164,16 @@ class AstraPipelineLauncherTest {
 
     @Test
     void colocalizationThresholdVisibilityDefaultImageStateIsCompact() {
-        Set<String> visible = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE");
+        Set<String> visible = PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE");
 
         assertEquals(Set.of("EXPRESSION_CLASSIFICATION_MODE", "POSITIVITY_METHOD", "THRESHOLD_POPULATION", "THRESHOLD_MODE", "THRESHOLD_SCOPE", "BACKGROUND_MODE", "GMM_COMPONENTS"), visible);
     }
 
     @Test
     void colocalizationSelectedThresholdSourceRevealsImageSelector() {
-        Set<String> image = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE");
-        Set<String> region = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "REGION", "NONE");
-        Set<String> selected = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "SELECTED_IMAGES", "NONE");
+        Set<String> image = PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE");
+        Set<String> region = PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "REGION", "NONE");
+        Set<String> selected = PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "SELECTED_IMAGES", "NONE");
 
         assertEquals(image, region);
         assertTrue(selected.contains("THRESHOLD_SELECTED_IMAGE_NAMES"));
@@ -1182,19 +1182,19 @@ class AstraPipelineLauncherTest {
 
     @Test
     void colocalizationThresholdVisibilityIsModeDriven() {
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "MANUAL", "IMAGE", "NONE")
+        assertTrue(PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "MANUAL", "IMAGE", "NONE")
                 .contains("MANUAL_INTENSITY_THRESHOLDS"));
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "MANUAL", "IMAGE", "NONE")
+        assertTrue(PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "MANUAL", "IMAGE", "NONE")
                 .contains("THRESHOLD_PROVENANCE_BY_MARKER"));
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "RANGE_PERCENT", "IMAGE", "NONE")
+        assertTrue(PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "RANGE_PERCENT", "IMAGE", "NONE")
                 .contains("RANGE_THRESHOLD_FRACTION_BY_MARKER"));
-        assertTrue(AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "MANUAL_OFFSET")
+        assertTrue(PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "MANUAL_OFFSET")
                 .contains("BACKGROUND_SUBTRACTION_BY_CHANNEL"));
 
-        Set<String> local = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "LOCAL_PERCENTILE");
+        Set<String> local = PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "LOCAL_PERCENTILE");
         assertTrue(local.contains("LOCAL_BACKGROUND_PERCENTILE"));
 
-        Set<String> pixelManual = AstraPipelineLauncher.colocalizationThresholdVisibilityState("PIXEL_LEVEL_SCORE", "MEAN_INTENSITY", "MANUAL", "IMAGE", "NONE");
+        Set<String> pixelManual = PipelineLauncher.colocalizationThresholdVisibilityState("PIXEL_LEVEL_SCORE", "MEAN_INTENSITY", "MANUAL", "IMAGE", "NONE");
         assertTrue(pixelManual.contains("MANUAL_INTENSITY_BOUNDARIES_BY_MARKER"));
         assertFalse(pixelManual.contains("MANUAL_INTENSITY_THRESHOLDS"));
         assertFalse(pixelManual.contains("BACKGROUND_MODE"));
@@ -1202,8 +1202,8 @@ class AstraPipelineLauncherTest {
 
     @Test
     void colocalizationPixelFractionVisibilityKeepsCutoffBesidePositivityMethod() {
-        Set<String> mean = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_KDE_VALLEY", "IMAGE", "NONE");
-        Set<String> fraction = AstraPipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "PIXEL_POSITIVE_FRACTION", "LOG_KDE_VALLEY", "IMAGE", "NONE");
+        Set<String> mean = PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_KDE_VALLEY", "IMAGE", "NONE");
+        Set<String> fraction = PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "PIXEL_POSITIVE_FRACTION", "LOG_KDE_VALLEY", "IMAGE", "NONE");
 
         assertFalse(mean.contains("PIXEL_POSITIVE_FRACTION_MIN"));
         assertTrue(fraction.contains("PIXEL_POSITIVE_FRACTION_MIN"));
@@ -1211,7 +1211,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void launcherDoesNotPreserveRemovedAnalysisAliases() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertFalse(source.contains("RESET_BASELINE"));
         assertFalse(source.contains("EXPORT_ON_QUANTIFY"));
@@ -1226,7 +1226,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void colocalizationMarkerKeyMapSettingsUseSpecializedEditors() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertTrue(source.contains("static final class MarkerKeyMapEditor extends VBox"));
         assertTrue(source.contains("installMarkerKeyMapEditor(byName.get(\"MANUAL_INTENSITY_THRESHOLDS\"), MarkerMapValueType.NUMERIC"));
@@ -1243,31 +1243,31 @@ class AstraPipelineLauncherTest {
         Map<String, String> numeric = new java.util.LinkedHashMap<>();
         numeric.put("AF647|Nucleus", "12.5");
         numeric.put("DAPI|Nucleus", "");
-        String renderedNumeric = AstraPipelineLauncher.renderMarkerKeyMapValues(numeric, AstraPipelineLauncher.MarkerMapValueType.NUMERIC);
+        String renderedNumeric = PipelineLauncher.renderMarkerKeyMapValues(numeric, PipelineLauncher.MarkerMapValueType.NUMERIC);
 
         assertTrue(renderedNumeric.contains("\"AF647|Nucleus\": 12.5d"));
         assertFalse(renderedNumeric.contains("DAPI|Nucleus"));
 
         Map<String, String> text = new java.util.LinkedHashMap<>();
         text.put("AF647|Nucleus", "manual \"publication\" threshold");
-        String renderedText = AstraPipelineLauncher.renderMarkerKeyMapValues(text, AstraPipelineLauncher.MarkerMapValueType.TEXT);
+        String renderedText = PipelineLauncher.renderMarkerKeyMapValues(text, PipelineLauncher.MarkerMapValueType.TEXT);
 
         assertTrue(renderedText.contains("\"AF647|Nucleus\": \"manual \\\"publication\\\" threshold\""));
     }
 
     @Test
     void markerKeyMapParsingReadsExistingGroovyMaps() {
-        Map<String, String> numeric = AstraPipelineLauncher.parseMarkerKeyMapValues("""
+        Map<String, String> numeric = PipelineLauncher.parseMarkerKeyMapValues("""
                 [
                     "AF488|Nucleus": 100.0d,
                     "AF647|Cell": 2.5
                 ]
-                """, AstraPipelineLauncher.MarkerMapValueType.NUMERIC);
-        Map<String, String> text = AstraPipelineLauncher.parseMarkerKeyMapValues("""
+                """, PipelineLauncher.MarkerMapValueType.NUMERIC);
+        Map<String, String> text = PipelineLauncher.parseMarkerKeyMapValues("""
                 [
                     "AF488|Nucleus": "manual source"
                 ]
-                """, AstraPipelineLauncher.MarkerMapValueType.TEXT);
+                """, PipelineLauncher.MarkerMapValueType.TEXT);
 
         assertEquals("100.0", numeric.get("AF488|Nucleus"));
         assertEquals("2.5", numeric.get("AF647|Cell"));
@@ -1276,7 +1276,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void selectedImageNamesUsesProjectImageSelectionDialog() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertTrue(source.contains("private static final class ProjectImageSelectionEditor extends VBox"));
         assertTrue(source.contains("Dialog<ButtonType> dialog = new Dialog<>()"));
@@ -1304,10 +1304,10 @@ class AstraPipelineLauncherTest {
                 final String CHANNEL_CD31 = "AF647"
                 final Map cfg = [:]
                 """;
-        List<AstraPipelineLauncher.EditableConstant> constants = AstraPipelineLauncher.extractEditableConstants(script);
+        List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants(script);
 
-        AstraPipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Channel 1", "Channel 2"));
-        String configured = AstraPipelineLauncher.applyConstants(script, constants);
+        PipelineLauncher.applyImageChannelDefaultNames(constants, List.of("Channel 1", "Channel 2"));
+        String configured = PipelineLauncher.applyConstants(script, constants);
 
         assertTrue(configured.contains("final String CHANNEL_DAPI = \"\""));
         assertTrue(configured.contains("final String CHANNEL_WGA = \"\""));
@@ -1319,23 +1319,23 @@ class AstraPipelineLauncherTest {
 
     @Test
     void retiredImageScopesAreNotVisibleInExtensionSource() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
-        String presentation = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraGuiPresentation.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+        String presentation = Files.readString(Path.of("src/main/java/qupath/ext/astra/GuiPresentation.java"));
 
         assertFalse(source.contains("ALL_IMAGES"));
         assertFalse(source.contains("SELECTED_IMAGES_BY_NAME"));
         assertFalse(presentation.contains("ALL_IMAGES"));
         assertFalse(presentation.contains("SELECTED_IMAGES_BY_NAME"));
         assertTrue(source.contains("PROJECT_IMAGE_SELECTION"));
-        assertEquals("Selected Analysis Region", AstraGuiPresentation.displayOption("SELECTED_ANALYSIS_REGION"));
+        assertEquals("Selected Analysis Region", GuiPresentation.displayOption("SELECTED_ANALYSIS_REGION"));
     }
 
     @Test
     void provisionalVascularModesRequireOneConfirmation() {
-        assertFalse(AstraPipelineLauncher.requiresProvisionalVascularConfirmation(extractModes("[\"GENERATE_REGIONS\", \"DETECT_CELLS\"]")));
-        assertTrue(AstraPipelineLauncher.requiresProvisionalVascularConfirmation(extractModes("[\"AUTO_BUILD_CLASSIFIERS\"]")));
-        assertTrue(AstraPipelineLauncher.requiresProvisionalVascularConfirmation(extractModes("[\"AUTO_SELECT_ROIS\"]")));
-        assertTrue(AstraPipelineLauncher.requiresProvisionalVascularConfirmation(extractModes("[\"AUTO_BUILD_CLASSIFIERS\", \"AUTO_SELECT_ROIS\"]")));
+        assertFalse(PipelineLauncher.requiresProvisionalVascularConfirmation(extractModes("[\"GENERATE_REGIONS\", \"DETECT_CELLS\"]")));
+        assertTrue(PipelineLauncher.requiresProvisionalVascularConfirmation(extractModes("[\"AUTO_BUILD_CLASSIFIERS\"]")));
+        assertTrue(PipelineLauncher.requiresProvisionalVascularConfirmation(extractModes("[\"AUTO_SELECT_ROIS\"]")));
+        assertTrue(PipelineLauncher.requiresProvisionalVascularConfirmation(extractModes("[\"AUTO_BUILD_CLASSIFIERS\", \"AUTO_SELECT_ROIS\"]")));
     }
 
     @Test
@@ -1344,7 +1344,7 @@ class AstraPipelineLauncherTest {
         // QuPath's root LogManager depends on the full QuPath runtime/logback stack.
         // Unit tests exercise the run-scoped bridge deterministically; live QuPath
         // uses RunLogCapture.attach(...) to register the same bridge with LogManager.
-        AstraPipelineLauncher.RunLogCapture capture = AstraPipelineLauncher.RunLogCapture.forTest(lines::add);
+        PipelineLauncher.RunLogCapture capture = PipelineLauncher.RunLogCapture.forTest(lines::add);
         capture.appendText("INFO  astra test info\n");
         capture.appendText("WARN  astra test warn\n");
         capture.appendText("ERROR astra test error\n");
@@ -1358,8 +1358,8 @@ class AstraPipelineLauncherTest {
     }
 
     @Test
-    void runLogParserClassifiesAstraQuPathCellposeAndPythonOutput() {
-        List<AstraRunLogEntry> entries = AstraRunLogParser.parse("""
+    void runLogParserClassifiesPipelineQuPathCellposeAndPythonOutput() {
+        List<RunLogEntry> entries = RunLogParser.parse("""
                 [INFO] Started Colocalization.
                 [WARN] Settings autosave skipped.
                 ERROR qupath.ext.astra.Runner - QuPath bridge failed
@@ -1368,29 +1368,29 @@ class AstraPipelineLauncherTest {
                 INFO: ASTRA Colocalization started from configuration dialog.
                 ERROR: Quantify: resolved threshold for AF647|Nucleus must be finite.
                 Traceback (most recent call last):
-                """, AstraRunLogSource.QUPATH, AstraRunLogSeverity.NEUTRAL);
+                """, RunLogSource.QUPATH, RunLogSeverity.NEUTRAL);
 
-        assertEquals(AstraRunLogSource.ASTRA, entries.get(0).source());
-        assertEquals(AstraRunLogSeverity.INFO, entries.get(0).severity());
-        assertEquals(AstraRunLogSeverity.WARNING, entries.get(1).severity());
-        assertEquals(AstraRunLogSource.QUPATH, entries.get(2).source());
-        assertEquals(AstraRunLogSeverity.ERROR, entries.get(2).severity());
-        assertEquals(AstraRunLogSource.CELLPOSE, entries.get(3).source());
-        assertEquals(AstraRunLogSeverity.WARNING, entries.get(3).severity());
+        assertEquals(RunLogSource.ASTRA, entries.get(0).source());
+        assertEquals(RunLogSeverity.INFO, entries.get(0).severity());
+        assertEquals(RunLogSeverity.WARNING, entries.get(1).severity());
+        assertEquals(RunLogSource.QUPATH, entries.get(2).source());
+        assertEquals(RunLogSeverity.ERROR, entries.get(2).severity());
+        assertEquals(RunLogSource.CELLPOSE, entries.get(3).source());
+        assertEquals(RunLogSeverity.WARNING, entries.get(3).severity());
         assertTrue(entries.get(3).text().contains("--diam_mean"));
-        assertEquals(AstraRunLogSource.CELLPOSE, entries.get(4).source());
+        assertEquals(RunLogSource.CELLPOSE, entries.get(4).source());
         assertFalse(entries.get(4).text().contains(">>>>"));
-        assertEquals(AstraRunLogSource.ASTRA, entries.get(5).source());
-        assertEquals(AstraRunLogSeverity.INFO, entries.get(5).severity());
-        assertEquals(AstraRunLogSource.ASTRA, entries.get(6).source());
-        assertEquals(AstraRunLogSeverity.ERROR, entries.get(6).severity());
-        assertEquals(AstraRunLogSource.PYTHON, entries.get(7).source());
-        assertEquals(AstraRunLogSeverity.ERROR, entries.get(7).severity());
+        assertEquals(RunLogSource.ASTRA, entries.get(5).source());
+        assertEquals(RunLogSeverity.INFO, entries.get(5).severity());
+        assertEquals(RunLogSource.ASTRA, entries.get(6).source());
+        assertEquals(RunLogSeverity.ERROR, entries.get(6).severity());
+        assertEquals(RunLogSource.PYTHON, entries.get(7).source());
+        assertEquals(RunLogSeverity.ERROR, entries.get(7).severity());
     }
 
     @Test
     void runLogParserFormatsCompatibilityTextThroughStructuredEntries() {
-        String formatted = AstraPipelineLauncher.formatGuiLogText("""
+        String formatted = PipelineLauncher.formatGuiLogText("""
                 [LOG] COLOCALIZATION COLOCALIZATION [PREFLIGHT] Runtime Python synchronized.
                 ERROR COLOCALIZATION [QUANTIFY] Non-finite AF647|Nucleus measurements detected.
                 cellpose: 34 tile images processed
@@ -1402,7 +1402,7 @@ class AstraPipelineLauncherTest {
         assertFalse(formatted.contains("[LOG]"));
         assertFalse(formatted.contains("COLOCALIZATION COLOCALIZATION"));
 
-        String cellpose = AstraPipelineLauncher.formatGuiLogText("""
+        String cellpose = PipelineLauncher.formatGuiLogText("""
                 INFO: AstraCellpose2D: 2026-05-22 17:55:45,761 [WARNING] the '--diam_mean' flag is deprecated
                 INFO: AstraCellpose2D: >>>> running cellpose on 1 images using all channels
                 """);
@@ -1415,37 +1415,37 @@ class AstraPipelineLauncherTest {
 
     @Test
     void runLogGrouperKeepsConsecutiveSameSourceEntriesInOneBlock() {
-        List<AstraRunLogEntry> entries = List.of(
-                new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.INFO, AstraRunLogKind.MESSAGE, "start", "start"),
-                new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.WARNING, AstraRunLogKind.MESSAGE, "warn", "warn"),
-                new AstraRunLogEntry(AstraRunLogSource.CELLPOSE, AstraRunLogSeverity.INFO, AstraRunLogKind.MESSAGE, "gpu", "gpu"),
-                new AstraRunLogEntry(AstraRunLogSource.CELLPOSE, AstraRunLogSeverity.ERROR, AstraRunLogKind.MESSAGE, "failed", "failed"),
-                new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.SUCCESS, AstraRunLogKind.MESSAGE, "done", "done")
+        List<RunLogEntry> entries = List.of(
+                new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.INFO, RunLogKind.MESSAGE, "start", "start"),
+                new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.WARNING, RunLogKind.MESSAGE, "warn", "warn"),
+                new RunLogEntry(RunLogSource.CELLPOSE, RunLogSeverity.INFO, RunLogKind.MESSAGE, "gpu", "gpu"),
+                new RunLogEntry(RunLogSource.CELLPOSE, RunLogSeverity.ERROR, RunLogKind.MESSAGE, "failed", "failed"),
+                new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.SUCCESS, RunLogKind.MESSAGE, "done", "done")
         );
 
-        List<AstraRunLogBlock> blocks = AstraRunLogGrouper.groupBySource(entries);
+        List<RunLogBlock> blocks = RunLogGrouper.groupBySource(entries);
 
         assertEquals(3, blocks.size());
-        assertEquals(AstraRunLogSource.ASTRA, blocks.get(0).source());
+        assertEquals(RunLogSource.ASTRA, blocks.get(0).source());
         assertEquals(2, blocks.get(0).entries().size());
-        assertEquals(AstraRunLogSource.CELLPOSE, blocks.get(1).source());
+        assertEquals(RunLogSource.CELLPOSE, blocks.get(1).source());
         assertEquals(2, blocks.get(1).entries().size());
-        assertEquals(AstraRunLogSource.ASTRA, blocks.get(2).source());
+        assertEquals(RunLogSource.ASTRA, blocks.get(2).source());
     }
 
     @Test
-    void runLogBlockAccumulatorMergesDelimitedAstraBlocksIntoOneCardModel() {
-        List<AstraRunLogEntry> entries = AstraRunLogParser.parse("""
+    void runLogBlockAccumulatorMergesDelimitedPipelineBlocksIntoOneCardModel() {
+        List<RunLogEntry> entries = RunLogParser.parse("""
                 Detect cells: ==============================================================================
                 Detect cells: DETECT_CELLS COMPLETE
                 Detect cells: Cells created     : 125
                 Detect cells: Regions processed : 1
                 Detect cells: ==============================================================================
-                """, AstraRunLogSource.QUPATH, AstraRunLogSeverity.NEUTRAL);
+                """, RunLogSource.QUPATH, RunLogSeverity.NEUTRAL);
 
-        AstraRunLogBlockAccumulator accumulator = new AstraRunLogBlockAccumulator();
-        List<AstraRunLogRenderedBlock> blocks = new ArrayList<>();
-        for (AstraRunLogEntry entry : entries) {
+        RunLogBlockAccumulator accumulator = new RunLogBlockAccumulator();
+        List<RunLogRenderedBlock> blocks = new ArrayList<>();
+        for (RunLogEntry entry : entries) {
             accumulator.accept(entry).ifPresent(blocks::add);
         }
 
@@ -1453,13 +1453,13 @@ class AstraPipelineLauncherTest {
         assertEquals("DETECT_CELLS COMPLETE", blocks.get(0).title());
         assertTrue(blocks.get(0).keyValues().stream().anyMatch(kv -> kv.key().contains("Cells created") && kv.value().equals("125")));
         assertEquals("125", blocks.get(0).metrics().get("Cells"));
-        assertEquals(AstraRunLogKind.SEPARATOR, entries.get(0).kind());
-        assertEquals(AstraRunLogSource.ASTRA, entries.get(0).source());
+        assertEquals(RunLogKind.SEPARATOR, entries.get(0).kind());
+        assertEquals(RunLogSource.ASTRA, entries.get(0).source());
     }
 
     @Test
     void runTimelineSeedsAnalysisModesOnlyWhenSelected() {
-        AstraRunTimelineModel colocalization = new AstraRunTimelineModel();
+        RunTimelineModel colocalization = new RunTimelineModel();
         colocalization.start("Colocalization", """
                 final String PIPELINE_ID = "colocalization"
                 final Map USER_OVERRIDES = [
@@ -1476,7 +1476,7 @@ class AstraPipelineLauncherTest {
         assertFalse(labels.contains("Generate Regions"));
         assertFalse(labels.contains("Auto Build Classifiers"));
 
-        AstraRunTimelineModel vascular = new AstraRunTimelineModel();
+        RunTimelineModel vascular = new RunTimelineModel();
         vascular.start("Vascular", """
                 final String PIPELINE_ID = "vascular"
                 final Map USER_OVERRIDES = [
@@ -1494,7 +1494,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void runTimelineScriptActionsReplaceNormalAnalysisModeTimeline() {
-        AstraRunTimelineModel export = new AstraRunTimelineModel();
+        RunTimelineModel export = new RunTimelineModel();
         export.start("Colocalization", """
                 final String PIPELINE_ID = "colocalization"
                 final Map USER_OVERRIDES = [
@@ -1507,7 +1507,7 @@ class AstraPipelineLauncherTest {
         assertFalse(export.labelsForTest().contains("Detect Cells"));
         assertFalse(export.labelsForTest().contains("Quantify"));
 
-        AstraRunTimelineModel reset = new AstraRunTimelineModel();
+        RunTimelineModel reset = new RunTimelineModel();
         reset.start("Vascular", """
                 final String PIPELINE_ID = "vascular"
                 final Map USER_OVERRIDES = [
@@ -1524,21 +1524,21 @@ class AstraPipelineLauncherTest {
 
     @Test
     void runTimelineEventsUpdateWarningsErrorsAndOutcome() {
-        AstraRunTimelineModel model = new AstraRunTimelineModel();
+        RunTimelineModel model = new RunTimelineModel();
         model.start("Colocalization", """
                 final String PIPELINE_ID = "colocalization"
                 final Map USER_OVERRIDES = [SCRIPT_ACTION: "RUN", MODES_TO_RUN: ["DETECT_CELLS", "QUANTIFY"]]
                 """);
 
-        AstraRunLogEntry warning = new AstraRunLogEntry(AstraRunLogSource.CELLPOSE, AstraRunLogSeverity.WARNING, AstraRunLogKind.MESSAGE, "the '--diam_mean' flag is deprecated", "");
-        model.accept(AstraRunLogPresenter.eventFor(warning));
+        RunLogEntry warning = new RunLogEntry(RunLogSource.CELLPOSE, RunLogSeverity.WARNING, RunLogKind.MESSAGE, "the '--diam_mean' flag is deprecated", "");
+        model.accept(RunLogPresenter.eventFor(warning));
         assertEquals(1, model.warningCount());
-        assertEquals(AstraRunTimelineOutcome.RUNNING, model.outcome());
+        assertEquals(RunTimelineOutcome.RUNNING, model.outcome());
 
-        AstraRunLogEntry error = new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.ERROR, AstraRunLogKind.MESSAGE, "Quantify: failed", "");
-        model.accept(AstraRunLogPresenter.eventFor(error));
+        RunLogEntry error = new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.ERROR, RunLogKind.MESSAGE, "Quantify: failed", "");
+        model.accept(RunLogPresenter.eventFor(error));
         assertEquals(1, model.errorCount());
-        assertEquals(AstraRunTimelineOutcome.FAILED, model.outcome());
+        assertEquals(RunTimelineOutcome.FAILED, model.outcome());
         assertTrue(model.statusTitle().contains("Failed"));
         assertTrue(model.elapsedLabel().startsWith("elapsed "));
         assertTrue(model.statusDetail("Image 3/20 | Cells 125").contains("Image 3/20"));
@@ -1546,40 +1546,40 @@ class AstraPipelineLauncherTest {
 
     @Test
     void runLogPresenterRecognizesCardsCommandsAndMetrics() {
-        AstraRunLogEntry summary = new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.SUCCESS, AstraRunLogKind.MESSAGE, "DETECT_CELLS COMPLETE", "");
-        assertTrue(AstraRunLogPresenter.isStageCard(summary));
-        assertEquals(AstraRunLogEventType.STAGE_COMPLETE, AstraRunLogPresenter.eventFor(summary).type());
+        RunLogEntry summary = new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.SUCCESS, RunLogKind.MESSAGE, "DETECT_CELLS COMPLETE", "");
+        assertTrue(RunLogPresenter.isStageCard(summary));
+        assertEquals(RunLogEventType.STAGE_COMPLETE, RunLogPresenter.eventFor(summary).type());
 
-        AstraRunLogEntry kv = new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.INFO, AstraRunLogKind.KEY_VALUE, "Cells quantified : 78", "");
-        assertEquals("78", AstraRunLogMetrics.badges(kv).get("Cells"));
+        RunLogEntry kv = new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.INFO, RunLogKind.KEY_VALUE, "Cells quantified : 78", "");
+        assertEquals("78", RunLogMetrics.badges(kv).get("Cells"));
 
-        AstraRunLogEntry command = new AstraRunLogEntry(AstraRunLogSource.SCRIPT, AstraRunLogSeverity.NEUTRAL, AstraRunLogKind.MESSAGE, "bash -c \"/env/bin/python -m cellpose --dir /tmp\"", "");
-        assertTrue(AstraRunLogPresenter.isCommand(command));
-        AstraRunLogEntry version = new AstraRunLogEntry(AstraRunLogSource.CELLPOSE, AstraRunLogSeverity.INFO, AstraRunLogKind.MESSAGE, "cellpose version: 4.0.8+astra.2", "");
-        assertFalse(AstraRunLogPresenter.isCommand(version));
+        RunLogEntry command = new RunLogEntry(RunLogSource.SCRIPT, RunLogSeverity.NEUTRAL, RunLogKind.MESSAGE, "bash -c \"/env/bin/python -m cellpose --dir /tmp\"", "");
+        assertTrue(RunLogPresenter.isCommand(command));
+        RunLogEntry version = new RunLogEntry(RunLogSource.CELLPOSE, RunLogSeverity.INFO, RunLogKind.MESSAGE, "cellpose version: 4.0.8+astra.2", "");
+        assertFalse(RunLogPresenter.isCommand(version));
 
-        AstraRunLogEntry progress = new AstraRunLogEntry(AstraRunLogSource.CELLPOSE, AstraRunLogSeverity.INFO, AstraRunLogKind.PROGRESS, "100%|##########| 1/1 [00:19<00:00, 19.22s/it]", "");
-        assertTrue(AstraRunLogPresenter.isNoisyCellposeDetail(progress));
+        RunLogEntry progress = new RunLogEntry(RunLogSource.CELLPOSE, RunLogSeverity.INFO, RunLogKind.PROGRESS, "100%|##########| 1/1 [00:19<00:00, 19.22s/it]", "");
+        assertTrue(RunLogPresenter.isNoisyCellposeDetail(progress));
     }
 
     @Test
     void runProgressTrackerSummarizesImageRegionCellposeAndCellCounts() {
-        AstraRunProgressTracker tracker = new AstraRunProgressTracker();
-        AstraRunLogEntry image = new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.INFO, AstraRunLogKind.MESSAGE,
+        RunProgressTracker tracker = new RunProgressTracker();
+        RunLogEntry image = new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.INFO, RunLogKind.MESSAGE,
                 "Image start : [3/20] 'slide'", "");
-        tracker.accept(AstraRunLogPresenter.eventFor(image));
+        tracker.accept(RunLogPresenter.eventFor(image));
 
-        AstraRunLogEntry region = new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.INFO, AstraRunLogKind.MESSAGE,
+        RunLogEntry region = new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.INFO, RunLogKind.MESSAGE,
                 "Region detected: [2/5] 'Region' | nuclei=78 | cells=78", "");
-        tracker.accept(AstraRunLogPresenter.eventFor(region));
+        tracker.accept(RunLogPresenter.eventFor(region));
 
-        AstraRunLogEntry progress = new AstraRunLogEntry(AstraRunLogSource.CELLPOSE, AstraRunLogSeverity.INFO, AstraRunLogKind.PROGRESS,
+        RunLogEntry progress = new RunLogEntry(RunLogSource.CELLPOSE, RunLogSeverity.INFO, RunLogKind.PROGRESS,
                 "75%|#######5  | 3/4 [00:38<00:12, 12.72s/it]", "");
-        tracker.accept(AstraRunLogPresenter.eventFor(progress));
+        tracker.accept(RunLogPresenter.eventFor(progress));
 
-        AstraRunLogEntry cells = new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.INFO, AstraRunLogKind.KEY_VALUE,
+        RunLogEntry cells = new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.INFO, RunLogKind.KEY_VALUE,
                 "Cells quantified : 78", "");
-        tracker.accept(AstraRunLogPresenter.eventFor(cells));
+        tracker.accept(RunLogPresenter.eventFor(cells));
 
         String detail = tracker.detail();
         assertTrue(detail.contains("Image 3/20"));
@@ -1590,31 +1590,31 @@ class AstraPipelineLauncherTest {
 
     @Test
     void runLogErrorAdvisorMapsKnownFailuresConservatively() {
-        AstraRunLogEntry finite = new AstraRunLogEntry(AstraRunLogSource.ASTRA, AstraRunLogSeverity.ERROR, AstraRunLogKind.MESSAGE,
+        RunLogEntry finite = new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.ERROR, RunLogKind.MESSAGE,
                 "Quantify: resolved threshold for AF647|Nucleus must be finite.", "");
-        AstraRunLogErrorAdvice finiteAdvice = AstraRunLogErrorAdvisor.advise(AstraRunLogPresenter.eventFor(finite));
+        RunLogErrorAdvice finiteAdvice = RunLogErrorAdvisor.advise(RunLogPresenter.eventFor(finite));
         assertEquals("Non-finite measurement or threshold", finiteAdvice.family());
         assertTrue(finiteAdvice.nextAction().contains("finite measurements"));
 
-        AstraRunLogEntry missingClass = new AstraRunLogEntry(AstraRunLogSource.SCRIPT, AstraRunLogSeverity.ERROR, AstraRunLogKind.MESSAGE,
+        RunLogEntry missingClass = new RunLogEntry(RunLogSource.SCRIPT, RunLogSeverity.ERROR, RunLogKind.MESSAGE,
                 "Unable to resolve class JsonSlurper", "");
-        assertEquals("Missing runtime class/property", AstraRunLogErrorAdvisor.advise(AstraRunLogPresenter.eventFor(missingClass)).family());
+        assertEquals("Missing runtime class/property", RunLogErrorAdvisor.advise(RunLogPresenter.eventFor(missingClass)).family());
 
-        AstraRunLogEntry unknown = new AstraRunLogEntry(AstraRunLogSource.QUPATH, AstraRunLogSeverity.ERROR, AstraRunLogKind.MESSAGE,
+        RunLogEntry unknown = new RunLogEntry(RunLogSource.QUPATH, RunLogSeverity.ERROR, RunLogKind.MESSAGE,
                 "Unexpected failure in QuPathScript", "");
-        AstraRunLogErrorAdvice unknownAdvice = AstraRunLogErrorAdvisor.advise(AstraRunLogPresenter.eventFor(unknown));
+        RunLogErrorAdvice unknownAdvice = RunLogErrorAdvisor.advise(RunLogPresenter.eventFor(unknown));
         assertEquals("Run failed", unknownAdvice.family());
         assertTrue(unknownAdvice.nextAction().contains("nearby log context"));
     }
 
     @Test
     void launcherSourceAvoidsGuiLogAndErrDoublePrefixes() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
-        String view = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraStyledLogView.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+        String view = Files.readString(Path.of("src/main/java/qupath/ext/astra/StyledLogView.java"));
 
         assertTrue(source.contains("static String formatGuiLogText(String text)"));
-        assertTrue(source.contains("AstraRunLogParser.formatCleanText"));
-        assertTrue(source.contains("output.appendText(text, AstraRunLogSource.QUPATH"));
+        assertTrue(source.contains("RunLogParser.formatCleanText"));
+        assertTrue(source.contains("output.appendText(text, RunLogSource.QUPATH"));
         assertTrue(source.contains("feedback.appendScriptText(text, error);"));
         assertTrue(view.contains("copy.setText(\"Copied\")"));
         assertTrue(view.contains("new PauseTransition(Duration.seconds(1.2))"));
@@ -1622,9 +1622,9 @@ class AstraPipelineLauncherTest {
         assertTrue(view.contains("startSourceGroup(entry.source())"));
         assertTrue(view.contains("sourceTabStyle(source)"));
         assertTrue(view.contains("beginRun(String scriptName, String configuredScript)"));
-        assertTrue(view.contains("AstraRunLogPresenter.eventFor(entry)"));
-        assertTrue(view.contains("AstraRunLogBlockAccumulator"));
-        assertTrue(view.contains("AstraRunLogErrorAdvisor.advise"));
+        assertTrue(view.contains("RunLogPresenter.eventFor(entry)"));
+        assertTrue(view.contains("RunLogBlockAccumulator"));
+        assertTrue(view.contains("RunLogErrorAdvisor.advise"));
         assertTrue(view.contains("appendProgressLine(entry)"));
         assertFalse(source.contains("append(\"[LOG] \" + text)"));
         assertFalse(source.contains("feedback.append(\"[ERR] \" + text)"));
@@ -1632,7 +1632,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void cancellationMessageDocumentsNativeProcessLimitationAndAvoidsSuccess() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertTrue(source.contains("Cancellation requested. Java/Groovy task interruption was requested."));
         assertTrue(source.contains("Native Cellpose process may continue until the current operation exits."));
@@ -1642,7 +1642,7 @@ class AstraPipelineLauncherTest {
 
     @Test
     void logCaptureTextDocumentsCellposeSubprocessRoute() throws Exception {
-        String launcher = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraPipelineLauncher.java"));
+        String launcher = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
         String runner = Files.readString(Path.of("src/main/java/qupath/ext/biop/cmd/VirtualEnvironmentRunner.java"));
 
         assertTrue(launcher.contains("Cellpose subprocess stdout/stderr is captured when it is emitted through QuPath logging."));
@@ -1650,20 +1650,20 @@ class AstraPipelineLauncherTest {
         assertTrue(runner.contains("logger.info(\"{}: {}\", name, line);"));
     }
 
-    private static List<AstraPipelineLauncher.EditableConstant> extractModes(String modes) {
-        return AstraPipelineLauncher.extractEditableConstants("""
+    private static List<PipelineLauncher.EditableConstant> extractModes(String modes) {
+        return PipelineLauncher.extractEditableConstants("""
                 final List MODES_TO_RUN = %s
                 final Map cfg = [:]
                 """.formatted(modes));
     }
 
     private static String realBaseScript(String relativePath) throws Exception {
-        Path path = currentBaseAstraRoot(relativePath).resolve(relativePath).normalize();
+        Path path = currentBaseRoot(relativePath).resolve(relativePath).normalize();
         assertTrue(Files.isRegularFile(path), "Missing current ASTRA script fixture: " + path);
         return Files.readString(path);
     }
 
-    private static Path currentBaseAstraRoot(String relativePath) {
+    private static Path currentBaseRoot(String relativePath) {
         Path localPath = LOCAL_BASE_ASTRA_ROOT.resolve(relativePath).normalize();
         if (Files.isRegularFile(localPath)) {
             return LOCAL_BASE_ASTRA_ROOT;

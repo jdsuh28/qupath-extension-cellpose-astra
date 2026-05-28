@@ -24,14 +24,14 @@ creates and validates the runtime before registering it with QuPath.
 ## Active ASTRA Surfaces
 
 - `src/main/java/qupath/ext/astra/AstraCellposeExtension.java`
-  - Registers the ASTRA menu entries and the single ASTRA runtime Python
+  - Registers the ASTRA menu entries and the single Cellpose runtime Python
     preference.
 - `src/main/java/qupath/ext/astra/AstraCellposeBuilder.java`
   - Provides the ASTRA builder surface used by base pipeline scripts.
 - `src/main/java/qupath/ext/astra/AstraCellpose2D.java`
   - Owns ASTRA Cellpose runtime behavior, including batch inference,
     training export, validation metrics, and deterministic result routing.
-- `src/main/java/qupath/ext/astra/AstraQcFigures.java`
+- `src/main/java/qupath/ext/astra/QcFigures.java`
   - Renders publication-oriented training, tuning, and validation QC figures.
 
 The upstream BIOP Java package remains present to preserve fork structure and
@@ -90,10 +90,11 @@ Notes:
 
 The output JAR will be placed under `build/libs`.
 
-## Archive
+## Legacy Branch
 
-Non-active comparison files live under `_archive/`. They are retained for
-provenance only and are not referenced by the active build or QuPath menu.
+Non-active comparison files live on the `legacy` branch. They are retained for
+provenance only and are not referenced by the active build or QuPath menu on
+`dev`.
 
 ## License
 

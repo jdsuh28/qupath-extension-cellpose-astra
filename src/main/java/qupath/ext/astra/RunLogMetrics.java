@@ -7,7 +7,7 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-final class AstraRunLogMetrics {
+final class RunLogMetrics {
 
     private static final Pattern KEY_VALUE = Pattern.compile("^([A-Za-z][A-Za-z0-9 ._()/-]{1,42})\\s*:\\s*(.+)$");
     private static final Pattern IMAGE_PROGRESS = Pattern.compile("^Image (?:start|saved)\\s*:\\s*\\[(\\d+)/(\\d+)]", Pattern.CASE_INSENSITIVE);
@@ -16,11 +16,11 @@ final class AstraRunLogMetrics {
     private static final Pattern IMAGES = Pattern.compile("\\bImage entries\\s*[:=]\\s*(\\d+)\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern RUNTIME = Pattern.compile("\\bcompleted in\\s+([0-9.]+\\s*sec)\\b", Pattern.CASE_INSENSITIVE);
 
-    private AstraRunLogMetrics() {
+    private RunLogMetrics() {
         throw new AssertionError("No instances");
     }
 
-    static Optional<AstraRunLogKeyValue> keyValue(AstraRunLogEntry entry) {
+    static Optional<RunLogKeyValue> keyValue(RunLogEntry entry) {
         if (entry == null) {
             return Optional.empty();
         }
@@ -28,14 +28,14 @@ final class AstraRunLogMetrics {
         if (!matcher.matches()) {
             return Optional.empty();
         }
-        return Optional.of(new AstraRunLogKeyValue(matcher.group(1), matcher.group(2)));
+        return Optional.of(new RunLogKeyValue(matcher.group(1), matcher.group(2)));
     }
 
-    static List<AstraRunLogKeyValue> keyValues(AstraRunLogEntry entry) {
+    static List<RunLogKeyValue> keyValues(RunLogEntry entry) {
         return keyValue(entry).map(List::of).orElse(List.of());
     }
 
-    static Map<String, String> badges(AstraRunLogEntry entry) {
+    static Map<String, String> badges(RunLogEntry entry) {
         if (entry == null || entry.text().isBlank()) {
             return Map.of();
         }
@@ -58,7 +58,7 @@ final class AstraRunLogMetrics {
         return out;
     }
 
-    static Optional<int[]> imageProgress(AstraRunLogEntry entry) {
+    static Optional<int[]> imageProgress(RunLogEntry entry) {
         if (entry == null) {
             return Optional.empty();
         }

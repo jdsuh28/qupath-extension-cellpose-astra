@@ -3,18 +3,18 @@ package qupath.ext.astra;
 import java.util.List;
 import java.util.Map;
 
-record AstraRunLogRenderedBlock(
+record RunLogRenderedBlock(
         String title,
         String subtitle,
-        AstraRunLogSeverity severity,
-        List<AstraRunLogKeyValue> keyValues,
+        RunLogSeverity severity,
+        List<RunLogKeyValue> keyValues,
         Map<String, String> metrics,
-        List<AstraRunLogEntry> entries
+        List<RunLogEntry> entries
 ) {
-    AstraRunLogRenderedBlock {
+    RunLogRenderedBlock {
         title = title == null ? "" : title.trim();
         subtitle = subtitle == null ? "" : subtitle.trim();
-        severity = severity == null ? AstraRunLogSeverity.NEUTRAL : severity;
+        severity = severity == null ? RunLogSeverity.NEUTRAL : severity;
         keyValues = keyValues == null ? List.of() : List.copyOf(keyValues);
         metrics = metrics == null ? Map.of() : Map.copyOf(metrics);
         entries = entries == null ? List.of() : List.copyOf(entries);
