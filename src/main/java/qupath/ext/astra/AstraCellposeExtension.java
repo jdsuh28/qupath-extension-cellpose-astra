@@ -75,15 +75,7 @@ public class AstraCellposeExtension extends CellposeExtension {
     }
 
     private static Map<String, String> createScriptResources() {
-        LinkedHashMap<String, String> scripts = new LinkedHashMap<>();
-        scripts.put("Training", "astra/modules/pipelines/training/src/main/groovy/training.groovy");
-        scripts.put("Tuning", "astra/modules/pipelines/tuning/src/main/groovy/tuning.groovy");
-        scripts.put("Validation", "astra/modules/pipelines/validation/src/main/groovy/validation.groovy");
-        scripts.put("Analysis>Vascular", "astra/modules/pipelines/analysis/vascular/src/main/groovy/vascular.groovy");
-        scripts.put("Analysis>Colocalization", "astra/modules/pipelines/analysis/colocalization/src/main/groovy/colocalization.groovy");
-        scripts.put("Analysis>One-Shot SMA AF647", "astra/modules/tools/sma-af647-oneshot/src/main/groovy/smaAf647Oneshot.groovy");
-        scripts.put("Analysis>Generate Regions", "astra/modules/tools/generate-regions/src/main/groovy/generateRegions.groovy");
-        return Collections.unmodifiableMap(scripts);
+        return ManifestSet.load().scriptResources();
     }
 
     private void installScripts(QuPathGUI qupath) {

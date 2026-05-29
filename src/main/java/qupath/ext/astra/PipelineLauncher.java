@@ -311,8 +311,8 @@ final class PipelineLauncher {
     }
 
     static List<EditableConstant> editableConstantsForScript(String scriptName, String scriptText) {
-        MasterContract contract = MasterContract.load();
-        return contract.pipeline(pipelineIdFor(scriptName, scriptText))
+        ManifestSet manifests = ManifestSet.load();
+        return manifests.runnable(pipelineIdFor(scriptName, scriptText))
                 .map(pipeline -> editableConstantsFromContract(pipeline))
                 .orElseGet(() -> extractEditableConstants(scriptText));
     }
