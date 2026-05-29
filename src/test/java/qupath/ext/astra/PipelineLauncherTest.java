@@ -83,9 +83,9 @@ class PipelineLauncherTest {
                 List.of("TUNE_TARGET", "SEARCH_MODE", "NUC_MODEL_NAME", "PARAM_DEFAULTS_BY_TARGET"),
                 "modules/pipelines/validation/src/main/groovy/validation.groovy",
                 List.of("VALIDATE_TARGET", "VALIDATION_MODE", "NUC_MODEL_NAME", "PARAM_DEFAULTS_BY_TARGET"),
-                "modules/pipelines/analysis/src/main/groovy/vascular/vascular.groovy",
+                "modules/pipelines/analysis/vascular/src/main/groovy/vascular.groovy",
                 List.of("NUC_MODEL_NAME", "NUC_CELLPROB", "CELL_CELLPROB", "RESULTS_FOLDER"),
-                "modules/pipelines/analysis/src/main/groovy/colocalization/colocalization.groovy",
+                "modules/pipelines/analysis/colocalization/src/main/groovy/colocalization.groovy",
                 List.of("DETECTION_TARGET", "NUC_MODEL_NAME", "NUC_CELLPROB", "COLOCALIZATION_CHECKS"),
                 "modules/tools/sma-af647-oneshot/src/main/groovy/smaAf647Oneshot.groovy",
                 List.of("CLASS_ANALYSIS_REGION", "NUC_MODEL_NAME", "NUC_CELLPROB", "EXPORT_TECHNICAL_CSV")
@@ -1088,7 +1088,7 @@ class PipelineLauncherTest {
     @Test
     void colocalizationModesUseOrderedMultiSelectAndHeaderExport() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
-        String script = realBaseScript("modules/pipelines/analysis/src/main/groovy/colocalization/colocalization.groovy");
+        String script = realBaseScript("modules/pipelines/analysis/colocalization/src/main/groovy/colocalization.groovy");
 
         assertEquals(List.of("DETECT_CELLS", "QUANTIFY"),
                 GuiPresentation.visibleRunModeOptions("Colocalization", List.of()));
@@ -1113,7 +1113,7 @@ class PipelineLauncherTest {
 
     @Test
     void compactEntrypointOmitsUnchangedSymbolicDefaultsFromUserOverrides() throws Exception {
-        String script = realBaseScript("modules/pipelines/analysis/src/main/groovy/colocalization/colocalization.groovy");
+        String script = realBaseScript("modules/pipelines/analysis/colocalization/src/main/groovy/colocalization.groovy");
         List<PipelineLauncher.EditableConstant> constants =
                 PipelineLauncher.editableConstantsForScript("Colocalization", script);
 

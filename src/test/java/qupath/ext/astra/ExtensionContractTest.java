@@ -92,8 +92,8 @@ class ExtensionContractTest {
         assertEquals("astra/modules/pipelines/training/src/main/groovy/training.groovy", scripts.get("Training"));
         assertEquals("astra/modules/pipelines/tuning/src/main/groovy/tuning.groovy", scripts.get("Tuning"));
         assertEquals("astra/modules/pipelines/validation/src/main/groovy/validation.groovy", scripts.get("Validation"));
-        assertEquals("astra/modules/pipelines/analysis/src/main/groovy/vascular/vascular.groovy", scripts.get("Analysis>Vascular"));
-        assertEquals("astra/modules/pipelines/analysis/src/main/groovy/colocalization/colocalization.groovy", scripts.get("Analysis>Colocalization"));
+        assertEquals("astra/modules/pipelines/analysis/vascular/src/main/groovy/vascular.groovy", scripts.get("Analysis>Vascular"));
+        assertEquals("astra/modules/pipelines/analysis/colocalization/src/main/groovy/colocalization.groovy", scripts.get("Analysis>Colocalization"));
         assertEquals("astra/modules/tools/sma-af647-oneshot/src/main/groovy/smaAf647Oneshot.groovy", scripts.get("Analysis>One-Shot SMA AF647"));
         assertEquals("astra/modules/tools/generate-regions/src/main/groovy/generateRegions.groovy", scripts.get("Analysis>Generate Regions"));
 
@@ -165,25 +165,30 @@ class ExtensionContractTest {
     }
 
     /**
-     * Verifies release builds can load the master contract from the runtime JAR
-     * resource path without the sibling base checkout fallback.
+     * Verifies release builds can load the manifest set from runtime JAR
+     * resource paths without the sibling base checkout fallback.
      *
      * @param tempDir temporary classpath root.
      * @throws Exception if the resource fixture cannot be created or loaded.
      */
     @Test
-    void masterContractLoadsBundledClasspathResourceWithoutLocalFallback(@TempDir Path tempDir) throws Exception {
-        Path resource = tempDir.resolve(MasterContract.BUNDLED_RESOURCE);
-        Files.createDirectories(resource.getParent());
-        Path vendored = Path.of("src/main/resources").resolve(MasterContract.BUNDLED_RESOURCE);
-        Path localBase = Path.of("../astra/manifests/master-contract.json");
-        Files.copy(Files.isRegularFile(vendored) ? vendored : localBase, resource);
+    void manifestSetLoadsBundledClasspathResourcesWithoutLocalFallback(@TempDir Path tempDir) throws Exception {
+        Path localRoot = Path.of("../astra/rulebook/manifests");
+        for (String name : List.of("index.json", "runtime.json", "modules.json", "inputs.json", "gui.json", "outputs.json", "release.json")) {
+            Path resource = tempDir.resolve(ManifestSet.BUNDLED_ROOT).resolve(name);
+            Files.createDirectories(resource.getParent());
+            Path vendored = Path.of("src/main/resources").resolve(ManifestSet.BUNDLED_ROOT).resolve(name);
+            Path localBase = localRoot.resolve(name);
+            Files.copy(Files.isRegularFile(vendored) ? vendored : localBase, resource);
+        }
 
         try (URLClassLoader loader = new URLClassLoader(new java.net.URL[]{tempDir.toUri().toURL()}, null)) {
-            MasterContract contract = MasterContract.load(loader, tempDir.resolve("missing/master-contract.json"));
+            ManifestSet manifests = ManifestSet.load(loader, tempDir.resolve("missing/manifests"));
 
-            assertEquals("ASTRA Runtime Master Contract", contract.root().get("contractName"));
-            assertTrue(contract.pipeline("colocalization").isPresent());
+            assertEquals(1.0, manifests.root().get("index") instanceof Map<?, ?> index ? index.get("schemaVersion") : null);
+            assertTrue(manifests.runnable("colocalization").isPresent());
+            assertEquals("astra/modules/pipelines/training/src/main/groovy/training.groovy",
+                    manifests.scriptResources().get("Training"));
         }
     }
 

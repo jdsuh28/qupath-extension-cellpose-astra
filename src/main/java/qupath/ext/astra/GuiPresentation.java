@@ -12,7 +12,7 @@ import java.util.Map;
  */
 final class GuiPresentation {
 
-    private static final MasterContract CONTRACT = MasterContract.load();
+    private static final ManifestSet MANIFESTS = ManifestSet.load();
 
     private GuiPresentation() {
         throw new AssertionError("No instances");
@@ -22,7 +22,7 @@ final class GuiPresentation {
         if (name == null || name.isBlank()) {
             return "";
         }
-        String explicit = CONTRACT.labels().get(name);
+        String explicit = MANIFESTS.labels().get(name);
         if (explicit != null) {
             return explicit;
         }
@@ -32,14 +32,14 @@ final class GuiPresentation {
             if (token == null || token.isBlank()) {
                 continue;
             }
-            String mapped = CONTRACT.labelTokens().get(token);
+            String mapped = MANIFESTS.labelTokens().get(token);
             words.add(mapped != null ? mapped : titleCaseToken(token));
         }
         return String.join(" ", words);
     }
 
     static List<String> visibleRunModeOptions(String pipelineName, List<String> scriptOptions) {
-        List<String> contractStages = CONTRACT.visibleStages(pipelineName);
+        List<String> contractStages = MANIFESTS.visibleStages(pipelineName);
         if (!contractStages.isEmpty()) {
             return contractStages;
         }
@@ -47,18 +47,18 @@ final class GuiPresentation {
     }
 
     static boolean supportsHeaderExport(String pipelineName) {
-        return CONTRACT.headerActions(pipelineName).contains("EXPORT");
+        return MANIFESTS.headerActions(pipelineName).contains("EXPORT");
     }
 
     static boolean supportsAnalysisHeaderActions(String pipelineName) {
-        return !CONTRACT.headerActions(pipelineName).isEmpty();
+        return !MANIFESTS.headerActions(pipelineName).isEmpty();
     }
 
     static String displayOption(String option) {
         if (option == null || option.isBlank()) {
             return "";
         }
-        String explicit = CONTRACT.optionLabels().get(option);
+        String explicit = MANIFESTS.optionLabels().get(option);
         return explicit != null ? explicit : displayLabel(option);
     }
 
