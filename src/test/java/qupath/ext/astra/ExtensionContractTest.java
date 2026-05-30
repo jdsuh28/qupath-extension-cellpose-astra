@@ -75,6 +75,27 @@ class ExtensionContractTest {
     }
 
     /**
+     * Verifies the run-log header uses a continuous JavaFX gradient animation
+     * rather than swapping static gradient images.
+     *
+     * @throws Exception if source files cannot be inspected.
+     */
+    @Test
+    void runLogHeaderUsesFluidGradientAnimation() throws Exception {
+        String header = Files.readString(new File(ROOT,
+                "src/main/java/qupath/ext/astra/AnimatedGradientHeader.java").toPath());
+        String logView = Files.readString(new File(ROOT,
+                "src/main/java/qupath/ext/astra/StyledLogView.java").toPath());
+
+        assertTrue(header.contains("AnimationTimer"));
+        assertTrue(header.contains("CycleMethod.REPEAT"));
+        assertTrue(header.contains("FRAME_INTERVAL_NANOS = 33_333_333L"));
+        assertTrue(header.contains("CYCLE_SECONDS = 24.0d"));
+        assertTrue(logView.contains("new AnimatedGradientHeader(statusContent)"));
+        assertFalse(header.contains("ImageView"));
+    }
+
+    /**
      * Verifies ASTRA menu registration exposes only ASTRA pipeline scripts.
      *
      * @throws Exception if the private script map cannot be inspected.

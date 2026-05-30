@@ -88,9 +88,9 @@ final class StyledLogView extends VBox {
         failureSummary.setPadding(new Insets(9.0, 10.0, 10.0, 10.0));
         failureSummary.setStyle("-fx-background-color: #341a18; -fx-border-color: #b9675b; -fx-border-radius: 6; -fx-background-radius: 6;");
 
-        VBox status = new VBox(6.0, statusTitle, statusLine, timelineRail);
-        status.setPadding(new Insets(9.0, 10.0, 10.0, 10.0));
-        status.setStyle("-fx-background-color: #0d2430; -fx-border-color: #375f6c; -fx-border-radius: 6; -fx-background-radius: 6;");
+        VBox statusContent = new VBox(6.0, statusTitle, statusLine, timelineRail);
+        statusContent.setPadding(new Insets(9.0, 10.0, 10.0, 10.0));
+        AnimatedGradientHeader status = new AnimatedGradientHeader(statusContent);
         statusTitle.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12.5px; -fx-font-weight: 900; -fx-text-fill: #ecfbf7;");
         statusDetail.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: #a9c8ce;");
         timelineRail.setAlignment(Pos.CENTER_LEFT);
