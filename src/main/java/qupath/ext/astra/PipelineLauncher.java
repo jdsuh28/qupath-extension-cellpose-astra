@@ -3,8 +3,6 @@ package qupath.ext.astra;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
-import javafx.animation.KeyFrame;
-import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
@@ -38,7 +36,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.shape.Rectangle;
-import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.fx.dialogs.Dialogs;
@@ -1033,7 +1030,6 @@ final class PipelineLauncher {
 
         VBox header = new VBox(12.0);
         header.setPadding(new Insets(22.0, CONTENT_HORIZONTAL_MARGIN, 20.0, CONTENT_HORIZONTAL_MARGIN));
-        installDynamicHeaderGradient(header, scriptName);
         HBox titleRow = new HBox(12.0);
         titleRow.setAlignment(Pos.CENTER_LEFT);
         Label title = new Label(scriptName);
@@ -1090,6 +1086,7 @@ final class PipelineLauncher {
         subtitle.setWrapText(true);
         subtitle.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-text-fill: #e3f4f1;");
         header.getChildren().addAll(titleRow, subtitle, createPipelineFlow(scriptName));
+        AnimatedGradientHeader animatedHeader = new AnimatedGradientHeader(header);
 
         VBox body = new VBox(14.0);
         body.setPadding(new Insets(0, 0, 18.0, 0));
@@ -1140,7 +1137,7 @@ final class PipelineLauncher {
         workspace.getChildren().addAll(scroll, feedbackNode);
         VBox.setVgrow(workspace, Priority.ALWAYS);
 
-        root.getChildren().addAll(header, workspace);
+        root.getChildren().addAll(animatedHeader, workspace);
         return root;
     }
 
@@ -2040,46 +2037,6 @@ final class PipelineLauncher {
         return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; " +
                 "-fx-background-color: #dff4e8; -fx-text-fill: #17623b; " +
                 "-fx-border-color: #9fd9b7; -fx-border-radius: 5; -fx-background-radius: 5;";
-    }
-
-    private static void installDynamicHeaderGradient(VBox header, String scriptName) {
-        String[] gradients = headerGradients(scriptName);
-        AtomicReference<Integer> index = new AtomicReference<>(0);
-        header.setStyle(gradients[0]);
-        Timeline timeline = new Timeline(new KeyFrame(Duration.seconds(7.0), event -> {
-            int next = (index.updateAndGet(i -> (i + 1) % gradients.length));
-            header.setStyle(gradients[next]);
-        }));
-        timeline.setCycleCount(Timeline.INDEFINITE);
-        timeline.play();
-        header.sceneProperty().addListener((obs, oldScene, newScene) -> {
-            if (newScene == null) {
-                timeline.stop();
-            } else {
-                timeline.play();
-            }
-        });
-    }
-
-    private static String[] headerGradients(String scriptName) {
-        String stage = pipelineStage(scriptName);
-        if ("Training".equals(stage)) {
-            return new String[]{
-                    "-fx-background-color: linear-gradient(to right, #102a3a, #1f7a7a 62%, #d9604c);",
-                    "-fx-background-color: linear-gradient(to right, #173747, #246b83 58%, #d4a72c);"
-            };
-        }
-        if ("Validation".equals(stage)) {
-            return new String[]{
-                    "-fx-background-color: linear-gradient(to right, #173747, #5c6f3d 58%, #d4a72c);",
-                    "-fx-background-color: linear-gradient(to right, #102a3a, #1f7a7a 62%, #8f6db8);"
-            };
-        }
-        return new String[]{
-                "-fx-background-color: linear-gradient(to right, #102a3a, #1f7a7a 62%, #d9604c);",
-                "-fx-background-color: linear-gradient(to right, #173747, #246b83 58%, #d4a72c);",
-                "-fx-background-color: linear-gradient(to right, #102a3a, #387269 62%, #c86673);"
-        };
     }
 
     private static String checkBoxStyle() {

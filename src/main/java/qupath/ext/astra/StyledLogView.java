@@ -90,7 +90,7 @@ final class StyledLogView extends VBox {
 
         VBox statusContent = new VBox(6.0, statusTitle, statusLine, timelineRail);
         statusContent.setPadding(new Insets(9.0, 10.0, 10.0, 10.0));
-        AnimatedGradientHeader status = new AnimatedGradientHeader(statusContent);
+        statusContent.setStyle("-fx-background-color: #0d2430; -fx-border-color: #375f6c; -fx-border-radius: 6; -fx-background-radius: 6;");
         statusTitle.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12.5px; -fx-font-weight: 900; -fx-text-fill: #ecfbf7;");
         statusDetail.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: #a9c8ce;");
         timelineRail.setAlignment(Pos.CENTER_LEFT);
@@ -104,7 +104,7 @@ final class StyledLogView extends VBox {
             autoScroll = newValue.doubleValue() >= 0.985d;
         });
         VBox.setVgrow(scroll, Priority.ALWAYS);
-        getChildren().addAll(status, failureSummary, toolbar, scroll);
+        getChildren().addAll(statusContent, failureSummary, toolbar, scroll);
     }
 
     void beginRun(String scriptName, String configuredScript) {
