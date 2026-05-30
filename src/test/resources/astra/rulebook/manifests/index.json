@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "sourcePath": "rulebook/manifests/index.json",
+  "manifestSet": "ASTRA Rulebook Manifest Set",
+  "loadOrder": [
+    "modules",
+    "runtime",
+    "inputs",
+    "gui",
+    "outputs",
+    "release"
+  ],
+  "manifests": [
+    {
+      "id": "index",
+      "manifest": "rulebook/manifests/index.json",
+      "doc": "rulebook/docs/index.md",
+      "required": true
+    },
+    {
+      "id": "runtime",
+      "manifest": "rulebook/manifests/runtime.json",
+      "doc": "rulebook/docs/runtime.md",
+      "required": true
+    },
+    {
+      "id": "modules",
+      "manifest": "rulebook/manifests/modules.json",
+      "doc": "rulebook/docs/modules.md",
+      "required": true
+    },
+    {
+      "id": "inputs",
+      "manifest": "rulebook/manifests/inputs.json",
+      "doc": "rulebook/docs/inputs.md",
+      "required": true
+    },
+    {
+      "id": "gui",
+      "manifest": "rulebook/manifests/gui.json",
+      "doc": "rulebook/docs/gui.md",
+      "required": true
+    },
+    {
+      "id": "outputs",
+      "manifest": "rulebook/manifests/outputs.json",
+      "doc": "rulebook/docs/outputs.md",
+      "required": true
+    },
+    {
+      "id": "release",
+      "manifest": "rulebook/manifests/release.json",
+      "doc": "rulebook/docs/release.md",
+      "required": true
+    }
+  ]
+}

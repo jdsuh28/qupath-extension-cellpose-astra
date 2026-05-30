@@ -1,0 +1,742 @@
+{
+  "schemaVersion": 1,
+  "sourcePath": "rulebook/manifests/runtime.json",
+  "localResourcePrefix": "",
+  "bundledResourcePrefix": "astra",
+  "localManifestRoot": "rulebook/manifests",
+  "bundledManifestRoot": "astra/rulebook/manifests",
+  "bootstrap": {
+    "root": "shared-core",
+    "requiredFiles": [
+      "ManifestSet.groovy",
+      "PipelineEntrypoint.groovy"
+    ]
+  },
+  "sourceRoots": {
+    "shared-core": "modules/shared/core/src/main/groovy",
+    "shared-analysis": "modules/shared/analysis/src/main/groovy",
+    "pipeline-cellpose-training": "modules/pipelines/cellpose/training/src/main/groovy",
+    "pipeline-cellpose-tuning": "modules/pipelines/cellpose/tuning/src/main/groovy",
+    "pipeline-cellpose-validation": "modules/pipelines/cellpose/validation/src/main/groovy",
+    "pipeline-vascular": "modules/pipelines/analysis/vascular/src/main/groovy",
+    "pipeline-colocalization": "modules/pipelines/analysis/colocalization/src/main/groovy",
+    "tool-sma-af647-oneshot": "modules/tools/sma-af647-oneshot/src/main/groovy",
+    "tool-generate-regions": "modules/tools/generate-regions/src/main/groovy"
+  },
+  "runnables": {
+    "training": {
+      "moduleId": "pipeline-cellpose-training",
+      "entrypoint": "training.groovy",
+      "runner": "TrainingRunner.groovy",
+      "classLoadPhases": {
+        "preflight": [
+          {
+            "root": "shared-core",
+            "file": "NotificationUtil.groovy",
+            "alias": "NotificationUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "RuntimePreflight.groovy",
+            "alias": "RuntimePreflight"
+          }
+        ],
+        "main": [
+          {
+            "root": "shared-core",
+            "file": "ProjectEntryScope.groovy",
+            "alias": "ProjectEntryScope"
+          },
+          {
+            "root": "shared-core",
+            "file": "JsonUtil.groovy",
+            "alias": "JsonUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "PrintUtil.groovy",
+            "alias": "PrintUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "Targets.groovy",
+            "alias": "Targets"
+          },
+          {
+            "root": "shared-core",
+            "file": "ProjectPaths.groovy",
+            "alias": "ProjectPaths"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelMetadata.groovy",
+            "alias": "ModelMetadata"
+          },
+          {
+            "root": "shared-core",
+            "file": "CellposeInferenceDefaults.groovy",
+            "alias": "CellposeInferenceDefaults"
+          },
+          {
+            "root": "shared-core",
+            "file": "OverwritePolicy.groovy",
+            "alias": "OverwritePolicy"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelArtifacts.groovy",
+            "alias": "ModelArtifacts"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelRegistry.groovy",
+            "alias": "ModelRegistry"
+          },
+          {
+            "root": "shared-core",
+            "file": "CellposeSamBuilder.groovy",
+            "alias": "CellposeSamBuilder"
+          },
+          {
+            "root": "pipeline-cellpose-training",
+            "file": "TrainingUtil.groovy",
+            "alias": "TrainingUtil"
+          },
+          {
+            "root": "pipeline-cellpose-training",
+            "file": "TrainingPreflight.groovy",
+            "alias": "TrainingPreflight"
+          },
+          {
+            "root": "pipeline-cellpose-training",
+            "file": "TrainingScore.groovy",
+            "alias": "TrainingScore"
+          },
+          {
+            "root": "pipeline-cellpose-training",
+            "file": "TrainingBuild.groovy",
+            "alias": "TrainingBuild"
+          },
+          {
+            "root": "pipeline-cellpose-training",
+            "file": "TrainingRun.groovy",
+            "alias": "TrainingRun"
+          },
+          {
+            "root": "pipeline-cellpose-training",
+            "file": "TrainingMaster.groovy",
+            "alias": "TrainingMaster"
+          }
+        ]
+      },
+      "entrypointPath": "modules/pipelines/cellpose/training/src/main/groovy/training.groovy",
+      "runnerPath": "modules/pipelines/cellpose/training/src/main/groovy/TrainingRunner.groovy"
+    },
+    "tuning": {
+      "moduleId": "pipeline-cellpose-tuning",
+      "entrypoint": "tuning.groovy",
+      "runner": "TuningRunner.groovy",
+      "classLoadPhases": {
+        "preflight": [
+          {
+            "root": "shared-core",
+            "file": "NotificationUtil.groovy",
+            "alias": "NotificationUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "RuntimePreflight.groovy",
+            "alias": "RuntimePreflight"
+          }
+        ],
+        "main": [
+          {
+            "root": "shared-core",
+            "file": "ProjectEntryScope.groovy",
+            "alias": "ProjectEntryScope"
+          },
+          {
+            "root": "shared-core",
+            "file": "JsonUtil.groovy",
+            "alias": "JsonUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "PrintUtil.groovy",
+            "alias": "PrintUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "Targets.groovy",
+            "alias": "Targets"
+          },
+          {
+            "root": "shared-core",
+            "file": "ProjectPaths.groovy",
+            "alias": "ProjectPaths"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelMetadata.groovy",
+            "alias": "ModelMetadata"
+          },
+          {
+            "root": "shared-core",
+            "file": "CellposeInferenceDefaults.groovy",
+            "alias": "CellposeInferenceDefaults"
+          },
+          {
+            "root": "shared-core",
+            "file": "OverwritePolicy.groovy",
+            "alias": "OverwritePolicy"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelArtifacts.groovy",
+            "alias": "ModelArtifacts"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelRegistry.groovy",
+            "alias": "ModelRegistry"
+          },
+          {
+            "root": "shared-core",
+            "file": "CellposeSamBuilder.groovy",
+            "alias": "CellposeSamBuilder"
+          },
+          {
+            "root": "pipeline-cellpose-tuning",
+            "file": "TuningUtil.groovy",
+            "alias": "TuningUtil"
+          },
+          {
+            "root": "pipeline-cellpose-tuning",
+            "file": "TuningPreflight.groovy",
+            "alias": "TuningPreflight"
+          },
+          {
+            "root": "pipeline-cellpose-tuning",
+            "file": "TuningScore.groovy",
+            "alias": "TuningScore"
+          },
+          {
+            "root": "pipeline-cellpose-tuning",
+            "file": "TuningBuild.groovy",
+            "alias": "TuningBuild"
+          },
+          {
+            "root": "pipeline-cellpose-tuning",
+            "file": "TuningRun.groovy",
+            "alias": "TuningRun"
+          },
+          {
+            "root": "pipeline-cellpose-tuning",
+            "file": "TuningSearch.groovy",
+            "alias": "TuningSearch"
+          },
+          {
+            "root": "pipeline-cellpose-tuning",
+            "file": "TuningMaster.groovy",
+            "alias": "TuningMaster"
+          }
+        ]
+      },
+      "entrypointPath": "modules/pipelines/cellpose/tuning/src/main/groovy/tuning.groovy",
+      "runnerPath": "modules/pipelines/cellpose/tuning/src/main/groovy/TuningRunner.groovy"
+    },
+    "validation": {
+      "moduleId": "pipeline-cellpose-validation",
+      "entrypoint": "validation.groovy",
+      "runner": "ValidationRunner.groovy",
+      "classLoadPhases": {
+        "preflight": [
+          {
+            "root": "shared-core",
+            "file": "NotificationUtil.groovy",
+            "alias": "NotificationUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "RuntimePreflight.groovy",
+            "alias": "RuntimePreflight"
+          }
+        ],
+        "main": [
+          {
+            "root": "shared-core",
+            "file": "ProjectEntryScope.groovy",
+            "alias": "ProjectEntryScope"
+          },
+          {
+            "root": "shared-core",
+            "file": "JsonUtil.groovy",
+            "alias": "JsonUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "PrintUtil.groovy",
+            "alias": "PrintUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "Targets.groovy",
+            "alias": "Targets"
+          },
+          {
+            "root": "shared-core",
+            "file": "ProjectPaths.groovy",
+            "alias": "ProjectPaths"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelMetadata.groovy",
+            "alias": "ModelMetadata"
+          },
+          {
+            "root": "shared-core",
+            "file": "CellposeInferenceDefaults.groovy",
+            "alias": "CellposeInferenceDefaults"
+          },
+          {
+            "root": "shared-core",
+            "file": "OverwritePolicy.groovy",
+            "alias": "OverwritePolicy"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelArtifacts.groovy",
+            "alias": "ModelArtifacts"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelRegistry.groovy",
+            "alias": "ModelRegistry"
+          },
+          {
+            "root": "shared-core",
+            "file": "CellposeSamBuilder.groovy",
+            "alias": "CellposeSamBuilder"
+          },
+          {
+            "root": "pipeline-cellpose-validation",
+            "file": "ValidationUtil.groovy",
+            "alias": "ValidationUtil"
+          },
+          {
+            "root": "pipeline-cellpose-validation",
+            "file": "ValidationPreflight.groovy",
+            "alias": "ValidationPreflight"
+          },
+          {
+            "root": "pipeline-cellpose-validation",
+            "file": "ValidationScore.groovy",
+            "alias": "ValidationScore"
+          },
+          {
+            "root": "pipeline-cellpose-validation",
+            "file": "ValidationBuild.groovy",
+            "alias": "ValidationBuild"
+          },
+          {
+            "root": "pipeline-cellpose-validation",
+            "file": "ValidationRun.groovy",
+            "alias": "ValidationRun"
+          },
+          {
+            "root": "pipeline-cellpose-validation",
+            "file": "ValidationMaster.groovy",
+            "alias": "ValidationMaster"
+          }
+        ]
+      },
+      "entrypointPath": "modules/pipelines/cellpose/validation/src/main/groovy/validation.groovy",
+      "runnerPath": "modules/pipelines/cellpose/validation/src/main/groovy/ValidationRunner.groovy"
+    },
+    "vascular": {
+      "moduleId": "pipeline-vascular",
+      "entrypoint": "vascular.groovy",
+      "runner": "VascularRunner.groovy",
+      "classLoadPhases": {
+        "preflight": [
+          {
+            "root": "shared-core",
+            "file": "NotificationUtil.groovy",
+            "alias": "NotificationUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "RuntimePreflight.groovy",
+            "alias": "RuntimePreflight"
+          }
+        ],
+        "main": [
+          {
+            "root": "shared-core",
+            "file": "ProjectEntryScope.groovy",
+            "alias": "ProjectEntryScope"
+          },
+          {
+            "root": "shared-core",
+            "file": "JsonUtil.groovy",
+            "alias": "JsonUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "ViewerFocusUtil.groovy",
+            "alias": "ViewerFocusUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "PrintUtil.groovy",
+            "alias": "PrintUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "Targets.groovy",
+            "alias": "Targets"
+          },
+          {
+            "root": "shared-core",
+            "file": "ProjectPaths.groovy",
+            "alias": "ProjectPaths"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelMetadata.groovy",
+            "alias": "ModelMetadata"
+          },
+          {
+            "root": "shared-core",
+            "file": "CellposeInferenceDefaults.groovy",
+            "alias": "CellposeInferenceDefaults"
+          },
+          {
+            "root": "shared-core",
+            "file": "OverwritePolicy.groovy",
+            "alias": "OverwritePolicy"
+          },
+          {
+            "root": "shared-analysis",
+            "file": "AnalysisStageTransaction.groovy",
+            "alias": "AnalysisStageTransaction"
+          },
+          {
+            "root": "shared-analysis",
+            "file": "AnalysisFingerprintUtil.groovy",
+            "alias": "AnalysisFingerprintUtil"
+          },
+          {
+            "root": "shared-analysis",
+            "file": "AnalysisStateLedger.groovy",
+            "alias": "AnalysisStateLedger"
+          },
+          {
+            "root": "shared-analysis",
+            "file": "AnalysisActiveStateFileTransaction.groovy",
+            "alias": "AnalysisActiveStateFileTransaction"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelArtifacts.groovy",
+            "alias": "ModelArtifacts"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelRegistry.groovy",
+            "alias": "ModelRegistry"
+          },
+          {
+            "root": "shared-core",
+            "file": "CellposeSamBuilder.groovy",
+            "alias": "CellposeSamBuilder"
+          },
+          {
+            "root": "shared-analysis",
+            "file": "AnalysisRegionScope.groovy",
+            "alias": "AnalysisRegionScope"
+          },
+          {
+            "root": "pipeline-vascular",
+            "file": "VascularUtil.groovy",
+            "alias": "VascularUtil"
+          },
+          {
+            "root": "pipeline-vascular",
+            "file": "VascularPreflight.groovy",
+            "alias": "VascularPreflight"
+          },
+          {
+            "root": "pipeline-vascular",
+            "file": "VascularReset.groovy",
+            "alias": "VascularReset"
+          },
+          {
+            "root": "pipeline-vascular",
+            "file": "VascularBuildClassifiers.groovy",
+            "alias": "VascularBuildClassifiers"
+          },
+          {
+            "root": "pipeline-vascular",
+            "file": "VascularSelectRois.groovy",
+            "alias": "VascularSelectRois"
+          },
+          {
+            "root": "pipeline-vascular",
+            "file": "VascularGenerateRegions.groovy",
+            "alias": "VascularGenerateRegions"
+          },
+          {
+            "root": "pipeline-vascular",
+            "file": "VascularDetectCells.groovy",
+            "alias": "VascularDetectCells"
+          },
+          {
+            "root": "pipeline-vascular",
+            "file": "VascularQuantify.groovy",
+            "alias": "VascularQuantify"
+          },
+          {
+            "root": "pipeline-vascular",
+            "file": "VascularMaster.groovy",
+            "alias": "VascularMaster"
+          }
+        ]
+      },
+      "entrypointPath": "modules/pipelines/analysis/vascular/src/main/groovy/vascular.groovy",
+      "runnerPath": "modules/pipelines/analysis/vascular/src/main/groovy/VascularRunner.groovy"
+    },
+    "colocalization": {
+      "moduleId": "pipeline-colocalization",
+      "entrypoint": "colocalization.groovy",
+      "runner": "ColocalizationRunner.groovy",
+      "classLoadPhases": {
+        "preflight": [
+          {
+            "root": "shared-core",
+            "file": "NotificationUtil.groovy",
+            "alias": "NotificationUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "RuntimePreflight.groovy",
+            "alias": "RuntimePreflight"
+          }
+        ],
+        "main": [
+          {
+            "root": "shared-core",
+            "file": "ProjectEntryScope.groovy",
+            "alias": "ProjectEntryScope"
+          },
+          {
+            "root": "shared-core",
+            "file": "JsonUtil.groovy",
+            "alias": "JsonUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "ViewerFocusUtil.groovy",
+            "alias": "ViewerFocusUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "PrintUtil.groovy",
+            "alias": "PrintUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "Targets.groovy",
+            "alias": "Targets"
+          },
+          {
+            "root": "shared-core",
+            "file": "ProjectPaths.groovy",
+            "alias": "ProjectPaths"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelMetadata.groovy",
+            "alias": "ModelMetadata"
+          },
+          {
+            "root": "shared-core",
+            "file": "CellposeInferenceDefaults.groovy",
+            "alias": "CellposeInferenceDefaults"
+          },
+          {
+            "root": "shared-core",
+            "file": "OverwritePolicy.groovy",
+            "alias": "OverwritePolicy"
+          },
+          {
+            "root": "shared-analysis",
+            "file": "AnalysisStageTransaction.groovy",
+            "alias": "AnalysisStageTransaction"
+          },
+          {
+            "root": "shared-analysis",
+            "file": "AnalysisFingerprintUtil.groovy",
+            "alias": "AnalysisFingerprintUtil"
+          },
+          {
+            "root": "shared-analysis",
+            "file": "AnalysisStateLedger.groovy",
+            "alias": "AnalysisStateLedger"
+          },
+          {
+            "root": "shared-analysis",
+            "file": "AnalysisActiveStateFileTransaction.groovy",
+            "alias": "AnalysisActiveStateFileTransaction"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelArtifacts.groovy",
+            "alias": "ModelArtifacts"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelRegistry.groovy",
+            "alias": "ModelRegistry"
+          },
+          {
+            "root": "shared-core",
+            "file": "CellposeSamBuilder.groovy",
+            "alias": "CellposeSamBuilder"
+          },
+          {
+            "root": "shared-analysis",
+            "file": "AnalysisRegionScope.groovy",
+            "alias": "AnalysisRegionScope"
+          },
+          {
+            "root": "pipeline-colocalization",
+            "file": "ColocalizationUtil.groovy",
+            "alias": "ColocalizationUtil"
+          },
+          {
+            "root": "pipeline-colocalization",
+            "file": "ColocalizationPreflight.groovy",
+            "alias": "ColocalizationPreflight"
+          },
+          {
+            "root": "pipeline-colocalization",
+            "file": "ColocalizationReset.groovy",
+            "alias": "ColocalizationReset"
+          },
+          {
+            "root": "pipeline-colocalization",
+            "file": "ColocalizationDetectCells.groovy",
+            "alias": "ColocalizationDetectCells"
+          },
+          {
+            "root": "pipeline-colocalization",
+            "file": "ColocalizationQuantify.groovy",
+            "alias": "ColocalizationQuantify"
+          },
+          {
+            "root": "pipeline-colocalization",
+            "file": "ColocalizationMaster.groovy",
+            "alias": "ColocalizationMaster"
+          }
+        ]
+      },
+      "entrypointPath": "modules/pipelines/analysis/colocalization/src/main/groovy/colocalization.groovy",
+      "runnerPath": "modules/pipelines/analysis/colocalization/src/main/groovy/ColocalizationRunner.groovy"
+    },
+    "sma-af647-oneshot": {
+      "moduleId": "tool-sma-af647-oneshot",
+      "entrypoint": "smaAf647Oneshot.groovy",
+      "runner": "SmaAf647OneshotRunner.groovy",
+      "classLoadPhases": {
+        "preflight": [
+          {
+            "root": "shared-core",
+            "file": "NotificationUtil.groovy",
+            "alias": "NotificationUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "RuntimePreflight.groovy",
+            "alias": "RuntimePreflight"
+          }
+        ],
+        "main": [
+          {
+            "root": "shared-core",
+            "file": "Targets.groovy",
+            "alias": "Targets"
+          },
+          {
+            "root": "shared-core",
+            "file": "ProjectPaths.groovy",
+            "alias": "ProjectPaths"
+          },
+          {
+            "root": "shared-core",
+            "file": "ProjectEntryScope.groovy",
+            "alias": "ProjectEntryScope"
+          },
+          {
+            "root": "shared-core",
+            "file": "JsonUtil.groovy",
+            "alias": "JsonUtil"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelMetadata.groovy",
+            "alias": "ModelMetadata"
+          },
+          {
+            "root": "shared-core",
+            "file": "CellposeInferenceDefaults.groovy",
+            "alias": "CellposeInferenceDefaults"
+          },
+          {
+            "root": "shared-core",
+            "file": "OverwritePolicy.groovy",
+            "alias": "OverwritePolicy"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelArtifacts.groovy",
+            "alias": "ModelArtifacts"
+          },
+          {
+            "root": "shared-core",
+            "file": "ModelRegistry.groovy",
+            "alias": "ModelRegistry"
+          },
+          {
+            "root": "shared-core",
+            "file": "CellposeSamBuilder.groovy",
+            "alias": "CellposeSamBuilder"
+          },
+          {
+            "root": "shared-core",
+            "file": "PrintUtil.groovy",
+            "alias": "PrintUtil"
+          },
+          {
+            "root": "tool-sma-af647-oneshot",
+            "file": "SmaAf647OneshotTool.groovy",
+            "alias": "SmaAf647OneshotTool"
+          }
+        ]
+      },
+      "entrypointPath": "modules/tools/sma-af647-oneshot/src/main/groovy/smaAf647Oneshot.groovy",
+      "runnerPath": "modules/tools/sma-af647-oneshot/src/main/groovy/SmaAf647OneshotRunner.groovy"
+    },
+    "generate-regions": {
+      "moduleId": "tool-generate-regions",
+      "entrypoint": "generateRegions.groovy",
+      "runner": "GenerateRegionsRunner.groovy",
+      "classLoadPhases": {
+        "preflight": [],
+        "main": []
+      },
+      "entrypointPath": "modules/tools/generate-regions/src/main/groovy/generateRegions.groovy",
+      "runnerPath": "modules/tools/generate-regions/src/main/groovy/GenerateRegionsRunner.groovy"
+    }
+  }
+}

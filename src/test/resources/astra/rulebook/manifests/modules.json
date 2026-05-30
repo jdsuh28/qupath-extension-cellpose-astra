@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 1,
+  "sourcePath": "rulebook/manifests/modules.json",
+  "modules": {
+    "shared-core": {
+      "id": "shared-core",
+      "kind": "shared",
+      "category": "shared",
+      "gradleProject": ":shared-core",
+      "runnable": false,
+      "sourceRoot": "modules/shared/core/src/main/groovy",
+      "testRoot": "modules/shared/core/src/test/groovy"
+    },
+    "shared-analysis": {
+      "id": "shared-analysis",
+      "kind": "shared",
+      "category": "shared",
+      "gradleProject": ":shared-analysis",
+      "runnable": false,
+      "sourceRoot": "modules/shared/analysis/src/main/groovy",
+      "testRoot": "modules/shared/analysis/src/test/groovy"
+    },
+    "pipeline-cellpose-training": {
+      "id": "pipeline-cellpose-training",
+      "kind": "pipeline",
+      "category": "pipelines",
+      "functionalGroup": "cellpose",
+      "structuralCategory": "pipelines/cellpose",
+      "gradleProject": ":pipeline-cellpose-training",
+      "runnable": true,
+      "runnableId": "training",
+      "sourceRoot": "modules/pipelines/cellpose/training/src/main/groovy",
+      "testRoot": "modules/pipelines/cellpose/training/src/test/groovy"
+    },
+    "pipeline-cellpose-tuning": {
+      "id": "pipeline-cellpose-tuning",
+      "kind": "pipeline",
+      "category": "pipelines",
+      "functionalGroup": "cellpose",
+      "structuralCategory": "pipelines/cellpose",
+      "gradleProject": ":pipeline-cellpose-tuning",
+      "runnable": true,
+      "runnableId": "tuning",
+      "sourceRoot": "modules/pipelines/cellpose/tuning/src/main/groovy",
+      "testRoot": "modules/pipelines/cellpose/tuning/src/test/groovy"
+    },
+    "pipeline-cellpose-validation": {
+      "id": "pipeline-cellpose-validation",
+      "kind": "pipeline",
+      "category": "pipelines",
+      "functionalGroup": "cellpose",
+      "structuralCategory": "pipelines/cellpose",
+      "gradleProject": ":pipeline-cellpose-validation",
+      "runnable": true,
+      "runnableId": "validation",
+      "sourceRoot": "modules/pipelines/cellpose/validation/src/main/groovy",
+      "testRoot": "modules/pipelines/cellpose/validation/src/test/groovy"
+    },
+    "pipeline-vascular": {
+      "id": "pipeline-vascular",
+      "kind": "analysis",
+      "category": "pipelines",
+      "functionalGroup": "analysis",
+      "structuralCategory": "pipelines/analysis",
+      "gradleProject": ":pipeline-vascular",
+      "runnable": true,
+      "runnableId": "vascular",
+      "sourceRoot": "modules/pipelines/analysis/vascular/src/main/groovy",
+      "testRoot": "modules/pipelines/analysis/vascular/src/test/groovy"
+    },
+    "pipeline-colocalization": {
+      "id": "pipeline-colocalization",
+      "kind": "analysis",
+      "category": "pipelines",
+      "functionalGroup": "analysis",
+      "structuralCategory": "pipelines/analysis",
+      "gradleProject": ":pipeline-colocalization",
+      "runnable": true,
+      "runnableId": "colocalization",
+      "sourceRoot": "modules/pipelines/analysis/colocalization/src/main/groovy",
+      "testRoot": "modules/pipelines/analysis/colocalization/src/test/groovy"
+    },
+    "tool-sma-af647-oneshot": {
+      "id": "tool-sma-af647-oneshot",
+      "kind": "tool",
+      "category": "tools",
+      "functionalGroup": "tool",
+      "structuralCategory": "tools",
+      "gradleProject": ":tool-sma-af647-oneshot",
+      "runnable": true,
+      "runnableId": "sma-af647-oneshot",
+      "sourceRoot": "modules/tools/sma-af647-oneshot/src/main/groovy",
+      "testRoot": "modules/tools/sma-af647-oneshot/src/test/groovy"
+    },
+    "tool-generate-regions": {
+      "id": "tool-generate-regions",
+      "kind": "tool",
+      "category": "tools",
+      "functionalGroup": "tool",
+      "structuralCategory": "tools",
+      "gradleProject": ":tool-generate-regions",
+      "runnable": true,
+      "runnableId": "generate-regions",
+      "sourceRoot": "modules/tools/generate-regions/src/main/groovy",
+      "testRoot": "modules/tools/generate-regions/src/test/groovy"
+    }
+  },
+  "functionalGroups": {
+    "cellpose": {
+      "id": "cellpose",
+      "folder": "modules/pipelines/cellpose",
+      "description": "Cellpose-backed segmentation model preparation and validation pipelines."
+    },
+    "analysis": {
+      "id": "analysis",
+      "folder": "modules/pipelines/analysis",
+      "description": "Biological analysis pipelines. Cellpose dependency is declared per runnable, not inherited from this folder."
+    },
+    "tool": {
+      "id": "tool",
+      "folder": "modules/tools",
+      "description": "Standalone runnable utilities. Tool dependencies are declared per runnable."
+    }
+  },
+  "runnableOrder": [
+    "training",
+    "tuning",
+    "validation",
+    "vascular",
+    "colocalization",
+    "sma-af647-oneshot",
+    "generate-regions"
+  ],
+  "runnableModules": {
+    "training": {
+      "id": "training",
+      "moduleId": "pipeline-cellpose-training",
+      "runnable": true,
+      "kind": "training",
+      "functionalGroup": "cellpose",
+      "upstreamFunctionalGroups": []
+    },
+    "tuning": {
+      "id": "tuning",
+      "moduleId": "pipeline-cellpose-tuning",
+      "runnable": true,
+      "kind": "tuning",
+      "functionalGroup": "cellpose",
+      "upstreamFunctionalGroups": [
+        "cellpose"
+      ]
+    },
+    "validation": {
+      "id": "validation",
+      "moduleId": "pipeline-cellpose-validation",
+      "runnable": true,
+      "kind": "validation",
+      "functionalGroup": "cellpose",
+      "upstreamFunctionalGroups": [
+        "cellpose"
+      ]
+    },
+    "vascular": {
+      "id": "vascular",
+      "moduleId": "pipeline-vascular",
+      "runnable": true,
+      "kind": "analysis",
+      "functionalGroup": "analysis",
+      "upstreamFunctionalGroups": [
+        "cellpose"
+      ]
+    },
+    "colocalization": {
+      "id": "colocalization",
+      "moduleId": "pipeline-colocalization",
+      "runnable": true,
+      "kind": "analysis",
+      "functionalGroup": "analysis",
+      "upstreamFunctionalGroups": [
+        "cellpose"
+      ]
+    },
+    "sma-af647-oneshot": {
+      "id": "sma-af647-oneshot",
+      "moduleId": "tool-sma-af647-oneshot",
+      "runnable": true,
+      "kind": "tool",
+      "functionalGroup": "tool",
+      "upstreamFunctionalGroups": [
+        "cellpose"
+      ]
+    },
+    "generate-regions": {
+      "id": "generate-regions",
+      "moduleId": "tool-generate-regions",
+      "runnable": true,
+      "kind": "tool",
+      "functionalGroup": "tool",
+      "upstreamFunctionalGroups": []
+    }
+  }
+}

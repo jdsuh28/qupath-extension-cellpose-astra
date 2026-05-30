@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "sourcePath": "rulebook/manifests/outputs.json",
+  "artifactRoot": "astra",
+  "runnables": {
+    "training": {
+      "resultRoot": "astra/training",
+      "auditArtifacts": [
+        "training summary JSON",
+        "model metadata",
+        "promoted model files"
+      ]
+    },
+    "tuning": {
+      "resultRoot": "astra/tuning",
+      "auditArtifacts": [
+        "tuning summary JSON",
+        "best-parameters JSON",
+        "candidate scores"
+      ]
+    },
+    "validation": {
+      "resultRoot": "astra/validation",
+      "auditArtifacts": [
+        "validation summary JSON",
+        "metrics tables",
+        "comparison records"
+      ]
+    },
+    "vascular": {
+      "resultRoot": "astra/results/vascular",
+      "activeState": "astra/analysis/vascular/active_analysis_state.json",
+      "auditArtifacts": [
+        "vessels CSV",
+        "cells CSV",
+        "metadata CSV"
+      ]
+    },
+    "colocalization": {
+      "resultRoot": "astra/results/colocalization",
+      "activeState": "astra/analysis/colocalization/active_analysis_state.json",
+      "auditArtifacts": [
+        "cells CSV",
+        "regions CSV",
+        "metadata CSV",
+        "threshold QC PNG files"
+      ]
+    },
+    "sma-af647-oneshot": {
+      "resultRoot": "astra/results/sma_af647_oneshot",
+      "auditArtifacts": [
+        "technical CSV",
+        "summary objects"
+      ],
+      "technicalCsvColumns": [
+        "image",
+        "region",
+        "cell_id",
+        "media fraction",
+        "AF647 classifier",
+        "AF647 background source",
+        "AF647 background pixels",
+        "AF647 background inner radius px",
+        "AF647 background outer radius px",
+        "AF647 diffuse threshold",
+        "AF647 diffuse enriched fraction",
+        "AF647 diffuse enriched pixels",
+        "AF647 diffuse p-value",
+        "AF647 diffuse q-value",
+        "AF647 diffuse positive",
+        "AF647 focal threshold",
+        "AF647 focal enriched fraction",
+        "AF647 focal enriched pixels",
+        "AF647 focal p-value",
+        "AF647 focal q-value",
+        "AF647 focal positive",
+        "AF647 total pixels",
+        "AF647 call reason",
+        "AF647 Call"
+      ],
+      "classifierMethod": "nuclear AF647 local-background hybrid classifier",
+      "outputExpectations": [
+        "Manual Smooth Muscle annotations define the wall/media compartment by default.",
+        "The technical CSV records the background source and diffuse/focal decision arms for every scored nucleus.",
+        "Region CSV rows include rejection counts for invalid ROIs, missing pixels, insufficient Smooth Muscle overlap, and insufficient AF647 background."
+      ]
+    },
+    "generate-regions": {
+      "resultRoot": "QuPath project hierarchy",
+      "auditArtifacts": [
+        "generated training region annotations"
+      ]
+    }
+  }
+}

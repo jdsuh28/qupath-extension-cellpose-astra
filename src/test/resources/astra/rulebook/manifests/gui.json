@@ -1,0 +1,232 @@
+{
+  "schemaVersion": 1,
+  "sourcePath": "rulebook/manifests/gui.json",
+  "labels": {
+    "NUC_MODEL_SOURCE": "Nucleus Model Source",
+    "NUC_MODEL_NAME": "Nucleus Model Name",
+    "NUC_MODEL_FILE": "Nucleus Model File",
+    "NUC_SAVED_MODEL_ID": "Nucleus Saved Model ID",
+    "CELL_MODEL_SOURCE": "Cell Model Source",
+    "CELL_MODEL_NAME": "Cell Model Name",
+    "CELL_MODEL_FILE": "Cell Model File",
+    "CELL_SAVED_MODEL_ID": "Cell Saved Model ID",
+    "NUC_MIN_MASK_EQUIVALENT_DIAMETER_UM": "Nucleus Minimum Mask Equivalent Diameter",
+    "CELL_MIN_MASK_EQUIVALENT_DIAMETER_UM": "Cell Minimum Mask Equivalent Diameter",
+    "DETECTION_TARGET": "Detection Target",
+    "EXPRESSION_CLASSIFICATION_MODE": "Expression Classification",
+    "DISPLAY_COLOCALIZATION_CHECK": "Displayed Check",
+    "THRESHOLD_MODE": "Threshold Mode",
+    "THRESHOLD_SCOPE": "Threshold Scope",
+    "THRESHOLD_SELECTED_IMAGE_NAMES": "Threshold Source Images",
+    "MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL": "Match Threshold Image Names Against Original",
+    "MATCH_SELECTED_IMAGE_NAMES_AGAINST_ORIGINAL": "Match Selected Image Names Against Original",
+    "BACKGROUND_MODE": "Background Mode",
+    "LOCAL_BACKGROUND_PERCENTILE": "Local Background Percentile",
+    "BACKGROUND_SUBTRACTION_BY_CHANNEL": "Manual Background Offsets",
+    "GMM_COMPONENTS": "Gaussian Components",
+    "OTSU_CLASS_COUNT": "Otsu Class Count",
+    "MANUAL_INTENSITY_BOUNDARIES_BY_MARKER": "Manual Intensity Boundaries",
+    "MANUAL_INTENSITY_THRESHOLDS": "Manual Intensity Thresholds",
+    "RANGE_THRESHOLD_FRACTIONS_BY_MARKER": "Range Threshold Boundary Fractions",
+    "RANGE_THRESHOLD_FRACTION_BY_MARKER": "Range Threshold Fractions",
+    "THRESHOLD_PROVENANCE_BY_MARKER": "Threshold Provenance",
+    "COLOCALIZATION_CHECKS": "Colocalization Checks",
+    "MODES_TO_RUN": "Stages To Run",
+    "USE_GPU": "Use GPU",
+    "USE_BATCH_MODE": "Use Batch Mode",
+    "USE_PIXEL_SCALING": "Use Pixel Scaling",
+    "QC_FOLDER": "QC Folder",
+    "QC_FILENAME": "QC Filename",
+    "RESULTS_FOLDER": "Results Folder",
+    "RESULTS_BASENAME": "Results Basename",
+    "IMAGE_SCOPE": "Image Scope",
+    "SELECTED_IMAGE_NAMES": "Selected Image Names",
+    "CLASS_ANALYSIS_REGION": "Analysis Region Class",
+    "CLASS_ROI": "ROI Class",
+    "FITC_RAW_THRESHOLD": "FITC Raw Threshold",
+    "FITC_OVERLAP_FRACTION_MIN": "FITC Nucleus Fraction Minimum",
+    "AF647_RAW_THRESHOLD": "AF647 Raw Threshold",
+    "AF647_POSITIVE_PIXEL_FRACTION_MIN": "AF647 Pixel Fraction Minimum",
+    "SMA_MEDIA_CHANNEL": "SMA Media Channel",
+    "SKIP_FITC_MEDIA_MASK": "Use Manual Wall Annotation",
+    "MEDIA_OVERLAP_FRACTION_MIN": "Minimum Wall Overlap",
+    "AF647_BACKGROUND_MIN_PIXELS": "AF647 Background Minimum Pixels",
+    "AF647_BACKGROUND_INNER_DIAMETER_FRACTION": "AF647 Background Inner Radius Fraction",
+    "AF647_BACKGROUND_OUTER_DIAMETER_FRACTION": "AF647 Background Outer Radius Fraction",
+    "AF647_BACKGROUND_MIN_WIDTH_PX": "AF647 Background Minimum Width",
+    "AF647_DIFFUSE_BACKGROUND_QUANTILE": "AF647 Diffuse Background Quantile",
+    "AF647_DIFFUSE_NULL_TAIL_PROBABILITY": "AF647 Diffuse Null Tail Probability",
+    "AF647_DIFFUSE_MIN_ENRICHED_PIXELS": "AF647 Diffuse Minimum Pixels",
+    "AF647_DIFFUSE_MIN_ENRICHED_FRACTION": "AF647 Diffuse Minimum Fraction",
+    "AF647_FOCAL_BACKGROUND_QUANTILE": "AF647 Focal Background Quantile",
+    "AF647_FOCAL_NULL_TAIL_PROBABILITY": "AF647 Focal Null Tail Probability",
+    "AF647_FOCAL_MIN_ENRICHED_PIXELS": "AF647 Focal Minimum Pixels",
+    "AF647_FOCAL_MIN_ENRICHED_FRACTION": "AF647 Focal Minimum Fraction",
+    "AF647_FDR_Q_THRESHOLD": "AF647 FDR q-Value Cutoff",
+    "CLEAR_EXISTING_ONESHOT_OBJECTS_FIRST": "Clear Previous One-Shot Objects",
+    "EXPORT_TECHNICAL_CSV": "Export Technical CSV"
+  },
+  "labelTokens": {
+    "NUC": "Nucleus",
+    "ROI": "Region",
+    "ID": "ID",
+    "GPU": "GPU",
+    "QC": "QC",
+    "CSV": "CSV",
+    "DAPI": "DAPI",
+    "AF488": "AF488",
+    "AF555": "AF555",
+    "AF647": "AF647"
+  },
+  "optionLabels": {
+    "CURRENT_IMAGE": "Current Image",
+    "SELECTED_ANALYSIS_REGION": "Selected Analysis Region",
+    "PROJECT_IMAGE_SELECTION": "Project Image Selection",
+    "SELECTED_IMAGES": "Selected Images",
+    "PIXEL_LEVEL_SCORE": "Pixel Level Score",
+    "LEGACY_BINARY": "Legacy Binary",
+    "PIXEL_INTENSITY": "Pixel Intensity",
+    "CELL_MEAN": "Cell Mean",
+    "MEAN_INTENSITY": "Mean Intensity",
+    "PIXEL_POSITIVE_FRACTION": "Pixel Positive Fraction",
+    "LOCAL_PERCENTILE": "Local Percentile",
+    "MANUAL_OFFSET": "Manual Offset",
+    "LOG_KDE_VALLEY": "Log KDE Valley",
+    "LOG_GAUSSIAN_MIXTURE": "Log Gaussian Mixture",
+    "GAUSSIAN_MIXTURE": "Gaussian Mixture",
+    "KDE_VALLEY": "KDE Valley",
+    "AUTO_OTSU_PER_CHANNEL": "Auto Otsu Per Channel",
+    "RANGE_PERCENT": "Range Percent",
+    "MANUAL": "Manual",
+    "NONE": "None",
+    "NUCLEUS": "Nucleus",
+    "CELL": "Cell",
+    "BOTH": "Both",
+    "DETECT_CELLS": "Detect Cells",
+    "GENERATE_REGIONS": "Generate Regions",
+    "QUANTIFY": "Quantify",
+    "AUTO_BUILD_CLASSIFIERS": "Auto Build Classifiers",
+    "AUTO_SELECT_ROIS": "Auto Select ROIs"
+  },
+  "menuOrder": [
+    "training",
+    "tuning",
+    "validation",
+    "vascular",
+    "colocalization",
+    "sma-af647-oneshot",
+    "generate-regions"
+  ],
+  "runnables": {
+    "training": {
+      "id": "training",
+      "displayName": "Training",
+      "menuPath": "Training",
+      "kind": "training",
+      "description": "Build Cellpose-SAM models from curated QuPath training annotations.",
+      "workflowSequence": [
+        "Training",
+        "Tuning",
+        "Validation",
+        "Analysis"
+      ],
+      "workflowActiveLabel": "Training",
+      "headerActions": []
+    },
+    "tuning": {
+      "id": "tuning",
+      "displayName": "Tuning",
+      "menuPath": "Tuning",
+      "kind": "tuning",
+      "description": "Search parameter sets against validation annotations and save auditable best parameters.",
+      "workflowSequence": [
+        "Training",
+        "Tuning",
+        "Validation",
+        "Analysis"
+      ],
+      "workflowActiveLabel": "Tuning",
+      "headerActions": []
+    },
+    "validation": {
+      "id": "validation",
+      "displayName": "Validation",
+      "menuPath": "Validation",
+      "kind": "validation",
+      "description": "Measure trained model performance on validation regions before analysis use.",
+      "workflowSequence": [
+        "Training",
+        "Tuning",
+        "Validation",
+        "Analysis"
+      ],
+      "workflowActiveLabel": "Validation",
+      "headerActions": []
+    },
+    "vascular": {
+      "id": "vascular",
+      "displayName": "Vascular",
+      "menuPath": "Analysis>Vascular",
+      "kind": "analysis",
+      "description": "Run vascular region generation, detection, and quantification workflows.",
+      "workflowSequence": [
+        "Training",
+        "Tuning",
+        "Validation",
+        "Vascular"
+      ],
+      "workflowActiveLabel": "Vascular",
+      "headerActions": [
+        "EXPORT",
+        "RESET_IMAGE",
+        "RESET_PROJECT"
+      ]
+    },
+    "colocalization": {
+      "id": "colocalization",
+      "displayName": "Colocalization",
+      "menuPath": "Analysis>Colocalization",
+      "kind": "analysis",
+      "description": "Detect cells, measure channels, and call marker colocalization with explicit thresholds.",
+      "workflowSequence": [
+        "Training",
+        "Tuning",
+        "Validation",
+        "Colocalization"
+      ],
+      "workflowActiveLabel": "Colocalization",
+      "headerActions": [
+        "EXPORT",
+        "RESET_IMAGE",
+        "RESET_PROJECT"
+      ]
+    },
+    "sma-af647-oneshot": {
+      "id": "sma-af647-oneshot",
+      "displayName": "One-Shot SMA AF647",
+      "menuPath": "Analysis>One-Shot SMA AF647",
+      "kind": "tool",
+      "description": "Run the publication-specific SMA AF647 one-shot workflow.",
+      "workflowSequence": [
+        "Training",
+        "Tuning",
+        "Validation",
+        "One-Shot SMA AF647"
+      ],
+      "workflowActiveLabel": "One-Shot SMA AF647",
+      "headerActions": []
+    },
+    "generate-regions": {
+      "id": "generate-regions",
+      "displayName": "Generate Regions",
+      "menuPath": "Analysis>Generate Regions",
+      "kind": "tool",
+      "description": "Generate QuPath training region annotations.",
+      "workflowSequence": [
+        "Generate Regions"
+      ],
+      "workflowActiveLabel": "Generate Regions",
+      "headerActions": []
+    }
+  }
+}
