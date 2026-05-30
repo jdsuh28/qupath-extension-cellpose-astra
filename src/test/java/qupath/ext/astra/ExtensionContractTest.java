@@ -336,8 +336,8 @@ class ExtensionContractTest {
      */
     @Test
     void runtimeInstallerUsesDeterministicRuntime() {
-        assertEquals("v4.0.8+astra.3", RuntimeInstaller.DEFAULT_CELLPOSE_REF);
-        assertEquals("git+https://github.com/jdsuh28/cellpose-astra.git@v4.0.8+astra.3",
+        assertEquals("v4.1.1+astra.0", RuntimeInstaller.DEFAULT_CELLPOSE_REF);
+        assertEquals("git+https://github.com/jdsuh28/cellpose-astra.git@v4.1.1+astra.0",
                 RuntimeInstaller.cellposePackageSpec());
         assertEquals("cellpose-astra", RuntimeInstaller.runtimeDirectory().getName());
         assertTrue(RuntimeInstaller.runtimePythonExecutable(new File("runtime")).getPath().contains("runtime"));
@@ -367,8 +367,9 @@ class ExtensionContractTest {
         assertTrue(joined.contains("import numpy"));
         assertTrue(joined.contains("import torch"));
         assertTrue(joined.contains("import cellpose"));
+        assertTrue(joined.contains("import cellpose, cellpose.astra"));
         assertTrue(joined.contains("astra"));
-        assertTrue(joined.contains("-m, cellpose, --version"));
+        assertTrue(joined.contains("-m, cellpose.astra, --version"));
         assertFalse(joined.contains("segment_anything"));
     }
 
@@ -502,6 +503,9 @@ class ExtensionContractTest {
         assertEquals(new File(root, "models"), AstraCellpose2D.trainingArtifactReturnValue(root));
         assertTrue(runtime.contains("cellposeArguments.add(\"--model_save_root\")"));
         assertTrue(runtime.contains("cellposeArguments.add(this.groundTruthDirectory.getAbsolutePath())"));
+        assertTrue(runtime.contains("private static final String ASTRA_CELLPOSE_MODULE = \"cellpose.astra\""));
+        assertEquals(2, countOccurrences(runtime, "\"-m\", ASTRA_CELLPOSE_MODULE"));
+        assertFalse(runtime.contains("\"-m\", \"cellpose\""));
         assertTrue(runtime.contains("return trainingArtifactReturnValue(this.groundTruthDirectory);"));
         assertTrue(builder.contains("persistTrainingArtifacts(boolean persist)"));
         assertTrue(builder.contains("runtime.setPersistTrainingArtifacts(persistTrainingArtifacts);"));
@@ -835,6 +839,16 @@ class ExtensionContractTest {
             }
         }
         return false;
+    }
+
+    private static int countOccurrences(String text, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = text.indexOf(needle, index)) >= 0) {
+            count++;
+            index += needle.length();
+        }
+        return count;
     }
 
     @SuppressWarnings("unchecked")

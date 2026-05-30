@@ -93,6 +93,7 @@ public class AstraCellpose2D extends Cellpose2D {
     private static final String RUNTIME_PYTHON_PATH_KEY = "qupath.ext.astra.runtimePythonPath";
     private static final String RUNTIME_PYTHON_PATH_NAME =
             "Automated Structural Tissue Research and Analysis (ASTRA) > Cellpose Runtime Python Executable";
+    private static final String ASTRA_CELLPOSE_MODULE = "cellpose.astra";
 
     private static final String VALIDATION_METRICS_HELPER_RESOURCE = "qupath/ext/astra/qc/run-cellpose-qc.py";
 
@@ -1034,7 +1035,7 @@ public class AstraCellpose2D extends Cellpose2D {
     private void runTrainingCommand() throws IOException, InterruptedException {
         VirtualEnvironmentRunner veRunner = createRuntimeRunner();
 
-        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", "cellpose"));
+        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", ASTRA_CELLPOSE_MODULE));
         cellposeArguments.add("--train");
         cellposeArguments.add("--dir");
         cellposeArguments.add(getTrainingDirectory().getAbsolutePath());
@@ -1141,7 +1142,7 @@ public class AstraCellpose2D extends Cellpose2D {
     private void runCellposeInDirectory(File inputDirectory, String executionModelReference, List<TileFile> allTiles) throws IOException, InterruptedException {
         VirtualEnvironmentRunner veRunner = createRuntimeRunner();
 
-        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", "cellpose"));
+        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", ASTRA_CELLPOSE_MODULE));
         cellposeArguments.add("--dir");
         cellposeArguments.add(inputDirectory.getAbsolutePath());
         cellposeArguments.add("--pretrained_model");
