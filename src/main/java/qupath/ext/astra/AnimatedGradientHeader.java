@@ -17,7 +17,7 @@ import javafx.scene.shape.Rectangle;
  */
 final class AnimatedGradientHeader extends StackPane {
 
-    private static final long FRAME_INTERVAL_NANOS = 50_000_000L;
+    private static final long FRAME_INTERVAL_NANOS = 33_333_333L;
     private static final double CYCLE_SECONDS = 24.0d;
     private static final long CYCLE_NANOS = (long) (CYCLE_SECONDS * 1_000_000_000L);
     private static final Stop[] STOPS = {

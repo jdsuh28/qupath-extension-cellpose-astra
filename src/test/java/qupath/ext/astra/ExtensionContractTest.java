@@ -89,6 +89,7 @@ class ExtensionContractTest {
 
         assertTrue(header.contains("AnimationTimer"));
         assertTrue(header.contains("CycleMethod.REPEAT"));
+        assertTrue(header.contains("FRAME_INTERVAL_NANOS = 33_333_333L"));
         assertTrue(header.contains("CYCLE_SECONDS = 24.0d"));
         assertTrue(logView.contains("new AnimatedGradientHeader(statusContent)"));
         assertFalse(header.contains("ImageView"));
