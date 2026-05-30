@@ -75,15 +75,17 @@ class ExtensionContractTest {
     }
 
     /**
-     * Verifies the run-log header uses a continuous JavaFX gradient animation
+     * Verifies the main pipeline header uses a continuous JavaFX gradient animation
      * rather than swapping static gradient images.
      *
      * @throws Exception if source files cannot be inspected.
      */
     @Test
-    void runLogHeaderUsesFluidGradientAnimation() throws Exception {
+    void pipelineHeaderUsesFluidGradientAnimation() throws Exception {
         String header = Files.readString(new File(ROOT,
                 "src/main/java/qupath/ext/astra/AnimatedGradientHeader.java").toPath());
+        String launcher = Files.readString(new File(ROOT,
+                "src/main/java/qupath/ext/astra/PipelineLauncher.java").toPath());
         String logView = Files.readString(new File(ROOT,
                 "src/main/java/qupath/ext/astra/StyledLogView.java").toPath());
 
@@ -91,7 +93,11 @@ class ExtensionContractTest {
         assertTrue(header.contains("CycleMethod.REPEAT"));
         assertTrue(header.contains("FRAME_INTERVAL_NANOS = 33_333_333L"));
         assertTrue(header.contains("CYCLE_SECONDS = 24.0d"));
-        assertTrue(logView.contains("new AnimatedGradientHeader(statusContent)"));
+        assertTrue(header.contains("canvas.setManaged(false)"));
+        assertTrue(launcher.contains("new AnimatedGradientHeader(header)"));
+        assertFalse(logView.contains("new AnimatedGradientHeader"));
+        assertFalse(launcher.contains("installDynamicHeaderGradient"));
+        assertFalse(launcher.contains("Timeline timeline = new Timeline"));
         assertFalse(header.contains("ImageView"));
     }
 

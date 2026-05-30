@@ -4,6 +4,7 @@ import javafx.animation.AnimationTimer;
 import javafx.scene.Node;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.CycleMethod;
@@ -42,6 +43,11 @@ final class AnimatedGradientHeader extends StackPane {
      */
     AnimatedGradientHeader(Node content) {
         setStyle("-fx-background-color: #0d2430; -fx-border-color: #375f6c; -fx-border-radius: 6; -fx-background-radius: 6;");
+        setMaxWidth(Double.MAX_VALUE);
+        if (content instanceof Region region) {
+            region.setMaxWidth(Double.MAX_VALUE);
+        }
+        canvas.setManaged(false);
         canvas.setMouseTransparent(true);
         canvas.widthProperty().bind(widthProperty());
         canvas.heightProperty().bind(heightProperty());
