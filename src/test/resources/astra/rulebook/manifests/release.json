@@ -16,7 +16,7 @@
   },
   "cellposeAstra": {
     "repo": "jdsuh28/cellpose-astra",
-    "baseRef": "v4.1.1+astra.0"
+    "baseRef": "v4.1.1+astra.1"
   },
   "packaging": {
     "resourceDestination": "extension/src/main/resources/astra",

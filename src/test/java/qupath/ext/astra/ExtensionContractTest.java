@@ -336,8 +336,8 @@ class ExtensionContractTest {
      */
     @Test
     void runtimeInstallerUsesDeterministicRuntime() {
-        assertEquals("v4.1.1+astra.0", RuntimeInstaller.DEFAULT_CELLPOSE_REF);
-        assertEquals("git+https://github.com/jdsuh28/cellpose-astra.git@v4.1.1+astra.0",
+        assertEquals("v4.1.1+astra.1", RuntimeInstaller.DEFAULT_CELLPOSE_REF);
+        assertEquals("git+https://github.com/jdsuh28/cellpose-astra.git@v4.1.1+astra.1",
                 RuntimeInstaller.cellposePackageSpec());
         assertEquals("cellpose-astra", RuntimeInstaller.runtimeDirectory().getName());
         assertTrue(RuntimeInstaller.runtimePythonExecutable(new File("runtime")).getPath().contains("runtime"));
