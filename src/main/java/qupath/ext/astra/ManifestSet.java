@@ -74,7 +74,8 @@ final class ManifestSet {
         for (String id : runnableOrder()) {
             Map<String, Object> runnable = composedRunnable(id);
             if (normalize(stringValue(runnable.get("id"))).equals(needle)
-                    || normalize(stringValue(runnable.get("displayName"))).equals(needle)) {
+                    || normalize(stringValue(runnable.get("displayName"))).equals(needle)
+                    || normalize(stringValue(mapValue(runnable.get("gui")).get("menuPath"))).equals(needle)) {
                 return Optional.of(runnable);
             }
         }
@@ -123,6 +124,26 @@ final class ManifestSet {
         return runnable(pipelineName)
                 .map(p -> stringList(p.get("scriptActions")))
                 .orElse(List.of());
+    }
+
+    List<String> workflowSequence(String pipelineName) {
+        return runnable(pipelineName)
+                .map(p -> stringList(mapValue(p.get("gui")).get("workflowSequence")))
+                .orElse(List.of());
+    }
+
+    String workflowActiveLabel(String pipelineName) {
+        return runnable(pipelineName)
+                .map(p -> stringValue(mapValue(p.get("gui")).get("workflowActiveLabel")))
+                .filter(s -> !s.isBlank())
+                .orElse("");
+    }
+
+    String description(String pipelineName) {
+        return runnable(pipelineName)
+                .map(p -> stringValue(mapValue(p.get("gui")).get("description")))
+                .filter(s -> !s.isBlank())
+                .orElse("");
     }
 
     private Map<String, Object> composedRunnable(String id) {
@@ -213,7 +234,8 @@ final class ManifestSet {
     }
 
     private List<String> runnableOrder() {
-        return stringList(modules().get("runnableOrder"));
+        List<String> menuOrder = stringList(gui().get("menuOrder"));
+        return menuOrder.isEmpty() ? stringList(modules().get("runnableOrder")) : menuOrder;
     }
 
     private Map<String, Object> runnableRuntime(String id) {

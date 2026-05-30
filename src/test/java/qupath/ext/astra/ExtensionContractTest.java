@@ -195,9 +195,9 @@ class ExtensionContractTest {
 
         assertEquals(List.of("Training", "Tuning", "Validation", "Analysis>Vascular", "Analysis>Colocalization", "Analysis>One-Shot SMA AF647", "Analysis>Generate Regions"),
                 new ArrayList<>(scripts.keySet()));
-        assertEquals("astra/modules/pipelines/training/src/main/groovy/training.groovy", scripts.get("Training"));
-        assertEquals("astra/modules/pipelines/tuning/src/main/groovy/tuning.groovy", scripts.get("Tuning"));
-        assertEquals("astra/modules/pipelines/validation/src/main/groovy/validation.groovy", scripts.get("Validation"));
+        assertEquals("astra/modules/pipelines/cellpose/training/src/main/groovy/training.groovy", scripts.get("Training"));
+        assertEquals("astra/modules/pipelines/cellpose/tuning/src/main/groovy/tuning.groovy", scripts.get("Tuning"));
+        assertEquals("astra/modules/pipelines/cellpose/validation/src/main/groovy/validation.groovy", scripts.get("Validation"));
         assertEquals("astra/modules/pipelines/analysis/vascular/src/main/groovy/vascular.groovy", scripts.get("Analysis>Vascular"));
         assertEquals("astra/modules/pipelines/analysis/colocalization/src/main/groovy/colocalization.groovy", scripts.get("Analysis>Colocalization"));
         assertEquals("astra/modules/tools/sma-af647-oneshot/src/main/groovy/smaAf647Oneshot.groovy", scripts.get("Analysis>One-Shot SMA AF647"));
@@ -205,6 +205,27 @@ class ExtensionContractTest {
 
         scripts.values().forEach(path -> assertTrue(path.startsWith("astra/"), path));
         scripts.values().forEach(path -> assertFalse(path.contains("Cellpose_"), path));
+    }
+
+    /**
+     * Verifies the header sequence is GUI-manifest backed so folder structure
+     * and QuPath presentation can evolve independently.
+     */
+    @Test
+    void guiPipelineFlowUsesManifestSequenceWithSpecificAnalysisEndpoint() throws Exception {
+        ManifestSet manifests = ManifestSet.load();
+        String launcher = Files.readString(new File(ROOT,
+                "src/main/java/qupath/ext/astra/PipelineLauncher.java").toPath());
+
+        assertEquals(List.of("Training", "Tuning", "Validation", "Analysis"),
+                manifests.workflowSequence("Training"));
+        assertEquals("Training", manifests.workflowActiveLabel("Training"));
+        assertEquals(List.of("Training", "Tuning", "Validation", "Vascular"),
+                manifests.workflowSequence("Analysis>Vascular"));
+        assertEquals("Vascular", manifests.workflowActiveLabel("Analysis>Vascular"));
+        assertEquals(List.of("Generate Regions"), manifests.workflowSequence("Analysis>Generate Regions"));
+        assertTrue(launcher.contains("GuiPresentation.workflowSequence(scriptName)"));
+        assertTrue(launcher.contains("GuiPresentation.workflowActiveLabel(scriptName)"));
     }
 
     /**
@@ -300,7 +321,7 @@ class ExtensionContractTest {
 
             assertEquals(1.0, manifests.root().get("index") instanceof Map<?, ?> index ? index.get("schemaVersion") : null);
             assertTrue(manifests.runnable("colocalization").isPresent());
-            assertEquals("astra/modules/pipelines/training/src/main/groovy/training.groovy",
+            assertEquals("astra/modules/pipelines/cellpose/training/src/main/groovy/training.groovy",
                     manifests.scriptResources().get("Training"));
         }
     }

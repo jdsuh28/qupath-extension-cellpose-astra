@@ -43,7 +43,7 @@ class PipelineLauncherTest {
     void extractionIgnoresBootstrapConstantsBeforeUserEditSection() {
         List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final File localRunnerFile =
-                    new File("modules/pipelines/training/src/main/groovy/TrainingRunner.groovy")
+                    new File("modules/pipelines/cellpose/training/src/main/groovy/TrainingRunner.groovy")
                 final boolean USE_LOCAL_CLASSES =
                     localRunnerFile.exists() && localRunnerFile.isFile()
                 final ClassLoader loader = this.class.classLoader
@@ -77,11 +77,11 @@ class PipelineLauncherTest {
     @Test
     void realCurrentScriptsExposeEditableConstantsAfterDefaultsBootstrap() throws Exception {
         Map<String, List<String>> requiredByScript = Map.of(
-                "modules/pipelines/training/src/main/groovy/training.groovy",
+                "modules/pipelines/cellpose/training/src/main/groovy/training.groovy",
                 List.of("TRAIN_TARGET", "TRAINING_MODE", "NUC_MODEL_NAME", "CHANNELS_FOR_NUCLEUS"),
-                "modules/pipelines/tuning/src/main/groovy/tuning.groovy",
+                "modules/pipelines/cellpose/tuning/src/main/groovy/tuning.groovy",
                 List.of("TUNE_TARGET", "SEARCH_MODE", "NUC_MODEL_NAME", "PARAM_DEFAULTS_BY_TARGET"),
-                "modules/pipelines/validation/src/main/groovy/validation.groovy",
+                "modules/pipelines/cellpose/validation/src/main/groovy/validation.groovy",
                 List.of("VALIDATE_TARGET", "VALIDATION_MODE", "NUC_MODEL_NAME", "PARAM_DEFAULTS_BY_TARGET"),
                 "modules/pipelines/analysis/vascular/src/main/groovy/vascular.groovy",
                 List.of("NUC_MODEL_NAME", "NUC_CELLPROB", "CELL_CELLPROB", "RESULTS_FOLDER"),
