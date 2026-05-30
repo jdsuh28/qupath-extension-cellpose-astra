@@ -1,101 +1,75 @@
-# QuPath Cellpose Extension — ASTRA
+# Automated Structural Tissue Research and Analysis (ASTRA) for QuPath
 
-This repository is the ASTRA fork of the QuPath Cellpose extension. It is a
-sub-repository within the broader **astra** project and provides the Java-side
-QuPath interface used by ASTRA's Groovy pipeline scripts.
+This repository is the public QuPath extension for Automated Structural Tissue
+Research and Analysis (ASTRA). It publishes the installable extension JARs used
+by QuPath and exposes ASTRA workflows through the QuPath extension menu.
 
-## What this repo is (and is not)
+ASTRA is installed through the ASTRA QuPath catalog. The companion
+`cellpose-astra` repository supplies the Python Cellpose runtime used by the
+extension installer.
 
-- This repo **is** the QuPath extension code that exposes ASTRA scripts in the
-  QuPath menu and provides the ASTRA-owned `AstraCellpose2D`,
-  `AstraCellposeBuilder`, and QC figure-rendering surfaces.
-- This repo **is** responsible for Cellpose-adjacent runtime behavior:
-  training image export, batch inference, validation metrics, and QC figure
-  rendering.
-- This repo **is not** responsible for biological pipeline orchestration,
-  vascular/colocalization logic, model/parameter source policy, or
-  manuscript-facing analysis decisions. Those live in the base `astra` repo.
-- This repo **is not** published through the upstream BIOP catalog.
+## What This Repository Provides
 
-ASTRA provides a separate fork/repo for the Python side
-(**cellpose-astra**). The extension includes an ASTRA-owned installer that
-creates and validates the runtime before registering it with QuPath.
+- A QuPath extension that registers ASTRA workflow commands under
+  `Extensions > ASTRA`.
+- ASTRA-owned Cellpose runtime integration for training export, batch
+  inference, validation metrics, and quality-control figures.
+- A runtime installer that creates and validates the local `cellpose-astra`
+  Python environment.
+- Release JARs that bundle the ASTRA resources needed by QuPath at runtime.
 
-## Active ASTRA Surfaces
+The extension remains based on the QuPath Cellpose-SAM extension lineage, but
+ASTRA-facing behavior is exposed through ASTRA menu entries, preferences, logs,
+and release artifacts.
 
-- `src/main/java/qupath/ext/astra/AstraCellposeExtension.java`
-  - Registers the ASTRA menu entries and the single Cellpose runtime Python
-    preference.
-- `src/main/java/qupath/ext/astra/AstraCellposeBuilder.java`
-  - Provides the ASTRA builder surface used by base pipeline scripts.
-- `src/main/java/qupath/ext/astra/AstraCellpose2D.java`
-  - Owns ASTRA Cellpose runtime behavior, including batch inference,
-    training export, validation metrics, and deterministic result routing.
-- `src/main/java/qupath/ext/astra/QcFigures.java`
-  - Renders publication-oriented training, tuning, and validation QC figures.
+## Installation
 
-The upstream BIOP Java package remains present to preserve fork structure and
-future mergeability. ASTRA-specific behavior is implemented in the ASTRA
-package where possible.
+1. Add the ASTRA QuPath catalog:
+   `https://github.com/jdsuh28/qupath-astra-catalog`
+2. Install `Cellpose-SAM (ASTRA)` from the QuPath extension manager.
+3. Restart QuPath when prompted.
+4. Run `Extensions > ASTRA > Install/Repair Python Runtime`.
+5. Wait for the installer to report validation success before running ASTRA
+   workflows.
 
-## QuPath Menu Contract
+The installer creates a deterministic user-local runtime at
+`~/.astra/cellpose-astra` with Python 3.10. Set `ASTRA_CONDA` to a
+conda-compatible executable if `conda`, `mamba`, or `micromamba` is not on
+`PATH`.
 
-The installed ASTRA extension registers only ASTRA scripts:
+## QuPath Menu
+
+The installed extension exposes ASTRA workflows through:
 
 - `Extensions > ASTRA > ASTRA Training`
-- `Extensions > ASTRA > ASTRA Validation`
 - `Extensions > ASTRA > ASTRA Tuning`
+- `Extensions > ASTRA > ASTRA Validation`
 - `Extensions > ASTRA > Analysis > Vascular`
 - `Extensions > ASTRA > Analysis > Colocalization`
-- `Extensions > ASTRA > ASTRA Generate Regions`
+- `Extensions > ASTRA > Analysis > One-Shot SMA AF647`
+- `Extensions > ASTRA > Analysis > Generate Regions`
 
-BIOP example scripts remain in `src/main/resources/scripts/` as upstream
-resources, but the ASTRA extension entrypoint does not expose them in the ASTRA
-menu.
+## Runtime Notes
 
-## Installation (ASTRA)
-
-Because this fork is not distributed through the BIOP catalog, installation is performed via an ASTRA-owned catalog.
-
-High-level flow:
-
-1) Add the ASTRA catalog to QuPath (the catalog is maintained and versioned by ASTRA, not BIOP).
-2) Install this extension from the ASTRA catalog inside QuPath.
-3) Run `Extensions > ASTRA > Install/Repair Python Runtime`.
-4) Confirm the installer reports validation success before running ASTRA pipelines.
-
-Notes:
-- The installer uses conda/miniforge first and creates a deterministic prefix
-  at `~/.astra/cellpose-astra` with Python 3.10.
-- Set `ASTRA_CONDA` to a conda-compatible executable if `conda`, `mamba`, or
-  `micromamba` is not on `PATH`.
-- A venv install path exists only as an explicit advanced path:
-  `ASTRA_RUNTIME_INSTALL_STRATEGY=venv`.
-- Installation is not considered complete until validation commands pass:
-  Python, NumPy, torch, Cellpose-ASTRA fork marker, combined imports, and a
-  Cellpose startup/version check.
+- Release JARs are the installable QuPath artifacts.
+- ASTRA runtime resources are bundled into release JARs and loaded by the
+  extension at runtime.
 - Installer logs are written under `~/.astra/logs/install/`.
-- Failed installs show the command, exit code, and recent stdout/stderr. Fix
-  the environment issue and rerun `Install/Repair Python Runtime`; the
-  extension does not mark a failed runtime as installed.
-- Base ASTRA pipeline scripts enforce model/parameter source policy,
-  overwrite policy, biological analysis logic, and publication-facing
-  preflight checks.
+- Failed runtime installation is not marked as successful; fix the environment
+  issue and rerun `Install/Repair Python Runtime`.
+- Bytecode obfuscation is not enabled. Java bytecode obfuscation would only
+  protect compiled extension classes and would not hide text resources bundled
+  inside an installable JAR.
 
-## Building from source
+## Building From Source
 
 ```bash
-./gradlew clean build
+./gradlew clean build -Ptoolchain=21
 ```
 
-The output JAR will be placed under `build/libs`.
-
-## Legacy Branch
-
-Non-active comparison files live on the `legacy` branch. They are retained for
-provenance only and are not referenced by the active build or QuPath menu on
-`dev`.
+The development JAR is written under `build/libs`. Generated build outputs and
+Javadocs are not source files and should remain untracked.
 
 ## License
 
-This fork remains under the Apache License 2.0 (see LICENSE).
+This project is distributed under the Apache License 2.0. See `LICENSE`.

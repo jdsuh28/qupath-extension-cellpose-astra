@@ -11,6 +11,7 @@ import java.io.OutputStream;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -48,6 +49,84 @@ class ExtensionContractTest {
 
         assertTrue(service.isFile());
         assertEquals("qupath.ext.astra.AstraCellposeExtension", Files.readString(service.toPath()).trim());
+    }
+
+    /**
+     * Verifies public documentation presents this repository as the ASTRA
+     * QuPath installation surface and does not disclose internal repository
+     * topology.
+     *
+     * @throws Exception if public documentation cannot be read.
+     */
+    @Test
+    void publicDocsDoNotExposeInternalRepositoryTopology() throws Exception {
+        List<File> publicDocs = List.of(
+                new File(ROOT, "README.md"),
+                new File(ROOT, "RELEASE_PACKAGING.md")
+        );
+
+        for (File doc : publicDocs) {
+            String text = Files.readString(doc.toPath()).toLowerCase();
+            assertFalse(text.contains("private repo"), doc.getPath());
+            assertFalse(text.contains("private astra"), doc.getPath());
+            assertFalse(text.contains("base astra"), doc.getPath());
+            assertFalse(text.contains("base repo"), doc.getPath());
+            assertFalse(text.contains("base repository"), doc.getPath());
+            assertFalse(text.contains("sub-repository"), doc.getPath());
+            assertFalse(text.contains("broader astra"), doc.getPath());
+        }
+    }
+
+    /**
+     * Verifies generated, local, and release-vendored files are not tracked as
+     * active source in the public extension repository.
+     *
+     * @throws Exception if tracked files cannot be listed.
+     */
+    @Test
+    void trackedFilesExcludeGeneratedLocalAndVendoredRuntimeArtifacts() throws Exception {
+        List<String> violations = trackedFiles().stream()
+                .filter(path -> path.equals(".DS_Store")
+                        || path.contains("/.DS_Store")
+                        || path.contains("/._")
+                        || path.startsWith("._")
+                        || path.startsWith(".gradle/")
+                        || path.startsWith("build/")
+                        || path.startsWith("bin/")
+                        || path.startsWith("target/")
+                        || path.startsWith("out/")
+                        || path.startsWith("docs/")
+                        || path.startsWith("files/")
+                        || path.startsWith("QC/")
+                        || path.startsWith("src/main/resources/astra/"))
+                .toList();
+
+        assertTrue(violations.isEmpty(), "Forbidden tracked repository files: " + violations);
+    }
+
+    /**
+     * Verifies the validation helper is packaged as a classpath resource rather
+     * than resolved from a root-level QC folder next to an installed JAR.
+     *
+     * @throws Exception if source or helper resources cannot be inspected.
+     */
+    @Test
+    void validationMetricsHelperIsPackagedResource() throws Exception {
+        File helperResource = new File(ROOT,
+                "src/main/resources/qupath/ext/astra/qc/run-cellpose-qc.py");
+        String source = Files.readString(new File(ROOT,
+                "src/main/java/qupath/ext/astra/AstraCellpose2D.java").toPath());
+
+        assertTrue(helperResource.isFile());
+        assertFalse(new File(ROOT, "QC/run-cellpose-qc.py").exists());
+        assertTrue(source.contains("VALIDATION_METRICS_HELPER_RESOURCE = \"qupath/ext/astra/qc/run-cellpose-qc.py\""));
+        assertTrue(source.contains("extractValidationMetricsHelperFile()"));
+        assertFalse(source.contains("resolveInstalledExtensionRoot"));
+        assertFalse(source.contains("QC/run-cellpose-qc.py"));
+
+        File extracted = AstraCellpose2D.extractValidationMetricsHelperFile();
+        assertTrue(extracted.isFile());
+        assertTrue(Files.readString(extracted.toPath()).contains("Compute validation metrics"));
     }
 
     /**
@@ -141,11 +220,18 @@ class ExtensionContractTest {
 
         for (File file : inspected) {
             String path = file.getPath().replace(File.separatorChar, '/');
+            assertFalse(path.endsWith(".DS_Store"), path);
+            assertFalse(path.contains("/._"), path);
+            assertFalse(path.contains("/build/"), path);
+            assertFalse(path.contains("/.gradle/"), path);
             assertFalse(path.contains("contracts/src/test/resources"), path);
             assertFalse(path.contains("test-fixtures"), path);
             assertFalse(path.endsWith(".ome.tif"), path);
             assertFalse(path.endsWith(".ome.tiff"), path);
 
+            if (!isTextInspectionFile(path)) {
+                continue;
+            }
             String text = Files.readString(file.toPath());
             if (!isVendoredTestSource(path)) {
                 assertFalse(text.contains("contracts/src/test/resources"), file.getPath());
@@ -641,6 +727,12 @@ class ExtensionContractTest {
                 continue;
             }
             try {
+                String path = file.getPath().replace(File.separatorChar, '/');
+                assertFalse(path.endsWith(".DS_Store"), path);
+                assertFalse(path.contains("/._"), path);
+                if (!isTextInspectionFile(path)) {
+                    continue;
+                }
                 String text = Files.readString(file.toPath());
                 assertFalse(text.contains("_archive/"), file.getPath());
                 assertFalse(text.contains("_legacy/"), file.getPath());
@@ -673,6 +765,40 @@ class ExtensionContractTest {
         for (File child : children) {
             collectFiles(child, files);
         }
+    }
+
+    /**
+     * Returns true for text files that source-hygiene tests should inspect for
+     * literal stale-path references.
+     *
+     * @param path normalized repository path.
+     * @return true if the file is a text source/config/resource.
+     */
+    private static boolean isTextInspectionFile(String path) {
+        return path.endsWith(".java")
+                || path.endsWith(".groovy")
+                || path.endsWith(".kts")
+                || path.endsWith(".properties")
+                || path.endsWith(".py")
+                || path.endsWith(".gitkeep")
+                || path.contains("/META-INF/services/");
+    }
+
+    /**
+     * Lists repository-tracked files using Git.
+     *
+     * @return tracked repository paths.
+     * @throws Exception if Git cannot list tracked files.
+     */
+    private static List<String> trackedFiles() throws Exception {
+        Process process = new ProcessBuilder("git", "ls-files")
+                .directory(ROOT)
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        int exitCode = process.waitFor();
+        assertEquals(0, exitCode, output);
+        return output.lines().toList();
     }
 
     private static boolean hasConstant(List<?> constants, String name) throws Exception {

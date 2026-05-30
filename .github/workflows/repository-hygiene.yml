@@ -1,0 +1,37 @@
+name: ASTRA extension repository hygiene
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+  pull_request:
+    branches:
+      - dev
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reject tracked generated and local files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          forbidden_regex='(^|/)(\.DS_Store|target|out|build|bin|\.gradle)(/|$)|(^|/)\._|^docs/|^files/|^QC/|^src/main/resources/astra/'
+          violations="$(git ls-files | grep -E "$forbidden_regex" || true)"
+
+          if [ -n "$violations" ]; then
+            echo "ERROR: Forbidden generated, local, or release-vendored files are tracked:"
+            echo "$violations"
+            exit 1
+          fi

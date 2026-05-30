@@ -28,7 +28,7 @@ qupathExtension {
     name = "qupath-extension-cellpose-astra"
     group = "io.github.jdsuh28"
     version = "0.0.0-dev"
-    description = "ASTRA fork of the BIOP Cellpose extension for QuPath"
+    description = "ASTRA QuPath extension for Cellpose-backed tissue analysis"
     automaticModule = "qupath.ext.astra.cellpose"
 }
 
@@ -57,11 +57,11 @@ tasks.withType<Test>().configureEach {
 }
 
 /*
- * Set HTML language and destination folder
+ * Keep generated API documentation under build/ so repository docs remain handwritten.
  */
 tasks.withType<Javadoc> {
     (options as StandardJavadocDocletOptions).addBooleanOption("html5", true)
-    setDestinationDir(File(project.rootDir, "docs"))
+    setDestinationDir(layout.buildDirectory.dir("docs/javadoc").get().asFile)
 }
 
 /*

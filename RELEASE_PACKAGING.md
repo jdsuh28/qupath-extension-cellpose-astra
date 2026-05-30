@@ -1,7 +1,17 @@
 # ASTRA Extension Release Packaging
 
-ASTRA extension source tags are extension-owned source snapshots. They are not expected to contain the vendored ASTRA base repository tree.
+The installable ASTRA artifact is the runtime JAR published by this repository's
+release process and referenced by the ASTRA QuPath catalog.
 
-Runtime release JARs are the installable QuPath artifacts. A release JAR vendors the ASTRA runtime resources used by the compact scripts, including `astra/rulebook/manifests/index.json`, the paired manifest set, pipeline entrypoints, shared helpers, and runner sources.
+Source tags identify the extension source snapshot used for a release. Release
+JARs contain the resources QuPath needs at runtime, including ASTRA workflow
+resources, runtime metadata, and packaged helper scripts.
 
-When validating a published release, inspect the generated JAR rather than the extension source tag for vendored ASTRA runtime resources. The source tag records the launcher/build code that produced the artifact; the JAR records the runtime payload delivered to QuPath.
+Generated build outputs, generated Javadocs, IDE metadata, operating-system
+artifacts, and local Gradle state are not source files and must not be tracked
+or packaged accidentally.
+
+Bytecode obfuscation is not enabled. Obfuscating Java classes would only make
+compiled extension bytecode harder to inspect; it would not protect text
+resources bundled inside the JAR. Any future runtime-protection work must
+account for bundled runtime resources explicitly.
