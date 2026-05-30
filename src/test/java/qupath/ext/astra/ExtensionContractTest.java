@@ -312,8 +312,12 @@ class ExtensionContractTest {
             Path resource = tempDir.resolve(ManifestSet.BUNDLED_ROOT).resolve(name);
             Files.createDirectories(resource.getParent());
             Path vendored = Path.of("src/main/resources").resolve(ManifestSet.BUNDLED_ROOT).resolve(name);
+            Path testFixture = Path.of("src/test/resources").resolve(ManifestSet.BUNDLED_ROOT).resolve(name);
             Path localBase = localRoot.resolve(name);
-            Files.copy(Files.isRegularFile(vendored) ? vendored : localBase, resource);
+            Path source = Files.isRegularFile(vendored) ? vendored
+                    : Files.isRegularFile(testFixture) ? testFixture
+                    : localBase;
+            Files.copy(source, resource);
         }
 
         try (URLClassLoader loader = new URLClassLoader(new java.net.URL[]{tempDir.toUri().toURL()}, null)) {
