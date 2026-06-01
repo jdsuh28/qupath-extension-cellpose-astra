@@ -21,12 +21,12 @@ import javafx.scene.shape.Rectangle;
  */
 final class AnimatedGradientHeader extends StackPane {
 
-    private static final long FRAME_INTERVAL_NANOS = 33_333_333L;
+    private static final long FRAME_INTERVAL_NANOS = 66_666_667L;
     private static final double CYCLE_SECONDS = 16.0d;
     private static final long CYCLE_NANOS = (long) (CYCLE_SECONDS * 1_000_000_000L);
-    private static final double TEXTURE_SCALE = 3.0d;
+    private static final double TEXTURE_SCALE = 2.0d;
     private static final double GRADIENT_SPAN_MULTIPLIER = 3.0d;
-    private static final int TEXTURE_MAX_PIXEL_HEIGHT = 128;
+    private static final int TEXTURE_MAX_PIXEL_HEIGHT = 96;
     private static final double DITHER_AMPLITUDE = 1.2d / 255.0d;
     private static final double OVERLAY_ALPHA = 0.18d;
     private static final Color OVERLAY_COLOR = Color.rgb(6, 23, 32);
@@ -190,8 +190,8 @@ final class AnimatedGradientHeader extends StackPane {
 
         GraphicsContext graphics = canvas.getGraphicsContext2D();
         graphics.setTransform(1.0d, 0.0d, 0.0d, 1.0d, 0.0d, 0.0d);
-        graphics.clearRect(0.0d, 0.0d, width, height);
         if (gradientTexture == null || textureLogicalWidth <= 0.0d) {
+            graphics.clearRect(0.0d, 0.0d, width, height);
             return;
         }
 
