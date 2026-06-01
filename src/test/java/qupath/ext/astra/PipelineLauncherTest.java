@@ -1638,6 +1638,10 @@ class PipelineLauncherTest {
         assertTrue(view.contains("RunLogBlockAccumulator"));
         assertTrue(view.contains("RunLogErrorAdvisor.advise"));
         assertTrue(view.contains("appendProgressLine(entry)"));
+        assertTrue(view.contains("refreshTimelineElapsed()"));
+        assertTrue(source.contains("new Timeline(new KeyFrame(Duration.seconds(1.0)"));
+        assertTrue(source.contains("elapsedHeartbeat.playFromStart()"));
+        assertTrue(source.contains("elapsedHeartbeat.stop()"));
         assertFalse(source.contains("append(\"[LOG] \" + text)"));
         assertFalse(source.contains("feedback.append(\"[ERR] \" + text)"));
     }

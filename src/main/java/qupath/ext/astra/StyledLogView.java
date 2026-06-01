@@ -121,6 +121,10 @@ final class StyledLogView extends VBox {
         appendEntries(RunLogParser.parse(text, defaultSource, defaultSeverity), text);
     }
 
+    void refreshTimelineElapsed() {
+        renderTimeline();
+    }
+
     void clear() {
         plainText.setLength(0);
         rawText.setLength(0);
