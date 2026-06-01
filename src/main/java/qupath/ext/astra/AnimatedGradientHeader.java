@@ -48,10 +48,35 @@ final class AnimatedGradientHeader extends StackPane {
             new Stop(1.00d, Color.web("#0b222d"))
     };
 
+    enum HeaderMode {
+        STATIC,
+        DYNAMIC
+    }
+
+    enum MotionSpeed {
+        SLOW("Slow", 24.0d),
+        SMOOTH("Smooth", 16.0d),
+        LIVELY("Lively", 10.0d);
+
+        private final String label;
+        private final double cycleSeconds;
+
+        MotionSpeed(String label, double cycleSeconds) {
+            this.label = label;
+            this.cycleSeconds = cycleSeconds;
+        }
+
+        String label() {
+            return label;
+        }
+    }
+
     private final Pane stripLayer = new Pane();
     private final ImageView leadingStrip = new ImageView();
     private final ImageView trailingStrip = new ImageView();
     private final TranslateTransition animation = new TranslateTransition(Duration.seconds(CYCLE_SECONDS), stripLayer);
+    private HeaderMode headerMode = HeaderMode.DYNAMIC;
+    private MotionSpeed motionSpeed = MotionSpeed.SMOOTH;
     private double stripLogicalWidth;
 
     /**
@@ -123,7 +148,7 @@ final class AnimatedGradientHeader extends StackPane {
         stripLayer.setTranslateX(0.0d);
         animation.setFromX(0.0d);
         animation.setToX(-stripLogicalWidth);
-        if (getScene() != null) {
+        if (getScene() != null && headerMode == HeaderMode.DYNAMIC) {
             startAnimation();
         }
     }
@@ -139,7 +164,25 @@ final class AnimatedGradientHeader extends StackPane {
     private void startAnimation() {
         animation.stop();
         stripLayer.setTranslateX(0.0d);
+        animation.setDuration(Duration.seconds(motionSpeed.cycleSeconds));
         animation.playFromStart();
+    }
+
+    void setHeaderMode(HeaderMode nextMode) {
+        headerMode = nextMode == null ? HeaderMode.DYNAMIC : nextMode;
+        if (headerMode == HeaderMode.DYNAMIC && getScene() != null) {
+            startAnimation();
+        } else {
+            animation.stop();
+            stripLayer.setTranslateX(0.0d);
+        }
+    }
+
+    void setMotionSpeed(MotionSpeed nextSpeed) {
+        motionSpeed = nextSpeed == null ? MotionSpeed.SMOOTH : nextSpeed;
+        if (headerMode == HeaderMode.DYNAMIC && getScene() != null) {
+            startAnimation();
+        }
     }
 
     /**
