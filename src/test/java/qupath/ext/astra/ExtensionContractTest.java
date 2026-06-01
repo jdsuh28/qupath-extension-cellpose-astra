@@ -171,10 +171,11 @@ class ExtensionContractTest {
         assertTrue(header.contains("AnimationTimer"));
         assertTrue(header.contains("WritableImage"));
         assertTrue(header.contains("getPixelWriter()"));
-        assertTrue(header.contains("FRAME_INTERVAL_NANOS = 33_333_333L"));
+        assertTrue(header.contains("FRAME_INTERVAL_NANOS = 66_666_667L"));
         assertTrue(header.contains("CYCLE_SECONDS = 16.0d"));
-        assertTrue(header.contains("TEXTURE_SCALE = 3.0d"));
+        assertTrue(header.contains("TEXTURE_SCALE = 2.0d"));
         assertTrue(header.contains("GRADIENT_SPAN_MULTIPLIER = 3.0d"));
+        assertTrue(header.contains("TEXTURE_MAX_PIXEL_HEIGHT = 96"));
         assertTrue(header.contains("DITHER_AMPLITUDE = 1.2d / 255.0d"));
         assertTrue(header.contains("rebuildGradientTexture(width, height)"));
         assertTrue(header.contains("resizeCanvasAndDraw()"));
