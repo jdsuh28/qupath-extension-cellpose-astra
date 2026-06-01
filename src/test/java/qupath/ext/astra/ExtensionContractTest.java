@@ -169,19 +169,25 @@ class ExtensionContractTest {
                 "src/main/java/qupath/ext/astra/StyledLogView.java").toPath());
 
         assertTrue(header.contains("AnimationTimer"));
-        assertTrue(header.contains("CycleMethod.REPEAT"));
+        assertTrue(header.contains("WritableImage"));
+        assertTrue(header.contains("getPixelWriter()"));
         assertTrue(header.contains("FRAME_INTERVAL_NANOS = 33_333_333L"));
         assertTrue(header.contains("CYCLE_SECONDS = 16.0d"));
-        assertTrue(header.contains("RENDER_SCALE = 4.0d"));
+        assertTrue(header.contains("TEXTURE_SCALE = 3.0d"));
         assertTrue(header.contains("GRADIENT_SPAN_MULTIPLIER = 3.0d"));
+        assertTrue(header.contains("DITHER_AMPLITUDE = 1.2d / 255.0d"));
+        assertTrue(header.contains("rebuildGradientTexture(width, height)"));
         assertTrue(header.contains("resizeCanvasAndDraw()"));
-        assertTrue(header.contains("graphics.scale(RENDER_SCALE, RENDER_SCALE)"));
         assertTrue(header.contains("canvas.setManaged(false)"));
+        assertTrue(header.contains("canvas.setMouseTransparent(true)"));
         assertTrue(launcher.contains("new AnimatedGradientHeader(header)"));
         assertFalse(logView.contains("new AnimatedGradientHeader"));
         assertFalse(launcher.contains("installDynamicHeaderGradient"));
         assertFalse(launcher.contains("Timeline timeline = new Timeline"));
         assertFalse(header.contains("ImageView"));
+        assertFalse(header.contains("RENDER_SCALE = 8.0d"));
+        assertFalse(header.contains("new LinearGradient"));
+        assertFalse(header.contains("graphics.scale("));
     }
 
     /**
