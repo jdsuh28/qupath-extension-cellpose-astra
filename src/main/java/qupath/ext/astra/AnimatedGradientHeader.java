@@ -21,6 +21,7 @@ final class AnimatedGradientHeader extends StackPane {
     private static final long FRAME_INTERVAL_NANOS = 33_333_333L;
     private static final double CYCLE_SECONDS = 16.0d;
     private static final long CYCLE_NANOS = (long) (CYCLE_SECONDS * 1_000_000_000L);
+    private static final double RENDER_SCALE = 8.0d;
     private static final double GRADIENT_SPAN_MULTIPLIER = 3.0d;
     private static final Stop[] STOPS = {
             new Stop(0.00d, Color.web("#0b222d")),
@@ -56,8 +57,6 @@ final class AnimatedGradientHeader extends StackPane {
         }
         canvas.setManaged(false);
         canvas.setMouseTransparent(true);
-        canvas.widthProperty().bind(widthProperty());
-        canvas.heightProperty().bind(heightProperty());
 
         Rectangle clip = new Rectangle();
         clip.widthProperty().bind(widthProperty());
@@ -79,8 +78,8 @@ final class AnimatedGradientHeader extends StackPane {
             }
         };
 
-        widthProperty().addListener((obs, oldValue, newValue) -> draw(currentPhase(System.nanoTime())));
-        heightProperty().addListener((obs, oldValue, newValue) -> draw(currentPhase(System.nanoTime())));
+        widthProperty().addListener((obs, oldValue, newValue) -> resizeCanvasAndDraw());
+        heightProperty().addListener((obs, oldValue, newValue) -> resizeCanvasAndDraw());
         sceneProperty().addListener((obs, oldScene, newScene) -> {
             if (newScene == null) {
                 animation.stop();
@@ -88,7 +87,7 @@ final class AnimatedGradientHeader extends StackPane {
                 startAnimation();
             }
         });
-        draw(0.0d);
+        resizeCanvasAndDraw();
     }
 
     /**
@@ -114,13 +113,40 @@ final class AnimatedGradientHeader extends StackPane {
     }
 
     /**
+     * Keeps the canvas layout footprint stable while rendering into a denser
+     * backing buffer to avoid visible color banding.
+     */
+    private void resizeCanvasAndDraw() {
+        double width = Math.max(1.0d, getWidth());
+        double height = Math.max(1.0d, getHeight());
+        double scaledWidth = Math.ceil(width * RENDER_SCALE);
+        double scaledHeight = Math.ceil(height * RENDER_SCALE);
+
+        if (canvas.getWidth() != scaledWidth) {
+            canvas.setWidth(scaledWidth);
+        }
+        if (canvas.getHeight() != scaledHeight) {
+            canvas.setHeight(scaledHeight);
+        }
+
+        canvas.setScaleX(1.0d / RENDER_SCALE);
+        canvas.setScaleY(1.0d / RENDER_SCALE);
+        canvas.setTranslateX(-0.5d * (scaledWidth - width));
+        canvas.setTranslateY(-0.5d * (scaledHeight - height));
+
+        draw(currentPhase(System.nanoTime()));
+    }
+
+    /**
      * Paints one frame of the moving gradient.
      *
      * @param phase normalized animation phase.
      */
     private void draw(double phase) {
-        double width = Math.max(1.0d, canvas.getWidth());
-        double height = Math.max(1.0d, canvas.getHeight());
+        double width = Math.max(1.0d, getWidth());
+        double height = Math.max(1.0d, getHeight());
+        double pixelWidth = Math.max(1.0d, canvas.getWidth());
+        double pixelHeight = Math.max(1.0d, canvas.getHeight());
         double span = width * GRADIENT_SPAN_MULTIPLIER;
         double offset = phase * span * 2.0d;
         LinearGradient gradient = new LinearGradient(
@@ -134,6 +160,9 @@ final class AnimatedGradientHeader extends StackPane {
         );
 
         GraphicsContext graphics = canvas.getGraphicsContext2D();
+        graphics.setTransform(1.0d, 0.0d, 0.0d, 1.0d, 0.0d, 0.0d);
+        graphics.clearRect(0.0d, 0.0d, pixelWidth, pixelHeight);
+        graphics.scale(RENDER_SCALE, RENDER_SCALE);
         graphics.setFill(gradient);
         graphics.fillRect(0.0d, 0.0d, width, height);
         graphics.setFill(Color.rgb(6, 23, 32, 0.18d));
