@@ -21,7 +21,7 @@ final class AnimatedGradientHeader extends StackPane {
     private static final long FRAME_INTERVAL_NANOS = 33_333_333L;
     private static final double CYCLE_SECONDS = 16.0d;
     private static final long CYCLE_NANOS = (long) (CYCLE_SECONDS * 1_000_000_000L);
-    private static final double RENDER_SCALE = 8.0d;
+    private static final double RENDER_SCALE = 4.0d;
     private static final double GRADIENT_SPAN_MULTIPLIER = 3.0d;
     private static final Stop[] STOPS = {
             new Stop(0.00d, Color.web("#0b222d")),
