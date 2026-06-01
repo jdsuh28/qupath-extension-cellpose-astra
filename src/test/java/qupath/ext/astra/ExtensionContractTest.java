@@ -11,6 +11,7 @@ import java.io.OutputStream;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -48,6 +49,84 @@ class ExtensionContractTest {
 
         assertTrue(service.isFile());
         assertEquals("qupath.ext.astra.AstraCellposeExtension", Files.readString(service.toPath()).trim());
+    }
+
+    /**
+     * Verifies public documentation presents this repository as the ASTRA
+     * QuPath installation surface and does not disclose internal repository
+     * topology.
+     *
+     * @throws Exception if public documentation cannot be read.
+     */
+    @Test
+    void publicDocsDoNotExposeInternalRepositoryTopology() throws Exception {
+        List<File> publicDocs = List.of(
+                new File(ROOT, "README.md"),
+                new File(ROOT, "RELEASE_PACKAGING.md")
+        );
+
+        for (File doc : publicDocs) {
+            String text = Files.readString(doc.toPath()).toLowerCase();
+            assertFalse(text.contains("private repo"), doc.getPath());
+            assertFalse(text.contains("private astra"), doc.getPath());
+            assertFalse(text.contains("base astra"), doc.getPath());
+            assertFalse(text.contains("base repo"), doc.getPath());
+            assertFalse(text.contains("base repository"), doc.getPath());
+            assertFalse(text.contains("sub-repository"), doc.getPath());
+            assertFalse(text.contains("broader astra"), doc.getPath());
+        }
+    }
+
+    /**
+     * Verifies generated, local, and release-vendored files are not tracked as
+     * active source in the public extension repository.
+     *
+     * @throws Exception if tracked files cannot be listed.
+     */
+    @Test
+    void trackedFilesExcludeGeneratedLocalAndVendoredRuntimeArtifacts() throws Exception {
+        List<String> violations = trackedFiles().stream()
+                .filter(path -> path.equals(".DS_Store")
+                        || path.contains("/.DS_Store")
+                        || path.contains("/._")
+                        || path.startsWith("._")
+                        || path.startsWith(".gradle/")
+                        || path.startsWith("build/")
+                        || path.startsWith("bin/")
+                        || path.startsWith("target/")
+                        || path.startsWith("out/")
+                        || path.startsWith("docs/")
+                        || path.startsWith("files/")
+                        || path.startsWith("QC/")
+                        || path.startsWith("src/main/resources/astra/"))
+                .toList();
+
+        assertTrue(violations.isEmpty(), "Forbidden tracked repository files: " + violations);
+    }
+
+    /**
+     * Verifies the validation helper is packaged as a classpath resource rather
+     * than resolved from a root-level QC folder next to an installed JAR.
+     *
+     * @throws Exception if source or helper resources cannot be inspected.
+     */
+    @Test
+    void validationMetricsHelperIsPackagedResource() throws Exception {
+        File helperResource = new File(ROOT,
+                "src/main/resources/qupath/ext/astra/qc/run-cellpose-qc.py");
+        String source = Files.readString(new File(ROOT,
+                "src/main/java/qupath/ext/astra/AstraCellpose2D.java").toPath());
+
+        assertTrue(helperResource.isFile());
+        assertFalse(new File(ROOT, "QC/run-cellpose-qc.py").exists());
+        assertTrue(source.contains("VALIDATION_METRICS_HELPER_RESOURCE = \"qupath/ext/astra/qc/run-cellpose-qc.py\""));
+        assertTrue(source.contains("extractValidationMetricsHelperFile()"));
+        assertFalse(source.contains("resolveInstalledExtensionRoot"));
+        assertFalse(source.contains("QC/run-cellpose-qc.py"));
+
+        File extracted = AstraCellpose2D.extractValidationMetricsHelperFile();
+        assertTrue(extracted.isFile());
+        assertTrue(Files.readString(extracted.toPath()).contains("Compute validation metrics"));
     }
 
     /**
@@ -92,7 +171,8 @@ class ExtensionContractTest {
         assertTrue(header.contains("AnimationTimer"));
         assertTrue(header.contains("CycleMethod.REPEAT"));
         assertTrue(header.contains("FRAME_INTERVAL_NANOS = 33_333_333L"));
-        assertTrue(header.contains("CYCLE_SECONDS = 24.0d"));
+        assertTrue(header.contains("CYCLE_SECONDS = 16.0d"));
+        assertTrue(header.contains("GRADIENT_SPAN_MULTIPLIER = 3.0d"));
         assertTrue(header.contains("canvas.setManaged(false)"));
         assertTrue(launcher.contains("new AnimatedGradientHeader(header)"));
         assertFalse(logView.contains("new AnimatedGradientHeader"));
@@ -116,9 +196,9 @@ class ExtensionContractTest {
 
         assertEquals(List.of("Training", "Tuning", "Validation", "Analysis>Vascular", "Analysis>Colocalization", "Analysis>One-Shot SMA AF647", "Analysis>Generate Regions"),
                 new ArrayList<>(scripts.keySet()));
-        assertEquals("astra/modules/pipelines/training/src/main/groovy/training.groovy", scripts.get("Training"));
-        assertEquals("astra/modules/pipelines/tuning/src/main/groovy/tuning.groovy", scripts.get("Tuning"));
-        assertEquals("astra/modules/pipelines/validation/src/main/groovy/validation.groovy", scripts.get("Validation"));
+        assertEquals("astra/modules/pipelines/cellpose/training/src/main/groovy/training.groovy", scripts.get("Training"));
+        assertEquals("astra/modules/pipelines/cellpose/tuning/src/main/groovy/tuning.groovy", scripts.get("Tuning"));
+        assertEquals("astra/modules/pipelines/cellpose/validation/src/main/groovy/validation.groovy", scripts.get("Validation"));
         assertEquals("astra/modules/pipelines/analysis/vascular/src/main/groovy/vascular.groovy", scripts.get("Analysis>Vascular"));
         assertEquals("astra/modules/pipelines/analysis/colocalization/src/main/groovy/colocalization.groovy", scripts.get("Analysis>Colocalization"));
         assertEquals("astra/modules/tools/sma-af647-oneshot/src/main/groovy/smaAf647Oneshot.groovy", scripts.get("Analysis>One-Shot SMA AF647"));
@@ -126,6 +206,27 @@ class ExtensionContractTest {
 
         scripts.values().forEach(path -> assertTrue(path.startsWith("astra/"), path));
         scripts.values().forEach(path -> assertFalse(path.contains("Cellpose_"), path));
+    }
+
+    /**
+     * Verifies the header sequence is GUI-manifest backed so folder structure
+     * and QuPath presentation can evolve independently.
+     */
+    @Test
+    void guiPipelineFlowUsesManifestSequenceWithSpecificAnalysisEndpoint() throws Exception {
+        ManifestSet manifests = ManifestSet.load();
+        String launcher = Files.readString(new File(ROOT,
+                "src/main/java/qupath/ext/astra/PipelineLauncher.java").toPath());
+
+        assertEquals(List.of("Training", "Tuning", "Validation", "Analysis"),
+                manifests.workflowSequence("Training"));
+        assertEquals("Training", manifests.workflowActiveLabel("Training"));
+        assertEquals(List.of("Training", "Tuning", "Validation", "Vascular"),
+                manifests.workflowSequence("Analysis>Vascular"));
+        assertEquals("Vascular", manifests.workflowActiveLabel("Analysis>Vascular"));
+        assertEquals(List.of("Generate Regions"), manifests.workflowSequence("Analysis>Generate Regions"));
+        assertTrue(launcher.contains("GuiPresentation.workflowSequence(scriptName)"));
+        assertTrue(launcher.contains("GuiPresentation.workflowActiveLabel(scriptName)"));
     }
 
     /**
@@ -141,11 +242,18 @@ class ExtensionContractTest {
 
         for (File file : inspected) {
             String path = file.getPath().replace(File.separatorChar, '/');
+            assertFalse(path.endsWith(".DS_Store"), path);
+            assertFalse(path.contains("/._"), path);
+            assertFalse(path.contains("/build/"), path);
+            assertFalse(path.contains("/.gradle/"), path);
             assertFalse(path.contains("contracts/src/test/resources"), path);
             assertFalse(path.contains("test-fixtures"), path);
             assertFalse(path.endsWith(".ome.tif"), path);
             assertFalse(path.endsWith(".ome.tiff"), path);
 
+            if (!isTextInspectionFile(path)) {
+                continue;
+            }
             String text = Files.readString(file.toPath());
             if (!isVendoredTestSource(path)) {
                 assertFalse(text.contains("contracts/src/test/resources"), file.getPath());
@@ -205,8 +313,12 @@ class ExtensionContractTest {
             Path resource = tempDir.resolve(ManifestSet.BUNDLED_ROOT).resolve(name);
             Files.createDirectories(resource.getParent());
             Path vendored = Path.of("src/main/resources").resolve(ManifestSet.BUNDLED_ROOT).resolve(name);
+            Path testFixture = Path.of("src/test/resources").resolve(ManifestSet.BUNDLED_ROOT).resolve(name);
             Path localBase = localRoot.resolve(name);
-            Files.copy(Files.isRegularFile(vendored) ? vendored : localBase, resource);
+            Path source = Files.isRegularFile(vendored) ? vendored
+                    : Files.isRegularFile(testFixture) ? testFixture
+                    : localBase;
+            Files.copy(source, resource);
         }
 
         try (URLClassLoader loader = new URLClassLoader(new java.net.URL[]{tempDir.toUri().toURL()}, null)) {
@@ -214,7 +326,7 @@ class ExtensionContractTest {
 
             assertEquals(1.0, manifests.root().get("index") instanceof Map<?, ?> index ? index.get("schemaVersion") : null);
             assertTrue(manifests.runnable("colocalization").isPresent());
-            assertEquals("astra/modules/pipelines/training/src/main/groovy/training.groovy",
+            assertEquals("astra/modules/pipelines/cellpose/training/src/main/groovy/training.groovy",
                     manifests.scriptResources().get("Training"));
         }
     }
@@ -225,8 +337,8 @@ class ExtensionContractTest {
      */
     @Test
     void runtimeInstallerUsesDeterministicRuntime() {
-        assertEquals("v4.0.8+astra.3", RuntimeInstaller.DEFAULT_CELLPOSE_REF);
-        assertEquals("git+https://github.com/jdsuh28/cellpose-astra.git@v4.0.8+astra.3",
+        assertEquals("v4.1.1+astra.1", RuntimeInstaller.DEFAULT_CELLPOSE_REF);
+        assertEquals("git+https://github.com/jdsuh28/cellpose-astra.git@v4.1.1+astra.1",
                 RuntimeInstaller.cellposePackageSpec());
         assertEquals("cellpose-astra", RuntimeInstaller.runtimeDirectory().getName());
         assertTrue(RuntimeInstaller.runtimePythonExecutable(new File("runtime")).getPath().contains("runtime"));
@@ -256,8 +368,9 @@ class ExtensionContractTest {
         assertTrue(joined.contains("import numpy"));
         assertTrue(joined.contains("import torch"));
         assertTrue(joined.contains("import cellpose"));
+        assertTrue(joined.contains("import cellpose, cellpose.astra"));
         assertTrue(joined.contains("astra"));
-        assertTrue(joined.contains("-m, cellpose, --version"));
+        assertTrue(joined.contains("-m, cellpose.astra, --version"));
         assertFalse(joined.contains("segment_anything"));
     }
 
@@ -391,6 +504,9 @@ class ExtensionContractTest {
         assertEquals(new File(root, "models"), AstraCellpose2D.trainingArtifactReturnValue(root));
         assertTrue(runtime.contains("cellposeArguments.add(\"--model_save_root\")"));
         assertTrue(runtime.contains("cellposeArguments.add(this.groundTruthDirectory.getAbsolutePath())"));
+        assertTrue(runtime.contains("private static final String ASTRA_CELLPOSE_MODULE = \"cellpose.astra\""));
+        assertEquals(2, countOccurrences(runtime, "\"-m\", ASTRA_CELLPOSE_MODULE"));
+        assertFalse(runtime.contains("\"-m\", \"cellpose\""));
         assertTrue(runtime.contains("return trainingArtifactReturnValue(this.groundTruthDirectory);"));
         assertTrue(builder.contains("persistTrainingArtifacts(boolean persist)"));
         assertTrue(builder.contains("runtime.setPersistTrainingArtifacts(persistTrainingArtifacts);"));
@@ -641,6 +757,12 @@ class ExtensionContractTest {
                 continue;
             }
             try {
+                String path = file.getPath().replace(File.separatorChar, '/');
+                assertFalse(path.endsWith(".DS_Store"), path);
+                assertFalse(path.contains("/._"), path);
+                if (!isTextInspectionFile(path)) {
+                    continue;
+                }
                 String text = Files.readString(file.toPath());
                 assertFalse(text.contains("_archive/"), file.getPath());
                 assertFalse(text.contains("_legacy/"), file.getPath());
@@ -675,6 +797,40 @@ class ExtensionContractTest {
         }
     }
 
+    /**
+     * Returns true for text files that source-hygiene tests should inspect for
+     * literal stale-path references.
+     *
+     * @param path normalized repository path.
+     * @return true if the file is a text source/config/resource.
+     */
+    private static boolean isTextInspectionFile(String path) {
+        return path.endsWith(".java")
+                || path.endsWith(".groovy")
+                || path.endsWith(".kts")
+                || path.endsWith(".properties")
+                || path.endsWith(".py")
+                || path.endsWith(".gitkeep")
+                || path.contains("/META-INF/services/");
+    }
+
+    /**
+     * Lists repository-tracked files using Git.
+     *
+     * @return tracked repository paths.
+     * @throws Exception if Git cannot list tracked files.
+     */
+    private static List<String> trackedFiles() throws Exception {
+        Process process = new ProcessBuilder("git", "ls-files")
+                .directory(ROOT)
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        int exitCode = process.waitFor();
+        assertEquals(0, exitCode, output);
+        return output.lines().toList();
+    }
+
     private static boolean hasConstant(List<?> constants, String name) throws Exception {
         for (Object constant : constants) {
             Field field = constant.getClass().getDeclaredField("name");
@@ -684,6 +840,16 @@ class ExtensionContractTest {
             }
         }
         return false;
+    }
+
+    private static int countOccurrences(String text, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = text.indexOf(needle, index)) >= 0) {
+            count++;
+            index += needle.length();
+        }
+        return count;
     }
 
     @SuppressWarnings("unchecked")

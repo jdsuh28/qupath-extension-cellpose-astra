@@ -46,7 +46,7 @@ import java.util.concurrent.TimeUnit;
 final class RuntimeInstaller {
 
     static final String ASTRA_CELLPOSE_REPO = "https://github.com/jdsuh28/cellpose-astra.git";
-    static final String DEFAULT_CELLPOSE_REF = "v4.0.8+astra.3";
+    static final String DEFAULT_CELLPOSE_REF = "v4.1.1+astra.1";
     static final String ENVIRONMENT_NAME = "cellpose-astra";
     static final String PYTHON_VERSION = "3.10";
 
@@ -219,8 +219,8 @@ final class RuntimeInstaller {
                 List.of(py, "-c", "import numpy; print('numpy', numpy.__version__)"),
                 List.of(py, "-c", "import torch; print('torch', torch.__version__)"),
                 List.of(py, "-c", "import cellpose; from cellpose.version import version_str; assert 'astra' in version_str.lower(), version_str; print('cellpose', version_str)"),
-                List.of(py, "-c", "import cellpose, torch, numpy; print('ASTRA runtime import validation OK')"),
-                List.of(py, "-m", "cellpose", "--version")
+                List.of(py, "-c", "import cellpose, cellpose.astra, torch, numpy; print('ASTRA runtime import validation OK')"),
+                List.of(py, "-m", "cellpose.astra", "--version")
         );
     }
 
@@ -311,7 +311,7 @@ final class RuntimeInstaller {
      * Verifies that the runtime passes all required startup checks before it is
      * accepted: Python executable version, NumPy import/version, torch
      * import/version, Cellpose-ASTRA fork marker, combined import validation,
-     * and Cellpose startup/version command.
+     * and ASTRA Cellpose startup/version command.
      *
      * @param python runtime Python executable.
      * @throws IOException if any validation command fails.

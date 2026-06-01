@@ -19,15 +19,22 @@ import javafx.scene.shape.Rectangle;
 final class AnimatedGradientHeader extends StackPane {
 
     private static final long FRAME_INTERVAL_NANOS = 33_333_333L;
-    private static final double CYCLE_SECONDS = 24.0d;
+    private static final double CYCLE_SECONDS = 16.0d;
     private static final long CYCLE_NANOS = (long) (CYCLE_SECONDS * 1_000_000_000L);
+    private static final double GRADIENT_SPAN_MULTIPLIER = 3.0d;
     private static final Stop[] STOPS = {
             new Stop(0.00d, Color.web("#0b222d")),
-            new Stop(0.18d, Color.web("#103542")),
-            new Stop(0.34d, Color.web("#15535a")),
+            new Stop(0.08d, Color.web("#0d2b38")),
+            new Stop(0.16d, Color.web("#103542")),
+            new Stop(0.24d, Color.web("#12444d")),
+            new Stop(0.32d, Color.web("#15535a")),
+            new Stop(0.40d, Color.web("#1d6062")),
             new Stop(0.50d, Color.web("#286d68")),
-            new Stop(0.66d, Color.web("#1b5666")),
-            new Stop(0.82d, Color.web("#123642")),
+            new Stop(0.60d, Color.web("#226466")),
+            new Stop(0.68d, Color.web("#1b5666")),
+            new Stop(0.76d, Color.web("#164858")),
+            new Stop(0.84d, Color.web("#123642")),
+            new Stop(0.92d, Color.web("#0d2b38")),
             new Stop(1.00d, Color.web("#0b222d"))
     };
 
@@ -114,11 +121,12 @@ final class AnimatedGradientHeader extends StackPane {
     private void draw(double phase) {
         double width = Math.max(1.0d, canvas.getWidth());
         double height = Math.max(1.0d, canvas.getHeight());
-        double offset = phase * width * 2.0d;
+        double span = width * GRADIENT_SPAN_MULTIPLIER;
+        double offset = phase * span * 2.0d;
         LinearGradient gradient = new LinearGradient(
-                -width + offset,
+                -span + offset,
                 0.0d,
-                width + offset,
+                span + offset,
                 0.0d,
                 false,
                 CycleMethod.REPEAT,

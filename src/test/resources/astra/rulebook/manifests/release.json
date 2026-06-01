@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "sourcePath": "rulebook/manifests/release.json",
+  "astraTag": "v0.1.95",
+  "extension": {
+    "repo": "jdsuh28/qupath-extension-cellpose-astra",
+    "sourceRef": "c79d4e3637a30941269908c51365ed6f16ceba41",
+    "targetBranch": "main",
+    "releaseTag": "v0.12.0+astra.95"
+  },
+  "catalog": {
+    "repo": "jdsuh28/qupath-astra-catalog",
+    "baseRef": "d59e0faa0093c5e92eb7dcc8a59728314846da94",
+    "targetBranch": "main",
+    "releaseTag": "${astra_tag}"
+  },
+  "cellposeAstra": {
+    "repo": "jdsuh28/cellpose-astra",
+    "baseRef": "v4.1.1+astra.1"
+  },
+  "packaging": {
+    "resourceDestination": "extension/src/main/resources/astra",
+    "vendoredFolders": [
+      "modules",
+      "rulebook/manifests"
+    ],
+    "excludedVendoredPatterns": [
+      "build/",
+      ".gradle/",
+      ".DS_Store"
+    ],
+    "forbiddenBundledPathPatterns": [
+      "(^|/)build/",
+      "(^|/)\\.gradle/",
+      "(^|/)\\.DS_Store$"
+    ],
+    "requiredBundledRoots": [
+      "astra/modules/pipelines/",
+      "astra/modules/pipelines/cellpose/",
+      "astra/modules/pipelines/analysis/",
+      "astra/modules/shared/",
+      "astra/modules/tools/",
+      "astra/rulebook/manifests/"
+    ],
+    "obfuscation": {
+      "enabled": false,
+      "mode": "none",
+      "scope": "compiled extension bytecode only",
+      "resourceProtection": "not-protected"
+    },
+    "requiredBundledResources": [
+      "astra/modules/pipelines/cellpose/training/src/main/groovy/training.groovy",
+      "astra/modules/pipelines/cellpose/tuning/src/main/groovy/tuning.groovy",
+      "astra/modules/pipelines/cellpose/validation/src/main/groovy/validation.groovy",
+      "astra/modules/pipelines/analysis/vascular/src/main/groovy/vascular.groovy",
+      "astra/modules/pipelines/analysis/colocalization/src/main/groovy/colocalization.groovy",
+      "astra/modules/tools/sma-af647-oneshot/src/main/groovy/smaAf647Oneshot.groovy",
+      "astra/modules/tools/generate-regions/src/main/groovy/generateRegions.groovy",
+      "astra/rulebook/manifests/index.json",
+      "astra/rulebook/manifests/runtime.json",
+      "astra/rulebook/manifests/modules.json",
+      "astra/rulebook/manifests/inputs.json",
+      "astra/rulebook/manifests/gui.json",
+      "astra/rulebook/manifests/outputs.json",
+      "astra/rulebook/manifests/release.json",
+      "qupath/ext/astra/release/runtime.properties"
+    ]
+  }
+}

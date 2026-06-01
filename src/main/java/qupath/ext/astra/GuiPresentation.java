@@ -54,6 +54,18 @@ final class GuiPresentation {
         return !MANIFESTS.headerActions(pipelineName).isEmpty();
     }
 
+    static List<String> workflowSequence(String pipelineName) {
+        return MANIFESTS.workflowSequence(pipelineName);
+    }
+
+    static String workflowActiveLabel(String pipelineName) {
+        return MANIFESTS.workflowActiveLabel(pipelineName);
+    }
+
+    static String description(String pipelineName) {
+        return MANIFESTS.description(pipelineName);
+    }
+
     static String displayOption(String option) {
         if (option == null || option.isBlank()) {
             return "";

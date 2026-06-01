@@ -1659,8 +1659,14 @@ final class PipelineLauncher {
     private static Node createPipelineFlow(String scriptName) {
         HBox flow = new HBox(8.0);
         flow.setAlignment(Pos.CENTER_LEFT);
-        List<String> stages = List.of("Training", "Tuning", "Validation", "Analysis");
-        String active = pipelineStage(scriptName);
+        List<String> stages = GuiPresentation.workflowSequence(scriptName);
+        if (stages.isEmpty()) {
+            stages = List.of("Training", "Tuning", "Validation", pipelineStage(scriptName));
+        }
+        String active = GuiPresentation.workflowActiveLabel(scriptName);
+        if (active.isBlank()) {
+            active = pipelineStage(scriptName);
+        }
         for (int i = 0; i < stages.size(); i++) {
             String stage = stages.get(i);
             Label chip = new Label(stage);
@@ -2420,6 +2426,10 @@ final class PipelineLauncher {
     }
 
     private static String descriptionFor(String scriptName) {
+        String manifestDescription = GuiPresentation.description(scriptName);
+        if (!manifestDescription.isBlank()) {
+            return manifestDescription;
+        }
         return switch (pipelineStage(scriptName)) {
             case "Training" -> "Build Cellpose-SAM models from curated QuPath training annotations.";
             case "Tuning" -> "Search parameter sets against validation annotations and save auditable best parameters.";

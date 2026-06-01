@@ -52,9 +52,11 @@ import qupath.lib.images.writers.ImageWriterTools;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.nio.file.Path;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -91,8 +93,9 @@ public class AstraCellpose2D extends Cellpose2D {
     private static final String RUNTIME_PYTHON_PATH_KEY = "qupath.ext.astra.runtimePythonPath";
     private static final String RUNTIME_PYTHON_PATH_NAME =
             "Automated Structural Tissue Research and Analysis (ASTRA) > Cellpose Runtime Python Executable";
+    private static final String ASTRA_CELLPOSE_MODULE = "cellpose.astra";
 
-    private static final String VALIDATION_METRICS_HELPER_RELATIVE_PATH = "QC/run-cellpose-qc.py";
+    private static final String VALIDATION_METRICS_HELPER_RESOURCE = "qupath/ext/astra/qc/run-cellpose-qc.py";
 
     private File validationDirectory;
     private File resultsDirectory;
@@ -480,8 +483,7 @@ public class AstraCellpose2D extends Cellpose2D {
         File validationResultsDirectory = getValidationResultsDirectory();
         ensureDirectoryExists(validationResultsDirectory);
 
-        File extensionRoot = resolveInstalledExtensionRoot();
-        File validationMetricsHelperFile = resolveValidationMetricsHelperFile(extensionRoot);
+        File validationMetricsHelperFile = extractValidationMetricsHelperFile();
         if (!validationMetricsHelperFile.isFile()) {
             throw new IOException("ASTRA validation metrics helper script was not found: " + validationMetricsHelperFile.getAbsolutePath());
         }
@@ -1033,7 +1035,7 @@ public class AstraCellpose2D extends Cellpose2D {
     private void runTrainingCommand() throws IOException, InterruptedException {
         VirtualEnvironmentRunner veRunner = createRuntimeRunner();
 
-        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", "cellpose"));
+        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", ASTRA_CELLPOSE_MODULE));
         cellposeArguments.add("--train");
         cellposeArguments.add("--dir");
         cellposeArguments.add(getTrainingDirectory().getAbsolutePath());
@@ -1140,7 +1142,7 @@ public class AstraCellpose2D extends Cellpose2D {
     private void runCellposeInDirectory(File inputDirectory, String executionModelReference, List<TileFile> allTiles) throws IOException, InterruptedException {
         VirtualEnvironmentRunner veRunner = createRuntimeRunner();
 
-        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", "cellpose"));
+        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", ASTRA_CELLPOSE_MODULE));
         cellposeArguments.add("--dir");
         cellposeArguments.add(inputDirectory.getAbsolutePath());
         cellposeArguments.add("--pretrained_model");
@@ -1853,31 +1855,17 @@ public class AstraCellpose2D extends Cellpose2D {
         return ensureSubdirectoryExists(root, "training");
     }
 
-    static File resolveValidationMetricsHelperFile(File extensionDir) {
-        Objects.requireNonNull(extensionDir, "extensionDir");
-        return new File(extensionDir, VALIDATION_METRICS_HELPER_RELATIVE_PATH);
-    }
-
-    private static File resolveInstalledExtensionRoot() throws IOException {
-        List<File> extensionDirectories = QuPathGUI.getExtensionCatalogManager()
-                .getCatalogManagedInstalledJars()
-                .stream()
-                .map(Path::getParent)
-                .filter(Objects::nonNull)
-                .map(Path::toString)
-                .map(File::new)
-                .distinct()
-                .sorted(Comparator.comparing(File::getAbsolutePath))
-                .filter(dir -> new File(dir, VALIDATION_METRICS_HELPER_RELATIVE_PATH).isFile())
-                .collect(Collectors.toList());
-
-        if (extensionDirectories.isEmpty()) {
-            throw new IOException("ASTRA validation could not locate an installed extension directory containing " + VALIDATION_METRICS_HELPER_RELATIVE_PATH + ".");
+    static File extractValidationMetricsHelperFile() throws IOException {
+        ClassLoader loader = AstraCellpose2D.class.getClassLoader();
+        try (InputStream input = loader.getResourceAsStream(VALIDATION_METRICS_HELPER_RESOURCE)) {
+            if (input == null) {
+                throw new IOException("ASTRA validation metrics helper resource was not found: " + VALIDATION_METRICS_HELPER_RESOURCE);
+            }
+            File helperFile = File.createTempFile("astra-validation-metrics-", ".py");
+            helperFile.deleteOnExit();
+            Files.copy(input, helperFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            return helperFile;
         }
-        if (extensionDirectories.size() > 1) {
-            throw new IOException("ASTRA validation found multiple installed extension directories containing " + VALIDATION_METRICS_HELPER_RELATIVE_PATH + ": " + extensionDirectories);
-        }
-        return extensionDirectories.get(0);
     }
 
     private static void requireSuccessfulProcessExit(VirtualEnvironmentRunner runner, String label) throws IOException, InterruptedException {
