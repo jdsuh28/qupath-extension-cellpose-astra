@@ -2,31 +2,32 @@ package qupath.ext.astra;
 
 import java.nio.IntBuffer;
 
-import javafx.animation.AnimationTimer;
+import javafx.animation.Animation;
+import javafx.animation.Interpolator;
+import javafx.animation.TranslateTransition;
 import javafx.scene.Node;
-import javafx.scene.canvas.Canvas;
-import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.image.ImageView;
 import javafx.scene.image.PixelFormat;
 import javafx.scene.image.WritableImage;
 import javafx.scene.image.WritablePixelFormat;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.Stop;
 import javafx.scene.shape.Rectangle;
+import javafx.util.Duration;
 
 /**
- * Header container that paints a slow, continuous horizontal gradient behind
- * static header content.
+ * Header container that moves a cached gradient strip behind static header
+ * content.
  */
 final class AnimatedGradientHeader extends StackPane {
 
-    private static final long FRAME_INTERVAL_NANOS = 66_666_667L;
     private static final double CYCLE_SECONDS = 16.0d;
-    private static final long CYCLE_NANOS = (long) (CYCLE_SECONDS * 1_000_000_000L);
-    private static final double TEXTURE_SCALE = 2.0d;
+    private static final double TEXTURE_SCALE = 3.0d;
     private static final double GRADIENT_SPAN_MULTIPLIER = 3.0d;
-    private static final int TEXTURE_MAX_PIXEL_HEIGHT = 96;
+    private static final int TEXTURE_MAX_PIXEL_HEIGHT = 128;
     private static final double DITHER_AMPLITUDE = 1.2d / 255.0d;
     private static final double OVERLAY_ALPHA = 0.18d;
     private static final Color OVERLAY_COLOR = Color.rgb(6, 23, 32);
@@ -47,14 +48,11 @@ final class AnimatedGradientHeader extends StackPane {
             new Stop(1.00d, Color.web("#0b222d"))
     };
 
-    private final Canvas canvas = new Canvas();
-    private final AnimationTimer animation;
-    private WritableImage gradientTexture;
-    private double textureLogicalWidth;
-    private int texturePixelWidth;
-    private int texturePixelHeight;
-    private long animationStartNanos;
-    private long lastFrameNanos;
+    private final Pane stripLayer = new Pane();
+    private final ImageView leadingStrip = new ImageView();
+    private final ImageView trailingStrip = new ImageView();
+    private final TranslateTransition animation = new TranslateTransition(Duration.seconds(CYCLE_SECONDS), stripLayer);
+    private double stripLogicalWidth;
 
     /**
      * Creates a header with animated gradient paint behind the supplied content.
@@ -67,8 +65,12 @@ final class AnimatedGradientHeader extends StackPane {
         if (content instanceof Region region) {
             region.setMaxWidth(Double.MAX_VALUE);
         }
-        canvas.setManaged(false);
-        canvas.setMouseTransparent(true);
+
+        stripLayer.setManaged(false);
+        stripLayer.setMouseTransparent(true);
+        configureImageView(leadingStrip);
+        configureImageView(trailingStrip);
+        stripLayer.getChildren().addAll(leadingStrip, trailingStrip);
 
         Rectangle clip = new Rectangle();
         clip.widthProperty().bind(widthProperty());
@@ -77,21 +79,13 @@ final class AnimatedGradientHeader extends StackPane {
         clip.setArcHeight(12.0d);
         setClip(clip);
 
-        getChildren().addAll(canvas, content);
+        animation.setInterpolator(Interpolator.LINEAR);
+        animation.setCycleCount(Animation.INDEFINITE);
 
-        animation = new AnimationTimer() {
-            @Override
-            public void handle(long now) {
-                if (now - lastFrameNanos < FRAME_INTERVAL_NANOS) {
-                    return;
-                }
-                lastFrameNanos = now;
-                draw(currentPhase(now));
-            }
-        };
+        getChildren().addAll(stripLayer, content);
 
-        widthProperty().addListener((obs, oldValue, newValue) -> resizeCanvasAndDraw());
-        heightProperty().addListener((obs, oldValue, newValue) -> resizeCanvasAndDraw());
+        widthProperty().addListener((obs, oldValue, newValue) -> rebuildGradientStrip());
+        heightProperty().addListener((obs, oldValue, newValue) -> rebuildGradientStrip());
         sceneProperty().addListener((obs, oldScene, newScene) -> {
             if (newScene == null) {
                 animation.stop();
@@ -99,124 +93,85 @@ final class AnimatedGradientHeader extends StackPane {
                 startAnimation();
             }
         });
-        resizeCanvasAndDraw();
+        rebuildGradientStrip();
+    }
+
+    private static void configureImageView(ImageView imageView) {
+        imageView.setManaged(false);
+        imageView.setMouseTransparent(true);
+        imageView.setPreserveRatio(false);
+        imageView.setSmooth(true);
+        imageView.setCache(true);
     }
 
     /**
-     * Starts the animation from the current moment.
+     * Generates one seamless gradient strip and positions a second copy after it
+     * so translation can loop without repainting pixels each frame.
      */
-    private void startAnimation() {
-        animationStartNanos = System.nanoTime();
-        lastFrameNanos = 0L;
-        animation.start();
-    }
-
-    /**
-     * Computes the current animation phase.
-     *
-     * @param now current monotonic time.
-     * @return normalized phase in the range [0, 1).
-     */
-    private double currentPhase(long now) {
-        if (animationStartNanos == 0L) {
-            return 0.0d;
-        }
-        return ((now - animationStartNanos) % CYCLE_NANOS) / (double) CYCLE_NANOS;
-    }
-
-    /**
-     * Keeps the visible canvas at logical size and rebuilds the cached gradient
-     * texture only when layout changes.
-     */
-    private void resizeCanvasAndDraw() {
+    private void rebuildGradientStrip() {
         double width = Math.max(1.0d, getWidth());
         double height = Math.max(1.0d, getHeight());
-        if (canvas.getWidth() != width) {
-            canvas.setWidth(width);
-        }
-        if (canvas.getHeight() != height) {
-            canvas.setHeight(height);
-        }
+        stripLayer.resizeRelocate(0.0d, 0.0d, width, height);
 
-        canvas.setScaleX(1.0d);
-        canvas.setScaleY(1.0d);
-        canvas.setTranslateX(0.0d);
-        canvas.setTranslateY(0.0d);
+        stripLogicalWidth = Math.max(width + 1.0d, width * GRADIENT_SPAN_MULTIPLIER);
+        WritableImage texture = createGradientTexture(stripLogicalWidth, height);
 
-        rebuildGradientTexture(width, height);
-        draw(currentPhase(System.nanoTime()));
+        configureStrip(leadingStrip, texture, 0.0d, height);
+        configureStrip(trailingStrip, texture, stripLogicalWidth, height);
+
+        animation.stop();
+        stripLayer.setTranslateX(0.0d);
+        animation.setFromX(0.0d);
+        animation.setToX(-stripLogicalWidth);
+        if (getScene() != null) {
+            startAnimation();
+        }
+    }
+
+    private void configureStrip(ImageView imageView, WritableImage texture, double layoutX, double height) {
+        imageView.setImage(texture);
+        imageView.setLayoutX(layoutX);
+        imageView.setLayoutY(0.0d);
+        imageView.setFitWidth(stripLogicalWidth);
+        imageView.setFitHeight(height);
+    }
+
+    private void startAnimation() {
+        animation.stop();
+        stripLayer.setTranslateX(0.0d);
+        animation.playFromStart();
     }
 
     /**
-     * Generates one seamless gradient cycle as a cached raster texture. The
-     * deterministic dither breaks color bands without adding animated noise.
+     * Generates a cached raster texture. The deterministic dither breaks color
+     * bands without adding animated noise.
      */
-    private void rebuildGradientTexture(double width, double height) {
-        textureLogicalWidth = Math.max(1.0d, width * GRADIENT_SPAN_MULTIPLIER * 2.0d);
-        texturePixelWidth = Math.max(2, (int) Math.ceil(textureLogicalWidth * TEXTURE_SCALE));
-        texturePixelHeight = Math.max(2, Math.min(TEXTURE_MAX_PIXEL_HEIGHT, (int) Math.ceil(height * TEXTURE_SCALE)));
-        gradientTexture = new WritableImage(texturePixelWidth, texturePixelHeight);
+    private static WritableImage createGradientTexture(double logicalWidth, double logicalHeight) {
+        int pixelWidth = Math.max(2, (int) Math.ceil(logicalWidth * TEXTURE_SCALE));
+        int pixelHeight = Math.max(2, Math.min(TEXTURE_MAX_PIXEL_HEIGHT, (int) Math.ceil(logicalHeight * TEXTURE_SCALE)));
+        WritableImage texture = new WritableImage(pixelWidth, pixelHeight);
 
-        double[] red = new double[texturePixelWidth];
-        double[] green = new double[texturePixelWidth];
-        double[] blue = new double[texturePixelWidth];
-        for (int x = 0; x < texturePixelWidth; x++) {
-            double position = x / (double) Math.max(1, texturePixelWidth - 1);
+        double[] red = new double[pixelWidth];
+        double[] green = new double[pixelWidth];
+        double[] blue = new double[pixelWidth];
+        for (int x = 0; x < pixelWidth; x++) {
+            double position = x / (double) Math.max(1, pixelWidth - 1);
             Color base = colorAt(position);
             red[x] = overlay(base.getRed(), OVERLAY_COLOR.getRed());
             green[x] = overlay(base.getGreen(), OVERLAY_COLOR.getGreen());
             blue[x] = overlay(base.getBlue(), OVERLAY_COLOR.getBlue());
         }
 
-        int[] row = new int[texturePixelWidth];
-        var writer = gradientTexture.getPixelWriter();
-        for (int y = 0; y < texturePixelHeight; y++) {
-            for (int x = 0; x < texturePixelWidth; x++) {
+        int[] row = new int[pixelWidth];
+        var writer = texture.getPixelWriter();
+        for (int y = 0; y < pixelHeight; y++) {
+            for (int x = 0; x < pixelWidth; x++) {
                 double dither = dither(x, y);
                 row[x] = argb(red[x] + dither, green[x] + dither, blue[x] + dither);
             }
-            writer.setPixels(0, y, texturePixelWidth, 1, ARGB_FORMAT, row, 0, texturePixelWidth);
+            writer.setPixels(0, y, pixelWidth, 1, ARGB_FORMAT, row, 0, pixelWidth);
         }
-    }
-
-    /**
-     * Paints one frame of the moving gradient.
-     *
-     * @param phase normalized animation phase.
-     */
-    private void draw(double phase) {
-        double width = Math.max(1.0d, getWidth());
-        double height = Math.max(1.0d, getHeight());
-
-        GraphicsContext graphics = canvas.getGraphicsContext2D();
-        graphics.setTransform(1.0d, 0.0d, 0.0d, 1.0d, 0.0d, 0.0d);
-        if (gradientTexture == null || textureLogicalWidth <= 0.0d) {
-            graphics.clearRect(0.0d, 0.0d, width, height);
-            return;
-        }
-
-        double sourceX = (phase * textureLogicalWidth) % textureLogicalWidth;
-        double destinationX = 0.0d;
-        double remaining = width;
-        while (remaining > 0.0d) {
-            double segmentWidth = Math.min(remaining, textureLogicalWidth - sourceX);
-            double sourcePixelX = sourceX * texturePixelWidth / textureLogicalWidth;
-            double sourcePixelWidth = Math.max(1.0d, segmentWidth * texturePixelWidth / textureLogicalWidth);
-            graphics.drawImage(
-                    gradientTexture,
-                    sourcePixelX,
-                    0.0d,
-                    sourcePixelWidth,
-                    texturePixelHeight,
-                    destinationX,
-                    0.0d,
-                    segmentWidth,
-                    height
-            );
-            remaining -= segmentWidth;
-            destinationX += segmentWidth;
-            sourceX = 0.0d;
-        }
+        return texture;
     }
 
     private static Color colorAt(double position) {
