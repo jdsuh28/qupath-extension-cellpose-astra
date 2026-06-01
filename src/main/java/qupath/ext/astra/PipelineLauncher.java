@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
 import javafx.application.Platform;
+import javafx.beans.property.StringProperty;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -14,9 +15,11 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.CustomMenuItem;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.MenuButton;
 import javafx.stage.FileChooser;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
@@ -26,6 +29,8 @@ import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
@@ -43,6 +48,7 @@ import qupath.lib.common.ColorTools;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.logging.LogManager;
 import qupath.lib.gui.logging.TextAppendable;
+import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.gui.scripting.languages.GroovyLanguage;
 import qupath.lib.gui.scripting.QPEx;
 import qupath.lib.images.servers.ImageChannel;
@@ -116,6 +122,12 @@ final class PipelineLauncher {
     private static final double PARAMETER_ROW_GAP = 8.0;
     private static final double SECTION_CONTENT_GAP = 9.0;
     private static final double CARD_CONTENT_GAP = 8.0;
+    private static final String HEADER_MODE_PREFERENCE_KEY = "qupath.ext.astra.headerMode";
+    private static final String HEADER_MOTION_PREFERENCE_KEY = "qupath.ext.astra.headerMotion";
+    private static final StringProperty HEADER_MODE_PREFERENCE =
+            PathPrefs.createPersistentPreference(HEADER_MODE_PREFERENCE_KEY, AnimatedGradientHeader.HeaderMode.DYNAMIC.name());
+    private static final StringProperty HEADER_MOTION_PREFERENCE =
+            PathPrefs.createPersistentPreference(HEADER_MOTION_PREFERENCE_KEY, AnimatedGradientHeader.MotionSpeed.SMOOTH.name());
     private static final Gson PROFILE_GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private PipelineLauncher() {
@@ -1087,6 +1099,9 @@ final class PipelineLauncher {
         subtitle.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-text-fill: #e3f4f1;");
         header.getChildren().addAll(titleRow, subtitle, createPipelineFlow(scriptName));
         AnimatedGradientHeader animatedHeader = new AnimatedGradientHeader(header);
+        Region titleSpacer = new Region();
+        HBox.setHgrow(titleSpacer, Priority.ALWAYS);
+        titleRow.getChildren().addAll(titleSpacer, createHeaderOptionsMenu(animatedHeader));
 
         VBox body = new VBox(14.0);
         body.setPadding(new Insets(0, 0, 18.0, 0));
@@ -1684,6 +1699,128 @@ final class PipelineLauncher {
             }
         }
         return flow;
+    }
+
+    private static Node createHeaderOptionsMenu(AnimatedGradientHeader animatedHeader) {
+        MenuButton options = new MenuButton("Options");
+        options.setFocusTraversable(false);
+        options.setStyle(settingsHeaderButtonStyle());
+        options.setTooltip(new Tooltip("Header display options."));
+
+        ToggleButton staticMode = headerSegmentButton("Static");
+        ToggleButton dynamicMode = headerSegmentButton("Dynamic");
+        ToggleGroup modeGroup = new ToggleGroup();
+        staticMode.setToggleGroup(modeGroup);
+        dynamicMode.setToggleGroup(modeGroup);
+        staticMode.setUserData(AnimatedGradientHeader.HeaderMode.STATIC);
+        dynamicMode.setUserData(AnimatedGradientHeader.HeaderMode.DYNAMIC);
+
+        ToggleButton slow = headerSegmentButton(AnimatedGradientHeader.MotionSpeed.SLOW.label());
+        ToggleButton smooth = headerSegmentButton(AnimatedGradientHeader.MotionSpeed.SMOOTH.label());
+        ToggleButton lively = headerSegmentButton(AnimatedGradientHeader.MotionSpeed.LIVELY.label());
+        ToggleGroup speedGroup = new ToggleGroup();
+        slow.setToggleGroup(speedGroup);
+        smooth.setToggleGroup(speedGroup);
+        lively.setToggleGroup(speedGroup);
+        slow.setUserData(AnimatedGradientHeader.MotionSpeed.SLOW);
+        smooth.setUserData(AnimatedGradientHeader.MotionSpeed.SMOOTH);
+        lively.setUserData(AnimatedGradientHeader.MotionSpeed.LIVELY);
+
+        HBox modeRow = headerSegmentRow("Header", staticMode, dynamicMode);
+        HBox motionRow = headerSegmentRow("Motion", slow, smooth, lively);
+        VBox menuContent = new VBox(8.0, modeRow, motionRow);
+        menuContent.setPadding(new Insets(8.0));
+        menuContent.setStyle("-fx-background-color: white; -fx-background-radius: 6; -fx-border-color: #bfd3d8; -fx-border-radius: 6;");
+
+        AnimatedGradientHeader.HeaderMode initialMode = headerModePreference();
+        AnimatedGradientHeader.MotionSpeed initialSpeed = headerMotionPreference();
+        modeGroup.selectToggle(initialMode == AnimatedGradientHeader.HeaderMode.STATIC ? staticMode : dynamicMode);
+        speedGroup.selectToggle(switch (initialSpeed) {
+            case SLOW -> slow;
+            case SMOOTH -> smooth;
+            case LIVELY -> lively;
+        });
+        animatedHeader.setHeaderMode(initialMode);
+        animatedHeader.setMotionSpeed(initialSpeed);
+        setHeaderMotionRowEnabled(motionRow, initialMode == AnimatedGradientHeader.HeaderMode.DYNAMIC);
+
+        modeGroup.selectedToggleProperty().addListener((obs, oldToggle, newToggle) -> {
+            if (newToggle == null) {
+                modeGroup.selectToggle(oldToggle == null ? dynamicMode : oldToggle);
+                return;
+            }
+            AnimatedGradientHeader.HeaderMode mode = (AnimatedGradientHeader.HeaderMode) newToggle.getUserData();
+            HEADER_MODE_PREFERENCE.set(mode.name());
+            animatedHeader.setHeaderMode(mode);
+            setHeaderMotionRowEnabled(motionRow, mode == AnimatedGradientHeader.HeaderMode.DYNAMIC);
+        });
+        speedGroup.selectedToggleProperty().addListener((obs, oldToggle, newToggle) -> {
+            if (newToggle == null) {
+                speedGroup.selectToggle(oldToggle == null ? smooth : oldToggle);
+                return;
+            }
+            AnimatedGradientHeader.MotionSpeed speed = (AnimatedGradientHeader.MotionSpeed) newToggle.getUserData();
+            HEADER_MOTION_PREFERENCE.set(speed.name());
+            animatedHeader.setMotionSpeed(speed);
+        });
+        List.of(staticMode, dynamicMode, slow, smooth, lively)
+                .forEach(button -> button.selectedProperty().addListener((obs, wasSelected, isSelected) -> styleHeaderSegmentButton(button)));
+        List.of(staticMode, dynamicMode, slow, smooth, lively).forEach(PipelineLauncher::styleHeaderSegmentButton);
+
+        options.getItems().add(new CustomMenuItem(menuContent, false));
+        return options;
+    }
+
+    private static AnimatedGradientHeader.HeaderMode headerModePreference() {
+        try {
+            return AnimatedGradientHeader.HeaderMode.valueOf(HEADER_MODE_PREFERENCE.get());
+        } catch (RuntimeException e) {
+            HEADER_MODE_PREFERENCE.set(AnimatedGradientHeader.HeaderMode.DYNAMIC.name());
+            return AnimatedGradientHeader.HeaderMode.DYNAMIC;
+        }
+    }
+
+    private static AnimatedGradientHeader.MotionSpeed headerMotionPreference() {
+        try {
+            return AnimatedGradientHeader.MotionSpeed.valueOf(HEADER_MOTION_PREFERENCE.get());
+        } catch (RuntimeException e) {
+            HEADER_MOTION_PREFERENCE.set(AnimatedGradientHeader.MotionSpeed.SMOOTH.name());
+            return AnimatedGradientHeader.MotionSpeed.SMOOTH;
+        }
+    }
+
+    private static HBox headerSegmentRow(String labelText, ToggleButton... buttons) {
+        HBox row = new HBox(7.0);
+        row.setAlignment(Pos.CENTER_LEFT);
+        Label label = new Label(labelText);
+        label.setMinWidth(52.0);
+        label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; -fx-text-fill: " + MUTED + ";");
+        HBox controls = new HBox(3.0, buttons);
+        controls.setAlignment(Pos.CENTER_LEFT);
+        row.getChildren().addAll(label, controls);
+        return row;
+    }
+
+    private static ToggleButton headerSegmentButton(String text) {
+        ToggleButton button = new ToggleButton(text);
+        button.setFocusTraversable(false);
+        button.setMinWidth(58.0);
+        button.setMinHeight(25.0);
+        return button;
+    }
+
+    private static void styleHeaderSegmentButton(ToggleButton button) {
+        boolean selected = button.isSelected();
+        button.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; " +
+                "-fx-background-color: " + (selected ? TEAL_DARK : "#edf4f5") + "; " +
+                "-fx-text-fill: " + (selected ? "white" : TEAL_DARK) + "; " +
+                "-fx-border-color: " + (selected ? TEAL_DARK : "#bfd3d8") + "; " +
+                "-fx-border-radius: 4; -fx-background-radius: 4;");
+    }
+
+    private static void setHeaderMotionRowEnabled(HBox motionRow, boolean enabled) {
+        motionRow.setDisable(!enabled);
+        motionRow.setOpacity(enabled ? 1.0d : 0.48d);
     }
 
     private static HBox labeledRow(String labelText, Node editor, double labelWidth) {

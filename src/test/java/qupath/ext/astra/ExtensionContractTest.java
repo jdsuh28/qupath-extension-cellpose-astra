@@ -173,6 +173,15 @@ class ExtensionContractTest {
         assertTrue(header.contains("TranslateTransition"));
         assertTrue(header.contains("getPixelWriter()"));
         assertTrue(header.contains("CYCLE_SECONDS = 16.0d"));
+        assertTrue(header.contains("enum HeaderMode"));
+        assertTrue(header.contains("STATIC"));
+        assertTrue(header.contains("DYNAMIC"));
+        assertTrue(header.contains("enum MotionSpeed"));
+        assertTrue(header.contains("SLOW(\"Slow\", 24.0d)"));
+        assertTrue(header.contains("SMOOTH(\"Smooth\", 16.0d)"));
+        assertTrue(header.contains("LIVELY(\"Lively\", 10.0d)"));
+        assertTrue(header.contains("void setHeaderMode(HeaderMode nextMode)"));
+        assertTrue(header.contains("void setMotionSpeed(MotionSpeed nextSpeed)"));
         assertTrue(header.contains("TEXTURE_SCALE = 3.0d"));
         assertTrue(header.contains("GRADIENT_SPAN_MULTIPLIER = 3.0d"));
         assertTrue(header.contains("TEXTURE_MAX_PIXEL_HEIGHT = 128"));

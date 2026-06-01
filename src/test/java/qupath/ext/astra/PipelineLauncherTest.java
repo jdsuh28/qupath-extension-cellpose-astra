@@ -676,6 +676,11 @@ class PipelineLauncherTest {
         assertTrue(source.contains("VBox header = new VBox(12.0);"));
         assertTrue(source.contains("VBox body = new VBox(14.0);"));
         assertTrue(source.contains("AnimatedGradientHeader animatedHeader = new AnimatedGradientHeader(header);"));
+        assertTrue(source.contains("createHeaderOptionsMenu(animatedHeader)"));
+        assertTrue(source.contains("PathPrefs.createPersistentPreference(HEADER_MODE_PREFERENCE_KEY"));
+        assertTrue(source.contains("PathPrefs.createPersistentPreference(HEADER_MOTION_PREFERENCE_KEY"));
+        assertTrue(source.contains("AnimatedGradientHeader.HeaderMode.DYNAMIC.name()"));
+        assertTrue(source.contains("AnimatedGradientHeader.MotionSpeed.SMOOTH.name()"));
         assertTrue(source.contains("VBox basic = sectionShell(\"Basic\""));
         assertTrue(source.contains("VBox advanced = sectionShell(\"Advanced\""));
         assertTrue(source.contains("Node feedbackNode = feedback.node();"));
@@ -1109,6 +1114,10 @@ class PipelineLauncherTest {
         assertTrue(source.contains("resetProject.setStyle(analysisHeaderButtonStyle())"));
         assertTrue(source.contains("export.setStyle(exportHeaderButtonStyle())"));
         assertTrue(source.contains("AnimatedGradientHeader animatedHeader = new AnimatedGradientHeader(header);"));
+        assertTrue(source.contains("new MenuButton(\"Options\")"));
+        assertTrue(source.contains("headerSegmentButton(\"Static\")"));
+        assertTrue(source.contains("headerSegmentButton(\"Dynamic\")"));
+        assertTrue(source.contains("Motion\""));
         assertFalse(source.contains("installDynamicHeaderGradient(header, scriptName)"));
         assertTrue(source.contains("Map.of(\"SCRIPT_ACTION\", \"\\\"EXPORT\\\"\")"));
         assertFalse(script.contains("MODES_TO_RUN_OPTIONS = [\"RESET\", \"DETECT_CELLS\", \"QUANTIFY\", \"EXPORT\"]"));
