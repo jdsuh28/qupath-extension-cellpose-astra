@@ -172,7 +172,7 @@ class ExtensionContractTest {
         assertTrue(header.contains("CycleMethod.REPEAT"));
         assertTrue(header.contains("FRAME_INTERVAL_NANOS = 33_333_333L"));
         assertTrue(header.contains("CYCLE_SECONDS = 16.0d"));
-        assertTrue(header.contains("RENDER_SCALE = 4.0d"));
+        assertTrue(header.contains("RENDER_SCALE = 8.0d"));
         assertTrue(header.contains("GRADIENT_SPAN_MULTIPLIER = 3.0d"));
         assertTrue(header.contains("resizeCanvasAndDraw()"));
         assertTrue(header.contains("graphics.scale(RENDER_SCALE, RENDER_SCALE)"));
