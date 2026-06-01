@@ -168,24 +168,26 @@ class ExtensionContractTest {
         String logView = Files.readString(new File(ROOT,
                 "src/main/java/qupath/ext/astra/StyledLogView.java").toPath());
 
-        assertTrue(header.contains("AnimationTimer"));
         assertTrue(header.contains("WritableImage"));
+        assertTrue(header.contains("ImageView"));
+        assertTrue(header.contains("TranslateTransition"));
         assertTrue(header.contains("getPixelWriter()"));
-        assertTrue(header.contains("FRAME_INTERVAL_NANOS = 66_666_667L"));
         assertTrue(header.contains("CYCLE_SECONDS = 16.0d"));
-        assertTrue(header.contains("TEXTURE_SCALE = 2.0d"));
+        assertTrue(header.contains("TEXTURE_SCALE = 3.0d"));
         assertTrue(header.contains("GRADIENT_SPAN_MULTIPLIER = 3.0d"));
-        assertTrue(header.contains("TEXTURE_MAX_PIXEL_HEIGHT = 96"));
+        assertTrue(header.contains("TEXTURE_MAX_PIXEL_HEIGHT = 128"));
         assertTrue(header.contains("DITHER_AMPLITUDE = 1.2d / 255.0d"));
-        assertTrue(header.contains("rebuildGradientTexture(width, height)"));
-        assertTrue(header.contains("resizeCanvasAndDraw()"));
-        assertTrue(header.contains("canvas.setManaged(false)"));
-        assertTrue(header.contains("canvas.setMouseTransparent(true)"));
+        assertTrue(header.contains("setToX(-stripLogicalWidth)"));
+        assertTrue(header.contains("stripLayer.setManaged(false)"));
+        assertTrue(header.contains("stripLayer.setMouseTransparent(true)"));
         assertTrue(launcher.contains("new AnimatedGradientHeader(header)"));
         assertFalse(logView.contains("new AnimatedGradientHeader"));
         assertFalse(launcher.contains("installDynamicHeaderGradient"));
         assertFalse(launcher.contains("Timeline timeline = new Timeline"));
-        assertFalse(header.contains("ImageView"));
+        assertFalse(header.contains("Canvas"));
+        assertFalse(header.contains("GraphicsContext"));
+        assertFalse(header.contains("AnimationTimer"));
+        assertFalse(header.contains("MediaView"));
         assertFalse(header.contains("RENDER_SCALE = 8.0d"));
         assertFalse(header.contains("new LinearGradient"));
         assertFalse(header.contains("graphics.scale("));
