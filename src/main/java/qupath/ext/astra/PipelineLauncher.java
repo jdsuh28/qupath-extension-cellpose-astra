@@ -3,6 +3,9 @@ package qupath.ext.astra;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
+import javafx.animation.Animation;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.property.StringProperty;
 import javafx.collections.ListChangeListener;
@@ -41,6 +44,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.shape.Rectangle;
+import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.fx.dialogs.Dialogs;
@@ -2670,6 +2674,7 @@ final class PipelineLauncher {
         private final ProgressIndicator progress;
         private final StyledLogView output;
         private final Button killButton;
+        private final Timeline elapsedHeartbeat;
         private final String scriptName;
         private final AtomicReference<Future<?>> currentRun = new AtomicReference<>();
         private final AtomicBoolean cancellationRequested = new AtomicBoolean(false);
@@ -2704,6 +2709,8 @@ final class PipelineLauncher {
 
             output = new StyledLogView();
             VBox.setVgrow(output, Priority.ALWAYS);
+            elapsedHeartbeat = new Timeline(new KeyFrame(Duration.seconds(1.0), event -> output.refreshTimelineElapsed()));
+            elapsedHeartbeat.setCycleCount(Animation.INDEFINITE);
 
             box.getChildren().addAll(header, output);
             info("Script output and run-scoped QuPath/Cellpose logs appear here. Cellpose subprocess stdout/stderr is captured when it is emitted through QuPath logging.");
@@ -2715,6 +2722,7 @@ final class PipelineLauncher {
 
         private void start(String configuredScript) {
             Platform.runLater(() -> {
+                elapsedHeartbeat.stop();
                 output.beginRun(scriptName, configuredScript);
                 status.setText("Running...");
                 status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: white;");
@@ -2724,6 +2732,7 @@ final class PipelineLauncher {
                 cancellationRequested.set(false);
                 errorDialogShown.set(false);
                 appendMessage(RunLogSource.ASTRA, RunLogSeverity.INFO, "ASTRA run started.");
+                elapsedHeartbeat.playFromStart();
             });
         }
 
@@ -2766,6 +2775,8 @@ final class PipelineLauncher {
 
         private void success(String message) {
             Platform.runLater(() -> {
+                elapsedHeartbeat.stop();
+                output.refreshTimelineElapsed();
                 status.setText(message);
                 status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: #bdf2d0;");
                 progress.setVisible(false);
@@ -2777,6 +2788,8 @@ final class PipelineLauncher {
 
         private void error(String message) {
             Platform.runLater(() -> {
+                elapsedHeartbeat.stop();
+                output.refreshTimelineElapsed();
                 status.setText("Run failed.");
                 status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: #ffb8aa;");
                 progress.setVisible(false);
@@ -2788,6 +2801,8 @@ final class PipelineLauncher {
 
         private void cancelled(String message) {
             Platform.runLater(() -> {
+                elapsedHeartbeat.stop();
+                output.refreshTimelineElapsed();
                 status.setText("Run cancelled.");
                 status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 13px; -fx-font-weight: 900; -fx-text-fill: #ffe0a3;");
                 progress.setVisible(false);

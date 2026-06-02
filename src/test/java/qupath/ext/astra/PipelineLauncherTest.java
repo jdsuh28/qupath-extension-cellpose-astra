@@ -1426,6 +1426,18 @@ class PipelineLauncherTest {
     }
 
     @Test
+    void runLogParserDoesNotLetAstraObjectNamesChangeScriptSource() {
+        List<RunLogEntry> entries = RunLogParser.parse("""
+                SMA-AF647  Region scored: [1/10] 'ASTRA SMA Media Search 4' | cells=200
+                SMA-AF647  Region scored: [2/10] 'ROI 3' | cells=123
+                """, RunLogSource.SCRIPT, RunLogSeverity.NEUTRAL);
+
+        assertEquals(2, entries.size());
+        assertEquals(RunLogSource.SCRIPT, entries.get(0).source());
+        assertEquals(RunLogSource.SCRIPT, entries.get(1).source());
+    }
+
+    @Test
     void runLogGrouperKeepsConsecutiveSameSourceEntriesInOneBlock() {
         List<RunLogEntry> entries = List.of(
                 new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.INFO, RunLogKind.MESSAGE, "start", "start"),
@@ -1638,6 +1650,10 @@ class PipelineLauncherTest {
         assertTrue(view.contains("RunLogBlockAccumulator"));
         assertTrue(view.contains("RunLogErrorAdvisor.advise"));
         assertTrue(view.contains("appendProgressLine(entry)"));
+        assertTrue(view.contains("refreshTimelineElapsed()"));
+        assertTrue(source.contains("new Timeline(new KeyFrame(Duration.seconds(1.0)"));
+        assertTrue(source.contains("elapsedHeartbeat.playFromStart()"));
+        assertTrue(source.contains("elapsedHeartbeat.stop()"));
         assertFalse(source.contains("append(\"[LOG] \" + text)"));
         assertFalse(source.contains("feedback.append(\"[ERR] \" + text)"));
     }

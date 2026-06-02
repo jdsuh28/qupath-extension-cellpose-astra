@@ -232,7 +232,7 @@ final class RunLogParser {
                 || upper.contains("TRAINING")
                 || upper.contains("TUNING")
                 || upper.contains("VALIDATION")
-                || upper.contains("ASTRA")
+                || upper.startsWith("ASTRA ")
                 || upper.startsWith("QUANTIFY")
                 || upper.startsWith("DETECT CELLS")
                 || upper.startsWith("IMAGE START")

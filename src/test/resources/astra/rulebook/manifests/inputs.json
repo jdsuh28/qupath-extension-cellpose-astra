@@ -3577,7 +3577,7 @@
           "name": "SKIP_FITC_MEDIA_MASK",
           "type": "boolean",
           "defaultGroovy": "true",
-          "helpGroovy": "\"Publication one-shot default. Bypass fragile FITC-based radial SMA media inference and use the manual analysis annotation, normally Smooth Muscle, as the wall/media compartment.\"",
+          "helpGroovy": "\"Publication one-shot default. Bypass fragile FITC-based radial SMA media inference and use contained manual CLASS_SMA_MEDIA_REGION annotations as the wall/media compartment.\"",
           "editable": true,
           "internal": false,
           "group": "Basic",
@@ -3757,8 +3757,18 @@
         {
           "name": "CLASS_ANALYSIS_REGION",
           "type": "String",
+          "defaultGroovy": "\"ROI\"",
+          "helpGroovy": "\"Exact QuPath annotation class used as the full analysis ROI where Cellpose runs. SMA wall/media inclusion is handled separately by CLASS_SMA_MEDIA_REGION or FITC-derived media inference.\"",
+          "editable": true,
+          "internal": false,
+          "group": "Basic",
+          "advanced": false
+        },
+        {
+          "name": "CLASS_SMA_MEDIA_REGION",
+          "type": "String",
           "defaultGroovy": "\"Smooth Muscle\"",
-          "helpGroovy": "\"Exact QuPath annotation class used as the parent wall/media ROI for one-shot analysis. The publication one-shot default expects manually drawn Smooth Muscle annotations.\"",
+          "helpGroovy": "\"Exact QuPath annotation class for manual SMA wall/media annotations contained inside each analysis ROI. Used when SKIP_FITC_MEDIA_MASK is true to decide post-Cellpose inclusion/exclusion without clipping Cellpose input.\"",
           "editable": true,
           "internal": false,
           "group": "Basic",
