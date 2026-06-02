@@ -718,6 +718,11 @@
             "alias": "PrintUtil"
           },
           {
+            "root": "shared-analysis",
+            "file": "AnalysisStageTransaction.groovy",
+            "alias": "AnalysisStageTransaction"
+          },
+          {
             "root": "tool-sma-af647-oneshot",
             "file": "SmaAf647OneshotTool.groovy",
             "alias": "SmaAf647OneshotTool"
