@@ -63,6 +63,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -80,6 +81,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
@@ -108,6 +110,7 @@ final class PipelineLauncher {
             "^final\\s+(String|boolean|int|double|List|Map)\\s+([A-Z][A-Z0-9_]*)\\s*=\\s*(.*)$"
     );
     private static final String AUTOSAVE_PROFILE_FILE = "_autosave.json";
+    private static final String RELEASE_PROPERTIES_RESOURCE = "qupath/ext/astra/release/runtime.properties";
     private static final String GUI_RUN_ACTIVE_PROPERTY = "ASTRA_GUI_RUN_ACTIVE";
     private static final String FONT_STACK = "\"Aptos Display\", \"Segoe UI\", \"Inter\", \"Helvetica Neue\", Arial, sans-serif";
     private static final String MONO_FONT_STACK = "\"JetBrains Mono\", \"SF Mono\", Consolas, monospace";
@@ -1050,6 +1053,9 @@ final class PipelineLauncher {
         titleRow.setAlignment(Pos.CENTER_LEFT);
         Label title = new Label(scriptName);
         title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 24px; -fx-font-weight: 800; -fx-text-fill: white;");
+        Label version = new Label(astraVersionHeaderLabel());
+        version.setStyle(versionBadgeStyle());
+        version.setTooltip(new Tooltip("Installed ASTRA release"));
         Button reset = new Button("Reset settings");
         reset.setFocusTraversable(false);
         reset.setStyle(settingsHeaderButtonStyle());
@@ -1067,7 +1073,7 @@ final class PipelineLauncher {
         loadProfile.setFocusTraversable(false);
         loadProfile.setStyle(settingsHeaderButtonStyle());
         loadProfile.setOnAction(event -> loadSettingsProfileWithDialog(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, autosave, feedback));
-        titleRow.getChildren().addAll(title, reset, saveProfile, loadProfile);
+        titleRow.getChildren().addAll(title, version, reset, saveProfile, loadProfile);
         if (GuiPresentation.supportsAnalysisHeaderActions(scriptName)) {
             Button resetImage = new Button("Reset Image");
             resetImage.setFocusTraversable(false);
@@ -2174,6 +2180,12 @@ final class PipelineLauncher {
                 "-fx-border-color: rgba(255,255,255,0.95); -fx-border-radius: 5; -fx-background-radius: 5;";
     }
 
+    private static String versionBadgeStyle() {
+        return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; " +
+                "-fx-padding: 4 8; -fx-background-color: rgba(10,38,50,0.26); -fx-text-fill: #e3f4f1; " +
+                "-fx-border-color: rgba(255,255,255,0.42); -fx-border-radius: 999; -fx-background-radius: 999;";
+    }
+
     private static String analysisHeaderButtonStyle() {
         return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; " +
                 "-fx-background-color: #ffe3dc; -fx-text-fill: #7c2417; " +
@@ -2582,6 +2594,33 @@ final class PipelineLauncher {
                     : "Run downstream ASTRA analysis utilities.";
             default -> "Configure and run an ASTRA pipeline.";
         };
+    }
+
+    /**
+     * Returns the installed ASTRA release label shown in every launcher header.
+     *
+     * @return user-visible ASTRA version label.
+     */
+    static String astraVersionHeaderLabel() {
+        String tag = astraRuntimeTag();
+        if (tag.isBlank()) {
+            return "ASTRA version unknown";
+        }
+        return "ASTRA " + tag;
+    }
+
+    private static String astraRuntimeTag() {
+        try (InputStream stream = PipelineLauncher.class.getClassLoader().getResourceAsStream(RELEASE_PROPERTIES_RESOURCE)) {
+            if (stream == null) {
+                return "";
+            }
+            Properties properties = new Properties();
+            properties.load(stream);
+            return String.valueOf(properties.getProperty("astra_tag", "")).trim();
+        } catch (IOException e) {
+            logger.warn("Could not read ASTRA runtime release metadata.", e);
+            return "";
+        }
     }
 
     private static String pipelineStage(String scriptName) {

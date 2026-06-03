@@ -674,6 +674,11 @@ class PipelineLauncherTest {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertTrue(source.contains("VBox header = new VBox(12.0);"));
+        assertTrue(source.contains("Label version = new Label(astraVersionHeaderLabel());"));
+        assertTrue(source.contains("titleRow.getChildren().addAll(title, version, reset, saveProfile, loadProfile);"));
+        assertTrue(source.contains("RELEASE_PROPERTIES_RESOURCE = \"qupath/ext/astra/release/runtime.properties\""));
+        assertTrue(source.contains("properties.getProperty(\"astra_tag\", \"\")"));
+        assertTrue(PipelineLauncher.astraVersionHeaderLabel().startsWith("ASTRA v"));
         assertTrue(source.contains("VBox body = new VBox(14.0);"));
         assertTrue(source.contains("AnimatedGradientHeader animatedHeader = new AnimatedGradientHeader(header);"));
         assertTrue(source.contains("createHeaderOptionsMenu(animatedHeader)"));
