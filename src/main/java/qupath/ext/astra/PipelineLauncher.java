@@ -2386,8 +2386,25 @@ final class PipelineLauncher {
             setVisible(rows, "LOCAL_BACKGROUND_PERCENTILE", isSelected(byName, "BACKGROUND_MODE", "LOCAL_PERCENTILE"));
             setVisible(rows, "USE_PIXEL_SCALING", isChecked(byName, "USE_BATCH_MODE"));
         };
-        byName.values().forEach(c -> c.addOptionListener(update));
-        byName.values().forEach(c -> c.addChangeListener(update));
+        List.of(
+                "NUC_MODEL_SOURCE",
+                "CELL_MODEL_SOURCE",
+                "PARAM_SOURCE",
+                "NUC_PARAM_SOURCE",
+                "CELL_PARAM_SOURCE",
+                "IMAGE_SCOPE",
+                "THRESHOLD_SCOPE",
+                "POSITIVITY_METHOD",
+                "THRESHOLD_MODE",
+                "BACKGROUND_MODE",
+                "USE_BATCH_MODE"
+        ).forEach(name -> {
+            EditableConstant constant = byName.get(name);
+            if (constant != null) {
+                constant.addOptionListener(update);
+                constant.addChangeListener(update);
+            }
+        });
         update.run();
     }
 
@@ -2912,6 +2929,11 @@ final class PipelineLauncher {
     private record RowNodes(Node label, Node editor) {
     }
 
+    private static void notifyListenersAfterModalClose(List<Runnable> listeners) {
+        List<Runnable> snapshot = List.copyOf(listeners);
+        Platform.runLater(() -> snapshot.forEach(Runnable::run));
+    }
+
     static final class SettingsAutosave {
 
         private final File file;
@@ -2921,6 +2943,7 @@ final class PipelineLauncher {
         private final List<EditableConstant> constants;
         private final SettingsProfileState profileState;
         private final RunFeedback feedback;
+        private Timeline pendingSave;
         private boolean warnedDisabled;
 
         private SettingsAutosave(File file, String scriptName, String schemaId, String sourceScriptSha256,
@@ -2955,10 +2978,23 @@ final class PipelineLauncher {
 
         void markManualEditAndSave() {
             profileState.markManualEdit();
-            saveCurrent();
+            scheduleSaveCurrent();
+        }
+
+        void scheduleSaveCurrent() {
+            if (pendingSave != null) {
+                pendingSave.stop();
+            }
+            pendingSave = new Timeline(new KeyFrame(Duration.millis(350.0), event -> saveCurrent()));
+            pendingSave.setCycleCount(1);
+            pendingSave.play();
         }
 
         void saveCurrent() {
+            if (pendingSave != null) {
+                pendingSave.stop();
+                pendingSave = null;
+            }
             if (file == null) {
                 if (!warnedDisabled && feedback != null) {
                     warnedDisabled = true;
@@ -2969,13 +3005,25 @@ final class PipelineLauncher {
             try {
                 writeAutosaveSettings(file, scriptName, schemaId, sourceScriptSha256, constants);
             } catch (IOException | RuntimeException e) {
+                if (isTransientAutosaveState(e)) {
+                    return;
+                }
                 if (feedback != null) {
                     feedback.warn("Unable to write ASTRA autosave at " + file.getAbsolutePath() + ": " + e.getMessage());
                 }
             }
         }
 
+        private boolean isTransientAutosaveState(Exception e) {
+            String message = e.getMessage();
+            return message != null && message.contains(" must not be blank.");
+        }
+
         void clear() {
+            if (pendingSave != null) {
+                pendingSave.stop();
+                pendingSave = null;
+            }
             if (file == null) {
                 return;
             }
@@ -3182,7 +3230,7 @@ final class PipelineLauncher {
         }
 
         private void notifyListeners() {
-            listeners.forEach(Runnable::run);
+            notifyListenersAfterModalClose(listeners);
         }
 
         private void updateSummary() {
@@ -3728,7 +3776,7 @@ final class PipelineLauncher {
         }
 
         private void notifyListeners() {
-            listeners.forEach(Runnable::run);
+            notifyListenersAfterModalClose(listeners);
         }
 
         private static List<String> parsePastedNames(String text) {
@@ -4062,7 +4110,11 @@ final class PipelineLauncher {
         }
 
         private boolean isAtDefaultValue() {
-            return Objects.equals(currentDisplayValue(), defaultDisplayValue);
+            try {
+                return Objects.equals(currentDisplayValue(), defaultDisplayValue);
+            } catch (RuntimeException e) {
+                return false;
+            }
         }
 
         private void resetEditor() {
