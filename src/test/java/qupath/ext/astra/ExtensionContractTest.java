@@ -510,6 +510,27 @@ class ExtensionContractTest {
     }
 
     /**
+     * Verifies ASTRA does not inherit the legacy Cellpose Java-side channel cap.
+     *
+     * @throws Exception if source or protected methods cannot be inspected.
+     */
+    @Test
+    void astraBuilderDoesNotApplyLegacyCellposeChannelCap() throws Exception {
+        String base = Files.readString(new File(ROOT,
+                "src/main/java/qupath/ext/biop/cellpose/CellposeBuilder.java").toPath());
+        String builder = Files.readString(new File(ROOT,
+                "src/main/java/qupath/ext/astra/AstraCellposeBuilder.java").toPath());
+        Method method = AstraCellposeBuilder.class.getDeclaredMethod("maximumDetectionChannels");
+        method.setAccessible(true);
+
+        assertTrue(base.contains("protected int maximumDetectionChannels()"));
+        assertTrue(builder.contains("protected int maximumDetectionChannels()"));
+        assertEquals(Integer.MAX_VALUE, method.invoke(new AstraCellposeBuilder("cpsam")));
+        assertFalse(builder.contains("Keeping the first two"));
+        assertFalse(builder.contains("Keeping the first three"));
+    }
+
+    /**
      * Verifies ASTRA training uses the explicit train/test/models runtime
      * contract and passes the ASTRA save-root hook to Cellpose-ASTRA.
      *

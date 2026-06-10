@@ -201,6 +201,11 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         );
     }
 
+    @Override
+    protected int maximumDetectionChannels() {
+        return Integer.MAX_VALUE;
+    }
+
     /**
      * Configure the ASTRA validation input directory.
      */

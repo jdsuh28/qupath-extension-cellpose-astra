@@ -931,20 +931,11 @@ public class CellposeBuilder {
             this.constrainToParent = true;
         }
 
-        // TODO make compatible with --all_channels
-        if (this.channels.length > 2) {
-            // Allow up to 3 channels when using cpsam
-            if (this.useCellposeSAM){
-                if(this.channels.length > 3) {
-                    logger.warn("You supplied {} channels, but Cellpose-SAM takes three channels at most. Keeping the first three.", this.channels.length);
-                    this.channels = Arrays.copyOf(this.channels, 3);
-                }
-            }
-            // Allow up to 2 channels only for cellpose <= 3 (no cpsam)
-            else {
-                logger.warn("You supplied {} channels, but Cellpose takes two channels at most. Keeping the first two.", this.channels.length);
-                this.channels = Arrays.copyOf(this.channels, 2);
-            }
+        int maxChannels = maximumDetectionChannels();
+        if (maxChannels > 0 && this.channels.length > maxChannels) {
+            logger.warn("You supplied {} channels, but this Cellpose runtime is configured for {} detection channels. Keeping the first {}.",
+                    this.channels.length, maxChannels, maxChannels);
+            this.channels = Arrays.copyOf(this.channels, maxChannels);
         }
 
         if(this.useCellposeSAM) {
@@ -1068,6 +1059,17 @@ public class CellposeBuilder {
 
         return cellpose;
 
+    }
+
+    /**
+     * Returns the maximum number of detection channels exported to Cellpose.
+     * Subclasses may return {@link Integer#MAX_VALUE} when their runtime owns
+     * channel handling and should not be capped by the Java builder.
+     *
+     * @return maximum channel count, or a non-positive value to disable capping.
+     */
+    protected int maximumDetectionChannels() {
+        return this.useCellposeSAM ? 3 : 2;
     }
 
 }
