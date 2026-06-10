@@ -27,7 +27,7 @@ repositories {
 qupathExtension {
     name = "qupath-extension-cellpose-astra"
     group = "io.github.jdsuh28"
-    version = "0.1.130"
+    version = "0.1.131"
     description = "ASTRA QuPath extension for Cellpose-backed tissue analysis"
     automaticModule = "qupath.ext.astra.cellpose"
 }
