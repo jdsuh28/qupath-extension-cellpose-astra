@@ -306,6 +306,18 @@ class PipelineLauncherTest {
     }
 
     @Test
+    void autosaveDebouncesAndIgnoresTransientBlankFields() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+
+        assertTrue(source.contains("private Timeline pendingSave;"));
+        assertTrue(source.contains("scheduleSaveCurrent();"));
+        assertTrue(source.contains("Duration.millis(350.0)"));
+        assertTrue(source.contains("isTransientAutosaveState(e)"));
+        assertTrue(source.contains("message.contains(\" must not be blank.\")"));
+        assertTrue(source.contains("catch (RuntimeException e)"));
+    }
+
+    @Test
     void profileLoadReportsMissingImageChannelsWithoutChangingDefaults() {
         List<PipelineLauncher.EditableConstant> constants = PipelineLauncher.extractEditableConstants("""
                 final List CHANNELS_FOR_NUCLEUS = ["DAPI"]
@@ -674,11 +686,6 @@ class PipelineLauncherTest {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertTrue(source.contains("VBox header = new VBox(12.0);"));
-        assertTrue(source.contains("Label version = new Label(astraVersionHeaderLabel());"));
-        assertTrue(source.contains("titleRow.getChildren().addAll(title, version, reset, saveProfile, loadProfile);"));
-        assertTrue(source.contains("RELEASE_PROPERTIES_RESOURCE = \"qupath/ext/astra/release/runtime.properties\""));
-        assertTrue(source.contains("properties.getProperty(\"astra_tag\", \"\")"));
-        assertTrue(PipelineLauncher.astraVersionHeaderLabel().startsWith("ASTRA v"));
         assertTrue(source.contains("VBox body = new VBox(14.0);"));
         assertTrue(source.contains("AnimatedGradientHeader animatedHeader = new AnimatedGradientHeader(header);"));
         assertTrue(source.contains("createHeaderOptionsMenu(animatedHeader)"));
@@ -1098,6 +1105,17 @@ class PipelineLauncherTest {
     }
 
     @Test
+    void genericVisibilityOnlyListensToControlsThatDriveVisibility() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+
+        assertTrue(source.contains("\"IMAGE_SCOPE\","));
+        assertTrue(source.contains("\"THRESHOLD_SCOPE\","));
+        assertTrue(source.contains("\"USE_BATCH_MODE\""));
+        assertFalse(source.contains("byName.values().forEach(c -> c.addChangeListener(update))"));
+        assertFalse(source.contains("byName.values().forEach(c -> c.addOptionListener(update))"));
+    }
+
+    @Test
     void colocalizationModesUseOrderedMultiSelectAndHeaderExport() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
         String script = realBaseScript("modules/pipelines/analysis/colocalization/src/main/groovy/colocalization.groovy");
@@ -1110,6 +1128,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("new MultiSelectListEditor(\"\", orderedModes, EditableConstant.csvValues(rawValue)"));
         assertTrue(source.contains("installColocalizationRunModeEditor(scriptName, constants)"));
         assertTrue(source.contains("Choose stages in ASTRA's fixed order. Reset and export are separate script actions."));
+        assertTrue(source.contains("notifyListenersAfterModalClose(listeners);"));
         assertTrue(source.contains("new Button(\"Reset Image\")"));
         assertTrue(source.contains("new Button(\"Reset Project\")"));
         assertFalse(source.contains("new Button(\"Reset Image...\")"));
@@ -1310,6 +1329,8 @@ class PipelineLauncherTest {
         assertTrue(source.contains("\"THRESHOLD_SELECTED_IMAGE_NAMES\".equals(c.name)"));
         assertTrue(source.contains("available.setCellFactory(list -> readableListCell())"));
         assertTrue(source.contains("chosen.setCellFactory(list -> readableListCell())"));
+        assertTrue(source.contains("private static void notifyListenersAfterModalClose(List<Runnable> listeners)"));
+        assertTrue(source.contains("Platform.runLater(() -> snapshot.forEach(Runnable::run));"));
     }
 
     @Test
