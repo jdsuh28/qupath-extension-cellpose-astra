@@ -215,14 +215,14 @@ class ExtensionContractTest {
 
         Map<String, String> scripts = (Map<String, String>) method.invoke(null);
 
-        assertEquals(List.of("Training", "Tuning", "Validation", "Analysis>Vascular", "Analysis>Colocalization", "Analysis>One-Shot SMA AF647", "Analysis>Generate Regions"),
+        assertEquals(List.of("Training", "Tuning", "Validation", "Analysis>Vascular", "Analysis>Colocalization", "Analysis>SMA-Gated Nuclear Marker Rescue", "Analysis>Generate Regions"),
                 new ArrayList<>(scripts.keySet()));
         assertEquals("astra/modules/pipelines/cellpose/training/src/main/groovy/training.groovy", scripts.get("Training"));
         assertEquals("astra/modules/pipelines/cellpose/tuning/src/main/groovy/tuning.groovy", scripts.get("Tuning"));
         assertEquals("astra/modules/pipelines/cellpose/validation/src/main/groovy/validation.groovy", scripts.get("Validation"));
         assertEquals("astra/modules/pipelines/analysis/vascular/src/main/groovy/vascular.groovy", scripts.get("Analysis>Vascular"));
         assertEquals("astra/modules/pipelines/analysis/colocalization/src/main/groovy/colocalization.groovy", scripts.get("Analysis>Colocalization"));
-        assertEquals("astra/modules/tools/sma-af647-oneshot/src/main/groovy/smaAf647Oneshot.groovy", scripts.get("Analysis>One-Shot SMA AF647"));
+        assertEquals("astra/modules/tools/sma-af647-oneshot/src/main/groovy/smaAf647Oneshot.groovy", scripts.get("Analysis>SMA-Gated Nuclear Marker Rescue"));
         assertEquals("astra/modules/tools/generate-regions/src/main/groovy/generateRegions.groovy", scripts.get("Analysis>Generate Regions"));
 
         scripts.values().forEach(path -> assertTrue(path.startsWith("astra/"), path));

@@ -113,7 +113,7 @@ final class GuiPresentation {
             if ("PIXEL_POSITIVE_FRACTION".equals(option)) return "Pixel Positive Fraction";
         }
         if ("EXPRESSION_CLASSIFICATION_MODE".equals(constantName)) {
-            if ("PIXEL_LEVEL_SCORE".equals(option)) return "Pixel Level Score";
+            if ("PIXEL_LEVEL_SCORE".equals(option)) return "Pixel-Level Score";
             if ("LEGACY_BINARY".equals(option)) return "Legacy Binary";
         }
         return displayOption(option);

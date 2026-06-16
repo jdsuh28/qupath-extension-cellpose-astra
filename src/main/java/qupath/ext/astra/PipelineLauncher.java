@@ -15,11 +15,13 @@ import javafx.event.ActionEvent;
 import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBase;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.CustomMenuItem;
 import javafx.scene.control.Dialog;
+import javafx.scene.control.DialogPane;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.MenuButton;
@@ -43,6 +45,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.scene.layout.Pane;
 import javafx.scene.shape.Rectangle;
 import javafx.util.Duration;
 import org.slf4j.Logger;
@@ -110,7 +113,8 @@ final class PipelineLauncher {
     );
     private static final String AUTOSAVE_PROFILE_FILE = "_autosave.json";
     private static final String GUI_RUN_ACTIVE_PROPERTY = "ASTRA_GUI_RUN_ACTIVE";
-    private static final String FONT_STACK = "\"Aptos Display\", \"Segoe UI\", \"Inter\", \"Helvetica Neue\", Arial, sans-serif";
+    private static final String LAUNCHER_STYLESHEET_RESOURCE = "/qupath/ext/astra/astra-launcher.css";
+    private static final String FONT_STACK = "\"Inter\", \"Aptos Display\", \"Segoe UI\", \"Helvetica Neue\", Arial, sans-serif";
     private static final String MONO_FONT_STACK = "\"JetBrains Mono\", \"SF Mono\", Consolas, monospace";
     private static final String INK = "#172431";
     private static final String MUTED = "#5f7080";
@@ -214,11 +218,15 @@ final class PipelineLauncher {
         };
         dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants, true, feedback, schemaId, sourceScriptSha256, profileState, exportAction, exportButtonRef::set, resetImageAction, resetImageButtonRef::set, resetProjectAction, resetProjectButtonRef::set));
         dialog.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
+        installAstraStyles(dialog.getDialogPane());
         dialog.setResizable(true);
 
         Button runButton = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
         runButtonRef.set(runButton);
         runButton.setText("Run");
+        styleButton(runButton, ButtonRole.PRIMARY);
+        Button cancelButton = (Button) dialog.getDialogPane().lookupButton(ButtonType.CANCEL);
+        styleButton(cancelButton, ButtonRole.SECONDARY);
         runButton.addEventFilter(ActionEvent.ACTION, event -> {
             event.consume();
             String configuredScript;
@@ -998,6 +1006,7 @@ final class PipelineLauncher {
                 ASTRA will delete only objects recorded by QuPath object ID in the analysis ledger and remove only recorded ASTRA measurement keys.
                 User ROI, Trace, analysis-region annotations, unledgered objects, and exported CSV/QC files are preserved.
                 """);
+        installAstraStyles(alert.getDialogPane());
         alert.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
         return alert.showAndWait().filter(ButtonType.OK::equals).isPresent();
     }
@@ -1007,6 +1016,143 @@ final class PipelineLauncher {
         constants.stream()
                 .filter(c -> ("SELECTED_IMAGE_NAMES".equals(c.name) || "THRESHOLD_SELECTED_IMAGE_NAMES".equals(c.name)) && "List".equals(c.type))
                 .forEach(c -> c.setCustomEditor(new ProjectImageSelectionEditor(imageNames, c.displayValue)));
+    }
+
+    private static void installProjectAssetSelectors(QuPathGUI qupath, List<EditableConstant> constants) {
+        File projectBase = projectBaseDirectoryOrNull(qupath);
+        Map<String, EditableConstant> byName = new LinkedHashMap<>();
+        constants.forEach(c -> byName.put(c.name, c));
+        installModelAssetSelectors(projectBase, byName, "NUC", "nucleus");
+        installModelAssetSelectors(projectBase, byName, "CELL", "cell");
+        AssetDiscovery classifiers = discoverPixelClassifiers(projectBase);
+        for (String name : List.of("CLASSIFIER_LUMEN", "CLASSIFIER_SMOOTH_MUSCLE", "CLASSIFIER_ENDOTHELIUM")) {
+            EditableConstant constant = byName.get(name);
+            if (constant != null) {
+                constant.setCustomEditor(assetBackedCombo(constant, classifiers));
+            }
+        }
+    }
+
+    private static void installModelAssetSelectors(File projectBase, Map<String, EditableConstant> byName,
+                                                   String prefix, String targetFolder) {
+        EditableConstant savedId = byName.get(prefix + "_SAVED_MODEL_ID");
+        if (savedId != null) {
+            savedId.setCustomEditor(assetBackedCombo(savedId,
+                    AssetDiscovery.fromValues(discoverSavedModelIds(projectBase, targetFolder).validIds())));
+        }
+        EditableConstant modelFile = byName.get(prefix + "_MODEL_FILE");
+        if (modelFile != null) {
+            modelFile.setCustomEditor(assetBackedCombo(modelFile, discoverModelFiles(projectBase, targetFolder)));
+        }
+        EditableConstant bestParams = byName.get(prefix + "_BEST_PARAMS_FILE");
+        if (bestParams != null) {
+            bestParams.setCustomEditor(assetBackedCombo(bestParams, discoverBestParamsFiles(projectBase, targetFolder)));
+        }
+    }
+
+    static AssetDiscovery discoverPixelClassifiers(File projectBase) {
+        File root = projectBase == null ? null : new File(new File(projectBase, "classifiers"), "pixel_classifiers");
+        return discoverNamedAssets(root, "", Set.of(".json", ".classifier"));
+    }
+
+    static AssetDiscovery discoverModelFiles(File projectBase, String targetFolder) {
+        File root = modelRoot(projectBase, targetFolder);
+        return discoverPathAssets(projectBase, root, Set.of(".cpm", ".pt", ".pth", ".model", ".torch"));
+    }
+
+    static AssetDiscovery discoverBestParamsFiles(File projectBase, String targetFolder) {
+        File root = modelRoot(projectBase, targetFolder);
+        if (root == null || !root.isDirectory()) {
+            return AssetDiscovery.empty();
+        }
+        LinkedHashMap<String, String> labels = new LinkedHashMap<>();
+        File[] modelDirs = root.listFiles(File::isDirectory);
+        if (modelDirs != null) {
+            Arrays.stream(modelDirs)
+                    .filter(dir -> visibleModelName(dir.getName()))
+                    .sorted(Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER))
+                    .forEach(dir -> {
+                        File params = new File(new File(dir, "tuning"), "best_params.json");
+                        if (params.isFile()) {
+                            labels.put(params.getAbsolutePath(), dir.getName() + " tuning best parameters");
+                        }
+                    });
+        }
+        return new AssetDiscovery(labels);
+    }
+
+    private static File modelRoot(File projectBase, String targetFolder) {
+        return projectBase == null ? null : new File(new File(new File(projectBase, "astra"), "models"), targetFolder);
+    }
+
+    private static AssetDiscovery discoverNamedAssets(File root, String suffixToStrip, Set<String> extensions) {
+        if (root == null || !root.isDirectory()) {
+            return AssetDiscovery.empty();
+        }
+        LinkedHashMap<String, String> labels = new LinkedHashMap<>();
+        File[] files = root.listFiles();
+        if (files != null) {
+            Arrays.stream(files)
+                    .filter(File::isFile)
+                    .filter(file -> hasAllowedExtension(file.getName(), extensions))
+                    .sorted(Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER))
+                    .forEach(file -> {
+                        String value = stripAssetExtension(file.getName(), suffixToStrip, extensions);
+                        labels.put(value, value);
+                    });
+        }
+        return new AssetDiscovery(labels);
+    }
+
+    private static AssetDiscovery discoverPathAssets(File projectBase, File root, Set<String> extensions) {
+        if (root == null || !root.isDirectory()) {
+            return AssetDiscovery.empty();
+        }
+        LinkedHashMap<String, String> labels = new LinkedHashMap<>();
+        try (var stream = Files.walk(root.toPath())) {
+            stream.filter(Files::isRegularFile)
+                    .map(Path::toFile)
+                    .filter(file -> hasAllowedExtension(file.getName(), extensions))
+                    .sorted(Comparator.comparing(File::getAbsolutePath, String.CASE_INSENSITIVE_ORDER))
+                    .forEach(file -> labels.put(file.getAbsolutePath(), projectRelativeLabel(projectBase, file)));
+        } catch (IOException e) {
+            logger.warn("Unable to discover ASTRA assets under {}", root, e);
+        }
+        return new AssetDiscovery(labels);
+    }
+
+    private static boolean hasAllowedExtension(String name, Set<String> extensions) {
+        String lower = name == null ? "" : name.toLowerCase(Locale.ROOT);
+        return extensions.stream().anyMatch(lower::endsWith);
+    }
+
+    private static String stripAssetExtension(String fileName, String suffixToStrip, Set<String> extensions) {
+        String value = fileName;
+        for (String extension : extensions) {
+            if (value.toLowerCase(Locale.ROOT).endsWith(extension)) {
+                value = value.substring(0, value.length() - extension.length());
+                break;
+            }
+        }
+        if (suffixToStrip != null && !suffixToStrip.isBlank() && value.endsWith(suffixToStrip)) {
+            value = value.substring(0, value.length() - suffixToStrip.length());
+        }
+        return value;
+    }
+
+    private static String projectRelativeLabel(File projectBase, File file) {
+        if (projectBase != null) {
+            try {
+                Path base = projectBase.toPath().toAbsolutePath().normalize();
+                Path path = file.toPath().toAbsolutePath().normalize();
+                if (path.startsWith(base)) {
+                    return base.relativize(path).toString();
+                }
+            } catch (RuntimeException ignored) {
+                // Fall through to a stable absolute label.
+            }
+        }
+        return file.getAbsolutePath();
     }
 
     private static void installColocalizationRunModeEditor(String scriptName, List<EditableConstant> constants) {
@@ -1084,6 +1230,7 @@ final class PipelineLauncher {
         autosave.restoreIfAvailable();
         installColocalizationRunModeEditor(scriptName, constants);
         installProjectImageNameSelector(qupath, constants);
+        installProjectAssetSelectors(qupath, constants);
 
         VBox root = new VBox(14.0);
         root.setPadding(new Insets(0));
@@ -1097,7 +1244,7 @@ final class PipelineLauncher {
         title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 24px; -fx-font-weight: 800; -fx-text-fill: white;");
         Button reset = new Button("Reset settings");
         reset.setFocusTraversable(false);
-        reset.setStyle(settingsHeaderButtonStyle());
+        styleButton(reset, ButtonRole.HEADER);
         reset.setOnAction(event -> {
             constants.forEach(EditableConstant::resetEditor);
             profileState.resetToScriptDefaults();
@@ -1106,17 +1253,17 @@ final class PipelineLauncher {
         });
         Button saveProfile = new Button("Save settings profile");
         saveProfile.setFocusTraversable(false);
-        saveProfile.setStyle(settingsHeaderButtonStyle());
+        styleButton(saveProfile, ButtonRole.HEADER);
         saveProfile.setOnAction(event -> saveSettingsProfileWithDialog(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, autosave, feedback));
         Button loadProfile = new Button("Load settings profile");
         loadProfile.setFocusTraversable(false);
-        loadProfile.setStyle(settingsHeaderButtonStyle());
+        styleButton(loadProfile, ButtonRole.HEADER);
         loadProfile.setOnAction(event -> loadSettingsProfileWithDialog(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, autosave, feedback));
         titleRow.getChildren().addAll(title, reset, saveProfile, loadProfile);
         if (GuiPresentation.supportsAnalysisHeaderActions(scriptName)) {
             Button resetImage = new Button("Reset Image");
             resetImage.setFocusTraversable(false);
-            resetImage.setStyle(analysisHeaderButtonStyle());
+            styleButton(resetImage, ButtonRole.DANGER);
             resetImage.setTooltip(new Tooltip("Analysis action: delete only ASTRA objects and measurements recorded for the current image in the analysis ledger."));
             resetImage.setOnAction(resetImageAction::accept);
             if (resetImageButtonSink != null) {
@@ -1124,7 +1271,7 @@ final class PipelineLauncher {
             }
             Button resetProject = new Button("Reset Project");
             resetProject.setFocusTraversable(false);
-            resetProject.setStyle(analysisHeaderButtonStyle());
+            styleButton(resetProject, ButtonRole.DANGER);
             resetProject.setTooltip(new Tooltip("Analysis action: delete only ASTRA objects and measurements recorded for every project image in the analysis ledger."));
             resetProject.setOnAction(resetProjectAction::accept);
             if (resetProjectButtonSink != null) {
@@ -1135,7 +1282,7 @@ final class PipelineLauncher {
         if (GuiPresentation.supportsHeaderExport(scriptName)) {
             Button export = new Button("Export");
             export.setFocusTraversable(false);
-            export.setStyle(exportHeaderButtonStyle());
+            styleButton(export, ButtonRole.SUCCESS);
             export.setTooltip(new Tooltip("Analysis action: write result files only if the current hierarchy matches the last successful QUANTIFY."));
             export.setOnAction(exportAction::accept);
             if (exportButtonSink != null) {
@@ -1155,11 +1302,16 @@ final class PipelineLauncher {
         VBox body = new VBox(14.0);
         body.setPadding(new Insets(0, 0, 18.0, 0));
         body.getChildren().add(createChannelPanel(imageChannels));
+        List<SettingsSectionModel> routineSections = new ArrayList<>();
         if (colocalization) {
-            body.getChildren().add(createColocalizationPanel(qupath, constants, imageChannels, autosave));
+            routineSections.add(new SettingsSectionModel(
+                    "Colocalization Setup",
+                    "Target, segmentation, marker checks, thresholds, and background.",
+                    "Guided",
+                    createColocalizationPanel(qupath, constants, imageChannels, autosave),
+                    false
+            ));
         }
-
-        VBox basic = sectionShell("Basic", "Start here. These are the normal run controls: target, scope, channels, model source, thresholds, and outputs.");
         for (String group : orderedGroups(constants, false)) {
             List<EditableConstant> groupConstants = constants.stream()
                     .filter(c -> !c.advanced && group.equals(c.group))
@@ -1167,11 +1319,17 @@ final class PipelineLauncher {
                     .sorted(Comparator.comparingInt(EditableConstant::uiOrder))
                     .toList();
             if (!groupConstants.isEmpty()) {
-                basic.getChildren().add(createSection(group, groupConstants, true, autosave));
+                routineSections.add(new SettingsSectionModel(
+                        group,
+                        groupDashboardDescription(group),
+                        groupDashboardBadge(group, groupConstants),
+                        createSection(group, groupConstants, true, autosave),
+                        false
+                ));
             }
         }
 
-        VBox advanced = sectionShell("Advanced", "Defaults are intentionally conservative. Open these only for deliberate tuning, diagnostics, or publication-specific overrides.");
+        List<SettingsSectionModel> advancedSections = new ArrayList<>();
         for (String group : orderedGroups(constants, true)) {
             List<EditableConstant> groupConstants = constants.stream()
                     .filter(c -> c.advanced && group.equals(c.group))
@@ -1179,20 +1337,30 @@ final class PipelineLauncher {
                     .sorted(Comparator.comparingInt(EditableConstant::uiOrder))
                     .toList();
             if (!groupConstants.isEmpty()) {
-                if ("Advanced".equalsIgnoreCase(group)) {
-                    advanced.getChildren().add(createUngroupedSection(groupConstants, false, autosave));
-                } else {
-                    advanced.getChildren().add(createSection(group, groupConstants, false, autosave));
-                }
+                Node section = "Advanced".equalsIgnoreCase(group)
+                        ? createUngroupedSection(groupConstants, false, autosave)
+                        : createSection(group, groupConstants, false, autosave);
+                advancedSections.add(new SettingsSectionModel(
+                        group,
+                        groupDashboardDescription(group),
+                        "Advanced",
+                        section,
+                        true
+                ));
             }
         }
 
-        body.getChildren().add(basic);
-        if (advanced.getChildren().size() > 2) {
+        body.getChildren().add(createSettingsNavigator("Settings Dashboard",
+                "Choose one settings group at a time, or switch to All Settings for a full review.",
+                routineSections));
+        if (!advancedSections.isEmpty()) {
+            Node advanced = createSettingsNavigator("Advanced Settings",
+                    "Developer controls for deliberate tuning, diagnostics, and publication-specific overrides.",
+                    advancedSections);
             if (GuiPresentation.advancedControlsLockedByDefault()) {
-                VBox advancedUnlock = createAdvancedUnlockPanel(advanced);
                 advanced.setVisible(false);
                 advanced.setManaged(false);
+                VBox advancedUnlock = createAdvancedUnlockPanel(advanced);
                 body.getChildren().addAll(advancedUnlock, advanced);
             } else {
                 body.getChildren().add(advanced);
@@ -1322,14 +1490,14 @@ final class PipelineLauncher {
         return box;
     }
 
-    private static VBox createAdvancedUnlockPanel(VBox advanced) {
+    private static VBox createAdvancedUnlockPanel(Node advanced) {
         VBox box = sectionShell("Advanced Locked", GuiPresentation.advancedControlsDescription());
         TextField phrase = new TextField();
         phrase.setPromptText("Unlock phrase");
         phrase.setPrefColumnCount(18);
         Button unlock = new Button("Unlock advanced");
         unlock.setFocusTraversable(false);
-        unlock.setStyle(settingsHeaderButtonStyle());
+        styleButton(unlock, ButtonRole.HEADER);
         Label status = new Label("");
         status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + CORAL + ";");
         Runnable tryUnlock = () -> {
@@ -1349,6 +1517,139 @@ final class PipelineLauncher {
         row.setAlignment(Pos.CENTER_LEFT);
         box.getChildren().addAll(row, status);
         return box;
+    }
+
+    private static Node createSettingsNavigator(String titleText, String subtitleText, List<SettingsSectionModel> sections) {
+        VBox root = sectionShell(titleText, subtitleText);
+        if (sections == null || sections.isEmpty()) {
+            Label empty = new Label("No settings are available for this view.");
+            empty.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + MUTED + ";");
+            root.getChildren().add(empty);
+            return root;
+        }
+
+        HBox viewRow = new HBox(8.0);
+        viewRow.setAlignment(Pos.CENTER_LEFT);
+        Button dashboard = new Button("Dashboard");
+        Button allSettings = new Button("All Settings");
+        styleButton(dashboard, ButtonRole.PRIMARY);
+        styleButton(allSettings, ButtonRole.SECONDARY);
+        viewRow.getChildren().addAll(dashboard, allSettings);
+
+        VBox host = new VBox(SECTION_CONTENT_GAP);
+        host.setFillWidth(true);
+
+        Runnable[] showDashboard = new Runnable[1];
+        Runnable[] showAll = new Runnable[1];
+        Consumer<SettingsSectionModel> showOne = section -> {
+            VBox focused = new VBox(SECTION_CONTENT_GAP);
+            focused.setFillWidth(true);
+            HBox top = new HBox(10.0);
+            top.setAlignment(Pos.CENTER_LEFT);
+            Button back = new Button("Back to Dashboard");
+            styleButton(back, ButtonRole.SECONDARY);
+            Label title = new Label(section.title());
+            title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 16px; -fx-font-weight: 900; -fx-text-fill: " + INK + ";");
+            top.getChildren().addAll(back, title);
+            back.setOnAction(event -> showDashboard[0].run());
+            detachFromParent(section.content());
+            focused.getChildren().setAll(top, section.content());
+            host.getChildren().setAll(focused);
+        };
+
+        showDashboard[0] = () -> {
+            FlowPane cards = new FlowPane(12.0, 12.0);
+            cards.setPrefWrapLength(640.0);
+            for (SettingsSectionModel section : sections) {
+                cards.getChildren().add(createSettingsCard(section, () -> showOne.accept(section)));
+            }
+            host.getChildren().setAll(cards);
+        };
+        showAll[0] = () -> {
+            VBox all = new VBox(SECTION_CONTENT_GAP);
+            all.setFillWidth(true);
+            sections.forEach(section -> {
+                detachFromParent(section.content());
+                all.getChildren().add(section.content());
+            });
+            host.getChildren().setAll(all);
+        };
+        dashboard.setOnAction(event -> showDashboard[0].run());
+        allSettings.setOnAction(event -> showAll[0].run());
+        showDashboard[0].run();
+
+        root.getChildren().addAll(viewRow, host);
+        return root;
+    }
+
+    private static Button createSettingsCard(SettingsSectionModel section, Runnable openAction) {
+        Button card = new Button();
+        card.setFocusTraversable(false);
+        card.setMinSize(205.0, 118.0);
+        card.setPrefSize(215.0, 126.0);
+        card.setMaxWidth(230.0);
+        addStyleClass(card, "astra-settings-card");
+        if (section.advanced()) {
+            addStyleClass(card, "astra-settings-card-advanced");
+        }
+        VBox content = new VBox(7.0);
+        content.setAlignment(Pos.TOP_LEFT);
+        Label title = new Label(section.title());
+        title.setWrapText(true);
+        title.getStyleClass().add("astra-settings-card-title");
+        Label description = new Label(section.description());
+        description.setWrapText(true);
+        description.getStyleClass().add("astra-settings-card-description");
+        Label badge = new Label(section.badge());
+        badge.getStyleClass().add(section.advanced() ? "astra-badge-advanced" : "astra-badge");
+        content.getChildren().addAll(badge, title, description);
+        card.setGraphic(content);
+        card.setOnAction(event -> openAction.run());
+        return card;
+    }
+
+    private static void detachFromParent(Node node) {
+        if (node == null || node.getParent() == null) {
+            return;
+        }
+        if (node.getParent() instanceof Pane pane) {
+            pane.getChildren().remove(node);
+        }
+    }
+
+    private static String groupDashboardDescription(String group) {
+        return switch (group) {
+            case "Run Setup" -> "Choose the run mode and workflow stage.";
+            case "Images & Scope" -> "Choose which image, region, or image set to process.";
+            case "Classes & Regions" -> "Match ASTRA to QuPath annotation and output classes.";
+            case "Channels & Markers" -> "Map stain channels and marker names.";
+            case "Models" -> "Choose saved models or model sources.";
+            case "Segmentation" -> "Set Cellpose-SAM presets and object recovery behavior.";
+            case "Biological Classification" -> "Set biological inclusion and cell-identity rules.";
+            case "Thresholds & Background" -> "Control marker thresholds and background correction.";
+            case "Runtime & Performance" -> "Control GPU, batching, pixel scaling, and speed.";
+            case "Output & Export" -> "Set result folders, names, and export behavior.";
+            case "Diagnostics" -> "Enable logging, QC, and troubleshooting outputs.";
+            case "Developer Overrides" -> "Inspect low-level controls for deliberate overrides.";
+            default -> "Review related ASTRA settings.";
+        };
+    }
+
+    private static String groupDashboardBadge(String group, List<EditableConstant> constants) {
+        long changed = constants.stream().filter(c -> !c.isAtDefaultValue()).count();
+        if (changed > 0) {
+            return changed + " changed";
+        }
+        if (constants.stream().anyMatch(c -> c.name.contains("MODEL"))) {
+            return "Models";
+        }
+        if (constants.stream().anyMatch(c -> c.name.contains("CLASSIFIER"))) {
+            return "Project assets";
+        }
+        if ("Runtime & Performance".equals(group) || "Diagnostics".equals(group)) {
+            return "Optional";
+        }
+        return "Routine";
     }
 
     private static boolean isColocalizationConfig(List<EditableConstant> constants) {
@@ -1685,17 +1986,32 @@ final class PipelineLauncher {
         if (savedModelId == null || discovery == null) {
             return;
         }
-        savedModelId.setCustomEditor(savedModelIdCombo(savedModelId, discovery.validIds()));
+        savedModelId.setCustomEditor(assetBackedCombo(savedModelId, AssetDiscovery.fromValues(discovery.validIds())));
     }
 
-    private static ComboBox<String> savedModelIdCombo(EditableConstant constant, List<String> validIds) {
+    private static ComboBox<String> assetBackedCombo(EditableConstant constant, AssetDiscovery discovery) {
         ComboBox<String> combo = new ComboBox<>();
-        combo.setEditable(true);
-        combo.getItems().addAll(validIds);
-        combo.setValue(EditableConstant.stripStringQuotes(constant.type, constant.displayValue));
+        combo.setEditable(false);
+        AssetDiscovery safeDiscovery = discovery == null ? AssetDiscovery.empty() : discovery;
+        combo.getItems().addAll(safeDiscovery.values());
+        String current = EditableConstant.stripStringQuotes(constant.type, constant.displayValue);
+        combo.setValue(current);
         combo.setMaxWidth(Double.MAX_VALUE);
         styleComboBox(combo);
+        combo.setButtonCell(assetComboCell(safeDiscovery));
+        combo.setCellFactory(list -> assetComboCell(safeDiscovery));
         return combo;
+    }
+
+    private static ListCell<String> assetComboCell(AssetDiscovery discovery) {
+        return new ListCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : discovery.labelFor(item));
+                setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";");
+            }
+        };
     }
 
     private static void styleComboBox(ComboBox<String> combo) {
@@ -1794,7 +2110,7 @@ final class PipelineLauncher {
     private static Node createHeaderOptionsMenu(AnimatedGradientHeader animatedHeader) {
         MenuButton options = new MenuButton("Options");
         options.setFocusTraversable(false);
-        options.setStyle(settingsHeaderButtonStyle());
+        styleButton(options, ButtonRole.HEADER);
         options.setTooltip(new Tooltip("Header display options."));
 
         ToggleButton staticMode = headerSegmentButton("Static");
@@ -1976,7 +2292,7 @@ final class PipelineLauncher {
             info.setMinSize(18.0, 18.0);
             info.setMaxSize(18.0, 18.0);
             info.setFocusTraversable(false);
-            info.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-padding: 0; -fx-font-size: 11px; -fx-font-weight: 900; -fx-text-fill: white; -fx-border-color: " + TEAL + "; -fx-border-radius: 9; -fx-background-radius: 9; -fx-background-color: " + TEAL + ";");
+            styleButton(info, ButtonRole.HELP);
             Tooltip tooltip = new Tooltip(constant.helpText());
             tooltip.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px;");
             info.setTooltip(tooltip);
@@ -2034,7 +2350,12 @@ final class PipelineLauncher {
         dialog.getDialogPane().setContent(content);
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
         dialog.getDialogPane().setPrefWidth(620.0);
+        installAstraStyles(dialog.getDialogPane());
         dialog.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
+        Node close = dialog.getDialogPane().lookupButton(ButtonType.CLOSE);
+        if (close instanceof ButtonBase button) {
+            styleButton(button, ButtonRole.SECONDARY);
+        }
         dialog.showAndWait();
     }
 
@@ -2307,28 +2628,162 @@ final class PipelineLauncher {
     record SavedModelDiscovery(List<String> validIds, Map<String, String> invalidModels) {
     }
 
+    record AssetDiscovery(Map<String, String> labelsByValue) {
+        static AssetDiscovery empty() {
+            return new AssetDiscovery(Map.of());
+        }
+
+        static AssetDiscovery fromValues(List<String> values) {
+            LinkedHashMap<String, String> labels = new LinkedHashMap<>();
+            if (values != null) {
+                values.stream()
+                        .filter(value -> value != null && !value.isBlank())
+                        .sorted(String.CASE_INSENSITIVE_ORDER)
+                        .forEach(value -> labels.put(value, value));
+            }
+            return new AssetDiscovery(Map.copyOf(labels));
+        }
+
+        List<String> values() {
+            return labelsByValue.keySet().stream().sorted(String.CASE_INSENSITIVE_ORDER).toList();
+        }
+
+        String labelFor(String value) {
+            return labelsByValue.getOrDefault(value, value);
+        }
+    }
+
+    private record SettingsSectionModel(String title, String description, String badge, Node content, boolean advanced) {
+    }
+
+    private static void installAstraStyles(DialogPane pane) {
+        if (pane == null) {
+            return;
+        }
+        var resource = PipelineLauncher.class.getResource(LAUNCHER_STYLESHEET_RESOURCE);
+        if (resource != null) {
+            String css = resource.toExternalForm();
+            if (!pane.getStylesheets().contains(css)) {
+                pane.getStylesheets().add(css);
+            }
+        }
+        if (!pane.getStyleClass().contains("astra-dialog-pane")) {
+            pane.getStyleClass().add("astra-dialog-pane");
+        }
+    }
+
+    private static void addStyleClass(Node node, String styleClass) {
+        if (node != null && styleClass != null && !styleClass.isBlank()
+                && !node.getStyleClass().contains(styleClass)) {
+            node.getStyleClass().add(styleClass);
+        }
+    }
+
+    private enum ButtonRole {
+        PRIMARY,
+        SECONDARY,
+        HEADER,
+        DANGER,
+        SUCCESS,
+        SMALL,
+        HELP
+    }
+
+    private static void styleButton(ButtonBase button, ButtonRole role) {
+        if (button == null) {
+            return;
+        }
+        button.getStyleClass().removeIf(name -> name.startsWith("astra-button"));
+        button.setStyle("");
+        button.getStyleClass().add("astra-button");
+        button.getStyleClass().add(switch (role) {
+            case PRIMARY -> "astra-button-primary";
+            case SECONDARY -> "astra-button-secondary";
+            case HEADER -> "astra-button-header";
+            case DANGER -> "astra-button-danger";
+            case SUCCESS -> "astra-button-success";
+            case SMALL -> "astra-button-small";
+            case HELP -> "astra-button-help";
+        });
+    }
+
     private static String semanticButtonStyle() {
-        return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; " +
-                "-fx-background-color: #e6f0f2; -fx-text-fill: " + TEAL_DARK + "; " +
-                "-fx-border-color: #b5cbd2; -fx-border-radius: 4; -fx-background-radius: 4;";
+        return buttonStyle(ButtonRole.SMALL, false, false, false);
     }
 
     private static String settingsHeaderButtonStyle() {
-        return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; " +
-                "-fx-background-color: rgba(255,255,255,0.92); -fx-text-fill: " + TEAL_DARK + "; " +
-                "-fx-border-color: rgba(255,255,255,0.95); -fx-border-radius: 5; -fx-background-radius: 5;";
+        return buttonStyle(ButtonRole.HEADER, false, false, false);
     }
 
     private static String analysisHeaderButtonStyle() {
-        return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; " +
-                "-fx-background-color: #ffe3dc; -fx-text-fill: #7c2417; " +
-                "-fx-border-color: #ffb8aa; -fx-border-radius: 5; -fx-background-radius: 5;";
+        return buttonStyle(ButtonRole.DANGER, false, false, false);
     }
 
     private static String exportHeaderButtonStyle() {
-        return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; " +
-                "-fx-background-color: #dff4e8; -fx-text-fill: #17623b; " +
-                "-fx-border-color: #9fd9b7; -fx-border-radius: 5; -fx-background-radius: 5;";
+        return buttonStyle(ButtonRole.SUCCESS, false, false, false);
+    }
+
+    private static String buttonStyle(ButtonRole role, boolean hover, boolean pressed, boolean disabled) {
+        String bg;
+        String text;
+        String border;
+        String radius = role == ButtonRole.HELP ? "9" : "5";
+        String padding = role == ButtonRole.HELP ? "0" : "6 12";
+        int size = role == ButtonRole.HELP || role == ButtonRole.SMALL ? 11 : 12;
+        switch (role) {
+            case PRIMARY -> {
+                bg = pressed ? "#0b444a" : hover ? "#17696d" : TEAL;
+                text = "white";
+                border = pressed ? "#082f34" : "#17696d";
+            }
+            case SECONDARY -> {
+                bg = pressed ? "#d7e5e8" : hover ? "#ecf4f5" : "#f9fcfd";
+                text = TEAL_DARK;
+                border = pressed ? "#91adb6" : "#b9cdd3";
+            }
+            case DANGER -> {
+                bg = pressed ? "#ffc9bd" : hover ? "#ffddd5" : "#ffe8e2";
+                text = "#7c2417";
+                border = "#f0a090";
+            }
+            case SUCCESS -> {
+                bg = pressed ? "#bfe6d0" : hover ? "#dff4e8" : "#ecf9f1";
+                text = "#17623b";
+                border = "#9fd9b7";
+            }
+            case SMALL -> {
+                bg = pressed ? "#d1e3e7" : hover ? "#eef6f7" : "#e6f0f2";
+                text = TEAL_DARK;
+                border = "#b5cbd2";
+            }
+            case HELP -> {
+                bg = pressed ? "#0b444a" : hover ? "#17696d" : TEAL;
+                text = "white";
+                border = pressed ? "#082f34" : TEAL;
+            }
+            case HEADER -> {
+                bg = pressed ? "rgba(230,240,242,0.86)" : hover ? "rgba(255,255,255,0.98)" : "rgba(255,255,255,0.92)";
+                text = TEAL_DARK;
+                border = "rgba(255,255,255,0.95)";
+            }
+            default -> {
+                bg = "#e6f0f2";
+                text = TEAL_DARK;
+                border = "#b5cbd2";
+            }
+        }
+        String effect = pressed
+                ? " -fx-translate-y: 1; -fx-effect: innershadow(gaussian, rgba(0,0,0,0.18), 4, 0.2, 0, 1);"
+                : hover
+                ? " -fx-effect: dropshadow(gaussian, rgba(10,47,56,0.16), 6, 0.18, 0, 1);"
+                : "";
+        String opacity = disabled ? " -fx-opacity: 0.55;" : "";
+        return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: " + size + "px; -fx-font-weight: 900; "
+                + "-fx-padding: " + padding + "; "
+                + "-fx-background-color: " + bg + "; -fx-text-fill: " + text + "; "
+                + "-fx-border-color: " + border + "; -fx-border-radius: " + radius + "; "
+                + "-fx-background-radius: " + radius + ";"
+                + effect + opacity;
     }
 
     private static String checkBoxStyle() {
@@ -3798,8 +4253,8 @@ final class PipelineLauncher {
 
         private static Button smallButton(String text) {
             Button button = new Button(text);
-            button.setFocusTraversable(false);
-            button.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 800; -fx-background-color: #e6f0f2; -fx-text-fill: " + TEAL_DARK + "; -fx-border-color: #b5cbd2; -fx-border-radius: 4; -fx-background-radius: 4;");
+        button.setFocusTraversable(false);
+            styleButton(button, ButtonRole.SMALL);
             return button;
         }
 
