@@ -163,6 +163,20 @@ class PipelineLauncherTest {
     }
 
     @Test
+    void launcherDefinesCardDashboardAndSharedStylesheet() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+
+        assertTrue(source.contains("LAUNCHER_STYLESHEET_RESOURCE = \"/qupath/ext/astra/astra-launcher.css\""));
+        assertTrue(source.contains("installAstraStyles(dialog.getDialogPane())"));
+        assertTrue(source.contains("createSettingsCard(section"));
+        assertTrue(source.contains("detachFromParent(section.content())"));
+        assertTrue(css.contains(".astra-button-primary"));
+        assertTrue(css.contains(".astra-button-help:pressed"));
+        assertTrue(css.contains(".astra-settings-card:pressed"));
+    }
+
+    @Test
     void schemaIdentityIsStableAndChangesWithEditableContract() {
         String script = """
                 final List MODE_OPTIONS = ["A", "B"]
@@ -505,6 +519,41 @@ class PipelineLauncherTest {
     }
 
     @Test
+    void assetDiscoveryFindsOnlyProjectBackedPixelClassifiers(@TempDir Path tempDir) throws Exception {
+        Path root = tempDir.resolve("classifiers/pixel_classifiers");
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("lumen.json"), "{}");
+        Files.writeString(root.resolve("smooth_muscle.json"), "{}");
+        Files.writeString(root.resolve("notes.txt"), "ignore");
+
+        PipelineLauncher.AssetDiscovery discovery = PipelineLauncher.discoverPixelClassifiers(tempDir.toFile());
+
+        assertEquals(List.of("lumen", "smooth_muscle"), discovery.values());
+        assertEquals("lumen", discovery.labelFor("lumen"));
+        assertTrue(PipelineLauncher.discoverPixelClassifiers(tempDir.resolve("missing").toFile()).values().isEmpty());
+    }
+
+    @Test
+    void assetDiscoveryFindsProjectModelFilesAndBestParameters(@TempDir Path tempDir) throws Exception {
+        Path modelDir = tempDir.resolve("astra/models/nucleus/nuc_v1");
+        Files.createDirectories(modelDir.resolve("tuning"));
+        Files.writeString(modelDir.resolve("model.cpm"), "model");
+        Files.writeString(modelDir.resolve("tuning/best_params.json"), "{}");
+        Files.writeString(modelDir.resolve("readme.txt"), "ignore");
+
+        PipelineLauncher.AssetDiscovery models = PipelineLauncher.discoverModelFiles(tempDir.toFile(), "nucleus");
+        PipelineLauncher.AssetDiscovery bestParams = PipelineLauncher.discoverBestParamsFiles(tempDir.toFile(), "nucleus");
+
+        assertEquals(List.of(modelDir.resolve("model.cpm").toFile().getAbsolutePath()), models.values());
+        assertEquals("astra/models/nucleus/nuc_v1/model.cpm",
+                models.labelFor(modelDir.resolve("model.cpm").toFile().getAbsolutePath()));
+        assertEquals(List.of(modelDir.resolve("tuning/best_params.json").toFile().getAbsolutePath()),
+                bestParams.values());
+        assertEquals("nuc_v1 tuning best parameters",
+                bestParams.labelFor(modelDir.resolve("tuning/best_params.json").toFile().getAbsolutePath()));
+    }
+
+    @Test
     void imageChannelDefaultsUseTargetSegmentationListsWithoutFillingGenericCellLists() {
         String script = """
                 final List CHANNELS_FOR_NUCLEUS = ["DAPI"]
@@ -734,10 +783,12 @@ class PipelineLauncherTest {
         assertTrue(source.contains("PathPrefs.createPersistentPreference(HEADER_MOTION_PREFERENCE_KEY"));
         assertTrue(source.contains("AnimatedGradientHeader.HeaderMode.DYNAMIC.name()"));
         assertTrue(source.contains("AnimatedGradientHeader.MotionSpeed.SMOOTH.name()"));
-        assertTrue(source.contains("VBox basic = sectionShell(\"Basic\""));
-        assertTrue(source.contains("VBox advanced = sectionShell(\"Advanced\""));
+        assertTrue(source.contains("createSettingsNavigator(\"Settings Dashboard\""));
+        assertTrue(source.contains("createSettingsNavigator(\"Advanced Settings\""));
+        assertTrue(source.contains("Button dashboard = new Button(\"Dashboard\")"));
+        assertTrue(source.contains("Button allSettings = new Button(\"All Settings\")"));
         assertTrue(source.contains("Node feedbackNode = feedback.node();"));
-        assertTrue(source.contains("if (colocalization) {\n            body.getChildren().add(createColocalizationPanel"));
+        assertTrue(source.contains("\"Colocalization Setup\""));
         assertTrue(source.contains(".filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))"));
         assertTrue(source.contains("private static VBox createColocalizationPanel("));
         assertTrue(source.contains("static boolean isHandledByColocalizationPanel(String name, boolean colocalization)"));
@@ -765,15 +816,15 @@ class PipelineLauncherTest {
     @Test
     void launcherUsesProfessionalLabelsForPipelineControls() {
         assertEquals("Nucleus Model Source", PipelineLauncher.displayLabel("NUC_MODEL_SOURCE"));
-        assertEquals("Nucleus Saved Model ID", PipelineLauncher.displayLabel("NUC_SAVED_MODEL_ID"));
-        assertEquals("Cell Saved Model ID", PipelineLauncher.displayLabel("CELL_SAVED_MODEL_ID"));
+        assertEquals("Saved Nucleus Model", PipelineLauncher.displayLabel("NUC_SAVED_MODEL_ID"));
+        assertEquals("Saved Cell Model", PipelineLauncher.displayLabel("CELL_SAVED_MODEL_ID"));
         assertEquals("Threshold Scope", PipelineLauncher.displayLabel("THRESHOLD_SCOPE"));
         assertEquals("Manual Background Offsets", PipelineLauncher.displayLabel("BACKGROUND_SUBTRACTION_BY_CHANNEL"));
         assertEquals("Detection Target", PipelineLauncher.displayLabel("DETECTION_TARGET"));
         assertEquals("Threshold Source Images", PipelineLauncher.displayLabel("THRESHOLD_SELECTED_IMAGE_NAMES"));
-        assertEquals("Use GPU", PipelineLauncher.displayLabel("USE_GPU"));
-        assertEquals("QC Filename", PipelineLauncher.displayLabel("QC_FILENAME"));
-        assertEquals("Selected Image Names", PipelineLauncher.displayLabel("SELECTED_IMAGE_NAMES"));
+        assertEquals("Use GPU Acceleration", PipelineLauncher.displayLabel("USE_GPU"));
+        assertEquals("Quality-Control File Name", PipelineLauncher.displayLabel("QC_FILENAME"));
+        assertEquals("Selected Images", PipelineLauncher.displayLabel("SELECTED_IMAGE_NAMES"));
     }
 
     @Test
@@ -786,11 +837,11 @@ class PipelineLauncherTest {
         assertTrue(presentation.contains("static List<String> visibleRunModeOptions"));
         assertTrue(presentation.contains("static boolean supportsHeaderExport"));
         assertTrue(presentation.contains("static String displayOption"));
-        assertEquals("Stages To Run", GuiPresentation.displayLabel("MODES_TO_RUN"));
-        assertEquals("Use GPU", GuiPresentation.displayLabel("USE_GPU"));
+        assertEquals("Stages to Run", GuiPresentation.displayLabel("MODES_TO_RUN"));
+        assertEquals("Use GPU Acceleration", GuiPresentation.displayLabel("USE_GPU"));
         assertEquals("Current Image", GuiPresentation.displayOption("CURRENT_IMAGE"));
         assertEquals("Selected Region", GuiPresentation.displayOption("IMAGE_SCOPE", "SELECTED_ANALYSIS_REGION"));
-        assertEquals("Project Image Selection", GuiPresentation.displayOption("PROJECT_IMAGE_SELECTION"));
+        assertEquals("Selected Images", GuiPresentation.displayOption("PROJECT_IMAGE_SELECTION"));
         assertEquals("Selected Images", GuiPresentation.displayOption("SELECTED_IMAGES"));
         assertEquals("Selected Region", GuiPresentation.displayOption("IMAGE_SCOPE", "SELECTED_ANALYSIS_REGION"));
         assertEquals("Selected Images", GuiPresentation.displayOption("IMAGE_SCOPE", "PROJECT_IMAGE_SELECTION"));
@@ -799,7 +850,7 @@ class PipelineLauncherTest {
         assertEquals("Cell Mean", GuiPresentation.displayOption("THRESHOLD_POPULATION", "CELL_MEAN"));
         assertEquals("Pixel Intensity", GuiPresentation.displayOption("THRESHOLD_POPULATION", "PIXEL_INTENSITY"));
         assertEquals("Pixel Positive Fraction", GuiPresentation.displayOption("POSITIVITY_METHOD", "PIXEL_POSITIVE_FRACTION"));
-        assertEquals("Pixel Level Score", GuiPresentation.displayOption("EXPRESSION_CLASSIFICATION_MODE", "PIXEL_LEVEL_SCORE"));
+        assertEquals("Pixel-Level Score", GuiPresentation.displayOption("EXPRESSION_CLASSIFICATION_MODE", "PIXEL_LEVEL_SCORE"));
         assertEquals("Legacy Binary", GuiPresentation.displayOption("EXPRESSION_CLASSIFICATION_MODE", "LEGACY_BINARY"));
         assertEquals("Local Percentile", GuiPresentation.displayOption("LOCAL_PERCENTILE"));
         assertEquals("Detection Target", GuiPresentation.displayLabel("DETECTION_TARGET"));
@@ -1175,9 +1226,9 @@ class PipelineLauncherTest {
         assertFalse(source.contains("new Button(\"Reset Image...\")"));
         assertFalse(source.contains("new Button(\"Reset Project...\")"));
         assertTrue(source.contains("new Button(\"Export\")"));
-        assertTrue(source.contains("resetImage.setStyle(analysisHeaderButtonStyle())"));
-        assertTrue(source.contains("resetProject.setStyle(analysisHeaderButtonStyle())"));
-        assertTrue(source.contains("export.setStyle(exportHeaderButtonStyle())"));
+        assertTrue(source.contains("styleButton(resetImage, ButtonRole.DANGER)"));
+        assertTrue(source.contains("styleButton(resetProject, ButtonRole.DANGER)"));
+        assertTrue(source.contains("styleButton(export, ButtonRole.SUCCESS)"));
         assertTrue(source.contains("AnimatedGradientHeader animatedHeader = new AnimatedGradientHeader(header);"));
         assertTrue(source.contains("new MenuButton(\"Options\")"));
         assertTrue(source.contains("headerSegmentButton(\"Static\")"));
@@ -1406,7 +1457,7 @@ class PipelineLauncherTest {
         assertFalse(presentation.contains("ALL_IMAGES"));
         assertFalse(presentation.contains("SELECTED_IMAGES_BY_NAME"));
         assertTrue(source.contains("PROJECT_IMAGE_SELECTION"));
-        assertEquals("Selected Analysis Region", GuiPresentation.displayOption("SELECTED_ANALYSIS_REGION"));
+        assertEquals("Selected Region", GuiPresentation.displayOption("SELECTED_ANALYSIS_REGION"));
     }
 
     @Test

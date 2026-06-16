@@ -86,25 +86,25 @@
           "name": "NUC_MIN_MASK_EQUIVALENT_DIAMETER_UM",
           "type": "double",
           "defaultGroovy": "1.0d",
-          "helpGroovy": "\"Set the physical diameter used by nucleus min mask equivalent diameter um.\"",
+          "helpGroovy": "\"Set the minimum accepted nucleus mask diameter in microns.\"",
           "editable": true,
           "internal": false,
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6010,
-          "detailsMarkdown": "What it does: Minimum nucleus mask equivalent diameter in microns for Cellpose train/validation execution. ASTRA converts this biological floor to Cellpose's pixel-area --min_size using the training run's calibrated working pixel size.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nDefault value: 1.0d."
+          "detailsMarkdown": "What it does: Sets the smallest nucleus mask ASTRA keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny specks or fragmented nuclear debris. Decrease it only if true nuclei are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream classification.\n\nDefault value: 1.0 um."
         },
         {
           "name": "CELL_MIN_MASK_EQUIVALENT_DIAMETER_UM",
           "type": "double",
           "defaultGroovy": "1.0d",
-          "helpGroovy": "\"Set the physical diameter used by cell min mask equivalent diameter um.\"",
+          "helpGroovy": "\"Set the minimum accepted cell mask diameter in microns.\"",
           "editable": true,
           "internal": false,
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6020,
-          "detailsMarkdown": "What it does: Minimum whole-cell mask equivalent diameter in microns for Cellpose train/validation execution. ASTRA converts this biological floor to Cellpose's pixel-area --min_size using the training run's calibrated working pixel size.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nDefault value: 1.0d."
+          "detailsMarkdown": "What it does: Sets the smallest whole-cell mask ASTRA keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny debris or fragmented cell masks. Decrease it only if true cells are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream quantification.\n\nDefault value: 1.0 um."
         },
         {
           "name": "USE_BATCH_MODE",
@@ -187,7 +187,7 @@
           "editable": true,
           "internal": false,
           "group": "Run Setup",
-          "advanced": false,
+          "advanced": true,
           "uiOrder": 1040,
           "detailsMarkdown": "What it does: Locked training preset table. Edit only for an intentional protocol change because epoch count and checkpoint cadence affect model auditability.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: [\n    TEST    : [epochs: 1, save_every: 1],\n    FAST    : [epochs: 50, save_every: 10],\n    BALANCED: [epochs: 100, save_every: 5],\n    FULL    : [epochs: 200, save_every: 2],\n    ULTRA   : [epochs: 500, save_every: 1],\n]."
         },
@@ -322,7 +322,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5030,
-          "detailsMarkdown": "What it does: Absolute nucleus model file path used when NUC_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Absolute nucleus model file path used when NUC_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "modelFile",
+            "root": "astra/models/nucleus",
+            "target": "nucleus"
+          }
         },
         {
           "name": "NUC_SAVED_MODEL_ID",
@@ -334,7 +339,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5040,
-          "detailsMarkdown": "What it does: Explicit saved nucleus model ID used when NUC_MODEL_SOURCE is SAVED. ASTRA never chooses a saved model automatically at runtime.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Explicit saved nucleus model ID used when NUC_MODEL_SOURCE is SAVED. ASTRA never chooses a saved model automatically at runtime.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "savedModelId",
+            "root": "astra/models/nucleus",
+            "target": "nucleus"
+          }
         },
         {
           "name": "CELL_MODEL_SOURCE",
@@ -371,7 +381,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5070,
-          "detailsMarkdown": "What it does: Absolute whole-cell model file path used when CELL_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Absolute whole-cell model file path used when CELL_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "modelFile",
+            "root": "astra/models/cell",
+            "target": "cell"
+          }
         },
         {
           "name": "CELL_SAVED_MODEL_ID",
@@ -383,7 +398,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5080,
-          "detailsMarkdown": "What it does: Explicit saved cell model ID used when CELL_MODEL_SOURCE is SAVED. ASTRA never chooses a saved model automatically at runtime.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Explicit saved cell model ID used when CELL_MODEL_SOURCE is SAVED. ASTRA never chooses a saved model automatically at runtime.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "savedModelId",
+            "root": "astra/models/cell",
+            "target": "cell"
+          }
         },
         {
           "name": "CELLPOSE_FORK_MARKER",
@@ -393,7 +413,7 @@
           "editable": true,
           "internal": false,
           "group": "Run Setup",
-          "advanced": false,
+          "advanced": true,
           "uiOrder": 1060,
           "detailsMarkdown": "What it does: Required marker checked during runtime preflight to confirm the configured Cellpose installation appears to be the ASTRA fork.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: \"astra\"."
         },
@@ -805,7 +825,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5030,
-          "detailsMarkdown": "What it does: Absolute nucleus model file path used when NUC_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Absolute nucleus model file path used when NUC_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "modelFile",
+            "root": "astra/models/nucleus",
+            "target": "nucleus"
+          }
         },
         {
           "name": "NUC_SAVED_MODEL_ID",
@@ -817,7 +842,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5040,
-          "detailsMarkdown": "What it does: Explicit saved nucleus model ID used when NUC_MODEL_SOURCE is SAVED. Runtime selection is deterministic and never picks newest, best, or only automatically.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Explicit saved nucleus model ID used when NUC_MODEL_SOURCE is SAVED. Runtime selection is deterministic and never picks newest, best, or only automatically.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "savedModelId",
+            "root": "astra/models/nucleus",
+            "target": "nucleus"
+          }
         },
         {
           "name": "CELL_MODEL_SOURCE",
@@ -854,7 +884,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5070,
-          "detailsMarkdown": "What it does: Absolute whole-cell model file path used when CELL_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Absolute whole-cell model file path used when CELL_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "modelFile",
+            "root": "astra/models/cell",
+            "target": "cell"
+          }
         },
         {
           "name": "CELL_SAVED_MODEL_ID",
@@ -866,7 +901,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5080,
-          "detailsMarkdown": "What it does: Explicit saved cell model ID used when CELL_MODEL_SOURCE is SAVED. Runtime selection is deterministic and never picks newest, best, or only automatically.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Explicit saved cell model ID used when CELL_MODEL_SOURCE is SAVED. Runtime selection is deterministic and never picks newest, best, or only automatically.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "savedModelId",
+            "root": "astra/models/cell",
+            "target": "cell"
+          }
         },
         {
           "name": "CELLPOSE_FORK_MARKER",
@@ -876,7 +916,7 @@
           "editable": true,
           "internal": false,
           "group": "Run Setup",
-          "advanced": false,
+          "advanced": true,
           "uiOrder": 1070,
           "detailsMarkdown": "What it does: Expected marker proving the configured runtime is the Cellpose-ASTRA fork. Changing it weakens runtime provenance checks.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: \"astra\"."
         },
@@ -997,7 +1037,7 @@
           "editable": true,
           "internal": false,
           "group": "Run Setup",
-          "advanced": false,
+          "advanced": true,
           "uiOrder": 1160,
           "detailsMarkdown": "What it does: Maps tier numbers to Cellpose/SAM knobs. The selected tier list defines the search surface recorded in tuning artifacts.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: [\n    1: [\"diameter_um\", \"cellprob\", \"flow\"],\n    2: [\"niter\"],\n    3: [\"norm_pmin\", \"norm_pmax\", \"simplify_px\"],\n    4: [\"min_mask_equivalent_diameter_um\"]\n]."
         },
@@ -1009,7 +1049,7 @@
           "editable": true,
           "internal": false,
           "group": "Segmentation",
-          "advanced": false,
+          "advanced": true,
           "uiOrder": 6010,
           "detailsMarkdown": "What it does: Pinned per-target defaults used for untuned Cellpose knobs. Diameter 0.0 and niter 0 omit explicit builder values, while min_mask_equivalent_diameter_um is converted to Cellpose --min_size from each image calibration.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nDefault value: [\n    NUCLEUS: [\n        diameter_um: CellposeInferenceDefaults.DIAMETER_UM_AUTO,\n        cellprob   : CellposeInferenceDefaults.CELLPROB_THRESHOLD,\n        flow       : CellposeInferenceDefaults.FLOW_THRESHOLD,\n        niter      : CellposeInferenceDefaults.NITER_AUTO,\n        min_mask_equivalent_diameter_um: 1.0d,\n        norm_pmin  : CellposeInferenceDefaults.SAM_NORM_PMIN,\n        norm_pmax  : CellposeInferenceDefaults.SAM_NORM_PMAX,\n        simplify_px: CellposeInferenceDefaults.SAM_SIMPLIFY_DISTANCE_PX\n    ],\n    CELL   : [\n        diameter_um: CellposeInferenceDefaults.DIAMETER_UM_AUTO,\n        cellprob   : CellposeInferenceDefaults.CELLPROB_THRESHOLD,\n        flow       : CellposeInferenceDefaults.FLOW_THRESHOLD,\n        niter      : CellposeInferenceDefaults.NITER_AUTO,\n        min_mask_equivalent_diameter_um: 1.0d,\n        norm_pmin  : CellposeInferenceDefaults.SAM_NORM_PMIN,\n        norm_pmax  : CellposeInferenceDefaults.SAM_NORM_PMAX,\n        simplify_px: CellposeInferenceDefaults.SAM_SIMPLIFY_DISTANCE_PX\n    ]\n]."
         },
@@ -1046,7 +1086,7 @@
           "editable": true,
           "internal": false,
           "group": "Run Setup",
-          "advanced": false,
+          "advanced": true,
           "uiOrder": 1190,
           "detailsMarkdown": "What it does: Target-specific finite search bounds for every tunable knob. Bounds define the publication-visible parameter search space.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: [\n    NUCLEUS: [\n        diameter_um: [min: 1.0d, max: 8.0d],   // µm\n        cellprob   : [min: -6.0d, max: 6.0d],\n        flow       : [min: 0.0d, max: 2.0d],\n        niter      : [min: 200, max: 2000],   // int\n        min_mask_equivalent_diameter_um: [min: 0.5d, max: 8.0d],\n        norm_pmin  : [min: 0.0d, max: 10.0d],\n        norm_pmax  : [min: 90.0d, max: 100.0d],\n        simplify_px: [min: 0.0d, max: 2.0d]\n    ],\n    CELL   : [\n        diameter_um: [min: 2.0d, max: 20.0d],  // µm\n        cellprob   : [min: -6.0d, max: 6.0d],\n        flow       : [min: 0.0d, max: 2.0d],\n        niter      : [min: 200, max: 2000],   // int\n        min_mask_equivalent_diameter_um: [min: 0.5d, max: 20.0d],\n        norm_pmin  : [min: 0.0d, max: 10.0d],\n        norm_pmax  : [min: 90.0d, max: 100.0d],\n        simplify_px: [min: 0.0d, max: 2.0d]\n    ]\n]."
         },
@@ -1250,7 +1290,7 @@
           "editable": true,
           "internal": false,
           "group": "Run Setup",
-          "advanced": false,
+          "advanced": true,
           "uiOrder": 1310,
           "detailsMarkdown": "What it does: Per-mode, per-target quantization steps used to make random-search candidates reproducible and auditably bounded.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: [\n    FAST    : [\n        NUCLEUS: [diameter_um: 0.50d, cellprob: 0.50d, flow: 0.25d],\n        CELL   : [diameter_um: 1.00d, cellprob: 0.50d, flow: 0.25d]\n    ],\n    BALANCED: [\n        NUCLEUS: [diameter_um: 0.25d, cellprob: 0.25d, flow: 0.10d],\n        CELL   : [diameter_um: 0.50d, cellprob: 0.25d, flow: 0.10d]\n    ]\n]."
         },
@@ -1262,7 +1302,7 @@
           "editable": true,
           "internal": false,
           "group": "Run Setup",
-          "advanced": false,
+          "advanced": true,
           "uiOrder": 1320,
           "detailsMarkdown": "What it does: Deterministic grid-search controls for FULL and ULTRA modes, including pass counts, shrink behavior, and target step thresholds.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: [\n    FULL : [\n        GLOBAL_POINTS_PER_PARAM: 7,\n        LOCAL_POINTS_PER_PARAM : 11,\n        MIN_PASSES             : 3,\n        MAX_PASSES             : 8,\n        ZOOM_SHRINK            : 0.50d,\n\n        // Stop refining when step <= target.\n        TARGET_STEP_BY_TARGET  : [\n            NUCLEUS: [\n                diameter_um: 0.10d,\n                cellprob   : 0.10d,\n                flow       : 0.05d,\n                niter      : 25.0d,\n                norm_pmin  : 0.25d,\n                norm_pmax  : 0.25d,\n                simplify_px: 0.05d\n            ],\n            CELL   : [\n                diameter_um: 0.25d,\n                cellprob   : 0.10d,\n                flow       : 0.05d,\n                niter      : 25.0d,\n                norm_pmin  : 0.25d,\n                norm_pmax  : 0.25d,\n                simplify_px: 0.05d\n            ]\n        ]\n    ],\n\n    ULTRA: [\n        GLOBAL_POINTS_PER_PARAM: 7,\n        LOCAL_POINTS_PER_PARAM : 13,\n        MIN_PASSES             : 4,\n        MAX_PASSES             : 10,\n        ZOOM_SHRINK            : 0.50d,\n\n        TARGET_STEP_BY_TARGET  : [\n            NUCLEUS: [\n                diameter_um: 0.05d,\n                cellprob   : 0.05d,\n                flow       : 0.01d,\n                niter      : 10.0d,\n                norm_pmin  : 0.10d,\n                norm_pmax  : 0.10d,\n                simplify_px: 0.02d\n            ],\n            CELL   : [\n                diameter_um: 0.05d,\n                cellprob   : 0.01d,\n                flow       : 0.02d,\n                niter      : 10.0d,\n                norm_pmin  : 0.10d,\n                norm_pmax  : 0.10d,\n                simplify_px: 0.02d\n            ]\n        ]\n    ]\n]."
         }
@@ -1518,7 +1558,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5030,
-          "detailsMarkdown": "What it does: Absolute nucleus model file path used when NUC_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Absolute nucleus model file path used when NUC_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "modelFile",
+            "root": "astra/models/nucleus",
+            "target": "nucleus"
+          }
         },
         {
           "name": "NUC_SAVED_MODEL_ID",
@@ -1530,7 +1575,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5040,
-          "detailsMarkdown": "What it does: Explicit saved nucleus model ID used when NUC_MODEL_SOURCE is SAVED. Runtime selection is deterministic and never picks newest, best, or only automatically.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Explicit saved nucleus model ID used when NUC_MODEL_SOURCE is SAVED. Runtime selection is deterministic and never picks newest, best, or only automatically.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "savedModelId",
+            "root": "astra/models/nucleus",
+            "target": "nucleus"
+          }
         },
         {
           "name": "CELL_MODEL_SOURCE",
@@ -1567,7 +1617,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5070,
-          "detailsMarkdown": "What it does: Absolute whole-cell model file path used when CELL_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Absolute whole-cell model file path used when CELL_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "modelFile",
+            "root": "astra/models/cell",
+            "target": "cell"
+          }
         },
         {
           "name": "CELL_SAVED_MODEL_ID",
@@ -1579,7 +1634,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5080,
-          "detailsMarkdown": "What it does: Explicit saved cell model ID used when CELL_MODEL_SOURCE is SAVED. Runtime selection is deterministic and never picks newest, best, or only automatically.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Explicit saved cell model ID used when CELL_MODEL_SOURCE is SAVED. Runtime selection is deterministic and never picks newest, best, or only automatically.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "savedModelId",
+            "root": "astra/models/cell",
+            "target": "cell"
+          }
         },
         {
           "name": "NUC_PARAM_SOURCE",
@@ -1604,7 +1664,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5100,
-          "detailsMarkdown": "What it does: Absolute nucleus best-parameters JSON path used when NUC_PARAM_SOURCE is BEST_PARAMS_FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Absolute nucleus best-parameters JSON path used when NUC_PARAM_SOURCE is BEST_PARAMS_FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "bestParamsFile",
+            "root": "astra/models/nucleus",
+            "target": "nucleus"
+          }
         },
         {
           "name": "CELL_PARAM_SOURCE",
@@ -1629,7 +1694,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5120,
-          "detailsMarkdown": "What it does: Absolute whole-cell best-parameters JSON path used when CELL_PARAM_SOURCE is BEST_PARAMS_FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Absolute whole-cell best-parameters JSON path used when CELL_PARAM_SOURCE is BEST_PARAMS_FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "bestParamsFile",
+            "root": "astra/models/cell",
+            "target": "cell"
+          }
         },
         {
           "name": "CELLPOSE_FORK_MARKER",
@@ -1639,7 +1709,7 @@
           "editable": true,
           "internal": false,
           "group": "Run Setup",
-          "advanced": false,
+          "advanced": true,
           "uiOrder": 1050,
           "detailsMarkdown": "What it does: Text marker expected from the configured Cellpose runtime to confirm the ASTRA fork. Leave as astra unless validating a deliberately different audited runtime.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: \"astra\"."
         },
@@ -1724,7 +1794,7 @@
           "editable": true,
           "internal": false,
           "group": "Segmentation",
-          "advanced": false,
+          "advanced": true,
           "uiOrder": 6020,
           "detailsMarkdown": "What it does: Pinned per-target defaults used when best_params.json omits an untuned Cellpose knob. Diameter 0.0 and niter 0 omit explicit builder values, while min_mask_equivalent_diameter_um is converted to Cellpose --min_size from each image calibration.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nDefault value: [NUCLEUS: [diameter_um: CellposeInferenceDefaults.DIAMETER_UM_AUTO,\n                                                cellprob   : CellposeInferenceDefaults.CELLPROB_THRESHOLD,\n                                                flow       : CellposeInferenceDefaults.FLOW_THRESHOLD,\n                                                niter      : CellposeInferenceDefaults.NITER_AUTO,\n                                                min_mask_equivalent_diameter_um: 1.0d,\n                                                norm_pmin  : CellposeInferenceDefaults.SAM_NORM_PMIN,\n                                                norm_pmax  : CellposeInferenceDefaults.SAM_NORM_PMAX,\n                                                simplify_px: CellposeInferenceDefaults.SAM_SIMPLIFY_DISTANCE_PX],\n                                      CELL   : [diameter_um: CellposeInferenceDefaults.DIAMETER_UM_AUTO,\n                                                cellprob   : CellposeInferenceDefaults.CELLPROB_THRESHOLD,\n                                                flow       : CellposeInferenceDefaults.FLOW_THRESHOLD,\n                                                niter      : CellposeInferenceDefaults.NITER_AUTO,\n                                                min_mask_equivalent_diameter_um: 1.0d,\n                                                norm_pmin  : CellposeInferenceDefaults.SAM_NORM_PMIN,\n                                                norm_pmax  : CellposeInferenceDefaults.SAM_NORM_PMAX,\n                                                simplify_px: CellposeInferenceDefaults.SAM_SIMPLIFY_DISTANCE_PX]]."
         },
@@ -1960,7 +2030,11 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3010,
-          "detailsMarkdown": "What it does: Name of the reviewed QuPath pixel classifier used to identify lumen/background space during GENERATE_REGIONS.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"lumen\"."
+          "detailsMarkdown": "What it does: Name of the reviewed QuPath pixel classifier used to identify lumen/background space during GENERATE_REGIONS.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"lumen\".",
+          "assetDiscovery": {
+            "kind": "pixelClassifier",
+            "root": "classifiers/pixel_classifiers"
+          }
         },
         {
           "name": "CLASSIFIER_SMOOTH_MUSCLE",
@@ -1972,7 +2046,11 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3020,
-          "detailsMarkdown": "What it does: Name of the reviewed QuPath pixel classifier used to define the smooth-muscle wall region for vascular quantification.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"smooth_muscle\"."
+          "detailsMarkdown": "What it does: Name of the reviewed QuPath pixel classifier used to define the smooth-muscle wall region for vascular quantification.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"smooth_muscle\".",
+          "assetDiscovery": {
+            "kind": "pixelClassifier",
+            "root": "classifiers/pixel_classifiers"
+          }
         },
         {
           "name": "CLASSIFIER_ENDOTHELIUM",
@@ -1984,7 +2062,11 @@
           "group": "Biological Classification",
           "advanced": false,
           "uiOrder": 7010,
-          "detailsMarkdown": "What it does: Name of the reviewed QuPath pixel classifier used to define the endothelial region for vascular quantification.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes how detected objects are assigned to biological classes.\n\nDefault value: \"endothelium\"."
+          "detailsMarkdown": "What it does: Name of the reviewed QuPath pixel classifier used to define the endothelial region for vascular quantification.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes how detected objects are assigned to biological classes.\n\nDefault value: \"endothelium\".",
+          "assetDiscovery": {
+            "kind": "pixelClassifier",
+            "root": "classifiers/pixel_classifiers"
+          }
         },
         {
           "name": "CLASS_ROI",
@@ -2174,7 +2256,7 @@
           "editable": true,
           "internal": false,
           "group": "Channels & Markers",
-          "advanced": false,
+          "advanced": true,
           "uiOrder": 4050,
           "detailsMarkdown": "What it does: Channels passed to whole-cell detection. These are segmentation channels, not all available image channels; include only channels intentionally used for cell segmentation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [CHANNEL_ASMA, CHANNEL_WGA, CHANNEL_DAPI].\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
         },
@@ -2285,7 +2367,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5030,
-          "detailsMarkdown": "What it does: Absolute nucleus model file used when NUC_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Absolute nucleus model file used when NUC_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "modelFile",
+            "root": "astra/models/nucleus",
+            "target": "nucleus"
+          }
         },
         {
           "name": "NUC_SAVED_MODEL_ID",
@@ -2297,7 +2384,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5040,
-          "detailsMarkdown": "What it does: Explicit saved nucleus model ID used when NUC_MODEL_SOURCE is SAVED. ASTRA resolves this under projectRoot/astra/models/nucleus/<model_id>/ and records model metadata plus SHA-256.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Explicit saved nucleus model ID used when NUC_MODEL_SOURCE is SAVED. ASTRA resolves this under projectRoot/astra/models/nucleus/<model_id>/ and records model metadata plus SHA-256.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "savedModelId",
+            "root": "astra/models/nucleus",
+            "target": "nucleus"
+          }
         },
         {
           "name": "CELL_MODEL_SOURCE",
@@ -2334,7 +2426,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5070,
-          "detailsMarkdown": "What it does: Absolute whole-cell model file used when CELL_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Absolute whole-cell model file used when CELL_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "modelFile",
+            "root": "astra/models/cell",
+            "target": "cell"
+          }
         },
         {
           "name": "CELL_SAVED_MODEL_ID",
@@ -2346,7 +2443,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5080,
-          "detailsMarkdown": "What it does: Explicit saved cell model ID used when CELL_MODEL_SOURCE is SAVED. ASTRA resolves this under projectRoot/astra/models/cell/<model_id>/ and records model metadata plus SHA-256.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Explicit saved cell model ID used when CELL_MODEL_SOURCE is SAVED. ASTRA resolves this under projectRoot/astra/models/cell/<model_id>/ and records model metadata plus SHA-256.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "savedModelId",
+            "root": "astra/models/cell",
+            "target": "cell"
+          }
         },
         {
           "name": "NUC_PARAM_SOURCE",
@@ -2371,7 +2473,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5100,
-          "detailsMarkdown": "What it does: Absolute nucleus best-parameters file used when NUC_PARAM_SOURCE is BEST_PARAMS_FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Absolute nucleus best-parameters file used when NUC_PARAM_SOURCE is BEST_PARAMS_FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "bestParamsFile",
+            "root": "astra/models/nucleus",
+            "target": "nucleus"
+          }
         },
         {
           "name": "CELL_PARAM_SOURCE",
@@ -2396,7 +2503,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5120,
-          "detailsMarkdown": "What it does: Absolute whole-cell best-parameters file used when CELL_PARAM_SOURCE is BEST_PARAMS_FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Absolute whole-cell best-parameters file used when CELL_PARAM_SOURCE is BEST_PARAMS_FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "bestParamsFile",
+            "root": "astra/models/cell",
+            "target": "cell"
+          }
         },
         {
           "name": "USE_GPU",
@@ -2680,13 +2792,13 @@
           "name": "NUC_MIN_MASK_EQUIVALENT_DIAMETER_UM",
           "type": "double",
           "defaultGroovy": "1.0d",
-          "helpGroovy": "\"Set the physical diameter used by nucleus min mask equivalent diameter um.\"",
+          "helpGroovy": "\"Set the minimum accepted nucleus mask diameter in microns.\"",
           "editable": true,
           "internal": false,
           "group": "Segmentation",
           "advanced": true,
           "uiOrder": 6070,
-          "detailsMarkdown": "What it does: Minimum nucleus mask equivalent diameter in microns. ASTRA converts this biological floor to Cellpose's pixel-area --min_size using each image calibration; the 1.0 um default removes non-measurable debris/slivers without acting as a biological classifier.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nDefault value: 1.0d."
+          "detailsMarkdown": "What it does: Sets the smallest nucleus mask ASTRA keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny specks or fragmented nuclear debris. Decrease it only if true nuclei are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream classification.\n\nDefault value: 1.0 um."
         },
         {
           "name": "CELL_DIAMETER_UM",
@@ -2740,13 +2852,13 @@
           "name": "CELL_MIN_MASK_EQUIVALENT_DIAMETER_UM",
           "type": "double",
           "defaultGroovy": "1.0d",
-          "helpGroovy": "\"Set the physical diameter used by cell min mask equivalent diameter um.\"",
+          "helpGroovy": "\"Set the minimum accepted cell mask diameter in microns.\"",
           "editable": true,
           "internal": false,
           "group": "Segmentation",
           "advanced": true,
           "uiOrder": 6120,
-          "detailsMarkdown": "What it does: Minimum whole-cell mask equivalent diameter in microns. ASTRA converts this biological floor to Cellpose's pixel-area --min_size using each image calibration; the 1.0 um default removes non-measurable debris/slivers without acting as a biological classifier.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nDefault value: 1.0d."
+          "detailsMarkdown": "What it does: Sets the smallest whole-cell mask ASTRA keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny debris or fragmented cell masks. Decrease it only if true cells are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream quantification.\n\nDefault value: 1.0 um."
         },
         {
           "name": "SAM_SIMPLIFY_DISTANCE_PX",
@@ -3204,7 +3316,7 @@
           "editable": true,
           "internal": false,
           "group": "Classes & Regions",
-          "advanced": false,
+          "advanced": true,
           "uiOrder": 3350,
           "detailsMarkdown": "What it does: Classifier training specification map for AUTO_BUILD_CLASSIFIERS. Each entry binds training class, output class, and channel set for one provisional classifier.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: [\n        (CLASSIFIER_LUMEN)        : [\n                POSITIVE_CLASS: CLASS_TRAINING_LUMEN,\n                OUTPUT_CLASS  : CLASS_LUMEN_OUTPUT,\n                CHANNELS      : [CHANNEL_WGA, CHANNEL_DAPI]\n        ],\n        (CLASSIFIER_SMOOTH_MUSCLE): [\n                POSITIVE_CLASS: CLASS_TRAINING_SMOOTH_MUSCLE,\n                OUTPUT_CLASS  : CLASS_SMOOTH_MUSCLE_OUTPUT,\n                CHANNELS      : [CHANNEL_ASMA, CHANNEL_WGA]\n        ],\n        (CLASSIFIER_ENDOTHELIUM)  : [\n                POSITIVE_CLASS: CLASS_TRAINING_ENDOTHELIUM,\n                OUTPUT_CLASS  : CLASS_ENDOTHELIUM_OUTPUT,\n                CHANNELS      : [CHANNEL_CD31, CHANNEL_WGA]\n        ]\n]."
         }
@@ -3349,7 +3461,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5030,
-          "detailsMarkdown": "What it does: Absolute nucleus model file used when NUC_MODEL_SOURCE is FILE. This directly affects segmentation and must point to the exact audited model checkpoint.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Absolute nucleus model file used when NUC_MODEL_SOURCE is FILE. This directly affects segmentation and must point to the exact audited model checkpoint.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "modelFile",
+            "root": "astra/models/nucleus",
+            "target": "nucleus"
+          }
         },
         {
           "name": "NUC_SAVED_MODEL_ID",
@@ -3361,7 +3478,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5040,
-          "detailsMarkdown": "What it does: Explicit saved nucleus model ID used when NUC_MODEL_SOURCE is SAVED. ASTRA resolves this under projectRoot/astra/models/nucleus/<model_id>/ and records the model metadata and SHA-256.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Explicit saved nucleus model ID used when NUC_MODEL_SOURCE is SAVED. ASTRA resolves this under projectRoot/astra/models/nucleus/<model_id>/ and records the model metadata and SHA-256.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "savedModelId",
+            "root": "astra/models/nucleus",
+            "target": "nucleus"
+          }
         },
         {
           "name": "CELL_MODEL_SOURCE",
@@ -3398,7 +3520,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5070,
-          "detailsMarkdown": "What it does: Absolute whole-cell model file used when CELL_MODEL_SOURCE is FILE. This directly affects segmentation and must point to the exact audited model checkpoint.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Absolute whole-cell model file used when CELL_MODEL_SOURCE is FILE. This directly affects segmentation and must point to the exact audited model checkpoint.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "modelFile",
+            "root": "astra/models/cell",
+            "target": "cell"
+          }
         },
         {
           "name": "CELL_SAVED_MODEL_ID",
@@ -3410,7 +3537,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5080,
-          "detailsMarkdown": "What it does: Explicit saved cell model ID used when CELL_MODEL_SOURCE is SAVED. ASTRA resolves this under projectRoot/astra/models/cell/<model_id>/ and records the model metadata and SHA-256.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Explicit saved cell model ID used when CELL_MODEL_SOURCE is SAVED. ASTRA resolves this under projectRoot/astra/models/cell/<model_id>/ and records the model metadata and SHA-256.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "savedModelId",
+            "root": "astra/models/cell",
+            "target": "cell"
+          }
         },
         {
           "name": "NUC_PARAM_SOURCE",
@@ -3435,7 +3567,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5100,
-          "detailsMarkdown": "What it does: Absolute nucleus best-parameters file used when NUC_PARAM_SOURCE is BEST_PARAMS_FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Absolute nucleus best-parameters file used when NUC_PARAM_SOURCE is BEST_PARAMS_FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "bestParamsFile",
+            "root": "astra/models/nucleus",
+            "target": "nucleus"
+          }
         },
         {
           "name": "CELL_PARAM_SOURCE",
@@ -3460,7 +3597,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5120,
-          "detailsMarkdown": "What it does: Absolute whole-cell best-parameters file used when CELL_PARAM_SOURCE is BEST_PARAMS_FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Absolute whole-cell best-parameters file used when CELL_PARAM_SOURCE is BEST_PARAMS_FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "bestParamsFile",
+            "root": "astra/models/cell",
+            "target": "cell"
+          }
         },
         {
           "name": "USE_GPU",
@@ -3721,13 +3863,13 @@
           "name": "NUC_MIN_MASK_EQUIVALENT_DIAMETER_UM",
           "type": "double",
           "defaultGroovy": "1.0d",
-          "helpGroovy": "\"Set the physical diameter used by nucleus min mask equivalent diameter um.\"",
+          "helpGroovy": "\"Set the minimum accepted nucleus mask diameter in microns.\"",
           "editable": true,
           "internal": false,
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6070,
-          "detailsMarkdown": "What it does: Minimum nucleus mask equivalent diameter in microns. ASTRA converts this biological floor to Cellpose's pixel-area --min_size using each image calibration; the 1.0 um default removes non-measurable debris/slivers without acting as a biological classifier.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nDefault value: 1.0d."
+          "detailsMarkdown": "What it does: Sets the smallest nucleus mask ASTRA keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny specks or fragmented nuclear debris. Decrease it only if true nuclei are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream classification.\n\nDefault value: 1.0 um."
         },
         {
           "name": "CELL_SEGMENTATION_CHANNELS",
@@ -3793,13 +3935,13 @@
           "name": "CELL_MIN_MASK_EQUIVALENT_DIAMETER_UM",
           "type": "double",
           "defaultGroovy": "1.0d",
-          "helpGroovy": "\"Set the physical diameter used by cell min mask equivalent diameter um.\"",
+          "helpGroovy": "\"Set the minimum accepted cell mask diameter in microns.\"",
           "editable": true,
           "internal": false,
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6120,
-          "detailsMarkdown": "What it does: Minimum whole-cell mask equivalent diameter in microns. ASTRA converts this biological floor to Cellpose's pixel-area --min_size using each image calibration; the 1.0 um default removes non-measurable debris/slivers without acting as a biological classifier.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nDefault value: 1.0d."
+          "detailsMarkdown": "What it does: Sets the smallest whole-cell mask ASTRA keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny debris or fragmented cell masks. Decrease it only if true cells are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream quantification.\n\nDefault value: 1.0 um."
         },
         {
           "name": "SAM_SIMPLIFY_DISTANCE_PX",
@@ -4670,7 +4812,12 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5030,
-          "detailsMarkdown": "What it does: Absolute nucleus model file path used when NUC_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Absolute nucleus model file path used when NUC_MODEL_SOURCE is FILE.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "assetDiscovery": {
+            "kind": "modelFile",
+            "root": "astra/models/nucleus",
+            "target": "nucleus"
+          }
         },
         {
           "name": "NUC_DIAMETER_UM",
@@ -4724,13 +4871,13 @@
           "name": "NUC_MIN_MASK_EQUIVALENT_DIAMETER_UM",
           "type": "double",
           "defaultGroovy": "1.0d",
-          "helpGroovy": "\"Set the physical diameter used by nucleus min mask equivalent diameter um.\"",
+          "helpGroovy": "\"Set the minimum accepted nucleus mask diameter in microns.\"",
           "editable": true,
           "internal": false,
           "group": "Segmentation",
           "advanced": true,
           "uiOrder": 6080,
-          "detailsMarkdown": "What it does: Minimum nucleus mask equivalent diameter in microns. ASTRA converts this floor to Cellpose's pixel-area --min_size for each image calibration.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nDefault value: 1.0d."
+          "detailsMarkdown": "What it does: Sets the smallest nucleus mask ASTRA keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny specks or fragmented nuclear debris. Decrease it only if true nuclei are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream classification.\n\nDefault value: 1.0 um."
         },
         {
           "name": "TILE_SIZE",
@@ -4882,7 +5029,12 @@
           "editable": false,
           "internal": false,
           "group": "Models",
-          "advanced": true
+          "advanced": true,
+          "assetDiscovery": {
+            "kind": "savedModelId",
+            "root": "astra/models/nucleus",
+            "target": "nucleus"
+          }
         },
         {
           "name": "USE_BATCH_MODE",
