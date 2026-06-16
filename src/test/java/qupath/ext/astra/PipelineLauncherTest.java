@@ -122,6 +122,47 @@ class PipelineLauncherTest {
     }
 
     @Test
+    void launcherReadsManifestPresentationMetadata() throws Exception {
+        String source = realBaseScript("modules/pipelines/cellpose/validation/src/main/groovy/validation.groovy");
+        List<PipelineLauncher.EditableConstant> constants =
+                PipelineLauncher.editableConstantsForScript("Validation", source);
+
+        PipelineLauncher.EditableConstant preset = constants.stream()
+                .filter(constant -> constant.name().equals("SEGMENTATION_PRESET"))
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(preset.uiOrder() < Integer.MAX_VALUE);
+        assertFalse(preset.helpText().isBlank());
+        assertFalse(preset.detailsText().isBlank());
+        assertNotEquals(preset.helpText(), preset.detailsText());
+    }
+
+    @Test
+    void launcherUsesStandardGroupOrderAndUiOrder() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+
+        assertTrue(source.contains("STANDARD_GROUP_ORDER = List.of("));
+        assertTrue(source.contains("\"Run Setup\""));
+        assertTrue(source.contains("\"Images & Scope\""));
+        assertTrue(source.contains("\"Developer Overrides\""));
+        assertTrue(source.contains("STANDARD_GROUP_RANK.getOrDefault(group, Integer.MAX_VALUE)"));
+        assertTrue(source.contains("Comparator.comparingInt(EditableConstant::uiOrder)"));
+    }
+
+    @Test
+    void launcherSeparatesHoverHelpFromDetailedHelpDialog() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+
+        assertTrue(source.contains("new Tooltip(constant.helpText())"));
+        assertTrue(source.contains("info.setOnAction(event -> showParameterHelpDialog(constant))"));
+        assertTrue(source.contains("TextArea details = new TextArea(constant.detailsText())"));
+        assertTrue(source.contains("addHelpSummaryRow(summary, 0, \"Parameter\", constant.name)"));
+        assertTrue(source.contains("addHelpSummaryRow(summary, 1, \"Current value\", safeCurrentDisplayValue(constant))"));
+        assertTrue(source.contains("addHelpSummaryRow(summary, 2, \"Default value\", constant.defaultDisplayValue())"));
+    }
+
+    @Test
     void schemaIdentityIsStableAndChangesWithEditableContract() {
         String script = """
                 final List MODE_OPTIONS = ["A", "B"]
