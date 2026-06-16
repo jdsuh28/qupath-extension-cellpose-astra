@@ -1140,7 +1140,17 @@ final class PipelineLauncher {
             }
         }
 
-        body.getChildren().addAll(basic, advanced);
+        body.getChildren().add(basic);
+        if (advanced.getChildren().size() > 2) {
+            if (GuiPresentation.advancedControlsLockedByDefault()) {
+                VBox advancedUnlock = createAdvancedUnlockPanel(advanced);
+                advanced.setVisible(false);
+                advanced.setManaged(false);
+                body.getChildren().addAll(advancedUnlock, advanced);
+            } else {
+                body.getChildren().add(advanced);
+            }
+        }
 
         ScrollPane scroll = new ScrollPane(body);
         scroll.setFitToWidth(true);
@@ -1262,6 +1272,35 @@ final class PipelineLauncher {
         subtitle.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + MUTED + ";");
         subtitle.setWrapText(true);
         box.getChildren().addAll(title, subtitle);
+        return box;
+    }
+
+    private static VBox createAdvancedUnlockPanel(VBox advanced) {
+        VBox box = sectionShell("Advanced Locked", GuiPresentation.advancedControlsDescription());
+        TextField phrase = new TextField();
+        phrase.setPromptText("Unlock phrase");
+        phrase.setPrefColumnCount(18);
+        Button unlock = new Button("Unlock advanced");
+        unlock.setFocusTraversable(false);
+        unlock.setStyle(settingsHeaderButtonStyle());
+        Label status = new Label("");
+        status.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + CORAL + ";");
+        Runnable tryUnlock = () -> {
+            String expected = GuiPresentation.advancedUnlockPhrase();
+            if (expected.equals(phrase.getText() == null ? "" : phrase.getText().trim())) {
+                advanced.setVisible(true);
+                advanced.setManaged(true);
+                box.setVisible(false);
+                box.setManaged(false);
+            } else {
+                status.setText("Enter the developer unlock phrase exactly.");
+            }
+        };
+        unlock.setOnAction(event -> tryUnlock.run());
+        phrase.setOnAction(event -> tryUnlock.run());
+        HBox row = new HBox(10.0, phrase, unlock);
+        row.setAlignment(Pos.CENTER_LEFT);
+        box.getChildren().addAll(row, status);
         return box;
     }
 

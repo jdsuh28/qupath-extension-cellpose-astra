@@ -676,6 +676,26 @@ class ExtensionContractTest {
     }
 
     /**
+     * Verifies advanced controls are hidden behind the manifest unlock phrase.
+     *
+     * @throws Exception if launcher internals cannot be inspected.
+     */
+    @Test
+    void launcherLocksAdvancedConfigurationBehindManifestPhrase() throws Exception {
+        String launcher = Files.readString(new File(ROOT,
+                "src/main/java/qupath/ext/astra/PipelineLauncher.java").toPath());
+        String presentation = Files.readString(new File(ROOT,
+                "src/main/java/qupath/ext/astra/GuiPresentation.java").toPath());
+
+        assertTrue(presentation.contains("advancedUnlockPhrase"));
+        assertTrue(presentation.contains("\"ADVANCED\""));
+        assertTrue(launcher.contains("createAdvancedUnlockPanel"));
+        assertTrue(launcher.contains("advancedControlsLockedByDefault"));
+        assertTrue(launcher.contains("advanced.setVisible(false);"));
+        assertTrue(launcher.contains("advanced.setManaged(false);"));
+    }
+
+    /**
      * Verifies pixel scaling is visible only when batch execution is enabled.
      *
      * @throws Exception if source cannot be read.
