@@ -66,6 +66,25 @@ final class GuiPresentation {
         return MANIFESTS.description(pipelineName);
     }
 
+    static boolean advancedControlsLockedByDefault() {
+        Object raw = MANIFESTS.advancedControls().get("lockedByDefault");
+        return raw instanceof Boolean locked ? locked : true;
+    }
+
+    static String advancedUnlockPhrase() {
+        Object raw = MANIFESTS.advancedControls().get("unlockPhrase");
+        String phrase = raw == null ? "" : String.valueOf(raw).trim();
+        return phrase.isBlank() ? "ADVANCED" : phrase;
+    }
+
+    static String advancedControlsDescription() {
+        Object raw = MANIFESTS.advancedControls().get("description");
+        String description = raw == null ? "" : String.valueOf(raw).trim();
+        return description.isBlank()
+                ? "Reveal the complete developer-oriented pipeline controls."
+                : description;
+    }
+
     static String displayOption(String option) {
         if (option == null || option.isBlank()) {
             return "";

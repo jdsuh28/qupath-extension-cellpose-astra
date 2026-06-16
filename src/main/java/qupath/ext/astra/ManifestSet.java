@@ -108,6 +108,10 @@ final class ManifestSet {
         return stringMap(gui().get("optionLabels"));
     }
 
+    Map<String, Object> advancedControls() {
+        return mapValue(gui().get("advancedControls"));
+    }
+
     List<String> visibleStages(String pipelineName) {
         return runnable(pipelineName)
                 .map(p -> stringList(p.get("visibleStages")))
