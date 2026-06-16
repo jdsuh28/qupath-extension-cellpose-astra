@@ -74,6 +74,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -133,6 +134,21 @@ final class PipelineLauncher {
     private static final StringProperty HEADER_MOTION_PREFERENCE =
             PathPrefs.createPersistentPreference(HEADER_MOTION_PREFERENCE_KEY, AnimatedGradientHeader.MotionSpeed.SMOOTH.name());
     private static final Gson PROFILE_GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final List<String> STANDARD_GROUP_ORDER = List.of(
+            "Run Setup",
+            "Images & Scope",
+            "Classes & Regions",
+            "Channels & Markers",
+            "Models",
+            "Segmentation",
+            "Biological Classification",
+            "Thresholds & Background",
+            "Runtime & Performance",
+            "Output & Export",
+            "Diagnostics",
+            "Developer Overrides"
+    );
+    private static final Map<String, Integer> STANDARD_GROUP_RANK = standardGroupRank();
 
     private PipelineLauncher() {
         throw new AssertionError("No instances");
@@ -309,7 +325,20 @@ final class PipelineLauncher {
                 String targetName = name.substring(0, name.length() - "_HELP".length());
                 scriptHelp.put(targetName, EditableConstant.stripStringQuotes("String", value));
             } else {
-                out.add(new EditableConstant(type, name, value, suffix, start, end, groupFor(name), isAdvanced(name), scriptOptions.get(name), scriptHelp.get(name)));
+                out.add(new EditableConstant(
+                        type,
+                        name,
+                        value,
+                        suffix,
+                        start,
+                        end,
+                        groupFor(name),
+                        isAdvanced(name),
+                        Integer.MAX_VALUE,
+                        scriptOptions.get(name),
+                        scriptHelp.get(name),
+                        ""
+                ));
             }
             for (int j = i; j <= endLine; j++) {
                 if (j > i) {
@@ -350,11 +379,27 @@ final class PipelineLauncher {
             String value = resolveContractDefaultValueText(String.valueOf(param.getOrDefault("defaultGroovy", "\"\"")));
             List<String> options = parseStringOptions(String.valueOf(param.getOrDefault("optionsGroovy", "[]")));
             String help = stripGroovyString(String.valueOf(param.getOrDefault("helpGroovy", "")));
+            String details = String.valueOf(param.getOrDefault("detailsMarkdown", ""));
             boolean advanced = Boolean.TRUE.equals(param.get("advanced"));
             String group = String.valueOf(param.getOrDefault("group", groupFor(name)));
-            out.add(new EditableConstant(type, name, value, "", -1, -1, group, advanced, options, help));
+            int uiOrder = numericInt(param.get("uiOrder"), Integer.MAX_VALUE);
+            out.add(new EditableConstant(type, name, value, "", -1, -1, group, advanced, uiOrder, options, help, details));
         }
         return out;
+    }
+
+    private static int numericInt(Object raw, int fallback) {
+        if (raw instanceof Number number) {
+            return number.intValue();
+        }
+        if (raw == null) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(String.valueOf(raw).trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 
     private static String resolveContractDefaultValueText(String expr) {
@@ -1119,6 +1164,7 @@ final class PipelineLauncher {
             List<EditableConstant> groupConstants = constants.stream()
                     .filter(c -> !c.advanced && group.equals(c.group))
                     .filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))
+                    .sorted(Comparator.comparingInt(EditableConstant::uiOrder))
                     .toList();
             if (!groupConstants.isEmpty()) {
                 basic.getChildren().add(createSection(group, groupConstants, true, autosave));
@@ -1130,6 +1176,7 @@ final class PipelineLauncher {
             List<EditableConstant> groupConstants = constants.stream()
                     .filter(c -> c.advanced && group.equals(c.group))
                     .filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))
+                    .sorted(Comparator.comparingInt(EditableConstant::uiOrder))
                     .toList();
             if (!groupConstants.isEmpty()) {
                 if ("Advanced".equalsIgnoreCase(group)) {
@@ -1934,6 +1981,7 @@ final class PipelineLauncher {
             tooltip.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px;");
             info.setTooltip(tooltip);
             installReliableTooltip(info, tooltip);
+            info.setOnAction(event -> showParameterHelpDialog(constant));
             labelBox.getChildren().addAll(label, info);
             labelBox.setMinHeight(PARAMETER_ROW_HEIGHT);
             grid.add(labelBox, 0, row);
@@ -1950,6 +1998,64 @@ final class PipelineLauncher {
         installConditionalVisibility(constants, rows);
 
         return new CollapsibleSection(title, grid, expanded);
+    }
+
+    private static void showParameterHelpDialog(EditableConstant constant) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("ASTRA Parameter Help");
+        dialog.setHeaderText(displayLabel(constant.name));
+
+        VBox content = new VBox(12.0);
+        content.setPadding(new Insets(14.0));
+        content.setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
+
+        GridPane summary = new GridPane();
+        summary.setHgap(12.0);
+        summary.setVgap(8.0);
+        addHelpSummaryRow(summary, 0, "Parameter", constant.name);
+        addHelpSummaryRow(summary, 1, "Current value", safeCurrentDisplayValue(constant));
+        addHelpSummaryRow(summary, 2, "Default value", constant.defaultDisplayValue());
+
+        Label quickTitle = new Label("Quick Help");
+        quickTitle.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 900; -fx-text-fill: " + TEAL_DARK + ";");
+        Label quick = new Label(constant.helpText());
+        quick.setWrapText(true);
+        quick.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + INK + ";");
+
+        Label detailTitle = new Label("Details");
+        detailTitle.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 900; -fx-text-fill: " + TEAL_DARK + ";");
+        TextArea details = new TextArea(constant.detailsText());
+        details.setEditable(false);
+        details.setWrapText(true);
+        details.setPrefRowCount(11);
+        details.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px;");
+
+        content.getChildren().addAll(summary, quickTitle, quick, detailTitle, details);
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.getDialogPane().setPrefWidth(620.0);
+        dialog.getDialogPane().setStyle("-fx-background-color: " + PAPER + "; -fx-font-family: " + FONT_STACK + ";");
+        dialog.showAndWait();
+    }
+
+    private static void addHelpSummaryRow(GridPane grid, int row, String labelText, String valueText) {
+        Label label = new Label(labelText);
+        label.setMinWidth(110.0);
+        label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 900; -fx-text-fill: " + MUTED + ";");
+        Label value = new Label(valueText == null || valueText.isBlank() ? "(blank)" : valueText);
+        value.setWrapText(true);
+        value.setStyle("-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 11px; -fx-text-fill: " + INK + ";");
+        GridPane.setHgrow(value, Priority.ALWAYS);
+        grid.add(label, 0, row);
+        grid.add(value, 1, row);
+    }
+
+    private static String safeCurrentDisplayValue(EditableConstant constant) {
+        try {
+            return constant.currentDisplayValue();
+        } catch (RuntimeException e) {
+            return constant.defaultDisplayValue();
+        }
     }
 
     private static GridPane createUngroupedSection(List<EditableConstant> constants, boolean expanded, SettingsAutosave autosave) {
@@ -2609,17 +2715,26 @@ final class PipelineLauncher {
     }
 
     private static List<String> orderedGroups(List<EditableConstant> constants, boolean advanced) {
-        List<String> groups = new ArrayList<>();
+        Set<String> groups = new LinkedHashSet<>();
         for (EditableConstant constant : constants) {
             if (constant.advanced != advanced) {
                 continue;
             }
-            String group = constant.group;
-            if (!groups.contains(group)) {
-                groups.add(group);
-            }
+            groups.add(constant.group);
         }
-        return groups;
+        return groups.stream()
+                .sorted(Comparator
+                        .comparingInt((String group) -> STANDARD_GROUP_RANK.getOrDefault(group, Integer.MAX_VALUE))
+                        .thenComparing(group -> group))
+                .toList();
+    }
+
+    private static Map<String, Integer> standardGroupRank() {
+        Map<String, Integer> ranks = new LinkedHashMap<>();
+        for (int i = 0; i < STANDARD_GROUP_ORDER.size(); i++) {
+            ranks.put(STANDARD_GROUP_ORDER.get(i), i);
+        }
+        return Map.copyOf(ranks);
     }
 
     private static String descriptionFor(String scriptName) {
@@ -3952,12 +4067,14 @@ final class PipelineLauncher {
         private final int end;
         private final String group;
         private final boolean advanced;
+        private final int uiOrder;
         private final List<String> options;
         private final String help;
+        private final String details;
         private Node editor;
         private boolean defaultStyleInstalled;
 
-        private EditableConstant(String type, String name, String value, String suffix, int start, int end, String group, boolean advanced, List<String> options, String help) {
+        private EditableConstant(String type, String name, String value, String suffix, int start, int end, String group, boolean advanced, int uiOrder, List<String> options, String help, String details) {
             this.type = type;
             this.name = name;
             this.suffix = suffix == null ? "" : suffix;
@@ -3965,10 +4082,12 @@ final class PipelineLauncher {
             this.end = end;
             this.group = group == null || group.isBlank() ? groupFor(name) : group;
             this.advanced = advanced;
+            this.uiOrder = uiOrder;
             this.options = options == null ? List.of() : List.copyOf(options);
             this.help = help == null || help.isBlank()
                     ? "ASTRA did not provide help metadata for this script constant."
                     : help;
+            this.details = details == null || details.isBlank() ? this.help : details;
             this.editor = null;
             this.value = value;
             this.displayValue = value;
@@ -3981,6 +4100,18 @@ final class PipelineLauncher {
 
         String helpText() {
             return help;
+        }
+
+        String detailsText() {
+            return details;
+        }
+
+        int uiOrder() {
+            return uiOrder;
+        }
+
+        String defaultDisplayValue() {
+            return defaultDisplayValue;
         }
 
         private Node createEditor() {
