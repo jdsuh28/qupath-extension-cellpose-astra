@@ -433,6 +433,11 @@
           },
           {
             "root": "shared-analysis",
+            "file": "AnalysisDetectionRecovery.groovy",
+            "alias": "AnalysisDetectionRecovery"
+          },
+          {
+            "root": "shared-analysis",
             "file": "AnalysisActiveStateFileTransaction.groovy",
             "alias": "AnalysisActiveStateFileTransaction"
           },
@@ -588,6 +593,11 @@
             "root": "shared-analysis",
             "file": "AnalysisStateLedger.groovy",
             "alias": "AnalysisStateLedger"
+          },
+          {
+            "root": "shared-analysis",
+            "file": "AnalysisDetectionRecovery.groovy",
+            "alias": "AnalysisDetectionRecovery"
           },
           {
             "root": "shared-analysis",

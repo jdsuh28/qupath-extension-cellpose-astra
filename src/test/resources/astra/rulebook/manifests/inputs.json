@@ -2559,6 +2559,30 @@
           "detailsMarkdown": "What it does: Uses image calibration to convert positive micron diameter values into pixel-space Cellpose inputs. Diameter 0.0 still preserves Cellpose auto-diameter behavior.\n\nWhen to change: Change this when moving between workstations or diagnosing runtime behavior.\n\nAnalysis consequence: This changes execution speed or hardware use. It should not change intended biology when calibration stays enabled.\n\nDefault value: true."
         },
         {
+          "name": "STOP_ON_REGION_FAILURE",
+          "type": "boolean",
+          "defaultGroovy": "true",
+          "helpGroovy": "\"Stop the vascular run when a region cannot commit valid Cellpose cells.\"",
+          "editable": true,
+          "internal": false,
+          "group": "Runtime & Performance",
+          "advanced": false,
+          "uiOrder": 9040,
+          "detailsMarkdown": "What it does: Stops the run when an eligible vascular ROI cannot commit at least one valid reconstructed cell. Leave enabled for strict publication runs.\n\nWhen to change: Disable only for rescue runs where successful ROIs should be kept and failed ROIs marked for review.\n\nAnalysis consequence: This changes failure handling only. It does not change Cellpose parameters or cell measurements.\n\nDefault value: true."
+        },
+        {
+          "name": "ROLLBACK_SUCCESSFUL_REGIONS_ON_FAILURE",
+          "type": "boolean",
+          "defaultGroovy": "true",
+          "helpGroovy": "\"Roll back successful vascular ROIs when a stop-on-failure event occurs.\"",
+          "editable": true,
+          "internal": false,
+          "group": "Runtime & Performance",
+          "advanced": false,
+          "uiOrder": 9050,
+          "detailsMarkdown": "What it does: When stop-on-failure is enabled, restores the current image if any eligible ROI fails to commit valid cells.\n\nWhen to change: Disable for rescue runs where successful ROIs before the failed ROI should remain saved.\n\nAnalysis consequence: This changes failure recovery only. It is invalid when Stop on Failed Region is disabled.\n\nDefault value: true."
+        },
+        {
           "name": "SHOW_GUI_NOTIFICATIONS",
           "type": "boolean",
           "defaultGroovy": "true",
@@ -3651,6 +3675,30 @@
           "advanced": false,
           "uiOrder": 9030,
           "detailsMarkdown": "What it does: Uses image calibration to convert micron diameter settings into pixel-space Cellpose inputs. Disable only for controlled diagnostic runs.\n\nWhen to change: Change this when moving between workstations or diagnosing runtime behavior.\n\nAnalysis consequence: This changes execution speed or hardware use. It should not change intended biology when calibration stays enabled.\n\nDefault value: true."
+        },
+        {
+          "name": "STOP_ON_REGION_FAILURE",
+          "type": "boolean",
+          "defaultGroovy": "true",
+          "helpGroovy": "\"Stop the colocalization run when a region cannot commit valid Cellpose cells.\"",
+          "editable": true,
+          "internal": false,
+          "group": "Runtime & Performance",
+          "advanced": false,
+          "uiOrder": 9040,
+          "detailsMarkdown": "What it does: Stops the run when an eligible analysis region cannot commit at least one valid reconstructed cell. Leave enabled for strict publication runs.\n\nWhen to change: Disable only for rescue runs where successful regions should be kept and failed regions marked for review.\n\nAnalysis consequence: This changes failure handling only. It does not change Cellpose parameters or marker measurements.\n\nDefault value: true."
+        },
+        {
+          "name": "ROLLBACK_SUCCESSFUL_REGIONS_ON_FAILURE",
+          "type": "boolean",
+          "defaultGroovy": "true",
+          "helpGroovy": "\"Roll back successful colocalization regions when a stop-on-failure event occurs.\"",
+          "editable": true,
+          "internal": false,
+          "group": "Runtime & Performance",
+          "advanced": false,
+          "uiOrder": 9050,
+          "detailsMarkdown": "What it does: When stop-on-failure is enabled, restores the current image if any eligible analysis region fails to commit valid cells.\n\nWhen to change: Disable for rescue runs where successful regions before the failed region should remain saved.\n\nAnalysis consequence: This changes failure recovery only. It is invalid when Stop on Failed Region is disabled.\n\nDefault value: true."
         },
         {
           "name": "SHOW_GUI_NOTIFICATIONS",

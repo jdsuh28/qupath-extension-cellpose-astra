@@ -2791,6 +2791,12 @@ final class PipelineLauncher {
         }
     }
 
+    private static void removeStyleClass(Node node, String styleClass) {
+        if (node != null && styleClass != null && !styleClass.isBlank()) {
+            node.getStyleClass().remove(styleClass);
+        }
+    }
+
     private enum ButtonRole {
         PRIMARY,
         SECONDARY,
@@ -3096,7 +3102,17 @@ final class PipelineLauncher {
             setVisible(rows, "RANGE_THRESHOLD_FRACTION_BY_MARKER", isSelected(byName, "THRESHOLD_MODE", "RANGE_PERCENT"));
             setVisible(rows, "BACKGROUND_SUBTRACTION_BY_CHANNEL", isSelected(byName, "BACKGROUND_MODE", "MANUAL_OFFSET"));
             setVisible(rows, "LOCAL_BACKGROUND_PERCENTILE", isSelected(byName, "BACKGROUND_MODE", "LOCAL_PERCENTILE"));
-            setVisible(rows, "USE_PIXEL_SCALING", isChecked(byName, "USE_BATCH_MODE"));
+            setEnabled(rows, "USE_PIXEL_SCALING", isChecked(byName, "USE_BATCH_MODE"));
+            setEnabled(rows,
+                    "ROLLBACK_SUCCESSFUL_REGIONS_ON_FAILURE",
+                    isChecked(byName, "STOP_ON_REGION_FAILURE"));
+            boolean customPreset = isSelected(byName, "SEGMENTATION_PRESET", "CUSTOM");
+            rows.keySet().stream()
+                    .filter(PipelineLauncher::isAdvancedDetectorParameter)
+                    .forEach(name -> setEnabled(rows, name, customPreset));
+            boolean useNuclei = isChecked(byName, "USE_NUCLEI");
+            setEnabled(rows, "MIN_VSMC_NUCLEUS_FILLED_SMA_OVERLAP_FRACTION", useNuclei);
+            setEnabled(rows, "MULTINUCLEATED_CELL_POLICY", useNuclei);
         };
         List.of(
                 "NUC_MODEL_SOURCE",
@@ -3109,7 +3125,10 @@ final class PipelineLauncher {
                 "POSITIVITY_METHOD",
                 "THRESHOLD_MODE",
                 "BACKGROUND_MODE",
-                "USE_BATCH_MODE"
+                "USE_BATCH_MODE",
+                "STOP_ON_REGION_FAILURE",
+                "SEGMENTATION_PRESET",
+                "USE_NUCLEI"
         ).forEach(name -> {
             EditableConstant constant = byName.get(name);
             if (constant != null) {
@@ -3130,6 +3149,16 @@ final class PipelineLauncher {
         return constant != null && Boolean.parseBoolean(constant.optionValue());
     }
 
+    private static boolean isAdvancedDetectorParameter(String name) {
+        if (name == null) {
+            return false;
+        }
+        if (name.startsWith("SAM_")) {
+            return true;
+        }
+        return name.matches("^(NUC|CELL)_(DIAMETER_UM|CELLPROB|FLOW|NITER|MIN_MASK_EQUIVALENT_DIAMETER_UM|NORM_PMIN|NORM_PMAX|SIMPLIFY_DISTANCE_PX)$");
+    }
+
     private static void setVisible(Map<String, RowNodes> rows, String name, boolean visible) {
         RowNodes row = rows.get(name);
         if (row == null) {
@@ -3140,6 +3169,22 @@ final class PipelineLauncher {
         row.editor.setVisible(visible);
         row.editor.setManaged(visible);
         row.editor.setDisable(!visible);
+    }
+
+    private static void setEnabled(Map<String, RowNodes> rows, String name, boolean enabled) {
+        RowNodes row = rows.get(name);
+        if (row == null) {
+            return;
+        }
+        row.label.setDisable(!enabled);
+        row.editor.setDisable(!enabled);
+        if (enabled) {
+            removeStyleClass(row.label, "astra-parameter-row-dependent-disabled");
+            removeStyleClass(row.editor, "astra-parameter-row-dependent-disabled");
+        } else {
+            addStyleClass(row.label, "astra-parameter-row-dependent-disabled");
+            addStyleClass(row.editor, "astra-parameter-row-dependent-disabled");
+        }
     }
 
     private static void executeAsync(QuPathGUI qupath, String scriptName, String configuredScript, RunFeedback feedback, Button... actionButtons) {
