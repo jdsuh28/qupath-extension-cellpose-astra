@@ -6,6 +6,104 @@
     "unlockPhrase": "ADVANCED",
     "description": "Reveals complete developer-oriented pipeline controls in the GUI. This is intentional friction, not security."
   },
+  "standardGroups": [
+    {
+      "name": "Run Setup",
+      "label": "Run Setup",
+      "description": "Choose the workflow path before ASTRA touches data.",
+      "order": 1,
+      "importance": "Essential",
+      "accentTheme": "teal"
+    },
+    {
+      "name": "Images & Scope",
+      "label": "Images & Scope",
+      "description": "Tell ASTRA which images or regions are in play.",
+      "order": 2,
+      "importance": "Essential",
+      "accentTheme": "bluegray"
+    },
+    {
+      "name": "Classes & Regions",
+      "label": "Classes & Regions",
+      "description": "Map QuPath annotations and output classes to the analysis.",
+      "order": 3,
+      "importance": "Essential",
+      "accentTheme": "sage"
+    },
+    {
+      "name": "Channels & Markers",
+      "label": "Channels & Markers",
+      "description": "Match biological stains to image channels.",
+      "order": 4,
+      "importance": "Essential",
+      "accentTheme": "teal"
+    },
+    {
+      "name": "Models",
+      "label": "Models",
+      "description": "Choose saved models and project-backed model files.",
+      "order": 5,
+      "importance": "Routine",
+      "accentTheme": "bluegray"
+    },
+    {
+      "name": "Segmentation",
+      "label": "Segmentation",
+      "description": "Control Cellpose-SAM object recovery.",
+      "order": 6,
+      "importance": "Routine",
+      "accentTheme": "teal"
+    },
+    {
+      "name": "Biological Classification",
+      "label": "Biological Classification",
+      "description": "Set anatomy-aware cell identity and inclusion rules.",
+      "order": 7,
+      "importance": "Essential",
+      "accentTheme": "sage"
+    },
+    {
+      "name": "Thresholds & Background",
+      "label": "Thresholds & Background",
+      "description": "Control marker scoring and local background correction.",
+      "order": 8,
+      "importance": "Routine",
+      "accentTheme": "amber"
+    },
+    {
+      "name": "Runtime & Performance",
+      "label": "Runtime & Performance",
+      "description": "Tune GPU, batching, scaling, and speed.",
+      "order": 9,
+      "importance": "Optional",
+      "accentTheme": "bluegray"
+    },
+    {
+      "name": "Output & Export",
+      "label": "Output & Export",
+      "description": "Choose result writing and export behavior.",
+      "order": 10,
+      "importance": "Routine",
+      "accentTheme": "bluegray"
+    },
+    {
+      "name": "Diagnostics",
+      "label": "Diagnostics",
+      "description": "Turn on extra checks and troubleshooting output.",
+      "order": 11,
+      "importance": "Diagnostic",
+      "accentTheme": "amber"
+    },
+    {
+      "name": "Developer Overrides",
+      "label": "Developer Overrides",
+      "description": "Inspect low-level controls after deliberate unlock.",
+      "order": 12,
+      "importance": "Advanced",
+      "accentTheme": "gold"
+    }
+  ],
   "labels": {
     "ADD_MISSING_ONESHOT_OBJECTS_ONLY": "Add Missing Marker Regions Only",
     "ALLOW_DOUBLE_POSITIVE_CELLS_AS_VSMC": "Allow Dual-Positive Cells as VSMC",

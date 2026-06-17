@@ -139,13 +139,39 @@ class PipelineLauncherTest {
     }
 
     @Test
+    void cellposePresetOptionsRenderAsProfessionalLabels() {
+        assertEquals("Balanced", GuiPresentation.displayOption("SEGMENTATION_PRESET", "BALANCED"));
+        assertEquals("Strict", GuiPresentation.displayOption("SEGMENTATION_PRESET", "STRICT"));
+        assertEquals("Sensitive", GuiPresentation.displayOption("SEGMENTATION_PRESET", "SENSITIVE"));
+        assertEquals("Custom", GuiPresentation.displayOption("SEGMENTATION_PRESET", "CUSTOM"));
+    }
+
+    @Test
+    void cellposePresetOverrideWritesCleanToken() throws Exception {
+        String script = realBaseScript("modules/pipelines/analysis/vascular/src/main/groovy/vascular.groovy");
+        List<PipelineLauncher.EditableConstant> constants =
+                PipelineLauncher.editableConstantsForScript("Vascular", script);
+
+        PipelineLauncher.EditableConstant preset = constants.stream()
+                .filter(constant -> constant.name().equals("SEGMENTATION_PRESET"))
+                .findFirst()
+                .orElseThrow();
+        preset.setDisplayValue("\"STRICT\"");
+
+        String rendered = PipelineLauncher.applyConstants(script,
+                constants,
+                PipelineLauncher.SettingsProfileState.scriptDefaults());
+
+        assertTrue(rendered.contains("SEGMENTATION_PRESET: \"STRICT\""));
+        assertFalse(rendered.contains("CellposeInferenceDefaults.SEGMENTATION_PRESET_STRICT"));
+    }
+
+    @Test
     void launcherUsesStandardGroupOrderAndUiOrder() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
-        assertTrue(source.contains("STANDARD_GROUP_ORDER = List.of("));
-        assertTrue(source.contains("\"Run Setup\""));
-        assertTrue(source.contains("\"Images & Scope\""));
-        assertTrue(source.contains("\"Developer Overrides\""));
+        assertTrue(source.contains("GuiPresentation.standardGroups()"));
+        assertTrue(source.contains("GuiPresentation.StandardGroup::name"));
         assertTrue(source.contains("STANDARD_GROUP_RANK.getOrDefault(group, Integer.MAX_VALUE)"));
         assertTrue(source.contains("Comparator.comparingInt(EditableConstant::uiOrder)"));
     }
@@ -171,9 +197,15 @@ class PipelineLauncherTest {
         assertTrue(source.contains("installAstraStyles(dialog.getDialogPane())"));
         assertTrue(source.contains("createSettingsCard(section"));
         assertTrue(source.contains("detachFromParent(section.content())"));
+        assertTrue(source.contains("LauncherViewState.load("));
+        assertTrue(source.contains("setNodeVisibleManaged(feedbackNode"));
         assertTrue(css.contains(".astra-button-primary"));
+        assertTrue(css.contains(".astra-button-toggle-active"));
         assertTrue(css.contains(".astra-button-help:pressed"));
         assertTrue(css.contains(".astra-settings-card:pressed"));
+        assertTrue(css.contains(".astra-settings-card-theme-teal"));
+        assertTrue(css.contains(".astra-output-pane"));
+        assertTrue(css.contains(".scroll-pane .scroll-bar .thumb"));
     }
 
     @Test
@@ -1136,11 +1168,11 @@ class PipelineLauncherTest {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertTrue(source.contains("private static void styleComboBox(ComboBox<String> combo)"));
-        assertTrue(source.contains("combo.getEditor().setStyle(EditableConstant.controlStyle())"));
+        assertTrue(source.contains("addStyleClass(combo, \"astra-combo\")"));
+        assertTrue(source.contains("addStyleClass(combo.getEditor(), \"astra-input\")"));
         assertTrue(source.contains("private static void styleComboBoxSubnodes(ComboBox<String> combo)"));
         assertTrue(source.contains("combo.lookup(\".arrow-button\")"));
         assertTrue(source.contains("arrowButton.setStyle(\"-fx-background-color: transparent;"));
-        assertTrue(source.contains("-fx-text-base-color: \" + INK"));
         assertTrue(source.contains("combo.setButtonCell(readableComboCell())"));
         assertTrue(source.contains("combo.setCellFactory(list -> readableComboCell())"));
         assertTrue(source.contains("-fx-text-fill: \" + INK"));
@@ -1516,6 +1548,32 @@ class PipelineLauncherTest {
         assertEquals(RunLogSeverity.ERROR, entries.get(6).severity());
         assertEquals(RunLogSource.PYTHON, entries.get(7).source());
         assertEquals(RunLogSeverity.ERROR, entries.get(7).severity());
+    }
+
+    @Test
+    void runLogParserPreservesExplicitSourcesBeforeInference() {
+        List<RunLogEntry> entries = RunLogParser.parse("""
+                [ASTRA][INFO] ASTRA run started.
+                [Script][NEUTRAL] SMA-AF647  Region scored: [1/10] 'ASTRA SMA Media Search 4'
+                [QuPath][INFO] Writing object hierarchy with 1084 object(s)...
+                [Cellpose][WARNING] the '--diam_mean' flag is deprecated
+                [Python][ERROR] Traceback (most recent call last):
+                [System][CANCELLED] Cancellation requested.
+                """, RunLogSource.QUPATH, RunLogSeverity.NEUTRAL);
+
+        assertEquals(6, entries.size());
+        assertEquals(RunLogSource.ASTRA, entries.get(0).source());
+        assertEquals(RunLogSeverity.INFO, entries.get(0).severity());
+        assertEquals(RunLogSource.SCRIPT, entries.get(1).source());
+        assertEquals(RunLogSeverity.NEUTRAL, entries.get(1).severity());
+        assertTrue(entries.get(1).text().contains("ASTRA SMA Media Search"));
+        assertEquals(RunLogSource.QUPATH, entries.get(2).source());
+        assertEquals(RunLogSource.CELLPOSE, entries.get(3).source());
+        assertEquals(RunLogSeverity.WARNING, entries.get(3).severity());
+        assertEquals(RunLogSource.PYTHON, entries.get(4).source());
+        assertEquals(RunLogSeverity.ERROR, entries.get(4).severity());
+        assertEquals(RunLogSource.SYSTEM, entries.get(5).source());
+        assertEquals(RunLogSeverity.CANCELLED, entries.get(5).severity());
     }
 
     @Test
