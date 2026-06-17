@@ -457,6 +457,11 @@
             "alias": "AnalysisRegionScope"
           },
           {
+            "root": "shared-analysis",
+            "file": "AnalysisCellposeBatch.groovy",
+            "alias": "AnalysisCellposeBatch"
+          },
+          {
             "root": "pipeline-vascular",
             "file": "VascularUtil.groovy",
             "alias": "VascularUtil"
@@ -608,6 +613,11 @@
             "root": "shared-analysis",
             "file": "AnalysisRegionScope.groovy",
             "alias": "AnalysisRegionScope"
+          },
+          {
+            "root": "shared-analysis",
+            "file": "AnalysisCellposeBatch.groovy",
+            "alias": "AnalysisCellposeBatch"
           },
           {
             "root": "pipeline-colocalization",
