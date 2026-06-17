@@ -2002,7 +2002,7 @@
           "type": "List",
           "defaultGroovy": "[\"GENERATE_REGIONS\", \"DETECT_CELLS\", \"QUANTIFY\"]",
           "optionsGroovy": "[\"AUTO_BUILD_CLASSIFIERS\", \"AUTO_SELECT_ROIS\", \"GENERATE_REGIONS\", \"DETECT_CELLS\", \"QUANTIFY\"]",
-          "helpGroovy": "\"Choose which pipeline stages run, in order.\"",
+          "helpGroovy": "\"Choose pipeline stages in order. Export and reset are separate validated script actions.\"",
           "editable": true,
           "internal": false,
           "group": "Run Setup",
@@ -2557,6 +2557,30 @@
           "advanced": false,
           "uiOrder": 9030,
           "detailsMarkdown": "What it does: Uses image calibration to convert positive micron diameter values into pixel-space Cellpose inputs. Diameter 0.0 still preserves Cellpose auto-diameter behavior.\n\nWhen to change: Change this when moving between workstations or diagnosing runtime behavior.\n\nAnalysis consequence: This changes execution speed or hardware use. It should not change intended biology when calibration stays enabled.\n\nDefault value: true."
+        },
+        {
+          "name": "STOP_ON_REGION_FAILURE",
+          "type": "boolean",
+          "defaultGroovy": "true",
+          "helpGroovy": "\"Stop the vascular run when a region cannot commit valid Cellpose cells.\"",
+          "editable": true,
+          "internal": false,
+          "group": "Runtime & Performance",
+          "advanced": false,
+          "uiOrder": 9040,
+          "detailsMarkdown": "What it does: Stops the run when an eligible vascular ROI cannot commit at least one valid reconstructed cell. Leave enabled for strict publication runs.\n\nWhen to change: Disable only for rescue runs where successful ROIs should be kept and failed ROIs marked for review.\n\nAnalysis consequence: This changes failure handling only. It does not change Cellpose parameters or cell measurements.\n\nDefault value: true."
+        },
+        {
+          "name": "ROLLBACK_SUCCESSFUL_REGIONS_ON_FAILURE",
+          "type": "boolean",
+          "defaultGroovy": "true",
+          "helpGroovy": "\"Roll back successful vascular ROIs when a stop-on-failure event occurs.\"",
+          "editable": true,
+          "internal": false,
+          "group": "Runtime & Performance",
+          "advanced": false,
+          "uiOrder": 9050,
+          "detailsMarkdown": "What it does: When stop-on-failure is enabled, restores the current image if any eligible ROI fails to commit valid cells.\n\nWhen to change: Disable for rescue runs where successful ROIs before the failed ROI should remain saved.\n\nAnalysis consequence: This changes failure recovery only. It is invalid when Stop on Failed Region is disabled.\n\nDefault value: true."
         },
         {
           "name": "SHOW_GUI_NOTIFICATIONS",
@@ -3408,7 +3432,7 @@
           "type": "List",
           "defaultGroovy": "[\"DETECT_CELLS\", \"QUANTIFY\"]",
           "optionsGroovy": "[\"DETECT_CELLS\", \"QUANTIFY\"]",
-          "helpGroovy": "\"Choose which pipeline stages run, in order.\"",
+          "helpGroovy": "\"Choose pipeline stages in order. Export and reset are separate validated script actions.\"",
           "editable": true,
           "internal": false,
           "group": "Run Setup",
@@ -3651,6 +3675,30 @@
           "advanced": false,
           "uiOrder": 9030,
           "detailsMarkdown": "What it does: Uses image calibration to convert micron diameter settings into pixel-space Cellpose inputs. Disable only for controlled diagnostic runs.\n\nWhen to change: Change this when moving between workstations or diagnosing runtime behavior.\n\nAnalysis consequence: This changes execution speed or hardware use. It should not change intended biology when calibration stays enabled.\n\nDefault value: true."
+        },
+        {
+          "name": "STOP_ON_REGION_FAILURE",
+          "type": "boolean",
+          "defaultGroovy": "true",
+          "helpGroovy": "\"Stop the colocalization run when a region cannot commit valid Cellpose cells.\"",
+          "editable": true,
+          "internal": false,
+          "group": "Runtime & Performance",
+          "advanced": false,
+          "uiOrder": 9040,
+          "detailsMarkdown": "What it does: Stops the run when an eligible analysis region cannot commit at least one valid reconstructed cell. Leave enabled for strict publication runs.\n\nWhen to change: Disable only for rescue runs where successful regions should be kept and failed regions marked for review.\n\nAnalysis consequence: This changes failure handling only. It does not change Cellpose parameters or marker measurements.\n\nDefault value: true."
+        },
+        {
+          "name": "ROLLBACK_SUCCESSFUL_REGIONS_ON_FAILURE",
+          "type": "boolean",
+          "defaultGroovy": "true",
+          "helpGroovy": "\"Roll back successful colocalization regions when a stop-on-failure event occurs.\"",
+          "editable": true,
+          "internal": false,
+          "group": "Runtime & Performance",
+          "advanced": false,
+          "uiOrder": 9050,
+          "detailsMarkdown": "What it does: When stop-on-failure is enabled, restores the current image if any eligible analysis region fails to commit valid cells.\n\nWhen to change: Disable for rescue runs where successful regions before the failed region should remain saved.\n\nAnalysis consequence: This changes failure recovery only. It is invalid when Stop on Failed Region is disabled.\n\nDefault value: true."
         },
         {
           "name": "SHOW_GUI_NOTIFICATIONS",
@@ -4167,7 +4215,7 @@
           "type": "String",
           "defaultGroovy": "\"LOG_KDE_VALLEY\"",
           "optionsGroovy": "[\"LOG_KDE_VALLEY\", \"LOG_GAUSSIAN_MIXTURE\", \"GAUSSIAN_MIXTURE\", \"KDE_VALLEY\", \"AUTO_OTSU_PER_CHANNEL\", \"RANGE_PERCENT\", \"MANUAL\"]",
-          "helpGroovy": "\"Set the threshold behavior for threshold mode.\"",
+          "helpGroovy": "\"Choose the thresholding method for marker positivity calls.\"",
           "editable": true,
           "internal": false,
           "group": "Thresholds & Background",
@@ -4349,7 +4397,7 @@
           "name": "RESULTS_FOLDER",
           "type": "String",
           "defaultGroovy": "\"colocalization\"",
-          "helpGroovy": "\"Choose the project-relative ASTRA results folder.\"",
+          "helpGroovy": "\"Choose the astra/results subfolder for colocalization outputs.\"",
           "editable": true,
           "internal": false,
           "group": "Output & Export",
@@ -4437,10 +4485,10 @@
           "helpGroovy": "\"Publication-facing marker name used in run summaries and classifier descriptions.\"",
           "editable": true,
           "internal": false,
-          "group": "Run Setup",
+          "group": "Channels & Markers",
           "advanced": false,
-          "uiOrder": 1010,
-          "detailsMarkdown": "What it does: Publication-facing marker name used in run summaries and classifier descriptions. This can differ from the raw image channel name.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: \"Marker\"."
+          "uiOrder": 4040,
+          "detailsMarkdown": "What it does: Publication-facing marker name used in run summaries and classifier descriptions. This can differ from the raw image channel name.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes labels and exported metadata, not which pixels are read.\n\nDefault value: \"Marker\"."
         },
         {
           "name": "USE_MANUAL_SMA_MEDIA_ANNOTATIONS",

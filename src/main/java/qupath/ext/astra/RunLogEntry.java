@@ -67,6 +67,7 @@ enum RunLogSeverity {
             case "CANCEL", "CANCELLED", "CANCELED" -> CANCELLED;
             case "DEBUG", "TRACE" -> DEBUG;
             case "INFO" -> INFO;
+            case "NEUTRAL" -> NEUTRAL;
             default -> fallback == null ? NEUTRAL : fallback;
         };
     }

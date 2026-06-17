@@ -8,7 +8,8 @@ import java.util.regex.Pattern;
 
 final class RunLogParser {
 
-    private static final Pattern BRACKET_SEVERITY = Pattern.compile("^\\[(INFO|WARN|WARNING|ERROR|DONE|SUCCESS|CANCELLED|CANCELED|DEBUG|TRACE)]\\s*(.*)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern BRACKET_SOURCE_SEVERITY = Pattern.compile("^\\[(ASTRA|SCRIPT|QUPATH|CELLPOSE|PYTHON|SYSTEM)]\\[(INFO|WARN|WARNING|ERROR|DONE|SUCCESS|CANCELLED|CANCELED|DEBUG|TRACE|NEUTRAL)]\\s*(.*)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern BRACKET_SEVERITY = Pattern.compile("^\\[(INFO|WARN|WARNING|ERROR|DONE|SUCCESS|CANCELLED|CANCELED|DEBUG|TRACE|NEUTRAL)]\\s*(.*)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern CELLPOSE_FROM_QUPATH = Pattern.compile("^(INFO|WARN|WARNING|ERROR|DEBUG|TRACE):\\s*AstraCellpose2D:\\s*(.*)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern CELLPOSE_DIRECT = Pattern.compile("^(?:AstraCellpose2D|Cellpose)\\s*:?\\s*(.*)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern CELLPOSE_WITH_SEVERITY = Pattern.compile("^Cellpose\\s+(INFO|WARN|WARNING|ERROR|DEBUG|TRACE):\\s*(.*)$", Pattern.CASE_INSENSITIVE);
@@ -75,6 +76,20 @@ final class RunLogParser {
         line = line.replaceFirst("^\\[LOG]\\s*", "");
         if (line.matches("^-{8,}$") || line.matches("^={8,}$")) {
             return new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.NEUTRAL, RunLogKind.SEPARATOR, line, raw);
+        }
+
+        Matcher explicit = BRACKET_SOURCE_SEVERITY.matcher(line);
+        if (explicit.matches()) {
+            source = sourceFromToken(explicit.group(1), source);
+            severity = RunLogSeverity.fromToken(explicit.group(2), severity);
+            line = explicit.group(3).trim();
+            if (source == RunLogSource.CELLPOSE) {
+                return parseCellposePayload(line, severity, raw);
+            }
+            if (KEY_VALUE.matcher(line).matches()) {
+                kind = RunLogKind.KEY_VALUE;
+            }
+            return finalizeEntry(source, severity, kind, line, raw);
         }
 
         Matcher bracket = BRACKET_SEVERITY.matcher(line);
@@ -173,6 +188,21 @@ final class RunLogParser {
             kind = RunLogKind.KEY_VALUE;
         }
         return finalizeEntry(source, severity, kind, line, raw);
+    }
+
+    private static RunLogSource sourceFromToken(String token, RunLogSource fallback) {
+        if (token == null || token.isBlank()) {
+            return fallback == null ? RunLogSource.SYSTEM : fallback;
+        }
+        return switch (token.trim().toUpperCase(Locale.ROOT)) {
+            case "ASTRA" -> RunLogSource.ASTRA;
+            case "SCRIPT" -> RunLogSource.SCRIPT;
+            case "QUPATH" -> RunLogSource.QUPATH;
+            case "CELLPOSE" -> RunLogSource.CELLPOSE;
+            case "PYTHON" -> RunLogSource.PYTHON;
+            case "SYSTEM" -> RunLogSource.SYSTEM;
+            default -> fallback == null ? RunLogSource.SYSTEM : fallback;
+        };
     }
 
     private static RunLogEntry parseCellposePayload(String line, RunLogSeverity fallbackSeverity, String raw) {

@@ -1,9 +1,11 @@
 package qupath.ext.astra;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Central presentation contract between ASTRA script constants and the JavaFX
@@ -13,6 +15,7 @@ import java.util.Map;
 final class GuiPresentation {
 
     private static final ManifestSet MANIFESTS = ManifestSet.load();
+    private static final List<StandardGroup> STANDARD_GROUPS = loadStandardGroups();
 
     private GuiPresentation() {
         throw new AssertionError("No instances");
@@ -85,6 +88,29 @@ final class GuiPresentation {
                 : description;
     }
 
+    static List<StandardGroup> standardGroups() {
+        return STANDARD_GROUPS;
+    }
+
+    static StandardGroup standardGroup(String name) {
+        if (name == null || name.isBlank()) {
+            return StandardGroup.fallback("");
+        }
+        return STANDARD_GROUPS.stream()
+                .filter(group -> group.name().equals(name))
+                .findFirst()
+                .orElse(StandardGroup.fallback(name));
+    }
+
+    static Optional<StandardGroup> knownStandardGroup(String name) {
+        if (name == null || name.isBlank()) {
+            return Optional.empty();
+        }
+        return STANDARD_GROUPS.stream()
+                .filter(group -> group.name().equals(name))
+                .findFirst();
+    }
+
     static String displayOption(String option) {
         if (option == null || option.isBlank()) {
             return "";
@@ -122,5 +148,105 @@ final class GuiPresentation {
     private static String titleCaseToken(String token) {
         String lower = token.toLowerCase(Locale.ROOT);
         return lower.substring(0, 1).toUpperCase(Locale.ROOT) + lower.substring(1);
+    }
+
+    private static List<StandardGroup> loadStandardGroups() {
+        List<StandardGroup> groups = MANIFESTS.standardGroups().stream()
+                .map(StandardGroup::fromManifest)
+                .filter(group -> !group.name().isBlank())
+                .sorted(Comparator.comparingInt(StandardGroup::order))
+                .toList();
+        return groups.isEmpty() ? fallbackStandardGroups() : groups;
+    }
+
+    private static List<StandardGroup> fallbackStandardGroups() {
+        return List.of(
+                new StandardGroup("Run Setup", "Run Setup",
+                        "Choose the workflow path before ASTRA touches data.",
+                        1, "Essential", "teal"),
+                new StandardGroup("Images & Scope", "Images & Scope",
+                        "Tell ASTRA which images or regions are in play.",
+                        2, "Essential", "bluegray"),
+                new StandardGroup("Classes & Regions", "Classes & Regions",
+                        "Map QuPath annotations and output classes to the analysis.",
+                        3, "Essential", "sage"),
+                new StandardGroup("Channels & Markers", "Channels & Markers",
+                        "Match biological stains to image channels.",
+                        4, "Essential", "teal"),
+                new StandardGroup("Models", "Models",
+                        "Choose saved models and project-backed model files.",
+                        5, "Routine", "bluegray"),
+                new StandardGroup("Segmentation", "Segmentation",
+                        "Control Cellpose-SAM object recovery.",
+                        6, "Routine", "teal"),
+                new StandardGroup("Biological Classification",
+                        "Biological Classification",
+                        "Set anatomy-aware cell identity and inclusion rules.",
+                        7, "Essential", "sage"),
+                new StandardGroup("Thresholds & Background",
+                        "Thresholds & Background",
+                        "Control marker scoring and local background correction.",
+                        8, "Routine", "amber"),
+                new StandardGroup("Runtime & Performance",
+                        "Runtime & Performance",
+                        "Tune GPU, batching, scaling, and speed.",
+                        9, "Optional", "bluegray"),
+                new StandardGroup("Output & Export", "Output & Export",
+                        "Choose result writing and export behavior.",
+                        10, "Routine", "bluegray"),
+                new StandardGroup("Diagnostics", "Diagnostics",
+                        "Turn on extra checks and troubleshooting output.",
+                        11, "Diagnostic", "amber"),
+                new StandardGroup("Developer Overrides", "Developer Overrides",
+                        "Inspect low-level controls after deliberate unlock.",
+                        12, "Advanced", "gold")
+        );
+    }
+
+    record StandardGroup(String name, String label, String description, int order,
+                         String importance, String accentTheme) {
+
+        static StandardGroup fromManifest(Map<String, Object> map) {
+            String name = text(map.get("name"));
+            String label = text(map.get("label"));
+            String description = text(map.get("description"));
+            String importance = text(map.get("importance"));
+            String accentTheme = text(map.get("accentTheme"));
+            int order = number(map.get("order"), Integer.MAX_VALUE);
+            return new StandardGroup(
+                    name,
+                    label.isBlank() ? name : label,
+                    description.isBlank() ? "Review related ASTRA settings." : description,
+                    order,
+                    importance.isBlank() ? "Routine" : importance,
+                    accentTheme.isBlank() ? "bluegray" : accentTheme
+            );
+        }
+
+        static StandardGroup fallback(String name) {
+            return new StandardGroup(
+                    name,
+                    name == null || name.isBlank() ? "Settings" : name,
+                    "Review related ASTRA settings.",
+                    Integer.MAX_VALUE,
+                    "Routine",
+                    "bluegray"
+            );
+        }
+
+        private static String text(Object raw) {
+            return raw == null ? "" : String.valueOf(raw).trim();
+        }
+
+        private static int number(Object raw, int fallback) {
+            if (raw instanceof Number number) {
+                return number.intValue();
+            }
+            try {
+                return Integer.parseInt(text(raw));
+            } catch (NumberFormatException e) {
+                return fallback;
+            }
+        }
     }
 }

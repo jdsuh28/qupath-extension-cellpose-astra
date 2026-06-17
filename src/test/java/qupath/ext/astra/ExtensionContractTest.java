@@ -696,7 +696,8 @@ class ExtensionContractTest {
     }
 
     /**
-     * Verifies pixel scaling is visible only when batch execution is enabled.
+     * Verifies pixel scaling remains visible but disabled unless batch
+     * execution is enabled.
      *
      * @throws Exception if source cannot be read.
      */
@@ -704,7 +705,7 @@ class ExtensionContractTest {
     void launcherGatesPixelScalingByBatchMode() throws Exception {
         String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/PipelineLauncher.java").toPath());
 
-        assertTrue(source.contains("setVisible(rows, \"USE_PIXEL_SCALING\", isChecked(byName, \"USE_BATCH_MODE\"));"));
+        assertTrue(source.contains("setEnabled(rows, \"USE_PIXEL_SCALING\", isChecked(byName, \"USE_BATCH_MODE\"));"));
     }
 
     /**

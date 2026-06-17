@@ -192,3 +192,402 @@
     -fx-text-fill: #6f5200;
     -fx-border-color: #d4a72c;
 }
+
+.astra-header-title {
+    -fx-font-size: 28px;
+    -fx-font-weight: 900;
+    -fx-text-fill: white;
+}
+
+.astra-header-subtitle {
+    -fx-font-size: 13.5px;
+    -fx-font-weight: 650;
+    -fx-text-fill: #dcefee;
+    -fx-line-spacing: 2;
+}
+
+.astra-header-actions {
+    -fx-padding: 8 9;
+    -fx-background-color: rgba(255, 255, 255, 0.14);
+    -fx-border-color: rgba(255, 255, 255, 0.24);
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+}
+
+.astra-button-toggle-active {
+    -fx-background-color: #0d7f80;
+    -fx-text-fill: white;
+    -fx-border-color: #07595d;
+    -fx-effect: innershadow(gaussian, rgba(0, 0, 0, 0.18), 4, 0.2, 0, 1);
+}
+
+.astra-button-toggle-active:hover {
+    -fx-background-color: #0a696c;
+}
+
+.astra-section-shell {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #cfdce1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-effect: dropshadow(gaussian, rgba(23, 36, 49, 0.05), 9, 0.14, 0, 1);
+}
+
+.astra-section-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: 900;
+    -fx-text-fill: #172431;
+}
+
+.astra-section-subtitle {
+    -fx-font-size: 12.5px;
+    -fx-font-weight: 650;
+    -fx-text-fill: #5f7080;
+    -fx-line-spacing: 2;
+}
+
+.astra-card-dashboard {
+    -fx-padding: 2 0 2 0;
+}
+
+.astra-settings-card-accent {
+    -fx-arc-width: 5;
+    -fx-arc-height: 5;
+}
+
+.astra-settings-card-theme-teal {
+    -fx-background-color: #f3fbfa;
+    -fx-border-color: #8dc7c3;
+}
+
+.astra-settings-card-theme-bluegray {
+    -fx-background-color: #f5f8fa;
+    -fx-border-color: #aebfc7;
+}
+
+.astra-settings-card-theme-sage {
+    -fx-background-color: #f5fbf4;
+    -fx-border-color: #a9c9a4;
+}
+
+.astra-settings-card-theme-amber {
+    -fx-background-color: #fffaf0;
+    -fx-border-color: #e4be65;
+}
+
+.astra-settings-card-theme-gold {
+    -fx-background-color: #fff8dc;
+    -fx-border-color: #d4a72c;
+}
+
+.astra-accent-teal {
+    -fx-fill: #188a88;
+}
+
+.astra-accent-bluegray {
+    -fx-fill: #6f8795;
+}
+
+.astra-accent-sage {
+    -fx-fill: #6d9969;
+}
+
+.astra-accent-amber {
+    -fx-fill: #c9902f;
+}
+
+.astra-accent-gold {
+    -fx-fill: #a47c10;
+}
+
+.astra-badge-importance-essential {
+    -fx-background-color: #def5f2;
+    -fx-text-fill: #064f51;
+    -fx-border-color: #8dc7c3;
+}
+
+.astra-badge-importance-routine {
+    -fx-background-color: #e8f0f3;
+    -fx-text-fill: #314955;
+    -fx-border-color: #b5cbd2;
+}
+
+.astra-badge-importance-optional {
+    -fx-background-color: #eef4ef;
+    -fx-text-fill: #3f5f3d;
+    -fx-border-color: #adc8aa;
+}
+
+.astra-badge-importance-diagnostic {
+    -fx-background-color: #fff1cc;
+    -fx-text-fill: #7a4e00;
+    -fx-border-color: #e4be65;
+}
+
+.astra-badge-importance-advanced {
+    -fx-background-color: #fff5d0;
+    -fx-text-fill: #6f5200;
+    -fx-border-color: #d4a72c;
+}
+
+.astra-launcher-workspace {
+    -fx-background-color: #f4f7f8;
+}
+
+.astra-settings-scroll {
+    -fx-padding: 0 7 0 0;
+    -fx-background: #f4f7f8;
+    -fx-background-color: #f4f7f8;
+}
+
+.astra-settings-scroll > .viewport {
+    -fx-background-color: #f4f7f8;
+}
+
+.astra-dialog-pane .scroll-pane,
+.astra-settings-scroll {
+    -fx-background-insets: 0;
+}
+
+.scroll-pane .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-padding: 0 2 0 5;
+    -fx-pref-width: 14px;
+}
+
+.scroll-pane .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+    -fx-padding: 5 0 2 0;
+    -fx-pref-height: 14px;
+}
+
+.scroll-pane .scroll-bar .thumb {
+    -fx-background-color: rgba(15, 73, 82, 0.42);
+    -fx-background-radius: 8;
+}
+
+.scroll-pane .scroll-bar .thumb:hover {
+    -fx-background-color: rgba(15, 73, 82, 0.58);
+}
+
+.scroll-pane .scroll-bar .track {
+    -fx-background-color: rgba(15, 73, 82, 0.08);
+    -fx-background-radius: 8;
+}
+
+.scroll-pane .scroll-bar .increment-button,
+.scroll-pane .scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.astra-parameter-row {
+    -fx-padding: 3 6;
+    -fx-background-radius: 6;
+}
+
+.astra-parameter-row-even {
+    -fx-background-color: rgba(31, 122, 122, 0.035);
+}
+
+.astra-parameter-row-odd {
+    -fx-background-color: transparent;
+}
+
+.astra-parameter-label {
+    -fx-font-size: 12px;
+    -fx-font-weight: 850;
+    -fx-text-fill: #172431;
+}
+
+.astra-parameter-anchor {
+    -fx-arc-width: 4;
+    -fx-arc-height: 4;
+}
+
+.astra-parameter-anchor-channel {
+    -fx-fill: #188a88;
+}
+
+.astra-parameter-anchor-model {
+    -fx-fill: #6f8795;
+}
+
+.astra-parameter-anchor-segmentation {
+    -fx-fill: #0d7f80;
+}
+
+.astra-parameter-anchor-biological {
+    -fx-fill: #6d9969;
+}
+
+.astra-parameter-anchor-threshold {
+    -fx-fill: #c9902f;
+}
+
+.astra-parameter-anchor-runtime {
+    -fx-fill: #587888;
+}
+
+.astra-parameter-anchor-export {
+    -fx-fill: #566a78;
+}
+
+.astra-parameter-anchor-diagnostic {
+    -fx-fill: #b07a20;
+}
+
+.astra-parameter-anchor-setting {
+    -fx-fill: #a8b5bc;
+}
+
+.astra-input,
+.astra-combo,
+.text-field,
+.text-area {
+    -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -fx-font-size: 12px;
+    -fx-text-fill: #172431;
+    -fx-background-color: #fbfdfe;
+    -fx-border-color: #7fa3ad;
+    -fx-border-radius: 5;
+    -fx-background-radius: 5;
+}
+
+.astra-input:focused,
+.astra-combo:focused,
+.text-field:focused,
+.text-area:focused {
+    -fx-border-color: #1f7a7a;
+    -fx-effect: dropshadow(gaussian, rgba(31, 122, 122, 0.18), 7, 0.16, 0, 0);
+}
+
+.combo-box-base.astra-combo {
+    -fx-padding: 0;
+    -fx-mark-color: #0d4f55;
+}
+
+.check-box.astra-checkbox {
+    -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -fx-text-fill: #172431;
+}
+
+.check-box.astra-checkbox .box {
+    -fx-background-color: #fbfdfe;
+    -fx-border-color: #7fa3ad;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+
+.check-box.astra-checkbox:selected .mark {
+    -fx-background-color: #0d4f55;
+}
+
+.astra-dialog-pane .button {
+    -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -fx-font-size: 12px;
+    -fx-font-weight: 850;
+    -fx-background-color: #f9fcfd;
+    -fx-text-fill: #0d4f55;
+    -fx-border-color: #b9cdd3;
+    -fx-border-radius: 5;
+    -fx-background-radius: 5;
+}
+
+.astra-dialog-pane .button:hover {
+    -fx-background-color: #ecf4f5;
+}
+
+.astra-dialog-pane .button:pressed {
+    -fx-translate-y: 1;
+    -fx-background-color: #d7e5e8;
+}
+
+.astra-output-pane {
+    -fx-background-color: #062938;
+    -fx-border-color: #1f6071;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-effect: dropshadow(gaussian, rgba(6, 28, 39, 0.26), 12, 0.2, 0, 2);
+}
+
+.astra-output-header {
+    -fx-padding: 2 0 8 0;
+}
+
+.astra-output-status {
+    -fx-font-size: 13px;
+    -fx-font-weight: 900;
+    -fx-text-fill: white;
+}
+
+.astra-list-view {
+    -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -fx-font-size: 12px;
+    -fx-background-color: #fbfdfe;
+    -fx-border-color: #7fa3ad;
+    -fx-border-radius: 5;
+    -fx-background-radius: 5;
+}
+
+.astra-nested-panel {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #d7e2e6;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 8;
+}
+
+.astra-code-area {
+    -fx-font-family: "JetBrains Mono", "SF Mono", Consolas, monospace;
+    -fx-font-size: 12px;
+    -fx-control-inner-background: #fbfdff;
+    -fx-text-fill: #172431;
+    -fx-border-color: #7fa3ad;
+    -fx-border-radius: 5;
+    -fx-background-radius: 5;
+}
+
+.astra-dialog-pane .button.astra-button-primary {
+    -fx-background-color: #1f7a7a;
+    -fx-text-fill: white;
+    -fx-border-color: #17696d;
+}
+
+.astra-dialog-pane .button.astra-button-primary:hover {
+    -fx-background-color: #17696d;
+}
+
+.astra-dialog-pane .button.astra-button-secondary {
+    -fx-background-color: #f9fcfd;
+    -fx-text-fill: #0d4f55;
+    -fx-border-color: #b9cdd3;
+}
+
+.astra-dialog-pane .button.astra-button-danger {
+    -fx-background-color: #ffe8e2;
+    -fx-text-fill: #7c2417;
+    -fx-border-color: #f0a090;
+}
+
+.astra-dialog-pane .button.astra-button-success {
+    -fx-background-color: #ecf9f1;
+    -fx-text-fill: #17623b;
+    -fx-border-color: #9fd9b7;
+}
+
+.astra-dialog-pane .button.astra-button-header {
+    -fx-background-color: rgba(255, 255, 255, 0.92);
+    -fx-text-fill: #0d4f55;
+    -fx-border-color: rgba(255, 255, 255, 0.95);
+}
+
+.astra-dialog-pane .button.astra-button-toggle-active {
+    -fx-background-color: #0d7f80;
+    -fx-text-fill: white;
+    -fx-border-color: #07595d;
+}
+
+.astra-parameter-row-dependent-disabled {
+    -fx-opacity: 0.58;
+}

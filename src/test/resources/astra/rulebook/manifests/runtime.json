@@ -433,6 +433,11 @@
           },
           {
             "root": "shared-analysis",
+            "file": "AnalysisDetectionRecovery.groovy",
+            "alias": "AnalysisDetectionRecovery"
+          },
+          {
+            "root": "shared-analysis",
             "file": "AnalysisActiveStateFileTransaction.groovy",
             "alias": "AnalysisActiveStateFileTransaction"
           },
@@ -455,6 +460,11 @@
             "root": "shared-analysis",
             "file": "AnalysisRegionScope.groovy",
             "alias": "AnalysisRegionScope"
+          },
+          {
+            "root": "shared-analysis",
+            "file": "AnalysisCellposeBatch.groovy",
+            "alias": "AnalysisCellposeBatch"
           },
           {
             "root": "pipeline-vascular",
@@ -586,6 +596,11 @@
           },
           {
             "root": "shared-analysis",
+            "file": "AnalysisDetectionRecovery.groovy",
+            "alias": "AnalysisDetectionRecovery"
+          },
+          {
+            "root": "shared-analysis",
             "file": "AnalysisActiveStateFileTransaction.groovy",
             "alias": "AnalysisActiveStateFileTransaction"
           },
@@ -608,6 +623,11 @@
             "root": "shared-analysis",
             "file": "AnalysisRegionScope.groovy",
             "alias": "AnalysisRegionScope"
+          },
+          {
+            "root": "shared-analysis",
+            "file": "AnalysisCellposeBatch.groovy",
+            "alias": "AnalysisCellposeBatch"
           },
           {
             "root": "pipeline-colocalization",

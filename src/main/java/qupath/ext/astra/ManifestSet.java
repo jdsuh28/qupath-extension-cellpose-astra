@@ -112,6 +112,10 @@ final class ManifestSet {
         return mapValue(gui().get("advancedControls"));
     }
 
+    List<Map<String, Object>> standardGroups() {
+        return mapList(gui().get("standardGroups"));
+    }
+
     List<String> visibleStages(String pipelineName) {
         return runnable(pipelineName)
                 .map(p -> stringList(p.get("visibleStages")))
@@ -295,6 +299,17 @@ final class ManifestSet {
             return List.of();
         }
         return list.stream().map(String::valueOf).toList();
+    }
+
+    private static List<Map<String, Object>> mapList(Object raw) {
+        if (!(raw instanceof List<?> list)) {
+            return List.of();
+        }
+        return list.stream()
+                .map(ManifestSet::mapValue)
+                .filter(map -> !map.isEmpty())
+                .map(Map::copyOf)
+                .toList();
     }
 
     private static String stringValue(Object raw) {
