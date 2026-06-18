@@ -84,7 +84,7 @@ final class AnimatedGradientHeader extends StackPane {
      * @param content header content to place above the animated background.
      */
     AnimatedGradientHeader(Node content) {
-        setStyle("-fx-background-color: #0d2430; -fx-border-color: #375f6c; -fx-border-radius: 6; -fx-background-radius: 6;");
+        getStyleClass().add("astra-animated-gradient-header");
         setMaxWidth(Double.MAX_VALUE);
         if (content instanceof Region region) {
             region.setMaxWidth(Double.MAX_VALUE);

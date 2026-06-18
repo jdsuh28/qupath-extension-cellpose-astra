@@ -10,7 +10,7 @@ import java.util.Optional;
 /**
  * Central presentation contract between ASTRA script constants and the JavaFX
  * launcher.  Scientific behavior belongs in the base Groovy scripts; this
- * adapter owns user-facing labels, option visibility, and GUI-only routing.
+ * adapter owns user-facing labels, option display, and GUI-only routing.
  */
 final class GuiPresentation {
 
