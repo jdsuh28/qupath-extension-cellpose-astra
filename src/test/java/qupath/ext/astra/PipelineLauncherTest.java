@@ -136,6 +136,10 @@ class PipelineLauncherTest {
         assertFalse(preset.helpText().isBlank());
         assertFalse(preset.detailsText().isBlank());
         assertNotEquals(preset.helpText(), preset.detailsText());
+        assertEquals("\"BALANCED\"", preset.currentDisplayValue());
+        assertEquals("\"BALANCED\"", preset.defaultDisplayValue());
+        assertFalse(preset.detailsText().contains("CellposeInferenceDefaults.SEGMENTATION_PRESET_BALANCED"));
+        assertTrue(preset.detailsText().contains("Default value: Balanced."));
     }
 
     @Test
@@ -156,6 +160,7 @@ class PipelineLauncherTest {
                 .filter(constant -> constant.name().equals("SEGMENTATION_PRESET"))
                 .findFirst()
                 .orElseThrow();
+        assertEquals("\"BALANCED\"", preset.currentDisplayValue());
         preset.setDisplayValue("\"STRICT\"");
 
         String rendered = PipelineLauncher.applyConstants(script,
@@ -185,7 +190,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("TextArea details = new TextArea(constant.detailsText())"));
         assertTrue(source.contains("addHelpSummaryRow(summary, 0, \"Parameter\", constant.name)"));
         assertTrue(source.contains("addHelpSummaryRow(summary, 1, \"Current value\", safeCurrentDisplayValue(constant))"));
-        assertTrue(source.contains("addHelpSummaryRow(summary, 2, \"Default value\", constant.defaultDisplayValue())"));
+        assertTrue(source.contains("addHelpSummaryRow(summary, 2, \"Default value\", safeDefaultDisplayValue(constant))"));
     }
 
     @Test
@@ -206,6 +211,13 @@ class PipelineLauncherTest {
         assertTrue(css.contains(".astra-settings-card-theme-teal"));
         assertTrue(css.contains(".astra-output-pane"));
         assertTrue(css.contains(".scroll-pane .scroll-bar .thumb"));
+        assertTrue(css.contains(".combo-box-popup .list-view"));
+        assertTrue(css.contains(".context-menu"));
+        assertTrue(css.contains(".tooltip"));
+        assertTrue(css.contains(".astra-header-action-group"));
+        assertTrue(css.contains(".astra-dependent-row-failure-recovery"));
+        assertTrue(source.contains("private static List<String> resolveContractOptions(String expr)"));
+        assertTrue(source.contains("List.of(\"BALANCED\", \"STRICT\", \"SENSITIVE\", \"CUSTOM\")"));
     }
 
     @Test
@@ -810,7 +822,11 @@ class PipelineLauncherTest {
         assertTrue(source.contains("VBox header = new VBox(12.0);"));
         assertTrue(source.contains("VBox body = new VBox(14.0);"));
         assertTrue(source.contains("AnimatedGradientHeader animatedHeader = new AnimatedGradientHeader(header);"));
-        assertTrue(source.contains("createHeaderOptionsMenu(animatedHeader)"));
+        assertTrue(source.contains("createHeaderActionGroup(\"Settings\""));
+        assertTrue(source.contains("createHeaderActionGroup(\"Project Actions\""));
+        assertTrue(source.contains("createHeaderActionGroup(\"View\""));
+        assertTrue(source.contains("createHeaderOptionsMenu("));
+        assertTrue(source.contains("updateOutputToggleState(outputToggle"));
         assertTrue(source.contains("PathPrefs.createPersistentPreference(HEADER_MODE_PREFERENCE_KEY"));
         assertTrue(source.contains("PathPrefs.createPersistentPreference(HEADER_MOTION_PREFERENCE_KEY"));
         assertTrue(source.contains("AnimatedGradientHeader.HeaderMode.DYNAMIC.name()"));
@@ -1265,6 +1281,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("new MenuButton(\"Options\")"));
         assertTrue(source.contains("headerSegmentButton(\"Static\")"));
         assertTrue(source.contains("headerSegmentButton(\"Dynamic\")"));
+        assertTrue(source.contains("headerSegmentButton(\"Visible\")"));
         assertTrue(source.contains("Motion\""));
         assertFalse(source.contains("installDynamicHeaderGradient(header, scriptName)"));
         assertTrue(source.contains("Map.of(\"SCRIPT_ACTION\", \"\\\"EXPORT\\\"\")"));

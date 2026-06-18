@@ -33,19 +33,18 @@ final class AnimatedGradientHeader extends StackPane {
     private static final Color OVERLAY_COLOR = Color.rgb(6, 23, 32);
     private static final WritablePixelFormat<IntBuffer> ARGB_FORMAT = PixelFormat.getIntArgbInstance();
     private static final Stop[] STOPS = {
-            new Stop(0.00d, Color.web("#0b222d")),
-            new Stop(0.08d, Color.web("#0d2b38")),
-            new Stop(0.16d, Color.web("#103542")),
-            new Stop(0.24d, Color.web("#12444d")),
-            new Stop(0.32d, Color.web("#15535a")),
-            new Stop(0.40d, Color.web("#1d6062")),
-            new Stop(0.50d, Color.web("#286d68")),
-            new Stop(0.60d, Color.web("#226466")),
-            new Stop(0.68d, Color.web("#1b5666")),
-            new Stop(0.76d, Color.web("#164858")),
-            new Stop(0.84d, Color.web("#123642")),
-            new Stop(0.92d, Color.web("#0d2b38")),
-            new Stop(1.00d, Color.web("#0b222d"))
+            new Stop(0.00d, Color.web("#071d29")),
+            new Stop(0.08d, Color.web("#092937")),
+            new Stop(0.16d, Color.web("#0b3c48")),
+            new Stop(0.24d, Color.web("#075a5a")),
+            new Stop(0.32d, Color.web("#08786d")),
+            new Stop(0.42d, Color.web("#1f8a78")),
+            new Stop(0.52d, Color.web("#466f78")),
+            new Stop(0.62d, Color.web("#215b73")),
+            new Stop(0.72d, Color.web("#134b62")),
+            new Stop(0.82d, Color.web("#0d3548")),
+            new Stop(0.92d, Color.web("#092937")),
+            new Stop(1.00d, Color.web("#071d29"))
     };
 
     enum HeaderMode {

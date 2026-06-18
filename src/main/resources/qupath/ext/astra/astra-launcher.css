@@ -214,6 +214,42 @@
     -fx-border-radius: 10;
 }
 
+.astra-header-action-group {
+    -fx-padding: 0 8 8 8;
+    -fx-background-color: rgba(255, 255, 255, 0.12);
+    -fx-border-color: rgba(255, 255, 255, 0.28);
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+}
+
+.astra-header-action-group-settings {
+    -fx-border-color: rgba(191, 226, 228, 0.55);
+}
+
+.astra-header-action-group-project {
+    -fx-border-color: rgba(252, 205, 184, 0.62);
+}
+
+.astra-header-action-group-view {
+    -fx-border-color: rgba(219, 235, 238, 0.54);
+}
+
+.astra-header-action-tab {
+    -fx-font-size: 9.5px;
+    -fx-font-weight: 900;
+    -fx-text-fill: rgba(255, 255, 255, 0.88);
+    -fx-padding: 0 6 2 6;
+    -fx-background-color: rgba(6, 35, 45, 0.42);
+    -fx-background-radius: 0 0 6 6;
+}
+
+.astra-header-options-panel {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 7;
+    -fx-border-color: #bfd3d8;
+    -fx-border-radius: 7;
+}
+
 .astra-button-toggle-active {
     -fx-background-color: #0d7f80;
     -fx-text-fill: white;
@@ -247,7 +283,31 @@
 }
 
 .astra-card-dashboard {
-    -fx-padding: 2 0 2 0;
+    -fx-padding: 2 4 2 4;
+    -fx-alignment: top-center;
+}
+
+.astra-importance-legend {
+    -fx-padding: 0 0 4 0;
+}
+
+.astra-importance-legend-title {
+    -fx-font-size: 11px;
+    -fx-font-weight: 900;
+    -fx-text-fill: #5f7080;
+    -fx-padding: 3 4 3 0;
+}
+
+.astra-focused-section-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: 900;
+    -fx-text-fill: #172431;
+}
+
+.astra-focused-section-description {
+    -fx-font-size: 11.5px;
+    -fx-font-weight: 650;
+    -fx-text-fill: #5f7080;
 }
 
 .astra-settings-card-accent {
@@ -335,7 +395,7 @@
 }
 
 .astra-settings-scroll {
-    -fx-padding: 0 7 0 0;
+    -fx-padding: 0 12 0 0;
     -fx-background: #f4f7f8;
     -fx-background-color: #f4f7f8;
 }
@@ -384,6 +444,28 @@
 .astra-parameter-row {
     -fx-padding: 3 6;
     -fx-background-radius: 6;
+}
+
+.astra-dependent-row {
+    -fx-border-color: rgba(127, 163, 173, 0.34);
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+.astra-dependent-row-batch-options {
+    -fx-background-color: rgba(88, 120, 136, 0.055);
+}
+
+.astra-dependent-row-failure-recovery {
+    -fx-background-color: rgba(217, 96, 76, 0.055);
+}
+
+.astra-dependent-row-custom-segmentation {
+    -fx-background-color: rgba(13, 127, 128, 0.055);
+}
+
+.astra-dependent-row-nucleus-gating {
+    -fx-background-color: rgba(109, 153, 105, 0.06);
 }
 
 .astra-parameter-row-even {
@@ -465,6 +547,89 @@
 .combo-box-base.astra-combo {
     -fx-padding: 0;
     -fx-mark-color: #0d4f55;
+}
+
+.combo-box-popup .list-view {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #7fa3ad;
+    -fx-border-radius: 5;
+    -fx-background-radius: 5;
+}
+
+.combo-box-popup .list-cell {
+    -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -fx-font-size: 12px;
+    -fx-text-fill: #172431;
+    -fx-background-color: #ffffff;
+    -fx-padding: 7 10;
+}
+
+.combo-box-popup .list-cell:filled:hover,
+.combo-box-popup .list-cell:filled:focused {
+    -fx-background-color: #e6f4f5;
+    -fx-text-fill: #0d4f55;
+}
+
+.combo-box-popup .list-cell:filled:selected {
+    -fx-background-color: #1f7a7a;
+    -fx-text-fill: #ffffff;
+}
+
+.combo-box-popup .list-cell:disabled {
+    -fx-text-fill: #758692;
+    -fx-background-color: #f3f7f8;
+}
+
+.context-menu {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 7;
+    -fx-border-color: #9fb9c2;
+    -fx-border-radius: 7;
+    -fx-padding: 5;
+}
+
+.menu-item,
+.custom-menu-item {
+    -fx-background-color: #ffffff;
+}
+
+.menu-item .label,
+.custom-menu-item .label {
+    -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -fx-font-size: 12px;
+    -fx-text-fill: #172431;
+}
+
+.menu-item:focused,
+.custom-menu-item:focused {
+    -fx-background-color: #e6f4f5;
+}
+
+.menu-item:focused .label,
+.custom-menu-item:focused .label {
+    -fx-text-fill: #0d4f55;
+}
+
+.tooltip {
+    -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -fx-font-size: 12px;
+    -fx-text-fill: #172431;
+    -fx-background-color: #fffdf4;
+    -fx-border-color: #d7b653;
+    -fx-border-radius: 5;
+    -fx-background-radius: 5;
+}
+
+.dialog-pane,
+.astra-dialog-pane {
+    -fx-background-color: #f4f7f8;
+}
+
+.dialog-pane .content,
+.dialog-pane .header-panel,
+.astra-dialog-pane .content,
+.astra-dialog-pane .header-panel {
+    -fx-background-color: #f4f7f8;
 }
 
 .check-box.astra-checkbox {
