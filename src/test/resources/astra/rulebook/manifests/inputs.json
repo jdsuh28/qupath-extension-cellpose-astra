@@ -1388,7 +1388,7 @@
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6010,
-          "detailsMarkdown": "What it does: GUI-friendly Cellpose-SAM validation preset used for defaulted inference knobs. Tuned best-params values remain authoritative when present.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nAllowed values are controlled by SEGMENTATION_PRESET_OPTIONS in the manifest/script contract.\n\nDefault value: CellposeInferenceDefaults.SEGMENTATION_PRESET_BALANCED.\n\nExample: use BALANCED for routine runs, STRICT for fewer weak detections, SENSITIVE for weak-object recovery, and CUSTOM only after deliberate tuning."
+          "detailsMarkdown": "What it does: GUI-friendly Cellpose-SAM validation preset used for defaulted inference knobs. Tuned best-params values remain authoritative when present.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nAllowed values are controlled by SEGMENTATION_PRESET_OPTIONS in the manifest/script contract.\n\nDefault value: Balanced.\n\nExample: use BALANCED for routine runs, STRICT for fewer weak detections, SENSITIVE for weak-object recovery, and CUSTOM only after deliberate tuning."
         },
         {
           "name": "CHANNELS_FOR_NUCLEUS",
@@ -2762,7 +2762,7 @@
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6020,
-          "detailsMarkdown": "What it does: GUI-friendly Cellpose-SAM inference preset. BALANCED matches ASTRA's previous defaults, STRICT reduces weak detections, SENSITIVE recovers weaker objects, and CUSTOM uses the explicit advanced detector knobs.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nAllowed values are controlled by SEGMENTATION_PRESET_OPTIONS in the manifest/script contract.\n\nDefault value: CellposeInferenceDefaults.SEGMENTATION_PRESET_BALANCED.\n\nExample: use BALANCED for routine runs, STRICT for fewer weak detections, SENSITIVE for weak-object recovery, and CUSTOM only after deliberate tuning."
+          "detailsMarkdown": "What it does: GUI-friendly Cellpose-SAM inference preset. BALANCED matches ASTRA's previous defaults, STRICT reduces weak detections, SENSITIVE recovers weaker objects, and CUSTOM uses the explicit advanced detector knobs.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nAllowed values are controlled by SEGMENTATION_PRESET_OPTIONS in the manifest/script contract.\n\nDefault value: Balanced.\n\nExample: use BALANCED for routine runs, STRICT for fewer weak detections, SENSITIVE for weak-object recovery, and CUSTOM only after deliberate tuning."
         },
         {
           "name": "NUC_DIAMETER_UM",
@@ -3845,7 +3845,7 @@
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6020,
-          "detailsMarkdown": "What it does: GUI-friendly Cellpose-SAM inference preset. BALANCED matches ASTRA's previous defaults, STRICT reduces weak detections, SENSITIVE recovers weaker objects, and CUSTOM uses the explicit advanced detector knobs.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nAllowed values are controlled by SEGMENTATION_PRESET_OPTIONS in the manifest/script contract.\n\nDefault value: CellposeInferenceDefaults.SEGMENTATION_PRESET_BALANCED.\n\nExample: use BALANCED for routine runs, STRICT for fewer weak detections, SENSITIVE for weak-object recovery, and CUSTOM only after deliberate tuning."
+          "detailsMarkdown": "What it does: GUI-friendly Cellpose-SAM inference preset. BALANCED matches ASTRA's previous defaults, STRICT reduces weak detections, SENSITIVE recovers weaker objects, and CUSTOM uses the explicit advanced detector knobs.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nAllowed values are controlled by SEGMENTATION_PRESET_OPTIONS in the manifest/script contract.\n\nDefault value: Balanced.\n\nExample: use BALANCED for routine runs, STRICT for fewer weak detections, SENSITIVE for weak-object recovery, and CUSTOM only after deliberate tuning."
         },
         {
           "name": "NUCLEUS_SEGMENTATION_CHANNELS",
@@ -4787,7 +4787,7 @@
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6030,
-          "detailsMarkdown": "What it does: GUI-friendly Cellpose-SAM inference preset for marker rescue nuclei. BALANCED matches ASTRA's previous defaults, STRICT reduces weak detections, SENSITIVE recovers weaker objects, and CUSTOM uses the explicit advanced detector knobs.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nAllowed values are controlled by SEGMENTATION_PRESET_OPTIONS in the manifest/script contract.\n\nDefault value: CellposeInferenceDefaults.SEGMENTATION_PRESET_BALANCED.\n\nExample: use BALANCED for routine runs, STRICT for fewer weak detections, SENSITIVE for weak-object recovery, and CUSTOM only after deliberate tuning."
+          "detailsMarkdown": "What it does: GUI-friendly Cellpose-SAM inference preset for marker rescue nuclei. BALANCED matches ASTRA's previous defaults, STRICT reduces weak detections, SENSITIVE recovers weaker objects, and CUSTOM uses the explicit advanced detector knobs.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nAllowed values are controlled by SEGMENTATION_PRESET_OPTIONS in the manifest/script contract.\n\nDefault value: Balanced.\n\nExample: use BALANCED for routine runs, STRICT for fewer weak detections, SENSITIVE for weak-object recovery, and CUSTOM only after deliberate tuning."
         },
         {
           "name": "WRITE_RECONSTRUCTED_LUMEN_ANNOTATIONS",
