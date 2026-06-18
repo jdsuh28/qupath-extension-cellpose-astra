@@ -214,8 +214,12 @@ class PipelineLauncherTest {
         assertTrue(css.contains(".combo-box-popup .list-view"));
         assertTrue(css.contains(".context-menu"));
         assertTrue(css.contains(".tooltip"));
-        assertTrue(css.contains(".astra-header-action-group"));
-        assertTrue(css.contains(".astra-dependent-row-failure-recovery"));
+        assertTrue(css.contains(".astra-header-menu-button"));
+        assertTrue(css.contains(".astra-dependent-panel-failure-recovery"));
+        assertTrue(css.contains(".astra-settings-view-toggle"));
+        assertTrue(css.contains(".astra-focused-section-header"));
+        assertTrue(css.contains("-fx-pref-width: 18px;"));
+        assertFalse(css.contains(".astra-dependent-row-failure-recovery"));
         assertTrue(source.contains("private static List<String> resolveContractOptions(String expr)"));
         assertTrue(source.contains("List.of(\"BALANCED\", \"STRICT\", \"SENSITIVE\", \"CUSTOM\")"));
     }
@@ -822,9 +826,13 @@ class PipelineLauncherTest {
         assertTrue(source.contains("VBox header = new VBox(12.0);"));
         assertTrue(source.contains("VBox body = new VBox(14.0);"));
         assertTrue(source.contains("AnimatedGradientHeader animatedHeader = new AnimatedGradientHeader(header);"));
-        assertTrue(source.contains("createHeaderActionGroup(\"Settings\""));
-        assertTrue(source.contains("createHeaderActionGroup(\"Project Actions\""));
-        assertTrue(source.contains("createHeaderActionGroup(\"View\""));
+        assertTrue(source.contains("createHeaderMenuButton(\"Settings\""));
+        assertTrue(source.contains("createHeaderMenuButton(\"Project\""));
+        assertTrue(source.contains("createHeaderMenuButton(\"View\""));
+        assertTrue(source.contains("createHeaderActionMenuItem(\"Reset settings\""));
+        assertTrue(source.contains("createHeaderActionMenuItem(\"Reset Image\""));
+        assertTrue(source.contains("createHeaderActionMenuItem(\"Export\""));
+        assertFalse(source.contains("createHeaderActionGroup(\"Settings\""));
         assertTrue(source.contains("createHeaderOptionsMenu("));
         assertTrue(source.contains("updateOutputToggleState(outputToggle"));
         assertTrue(source.contains("PathPrefs.createPersistentPreference(HEADER_MODE_PREFERENCE_KEY"));
@@ -835,6 +843,9 @@ class PipelineLauncherTest {
         assertTrue(source.contains("createSettingsNavigator(\"Advanced Settings\""));
         assertTrue(source.contains("Button dashboard = new Button(\"Dashboard\")"));
         assertTrue(source.contains("Button allSettings = new Button(\"All Settings\")"));
+        assertTrue(source.contains("addStyleClass(viewRow, \"astra-settings-view-toggle\")"));
+        assertTrue(source.contains("addStyleClass(top, \"astra-focused-section-header\")"));
+        assertTrue(source.contains("createDependentPanel("));
         assertTrue(source.contains("Node feedbackNode = feedback.node();"));
         assertTrue(source.contains("\"Colocalization Setup\""));
         assertTrue(source.contains(".filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))"));
@@ -1278,10 +1289,10 @@ class PipelineLauncherTest {
         assertTrue(source.contains("styleButton(resetProject, ButtonRole.DANGER)"));
         assertTrue(source.contains("styleButton(export, ButtonRole.SUCCESS)"));
         assertTrue(source.contains("AnimatedGradientHeader animatedHeader = new AnimatedGradientHeader(header);"));
-        assertTrue(source.contains("new MenuButton(\"Options\")"));
+        assertTrue(source.contains("MenuItem outputToggle = createHeaderActionMenuItem(\"Output\""));
+        assertTrue(source.contains("item.setText(outputVisible ? \"Hide Output\" : \"Show Output\")"));
         assertTrue(source.contains("headerSegmentButton(\"Static\")"));
         assertTrue(source.contains("headerSegmentButton(\"Dynamic\")"));
-        assertTrue(source.contains("headerSegmentButton(\"Visible\")"));
         assertTrue(source.contains("Motion\""));
         assertFalse(source.contains("installDynamicHeaderGradient(header, scriptName)"));
         assertTrue(source.contains("Map.of(\"SCRIPT_ACTION\", \"\\\"EXPORT\\\"\")"));
