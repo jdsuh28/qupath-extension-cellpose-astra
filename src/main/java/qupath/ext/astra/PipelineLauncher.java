@@ -25,6 +25,8 @@ import javafx.scene.control.DialogPane;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.MenuButton;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.stage.FileChooser;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
@@ -92,7 +94,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -1266,15 +1267,12 @@ final class PipelineLauncher {
         titleBlock.getChildren().addAll(title, subtitle);
         Region titleSpacer = new Region();
         HBox.setHgrow(titleSpacer, Priority.ALWAYS);
-        HBox actionCluster = new HBox(10.0);
+        HBox actionCluster = new HBox(8.0);
         actionCluster.setAlignment(Pos.CENTER_RIGHT);
         addStyleClass(actionCluster, "astra-header-actions");
-        HBox settingsActions = new HBox(7.0);
-        settingsActions.setAlignment(Pos.CENTER_LEFT);
-        HBox projectActions = new HBox(7.0);
-        projectActions.setAlignment(Pos.CENTER_LEFT);
-        HBox viewActions = new HBox(7.0);
-        viewActions.setAlignment(Pos.CENTER_LEFT);
+        MenuButton settingsMenu = createHeaderMenuButton("Settings", "settings");
+        MenuButton projectMenu = createHeaderMenuButton("Project", "project");
+        MenuButton viewMenu = createHeaderMenuButton("View", "view");
         Button reset = new Button("Reset settings");
         reset.setFocusTraversable(false);
         styleButton(reset, ButtonRole.HEADER);
@@ -1292,8 +1290,12 @@ final class PipelineLauncher {
         loadProfile.setFocusTraversable(false);
         styleButton(loadProfile, ButtonRole.HEADER);
         loadProfile.setOnAction(event -> loadSettingsProfileWithDialog(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, autosave, feedback));
-        settingsActions.getChildren().addAll(reset, saveProfile, loadProfile);
-        actionCluster.getChildren().add(createHeaderActionGroup("Settings", "settings", settingsActions));
+        settingsMenu.getItems().addAll(
+                createHeaderActionMenuItem("Reset settings", ButtonRole.HEADER, reset::fire, reset),
+                createHeaderActionMenuItem("Save settings profile", ButtonRole.HEADER, saveProfile::fire, saveProfile),
+                createHeaderActionMenuItem("Load settings profile", ButtonRole.HEADER, loadProfile::fire, loadProfile)
+        );
+        actionCluster.getChildren().add(settingsMenu);
         if (GuiPresentation.supportsAnalysisHeaderActions(scriptName)) {
             Button resetImage = new Button("Reset Image");
             resetImage.setFocusTraversable(false);
@@ -1311,7 +1313,10 @@ final class PipelineLauncher {
             if (resetProjectButtonSink != null) {
                 resetProjectButtonSink.accept(resetProject);
             }
-            projectActions.getChildren().addAll(resetImage, resetProject);
+            projectMenu.getItems().addAll(
+                    createHeaderActionMenuItem("Reset Image", ButtonRole.DANGER, resetImage::fire, resetImage),
+                    createHeaderActionMenuItem("Reset Project", ButtonRole.DANGER, resetProject::fire, resetProject)
+            );
         }
         if (GuiPresentation.supportsHeaderExport(scriptName)) {
             Button export = new Button("Export");
@@ -1322,19 +1327,19 @@ final class PipelineLauncher {
             if (exportButtonSink != null) {
                 exportButtonSink.accept(export);
             }
-            projectActions.getChildren().add(export);
+            if (!projectMenu.getItems().isEmpty()) {
+                projectMenu.getItems().add(new SeparatorMenuItem());
+            }
+            projectMenu.getItems().add(createHeaderActionMenuItem("Export", ButtonRole.SUCCESS, export::fire, export));
         }
-        if (!projectActions.getChildren().isEmpty()) {
-            actionCluster.getChildren().add(createHeaderActionGroup("Project Actions", "project", projectActions));
+        if (!projectMenu.getItems().isEmpty()) {
+            actionCluster.getChildren().add(projectMenu);
         }
-        Button outputToggle = new Button("Output");
-        outputToggle.setFocusTraversable(false);
-        outputToggle.setMinWidth(74.0);
-        outputToggle.setPrefWidth(74.0);
-        styleButton(outputToggle, ButtonRole.HEADER);
+        MenuItem outputToggle = createHeaderActionMenuItem("Output", ButtonRole.HEADER, () -> {
+        }, null);
         updateOutputToggleState(outputToggle, launcherViewState.outputVisible());
-        viewActions.getChildren().add(outputToggle);
-        actionCluster.getChildren().add(createHeaderActionGroup("View", "view", viewActions));
+        viewMenu.getItems().add(outputToggle);
+        actionCluster.getChildren().add(viewMenu);
         titleRow.getChildren().addAll(titleBlock, titleSpacer, actionCluster);
         header.getChildren().addAll(titleRow, createPipelineFlow(scriptName));
         AnimatedGradientHeader animatedHeader = new AnimatedGradientHeader(header);
@@ -1363,7 +1368,7 @@ final class PipelineLauncher {
                         group,
                         groupDashboardDescription(group),
                         groupDashboardBadge(group, groupConstants),
-                        createSection(group, groupConstants, true, autosave),
+                        createSection(group, groupConstants, constants, true, autosave),
                         false
                 ));
             }
@@ -1379,7 +1384,7 @@ final class PipelineLauncher {
             if (!groupConstants.isEmpty()) {
                 Node section = "Advanced".equalsIgnoreCase(group)
                         ? createUngroupedSection(groupConstants, false, autosave)
-                        : createSection(group, groupConstants, false, autosave);
+                        : createSection(group, groupConstants, constants, false, autosave);
                 advancedSections.add(new SettingsSectionModel(
                         group,
                         groupDashboardDescription(group),
@@ -1431,11 +1436,8 @@ final class PipelineLauncher {
             updateOutputToggleState(outputToggle, outputVisible);
         };
         outputToggle.setOnAction(event -> setOutputVisible.accept(!feedbackNode.isManaged()));
-        viewActions.getChildren().add(createHeaderOptionsMenu(
-                animatedHeader,
-                () -> feedbackNode.isManaged(),
-                setOutputVisible
-        ));
+        viewMenu.getItems().add(new SeparatorMenuItem());
+        viewMenu.getItems().add(createHeaderOptionsMenu(animatedHeader));
         workspace.getChildren().addAll(scroll, feedbackNode);
         VBox.setVgrow(workspace, Priority.ALWAYS);
 
@@ -1538,6 +1540,10 @@ final class PipelineLauncher {
     }
 
     private static VBox sectionShell(String titleText, String subtitleText) {
+        return sectionShell(titleText, subtitleText, null);
+    }
+
+    private static VBox sectionShell(String titleText, String subtitleText, Node headerControls) {
         VBox box = new VBox(SECTION_CONTENT_GAP);
         box.setPadding(new Insets(14.0));
         addStyleClass(box, "astra-section-shell");
@@ -1546,7 +1552,18 @@ final class PipelineLauncher {
         Label subtitle = new Label(subtitleText);
         subtitle.getStyleClass().add("astra-section-subtitle");
         subtitle.setWrapText(true);
-        box.getChildren().addAll(title, subtitle);
+        VBox titleBlock = new VBox(4.0, title, subtitle);
+        titleBlock.setFillWidth(true);
+        if (headerControls == null) {
+            box.getChildren().add(titleBlock);
+            return box;
+        }
+        HBox header = new HBox(12.0);
+        header.setAlignment(Pos.TOP_LEFT);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        header.getChildren().addAll(titleBlock, spacer, headerControls);
+        box.getChildren().add(header);
         return box;
     }
 
@@ -1583,21 +1600,21 @@ final class PipelineLauncher {
     private static Node createSettingsNavigator(String titleText, String subtitleText,
                                                 List<SettingsSectionModel> sections,
                                                 LauncherViewState launcherViewState) {
-        VBox root = sectionShell(titleText, subtitleText);
+        HBox viewRow = new HBox(8.0);
+        viewRow.setAlignment(Pos.TOP_RIGHT);
+        addStyleClass(viewRow, "astra-settings-view-toggle");
+        Button dashboard = new Button("Dashboard");
+        Button allSettings = new Button("All Settings");
+        styleButton(dashboard, ButtonRole.SECONDARY);
+        styleButton(allSettings, ButtonRole.SECONDARY);
+        viewRow.getChildren().addAll(dashboard, allSettings);
+        VBox root = sectionShell(titleText, subtitleText, viewRow);
         if (sections == null || sections.isEmpty()) {
             Label empty = new Label("No settings are available for this view.");
             empty.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-text-fill: " + MUTED + ";");
             root.getChildren().add(empty);
             return root;
         }
-
-        HBox viewRow = new HBox(8.0);
-        viewRow.setAlignment(Pos.CENTER_LEFT);
-        Button dashboard = new Button("Dashboard");
-        Button allSettings = new Button("All Settings");
-        styleButton(dashboard, ButtonRole.SECONDARY);
-        styleButton(allSettings, ButtonRole.SECONDARY);
-        viewRow.getChildren().addAll(dashboard, allSettings);
 
         VBox host = new VBox(SECTION_CONTENT_GAP);
         host.setFillWidth(true);
@@ -1608,8 +1625,8 @@ final class PipelineLauncher {
             markSettingsViewButtons(dashboard, allSettings, LauncherViewMode.DASHBOARD);
             VBox focused = new VBox(SECTION_CONTENT_GAP);
             focused.setFillWidth(true);
-            HBox top = new HBox(10.0);
-            top.setAlignment(Pos.CENTER_LEFT);
+            BorderPane top = new BorderPane();
+            addStyleClass(top, "astra-focused-section-header");
             Button back = new Button("Back to Dashboard");
             styleButton(back, ButtonRole.SECONDARY);
             GuiPresentation.StandardGroup group = GuiPresentation.standardGroup(section.title());
@@ -1622,7 +1639,11 @@ final class PipelineLauncher {
             description.setWrapText(true);
             addStyleClass(description, "astra-focused-section-description");
             VBox focusedTitleBlock = new VBox(2.0, title, description);
-            top.getChildren().addAll(back, badge, focusedTitleBlock);
+            HBox titleLine = new HBox(9.0, badge, focusedTitleBlock);
+            titleLine.setAlignment(Pos.CENTER_LEFT);
+            top.setLeft(titleLine);
+            top.setRight(back);
+            BorderPane.setAlignment(back, Pos.CENTER_RIGHT);
             back.setOnAction(event -> showDashboard[0].run());
             detachFromParent(section.content());
             focused.getChildren().setAll(top, section.content());
@@ -1638,7 +1659,7 @@ final class PipelineLauncher {
             cards.setAlignment(Pos.TOP_CENTER);
             cards.setTileAlignment(Pos.TOP_LEFT);
             cards.setPrefColumns(3);
-            cards.setPrefTileWidth(238.0);
+            cards.setPrefTileWidth(248.0);
             cards.setPrefTileHeight(132.0);
             for (SettingsSectionModel section : sections) {
                 cards.getChildren().add(createSettingsCard(section, () -> showOne.accept(section)));
@@ -1665,7 +1686,7 @@ final class PipelineLauncher {
             showDashboard[0].run();
         }
 
-        root.getChildren().addAll(viewRow, host);
+        root.getChildren().add(host);
         return root;
     }
 
@@ -2247,32 +2268,43 @@ final class PipelineLauncher {
         return flow;
     }
 
-    private static Node createHeaderActionGroup(String title, String token, Node content) {
-        VBox group = new VBox(2.0);
-        group.setAlignment(Pos.TOP_LEFT);
-        addStyleClass(group, "astra-header-action-group");
-        addStyleClass(group, "astra-header-action-group-" + cssToken(token));
-        Label tab = new Label(title);
-        addStyleClass(tab, "astra-header-action-tab");
-        group.getChildren().addAll(tab, content);
-        return group;
+    private static MenuButton createHeaderMenuButton(String title, String token) {
+        MenuButton menu = new MenuButton(title);
+        menu.setFocusTraversable(false);
+        menu.setMinWidth(92.0);
+        styleButton(menu, ButtonRole.HEADER);
+        addStyleClass(menu, "astra-header-menu-button");
+        addStyleClass(menu, "astra-header-menu-button-" + cssToken(token));
+        menu.setTooltip(new Tooltip(title + " actions."));
+        return menu;
     }
 
-    private static void updateOutputToggleState(Button button, boolean outputVisible) {
-        button.setText("Output");
-        button.setTooltip(new Tooltip(outputVisible ? "Hide the run log pane." : "Show the run log pane."));
-        button.setAccessibleText(outputVisible ? "Hide output" : "Show output");
-        setToggleActive(button, outputVisible);
+    private static MenuItem createHeaderActionMenuItem(String label, ButtonRole role,
+                                                       Runnable action, ButtonBase actionButton) {
+        MenuItem item = new MenuItem(label);
+        item.getStyleClass().add("astra-header-menu-item");
+        item.getStyleClass().add(switch (role) {
+            case DANGER -> "astra-header-menu-item-danger";
+            case SUCCESS -> "astra-header-menu-item-success";
+            default -> "astra-header-menu-item-default";
+        });
+        if (actionButton != null) {
+            item.disableProperty().bind(actionButton.disableProperty());
+        }
+        item.setOnAction(event -> {
+            if (action != null) {
+                action.run();
+            }
+        });
+        return item;
     }
 
-    private static Node createHeaderOptionsMenu(AnimatedGradientHeader animatedHeader,
-                                                BooleanSupplier outputVisible,
-                                                Consumer<Boolean> setOutputVisible) {
-        MenuButton options = new MenuButton("Options");
-        options.setFocusTraversable(false);
-        styleButton(options, ButtonRole.HEADER);
-        options.setTooltip(new Tooltip("Header display options."));
+    private static void updateOutputToggleState(MenuItem item, boolean outputVisible) {
+        item.setText(outputVisible ? "Hide Output" : "Show Output");
+        item.setDisable(false);
+    }
 
+    private static MenuItem createHeaderOptionsMenu(AnimatedGradientHeader animatedHeader) {
         ToggleButton staticMode = headerSegmentButton("Static");
         ToggleButton dynamicMode = headerSegmentButton("Dynamic");
         ToggleGroup modeGroup = new ToggleGroup();
@@ -2294,11 +2326,7 @@ final class PipelineLauncher {
 
         HBox modeRow = headerSegmentRow("Header", staticMode, dynamicMode);
         HBox motionRow = headerSegmentRow("Motion", slow, smooth, lively);
-        ToggleButton outputShown = headerSegmentButton("Visible");
-        outputShown.setSelected(outputVisible.getAsBoolean());
-        outputShown.setOnAction(event -> setOutputVisible.accept(outputShown.isSelected()));
-        HBox outputRow = headerSegmentRow("Output", outputShown);
-        VBox menuContent = new VBox(8.0, modeRow, motionRow, outputRow);
+        VBox menuContent = new VBox(8.0, modeRow, motionRow);
         menuContent.setPadding(new Insets(8.0));
         addStyleClass(menuContent, "astra-header-options-panel");
 
@@ -2333,16 +2361,10 @@ final class PipelineLauncher {
             HEADER_MOTION_PREFERENCE.set(speed.name());
             animatedHeader.setMotionSpeed(speed);
         });
-        List.of(staticMode, dynamicMode, slow, smooth, lively, outputShown)
+        List.of(staticMode, dynamicMode, slow, smooth, lively)
                 .forEach(button -> button.selectedProperty().addListener((obs, wasSelected, isSelected) -> styleHeaderSegmentButton(button)));
-        List.of(staticMode, dynamicMode, slow, smooth, lively, outputShown).forEach(PipelineLauncher::styleHeaderSegmentButton);
-        options.setOnShowing(event -> {
-            outputShown.setSelected(outputVisible.getAsBoolean());
-            styleHeaderSegmentButton(outputShown);
-        });
-
-        options.getItems().add(new CustomMenuItem(menuContent, false));
-        return options;
+        List.of(staticMode, dynamicMode, slow, smooth, lively).forEach(PipelineLauncher::styleHeaderSegmentButton);
+        return new CustomMenuItem(menuContent, false);
     }
 
     private static AnimatedGradientHeader.HeaderMode headerModePreference() {
@@ -2440,7 +2462,11 @@ final class PipelineLauncher {
         return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900; -fx-text-fill: " + INK + ";";
     }
 
-    private static CollapsibleSection createSection(String title, List<EditableConstant> constants, boolean expanded, SettingsAutosave autosave) {
+    private static CollapsibleSection createSection(String title,
+                                                    List<EditableConstant> constants,
+                                                    List<EditableConstant> allConstants,
+                                                    boolean expanded,
+                                                    SettingsAutosave autosave) {
         GridPane grid = new GridPane();
         grid.setPadding(new Insets(14.0));
         grid.setHgap(12.0);
@@ -2448,121 +2474,191 @@ final class PipelineLauncher {
         grid.setStyle("-fx-background-color: " + PANEL + "; -fx-border-color: #d7e2e6; -fx-border-radius: 0 0 6 6; -fx-background-radius: 0 0 6 6;");
 
         int row = 0;
+        int visualRow = 0;
         Map<String, RowNodes> rows = new LinkedHashMap<>();
+        Set<String> consumed = new LinkedHashSet<>();
         for (EditableConstant constant : constants) {
-            GridPane labelBox = new GridPane();
-            labelBox.setHgap(7.0);
-            labelBox.setAlignment(Pos.CENTER_LEFT);
-            labelBox.setMinWidth(292.0);
-            labelBox.setPrefWidth(292.0);
-            labelBox.setMaxWidth(292.0);
-            ColumnConstraints anchorColumn = new ColumnConstraints(8.0, 8.0, 8.0);
-            ColumnConstraints labelColumn = new ColumnConstraints(228.0, 228.0, 228.0);
-            ColumnConstraints helpColumn = new ColumnConstraints(22.0, 22.0, 22.0);
-            labelBox.getColumnConstraints().addAll(anchorColumn, labelColumn, helpColumn);
-            addStyleClass(labelBox, "astra-parameter-row");
-            addStyleClass(labelBox, row % 2 == 0 ? "astra-parameter-row-even" : "astra-parameter-row-odd");
-            DependencyGroup dependencyGroup = dependencyGroupFor(constant.name);
-            if (dependencyGroup != null) {
-                applyDependencyGroupClass(labelBox, dependencyGroup);
+            if (consumed.contains(constant.name)) {
+                continue;
             }
-            Rectangle anchor = new Rectangle(4.0, 18.0);
-            addStyleClass(anchor, "astra-parameter-anchor");
-            addStyleClass(anchor, "astra-parameter-anchor-" + parameterTypeToken(constant));
-            Label label = new Label(displayLabel(constant.name));
-            label.setMinWidth(228.0);
-            label.setPrefWidth(228.0);
-            label.setMaxWidth(228.0);
-            label.setWrapText(true);
-            label.getStyleClass().add("astra-parameter-label");
-            Button info = new Button("?");
-            info.setMinSize(18.0, 18.0);
-            info.setMaxSize(18.0, 18.0);
-            info.setFocusTraversable(false);
-            styleButton(info, ButtonRole.HELP);
-            Tooltip tooltip = new Tooltip(constant.helpText());
-            tooltip.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px;");
-            info.setTooltip(tooltip);
-            installReliableTooltip(info, tooltip);
-            info.setOnAction(event -> showParameterHelpDialog(constant));
-            labelBox.add(anchor, 0, 0);
-            labelBox.add(label, 1, 0);
-            labelBox.add(info, 2, 0);
-            labelBox.setMinHeight(PARAMETER_ROW_HEIGHT);
-            grid.add(labelBox, 0, row);
-
-            Node editor = constant.createEditor();
-            addStyleClass(editor, "astra-parameter-editor");
-            addStyleClass(editor, row % 2 == 0 ? "astra-parameter-row-even" : "astra-parameter-row-odd");
-            if (dependencyGroup != null) {
-                applyDependencyGroupClass(editor, dependencyGroup);
+            DependencyPanel controllerPanel = dependencyPanelControlledBy(constant.name);
+            if (controllerPanel != null) {
+                addParameterRow(grid, row++, visualRow++, constant, rows, autosave);
+                consumed.add(constant.name);
+                List<EditableConstant> dependents = dependentConstants(constants, controllerPanel, consumed);
+                if (!dependents.isEmpty()) {
+                    Node panel = createDependentPanel(controllerPanel, dependents, rows, autosave);
+                    grid.add(panel, 0, row);
+                    GridPane.setColumnSpan(panel, 2);
+                    row++;
+                    consumed.addAll(dependents.stream().map(c -> c.name).toList());
+                }
+                continue;
             }
-            constant.addChangeListener(autosave::markManualEditAndSave);
-            if (editor instanceof Region region) {
-                region.setMinHeight(PARAMETER_ROW_HEIGHT);
+            DependencyPanel dependentPanel = dependencyPanelContaining(constant.name);
+            if (dependentPanel != null) {
+                List<EditableConstant> dependents = dependentConstants(constants, dependentPanel, consumed);
+                if (!dependents.isEmpty()) {
+                    Node panel = createDependentPanel(dependentPanel, dependents, rows, autosave);
+                    grid.add(panel, 0, row);
+                    GridPane.setColumnSpan(panel, 2);
+                    row++;
+                    consumed.addAll(dependents.stream().map(c -> c.name).toList());
+                }
+                continue;
             }
-            GridPane.setHgrow(editor, Priority.ALWAYS);
-            grid.add(editor, 1, row++);
-            rows.put(constant.name, new RowNodes(labelBox, editor));
+            addParameterRow(grid, row++, visualRow++, constant, rows, autosave);
+            consumed.add(constant.name);
         }
-        installConditionalVisibility(constants, rows);
+        installConditionalVisibility(allConstants, rows);
 
         return new CollapsibleSection(title, grid, expanded);
     }
 
-    private static void applyDependencyGroupClass(Node node, DependencyGroup group) {
-        addStyleClass(node, "astra-dependent-row");
-        addStyleClass(node, "astra-dependent-row-" + cssToken(group.token()));
-        Tooltip tooltip = new Tooltip(group.reason());
-        Tooltip.install(node, tooltip);
+    private static void addParameterRow(GridPane grid, int row, int visualRow,
+                                        EditableConstant constant,
+                                        Map<String, RowNodes> rows,
+                                        SettingsAutosave autosave) {
+        RowNodes nodes = createParameterRowNodes(constant, visualRow, autosave);
+        grid.add(nodes.label, 0, row);
+        GridPane.setHgrow(nodes.editor, Priority.ALWAYS);
+        grid.add(nodes.editor, 1, row);
+        rows.put(constant.name, nodes);
     }
 
-    private static DependencyGroup dependencyGroupFor(String name) {
-        return switch (name) {
-            case "USE_BATCH_MODE", "USE_PIXEL_SCALING" -> new DependencyGroup(
-                    "batch-options",
-                    "Pixel scaling is used with batched Cellpose runs."
-            );
-            case "STOP_ON_REGION_FAILURE", "ROLLBACK_SUCCESSFUL_REGIONS_ON_FAILURE" -> new DependencyGroup(
-                    "failure-recovery",
-                    "Rollback only applies when ASTRA stops on the first failed region."
-            );
-            case "SEGMENTATION_PRESET",
-                    "NUC_DIAMETER_UM",
-                    "NUC_CELLPROB_THRESHOLD",
-                    "NUC_FLOW_THRESHOLD",
-                    "NUC_NITER",
-                    "NUC_MIN_MASK_DIAMETER_UM",
-                    "NUC_TILE_SIZE_PX",
-                    "NUC_SAM_SIMPLIFY_DISTANCE_PX",
-                    "NUC_SAM_NORMALIZE_PMIN",
-                    "NUC_SAM_NORMALIZE_PMAX",
-                    "NUC_CELLPOSE_THREADS",
-                    "NUC_ASYNC_READS",
-                    "CELL_DIAMETER_UM",
-                    "CELL_CELLPROB_THRESHOLD",
-                    "CELL_FLOW_THRESHOLD",
-                    "CELL_NITER",
-                    "CELL_MIN_MASK_DIAMETER_UM",
-                    "CELL_TILE_SIZE_PX",
-                    "CELL_SAM_SIMPLIFY_DISTANCE_PX",
-                    "CELL_SAM_NORMALIZE_PMIN",
-                    "CELL_SAM_NORMALIZE_PMAX",
-                    "CELL_CELLPOSE_THREADS",
-                    "CELL_ASYNC_READS" -> new DependencyGroup(
-                            "custom-segmentation",
-                            "Advanced detector values are editable only when the preset is Custom."
-                    );
-            case "USE_NUCLEI",
-                    "VSMC_CLASSIFICATION_MODE",
-                    "MIN_VSMC_NUCLEUS_FILLED_SMA_OVERLAP_FRACTION",
-                    "MULTINUCLEATED_CELL_POLICY" -> new DependencyGroup(
-                            "nucleus-gating",
-                            "Nucleus-gated VSMC controls require nucleus detection."
-                    );
-            default -> null;
-        };
+    private static RowNodes createParameterRowNodes(EditableConstant constant, int visualRow,
+                                                    SettingsAutosave autosave) {
+        GridPane labelBox = new GridPane();
+        labelBox.setHgap(7.0);
+        labelBox.setAlignment(Pos.CENTER_LEFT);
+        labelBox.setMinWidth(292.0);
+        labelBox.setPrefWidth(292.0);
+        labelBox.setMaxWidth(292.0);
+        ColumnConstraints anchorColumn = new ColumnConstraints(8.0, 8.0, 8.0);
+        ColumnConstraints labelColumn = new ColumnConstraints(228.0, 228.0, 228.0);
+        ColumnConstraints helpColumn = new ColumnConstraints(22.0, 22.0, 22.0);
+        labelBox.getColumnConstraints().addAll(anchorColumn, labelColumn, helpColumn);
+        addStyleClass(labelBox, "astra-parameter-row");
+        addStyleClass(labelBox, visualRow % 2 == 0 ? "astra-parameter-row-even" : "astra-parameter-row-odd");
+        Rectangle anchor = new Rectangle(4.0, 18.0);
+        addStyleClass(anchor, "astra-parameter-anchor");
+        addStyleClass(anchor, "astra-parameter-anchor-" + parameterTypeToken(constant));
+        Label label = new Label(displayLabel(constant.name));
+        label.setMinWidth(228.0);
+        label.setPrefWidth(228.0);
+        label.setMaxWidth(228.0);
+        label.setWrapText(true);
+        label.getStyleClass().add("astra-parameter-label");
+        Button info = new Button("?");
+        info.setMinSize(18.0, 18.0);
+        info.setMaxSize(18.0, 18.0);
+        info.setFocusTraversable(false);
+        styleButton(info, ButtonRole.HELP);
+        Tooltip tooltip = new Tooltip(constant.helpText());
+        tooltip.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px;");
+        info.setTooltip(tooltip);
+        installReliableTooltip(info, tooltip);
+        info.setOnAction(event -> showParameterHelpDialog(constant));
+        labelBox.add(anchor, 0, 0);
+        labelBox.add(label, 1, 0);
+        labelBox.add(info, 2, 0);
+        labelBox.setMinHeight(PARAMETER_ROW_HEIGHT);
+
+        Node editor = constant.createEditor();
+        addStyleClass(editor, "astra-parameter-editor");
+        addStyleClass(editor, visualRow % 2 == 0 ? "astra-parameter-row-even" : "astra-parameter-row-odd");
+        constant.addChangeListener(autosave::markManualEditAndSave);
+        if (editor instanceof Region region) {
+            region.setMinHeight(PARAMETER_ROW_HEIGHT);
+        }
+        return new RowNodes(labelBox, editor);
     }
+
+    private static Node createDependentPanel(DependencyPanel panel,
+                                             List<EditableConstant> constants,
+                                             Map<String, RowNodes> rows,
+                                             SettingsAutosave autosave) {
+        VBox box = new VBox(7.0);
+        addStyleClass(box, "astra-dependent-panel");
+        addStyleClass(box, "astra-dependent-panel-" + cssToken(panel.token()));
+        Label title = new Label(panel.title());
+        addStyleClass(title, "astra-dependent-panel-title");
+        Label reason = new Label(panel.reason());
+        reason.setWrapText(true);
+        addStyleClass(reason, "astra-dependent-panel-reason");
+        GridPane inner = new GridPane();
+        inner.setHgap(12.0);
+        inner.setVgap(6.0);
+        int row = 0;
+        for (EditableConstant constant : constants) {
+            RowNodes nodes = createParameterRowNodes(constant, row, autosave);
+            inner.add(nodes.label, 0, row);
+            GridPane.setHgrow(nodes.editor, Priority.ALWAYS);
+            inner.add(nodes.editor, 1, row);
+            rows.put(constant.name, nodes);
+            row++;
+        }
+        box.getChildren().addAll(title, reason, inner);
+        Tooltip tooltip = new Tooltip(panel.reason());
+        Tooltip.install(box, tooltip);
+        return box;
+    }
+
+    private static List<EditableConstant> dependentConstants(List<EditableConstant> constants,
+                                                             DependencyPanel panel,
+                                                             Set<String> consumed) {
+        return constants.stream()
+                .filter(c -> !consumed.contains(c.name))
+                .filter(c -> panel.includes(c.name))
+                .toList();
+    }
+
+    private static DependencyPanel dependencyPanelControlledBy(String name) {
+        return DEPENDENCY_PANELS.stream()
+                .filter(panel -> panel.controller().equals(name))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static DependencyPanel dependencyPanelContaining(String name) {
+        return DEPENDENCY_PANELS.stream()
+                .filter(panel -> panel.includes(name))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static final List<DependencyPanel> DEPENDENCY_PANELS = List.of(
+            new DependencyPanel(
+                    "batch-options",
+                    "Batch-dependent settings",
+                    "These options matter only when Cellpose runs are batched.",
+                    "USE_BATCH_MODE",
+                    Set.of("USE_PIXEL_SCALING")
+            ),
+            new DependencyPanel(
+                    "failure-recovery",
+                    "Failure recovery",
+                    "Rollback applies only when ASTRA stops on a failed region.",
+                    "STOP_ON_REGION_FAILURE",
+                    Set.of("ROLLBACK_SUCCESSFUL_REGIONS_ON_FAILURE")
+            ),
+            new DependencyPanel(
+                    "custom-segmentation",
+                    "Custom detector controls",
+                    "Enabled when Segmentation Preset is Custom.",
+                    "SEGMENTATION_PRESET",
+                    Set.of()
+            ),
+            new DependencyPanel(
+                    "nucleus-gating",
+                    "Nucleus-gated classification controls",
+                    "Enabled when nuclei are included in the run.",
+                    "USE_NUCLEI",
+                    Set.of("VSMC_CLASSIFICATION_MODE",
+                            "MIN_VSMC_NUCLEUS_FILLED_SMA_OVERLAP_FRACTION",
+                            "MULTINUCLEATED_CELL_POLICY")
+            )
+    );
 
     private static String parameterTypeToken(EditableConstant constant) {
         String name = constant == null ? "" : constant.name;
@@ -3292,6 +3388,7 @@ final class PipelineLauncher {
                     .filter(PipelineLauncher::isAdvancedDetectorParameter)
                     .forEach(name -> setEnabled(rows, name, customPreset));
             boolean useNuclei = isChecked(byName, "USE_NUCLEI");
+            setEnabled(rows, "VSMC_CLASSIFICATION_MODE", useNuclei);
             setEnabled(rows, "MIN_VSMC_NUCLEUS_FILLED_SMA_OVERLAP_FRACTION", useNuclei);
             setEnabled(rows, "MULTINUCLEATED_CELL_POLICY", useNuclei);
         };
@@ -3337,7 +3434,20 @@ final class PipelineLauncher {
         if (name.startsWith("SAM_")) {
             return true;
         }
-        return name.matches("^(NUC|CELL)_(DIAMETER_UM|CELLPROB|FLOW|NITER|MIN_MASK_EQUIVALENT_DIAMETER_UM|NORM_PMIN|NORM_PMAX|SIMPLIFY_DISTANCE_PX)$");
+        if (!name.matches("^(NUC|CELL)_.*")) {
+            return false;
+        }
+        return name.contains("DIAMETER")
+                || name.contains("CELLPROB")
+                || name.contains("FLOW")
+                || name.contains("NITER")
+                || name.contains("MIN_MASK")
+                || name.contains("NORM")
+                || name.contains("NORMALIZE")
+                || name.contains("SIMPLIFY")
+                || name.contains("TILE_SIZE")
+                || name.contains("THREAD")
+                || name.contains("ASYNC");
     }
 
     private static void setVisible(Map<String, RowNodes> rows, String name, boolean visible) {
@@ -3877,7 +3987,17 @@ final class PipelineLauncher {
     private record RowNodes(Node label, Node editor) {
     }
 
-    private record DependencyGroup(String token, String reason) {
+    private record DependencyPanel(String token, String title, String reason,
+                                   String controller, Set<String> dependentNames) {
+        private boolean includes(String name) {
+            if (name == null || controller.equals(name)) {
+                return false;
+            }
+            if ("custom-segmentation".equals(token)) {
+                return isAdvancedDetectorParameter(name);
+            }
+            return dependentNames.contains(name);
+        }
     }
 
     private static void notifyListenersAfterModalClose(List<Runnable> listeners) {

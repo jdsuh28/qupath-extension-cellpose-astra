@@ -207,40 +207,38 @@
 }
 
 .astra-header-actions {
-    -fx-padding: 8 9;
+    -fx-padding: 7 8;
     -fx-background-color: rgba(255, 255, 255, 0.14);
     -fx-border-color: rgba(255, 255, 255, 0.24);
     -fx-background-radius: 10;
     -fx-border-radius: 10;
 }
 
-.astra-header-action-group {
-    -fx-padding: 0 8 8 8;
-    -fx-background-color: rgba(255, 255, 255, 0.12);
-    -fx-border-color: rgba(255, 255, 255, 0.28);
-    -fx-background-radius: 8;
-    -fx-border-radius: 8;
+.astra-header-menu-button {
+    -fx-min-width: 92px;
+    -fx-alignment: center;
 }
 
-.astra-header-action-group-settings {
-    -fx-border-color: rgba(191, 226, 228, 0.55);
+.astra-header-menu-button-settings {
+    -fx-border-color: rgba(191, 226, 228, 0.86);
 }
 
-.astra-header-action-group-project {
-    -fx-border-color: rgba(252, 205, 184, 0.62);
+.astra-header-menu-button-project {
+    -fx-border-color: rgba(252, 205, 184, 0.9);
 }
 
-.astra-header-action-group-view {
-    -fx-border-color: rgba(219, 235, 238, 0.54);
+.astra-header-menu-button-view {
+    -fx-border-color: rgba(219, 235, 238, 0.86);
 }
 
-.astra-header-action-tab {
-    -fx-font-size: 9.5px;
+.astra-header-menu-item-danger .label {
+    -fx-text-fill: #7c2417;
     -fx-font-weight: 900;
-    -fx-text-fill: rgba(255, 255, 255, 0.88);
-    -fx-padding: 0 6 2 6;
-    -fx-background-color: rgba(6, 35, 45, 0.42);
-    -fx-background-radius: 0 0 6 6;
+}
+
+.astra-header-menu-item-success .label {
+    -fx-text-fill: #17623b;
+    -fx-font-weight: 900;
 }
 
 .astra-header-options-panel {
@@ -283,8 +281,12 @@
 }
 
 .astra-card-dashboard {
-    -fx-padding: 2 4 2 4;
+    -fx-padding: 2 6 2 6;
     -fx-alignment: top-center;
+}
+
+.astra-settings-view-toggle {
+    -fx-padding: 0 0 0 8;
 }
 
 .astra-importance-legend {
@@ -308,6 +310,10 @@
     -fx-font-size: 11.5px;
     -fx-font-weight: 650;
     -fx-text-fill: #5f7080;
+}
+
+.astra-focused-section-header {
+    -fx-padding: 2 0 4 0;
 }
 
 .astra-settings-card-accent {
@@ -411,14 +417,14 @@
 
 .scroll-pane .scroll-bar:vertical {
     -fx-background-color: transparent;
-    -fx-padding: 0 2 0 5;
-    -fx-pref-width: 14px;
+    -fx-padding: 0 3 0 6;
+    -fx-pref-width: 18px;
 }
 
 .scroll-pane .scroll-bar:horizontal {
     -fx-background-color: transparent;
-    -fx-padding: 5 0 2 0;
-    -fx-pref-height: 14px;
+    -fx-padding: 6 0 3 0;
+    -fx-pref-height: 18px;
 }
 
 .scroll-pane .scroll-bar .thumb {
@@ -446,26 +452,44 @@
     -fx-background-radius: 6;
 }
 
-.astra-dependent-row {
-    -fx-border-color: rgba(127, 163, 173, 0.34);
-    -fx-border-radius: 6;
-    -fx-background-radius: 6;
+.astra-dependent-panel {
+    -fx-padding: 10 11;
+    -fx-border-radius: 7;
+    -fx-background-radius: 7;
+    -fx-border-color: rgba(127, 163, 173, 0.42);
+    -fx-background-color: rgba(255, 255, 255, 0.68);
 }
 
-.astra-dependent-row-batch-options {
-    -fx-background-color: rgba(88, 120, 136, 0.055);
+.astra-dependent-panel-batch-options {
+    -fx-border-color: rgba(88, 120, 136, 0.46);
+    -fx-background-color: rgba(88, 120, 136, 0.07);
 }
 
-.astra-dependent-row-failure-recovery {
-    -fx-background-color: rgba(217, 96, 76, 0.055);
+.astra-dependent-panel-failure-recovery {
+    -fx-border-color: rgba(217, 96, 76, 0.46);
+    -fx-background-color: rgba(217, 96, 76, 0.06);
 }
 
-.astra-dependent-row-custom-segmentation {
-    -fx-background-color: rgba(13, 127, 128, 0.055);
+.astra-dependent-panel-custom-segmentation {
+    -fx-border-color: rgba(13, 127, 128, 0.48);
+    -fx-background-color: rgba(13, 127, 128, 0.065);
 }
 
-.astra-dependent-row-nucleus-gating {
-    -fx-background-color: rgba(109, 153, 105, 0.06);
+.astra-dependent-panel-nucleus-gating {
+    -fx-border-color: rgba(109, 153, 105, 0.5);
+    -fx-background-color: rgba(109, 153, 105, 0.07);
+}
+
+.astra-dependent-panel-title {
+    -fx-font-size: 12px;
+    -fx-font-weight: 900;
+    -fx-text-fill: #172431;
+}
+
+.astra-dependent-panel-reason {
+    -fx-font-size: 11.5px;
+    -fx-font-weight: 650;
+    -fx-text-fill: #5f7080;
 }
 
 .astra-parameter-row-even {
