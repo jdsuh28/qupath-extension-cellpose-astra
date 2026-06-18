@@ -188,6 +188,11 @@ class PipelineLauncherTest {
         assertTrue(source.contains("new Tooltip(constant.helpText())"));
         assertTrue(source.contains("info.setOnAction(event -> showParameterHelpDialog(constant))"));
         assertTrue(source.contains("TextArea details = new TextArea(constant.detailsText())"));
+        assertTrue(source.contains("addStyleClass(content, \"astra-help-dialog-content\")"));
+        assertTrue(source.contains("addStyleClass(summary, \"astra-help-summary-grid\")"));
+        assertTrue(source.contains("addStyleClass(details, \"astra-help-details\")"));
+        assertTrue(source.contains("addStyleClass(label, \"astra-help-summary-label\")"));
+        assertTrue(source.contains("addStyleClass(value, \"astra-help-summary-value\")"));
         assertTrue(source.contains("addHelpSummaryRow(summary, 0, \"Parameter\", constant.name)"));
         assertTrue(source.contains("addHelpSummaryRow(summary, 1, \"Current value\", safeCurrentDisplayValue(constant))"));
         assertTrue(source.contains("addHelpSummaryRow(summary, 2, \"Default value\", safeDefaultDisplayValue(constant))"));
@@ -200,26 +205,66 @@ class PipelineLauncherTest {
 
         assertTrue(source.contains("LAUNCHER_STYLESHEET_RESOURCE = \"/qupath/ext/astra/astra-launcher.css\""));
         assertTrue(source.contains("installAstraStyles(dialog.getDialogPane())"));
+        assertTrue(source.contains("addStyleClass(root, \"astra-launcher-root\")"));
+        assertTrue(source.contains("addStyleClass(grid, \"astra-section-content\")"));
+        assertTrue(source.contains("addStyleClass(header, \"astra-collapsible-header\")"));
+        assertTrue(source.contains("addStyleClass(chip, \"astra-workflow-chip\")"));
+        assertTrue(source.contains("addStyleClass(panel, \"astra-channel-panel\")"));
         assertTrue(source.contains("createSettingsCard(section"));
+        assertTrue(source.contains("private static final double DASHBOARD_CARD_WIDTH = 252.0;"));
+        assertTrue(source.contains("cards.setPrefColumns(3)"));
+        assertTrue(source.contains("cards.setPrefTileWidth(DASHBOARD_CARD_WIDTH)"));
+        assertTrue(source.contains("cards.setMinWidth(3 * DASHBOARD_CARD_WIDTH + 2 * 12.0)"));
         assertTrue(source.contains("detachFromParent(section.content())"));
         assertTrue(source.contains("LauncherViewState.load("));
         assertTrue(source.contains("setNodeVisibleManaged(feedbackNode"));
         assertTrue(css.contains(".astra-button-primary"));
+        assertTrue(css.contains(".astra-button:hover"));
+        assertTrue(css.contains(".astra-launcher-root"));
+        assertTrue(css.contains(".astra-section-content"));
+        assertTrue(css.contains(".astra-collapsible-header"));
+        assertTrue(css.contains(".astra-workflow-chip"));
+        assertTrue(css.contains(".astra-channel-panel"));
+        assertTrue(css.contains(".astra-dialog-pane .button:hover"));
         assertTrue(css.contains(".astra-button-toggle-active"));
         assertTrue(css.contains(".astra-button-help:pressed"));
         assertTrue(css.contains(".astra-settings-card:pressed"));
         assertTrue(css.contains(".astra-settings-card-theme-teal"));
         assertTrue(css.contains(".astra-output-pane"));
+        assertTrue(css.contains(".astra-animated-gradient-header"));
+        assertTrue(css.contains(".astra-log-copy-button"));
+        assertTrue(css.contains(".astra-log-disclosure-button"));
+        assertTrue(css.contains(".astra-log-count-chip"));
+        assertTrue(css.contains(".astra-log-card-title"));
+        assertTrue(css.contains(".astra-log-key-value-card"));
+        assertTrue(css.contains(".astra-log-command-card"));
+        assertTrue(css.contains(".astra-log-metric-badge"));
+        assertTrue(css.contains(".astra-log-timeline-label"));
+        assertTrue(css.contains(".astra-log-failure-title"));
         assertTrue(css.contains(".scroll-pane .scroll-bar .thumb"));
         assertTrue(css.contains(".combo-box-popup .list-view"));
         assertTrue(css.contains(".context-menu"));
         assertTrue(css.contains(".tooltip"));
         assertTrue(css.contains(".astra-header-menu-button"));
+        assertTrue(css.contains(".menu-button.astra-header-menu-button .label"));
+        assertTrue(css.contains(".astra-combo-cell"));
+        assertTrue(css.contains(".astra-list-cell"));
+        assertTrue(css.contains(".astra-help-dialog-content"));
+        assertTrue(css.contains(".astra-semantic-card"));
+        assertTrue(css.contains(".astra-dependent-panel-disabled"));
         assertTrue(css.contains(".astra-dependent-panel-failure-recovery"));
+        assertTrue(css.contains(".astra-dependent-panel-selected-images"));
+        assertTrue(css.contains(".astra-output-status-warning"));
         assertTrue(css.contains(".astra-settings-view-toggle"));
         assertTrue(css.contains(".astra-focused-section-header"));
         assertTrue(css.contains("-fx-pref-width: 18px;"));
         assertFalse(css.contains(".astra-dependent-row-failure-recovery"));
+        assertFalse(source.contains("header.setStyle(\"-fx-background-color: #173747"));
+        assertFalse(source.contains("private static String nestedLabelStyle()"));
+        assertFalse(source.contains("private static String checkBoxStyle()"));
+        String animatedHeader = Files.readString(Path.of("src/main/java/qupath/ext/astra/AnimatedGradientHeader.java"));
+        assertTrue(animatedHeader.contains("getStyleClass().add(\"astra-animated-gradient-header\")"));
+        assertFalse(animatedHeader.contains("setStyle(\"-fx-background-color: #0d2430"));
         assertTrue(source.contains("private static List<String> resolveContractOptions(String expr)"));
         assertTrue(source.contains("List.of(\"BALANCED\", \"STRICT\", \"SENSITIVE\", \"CUSTOM\")"));
     }
@@ -851,6 +896,8 @@ class PipelineLauncherTest {
         assertTrue(source.contains(".filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))"));
         assertTrue(source.contains("private static VBox createColocalizationPanel("));
         assertTrue(source.contains("static boolean isHandledByColocalizationPanel(String name, boolean colocalization)"));
+        assertTrue(source.contains("setNodeEnabled(nucleusModel, state.showNucleusModel())"));
+        assertTrue(source.contains("addStyleClass(box, \"astra-semantic-card\")"));
         assertFalse(source.contains("createVascularPanel("));
         assertFalse(source.contains("createTrainingPanel("));
         assertFalse(source.contains("createTuningPanel("));
@@ -866,6 +913,8 @@ class PipelineLauncherTest {
         assertTrue(source.contains("grid.setVgap(PARAMETER_ROW_GAP);"));
         assertTrue(source.contains("VBox group = new VBox(PARAMETER_ROW_GAP);"));
         assertTrue(source.contains("private final VBox rows = new VBox(PARAMETER_ROW_GAP);"));
+        assertTrue(source.contains("labelBox.setAlignment(Pos.TOP_LEFT);"));
+        assertTrue(source.contains("GridPane.setValignment(info, VPos.TOP);"));
         assertTrue(source.contains("HBox row = labeledRow(displayLabel(constant.name), editor, 160.0);"));
         assertTrue(source.contains("HBox row = labeledRow(displayLabel(\"DETECTION_TARGET\"), editor, 160.0);"));
         assertTrue(source.contains("private static final double SECTION_CONTENT_GAP = 9.0;"));
@@ -1185,9 +1234,8 @@ class PipelineLauncherTest {
         assertTrue(source.contains("compartment.setPrefWidth(130.0)"));
         assertTrue(source.contains("styleComboBox(compartment)"));
         assertTrue(source.contains("label.setMinWidth(180.0)"));
-        assertTrue(source.contains("private static String nestedLabelStyle()"));
-        assertTrue(source.contains("private static String checkBoxStyle()"));
         assertTrue(source.contains("private static void styleCheckBox(CheckBox box)"));
+        assertTrue(source.contains("addStyleClass(box, \"astra-checkbox\")"));
     }
 
     @Test
@@ -1199,10 +1247,13 @@ class PipelineLauncherTest {
         assertTrue(source.contains("addStyleClass(combo.getEditor(), \"astra-input\")"));
         assertTrue(source.contains("private static void styleComboBoxSubnodes(ComboBox<String> combo)"));
         assertTrue(source.contains("combo.lookup(\".arrow-button\")"));
-        assertTrue(source.contains("arrowButton.setStyle(\"-fx-background-color: transparent;"));
+        assertTrue(source.contains("addStyleClass(arrowButton, \"astra-combo-arrow-button\")"));
+        assertTrue(source.contains("addStyleClass(arrow, \"astra-combo-arrow\")"));
+        assertTrue(source.contains("addStyleClass(selectedCell, \"astra-combo-cell\")"));
         assertTrue(source.contains("combo.setButtonCell(readableComboCell())"));
         assertTrue(source.contains("combo.setCellFactory(list -> readableComboCell())"));
-        assertTrue(source.contains("-fx-text-fill: \" + INK"));
+        assertTrue(source.contains("addStyleClass(this, \"astra-combo-cell\")"));
+        assertFalse(source.contains("setStyle(\"-fx-font-family: \" + FONT_STACK + \"; -fx-font-size: 12px;\")"));
     }
 
     @Test
@@ -1247,16 +1298,16 @@ class PipelineLauncherTest {
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"THRESHOLD_SELECTED_IMAGE_NAMES\")"));
         assertTrue(source.contains("addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get(\"THRESHOLD_PROVENANCE_BY_MARKER\")"));
         assertFalse(source.contains("THRESHOLD_EXCLUDE_MARKERS"));
-        assertTrue(source.contains("installColocalizationThresholdVisibility(byName, thresholdRows, thresholdPanel)"));
-        assertTrue(source.contains("static Set<String> colocalizationThresholdVisibilityState("));
+        assertTrue(source.contains("installColocalizationThresholdDependencies(byName, thresholdRows, thresholdPanel)"));
+        assertTrue(source.contains("static Set<String> colocalizationThresholdEnabledRows("));
         assertTrue(source.contains("List.of(\"EXPRESSION_CLASSIFICATION_MODE\", \"POSITIVITY_METHOD\", \"THRESHOLD_MODE\", \"THRESHOLD_SCOPE\", \"BACKGROUND_MODE\")"));
         assertFalse(source.contains("BACKGROUND_SCOPE"));
         assertTrue(source.contains("panel.requestLayout()"));
-        assertTrue(source.contains("row.editor.setDisable(!visible)"));
+        assertTrue(source.contains("rows.forEach((name, row) -> setEnabled(rows, name, enabledRows.contains(name)))"));
     }
 
     @Test
-    void genericVisibilityOnlyListensToControlsThatDriveVisibility() throws Exception {
+    void genericDependenciesOnlyListenToControlsThatDriveDependencies() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertTrue(source.contains("\"IMAGE_SCOPE\","));
@@ -1264,6 +1315,27 @@ class PipelineLauncherTest {
         assertTrue(source.contains("\"USE_BATCH_MODE\""));
         assertFalse(source.contains("byName.values().forEach(c -> c.addChangeListener(update))"));
         assertFalse(source.contains("byName.values().forEach(c -> c.addOptionListener(update))"));
+    }
+
+    @Test
+    void parameterDependenciesUseSharedPanelsAndNeverHideRowsAdHoc() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+
+        assertTrue(source.contains("new DependencyPanel(\n                    \"selected-images\""));
+        assertTrue(source.contains("\"IMAGE_SCOPE\",\n                    Set.of(\"SELECTED_IMAGE_NAMES\""));
+        assertTrue(source.contains("new DependencyPanel(\n                    \"threshold-selected-images\""));
+        assertTrue(source.contains("new DependencyPanel(\n                    \"nucleus-model-source\""));
+        assertTrue(source.contains("new DependencyPanel(\n                    \"cell-model-source\""));
+        assertTrue(source.contains("new DependencyPanel(\n                    \"threshold-mode\""));
+        assertTrue(source.contains("new DependencyPanel(\n                    \"background-mode\""));
+        assertTrue(source.contains("setEnabled(rows, \"SELECTED_IMAGE_NAMES\""));
+        assertTrue(source.contains("setEnabled(rows, \"MATCH_SELECTED_IMAGE_NAMES_AGAINST_ORIGINAL\""));
+        assertTrue(source.contains("setEnabled(rows, \"NUC_SAVED_MODEL_ID\""));
+        assertTrue(source.contains("private static void setNodeEnabled(Node node, boolean enabled)"));
+        assertFalse(source.contains("setNodeVisible(nucleusModel"));
+        assertFalse(source.contains("private static void setNodeVisible(Node node, boolean visible)"));
+        assertFalse(source.contains("setVisible(rows"));
+        assertFalse(source.contains("private static void setVisible(Map<String, RowNodes>"));
     }
 
     @Test
@@ -1351,17 +1423,17 @@ class PipelineLauncherTest {
     }
 
     @Test
-    void colocalizationThresholdVisibilityDefaultImageStateIsCompact() {
-        Set<String> visible = PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE");
+    void colocalizationThresholdEnabledRowsDefaultImageStateIsCompact() {
+        Set<String> enabled = PipelineLauncher.colocalizationThresholdEnabledRows("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE");
 
-        assertEquals(Set.of("EXPRESSION_CLASSIFICATION_MODE", "POSITIVITY_METHOD", "THRESHOLD_POPULATION", "THRESHOLD_MODE", "THRESHOLD_SCOPE", "BACKGROUND_MODE", "GMM_COMPONENTS"), visible);
+        assertEquals(Set.of("EXPRESSION_CLASSIFICATION_MODE", "POSITIVITY_METHOD", "THRESHOLD_POPULATION", "THRESHOLD_MODE", "THRESHOLD_SCOPE", "BACKGROUND_MODE", "GMM_COMPONENTS"), enabled);
     }
 
     @Test
-    void colocalizationSelectedThresholdSourceRevealsImageSelector() {
-        Set<String> image = PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE");
-        Set<String> region = PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "REGION", "NONE");
-        Set<String> selected = PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "SELECTED_IMAGES", "NONE");
+    void colocalizationSelectedThresholdSourceEnablesImageSelector() {
+        Set<String> image = PipelineLauncher.colocalizationThresholdEnabledRows("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "NONE");
+        Set<String> region = PipelineLauncher.colocalizationThresholdEnabledRows("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "REGION", "NONE");
+        Set<String> selected = PipelineLauncher.colocalizationThresholdEnabledRows("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "SELECTED_IMAGES", "NONE");
 
         assertEquals(image, region);
         assertTrue(selected.contains("THRESHOLD_SELECTED_IMAGE_NAMES"));
@@ -1369,29 +1441,29 @@ class PipelineLauncherTest {
     }
 
     @Test
-    void colocalizationThresholdVisibilityIsModeDriven() {
-        assertTrue(PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "MANUAL", "IMAGE", "NONE")
+    void colocalizationThresholdEnabledRowsAreModeDriven() {
+        assertTrue(PipelineLauncher.colocalizationThresholdEnabledRows("LEGACY_BINARY", "MEAN_INTENSITY", "MANUAL", "IMAGE", "NONE")
                 .contains("MANUAL_INTENSITY_THRESHOLDS"));
-        assertTrue(PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "MANUAL", "IMAGE", "NONE")
+        assertTrue(PipelineLauncher.colocalizationThresholdEnabledRows("LEGACY_BINARY", "MEAN_INTENSITY", "MANUAL", "IMAGE", "NONE")
                 .contains("THRESHOLD_PROVENANCE_BY_MARKER"));
-        assertTrue(PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "RANGE_PERCENT", "IMAGE", "NONE")
+        assertTrue(PipelineLauncher.colocalizationThresholdEnabledRows("LEGACY_BINARY", "MEAN_INTENSITY", "RANGE_PERCENT", "IMAGE", "NONE")
                 .contains("RANGE_THRESHOLD_FRACTION_BY_MARKER"));
-        assertTrue(PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "MANUAL_OFFSET")
+        assertTrue(PipelineLauncher.colocalizationThresholdEnabledRows("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "MANUAL_OFFSET")
                 .contains("BACKGROUND_SUBTRACTION_BY_CHANNEL"));
 
-        Set<String> local = PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "LOCAL_PERCENTILE");
+        Set<String> local = PipelineLauncher.colocalizationThresholdEnabledRows("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_GAUSSIAN_MIXTURE", "IMAGE", "LOCAL_PERCENTILE");
         assertTrue(local.contains("LOCAL_BACKGROUND_PERCENTILE"));
 
-        Set<String> pixelManual = PipelineLauncher.colocalizationThresholdVisibilityState("PIXEL_LEVEL_SCORE", "MEAN_INTENSITY", "MANUAL", "IMAGE", "NONE");
+        Set<String> pixelManual = PipelineLauncher.colocalizationThresholdEnabledRows("PIXEL_LEVEL_SCORE", "MEAN_INTENSITY", "MANUAL", "IMAGE", "NONE");
         assertTrue(pixelManual.contains("MANUAL_INTENSITY_BOUNDARIES_BY_MARKER"));
         assertFalse(pixelManual.contains("MANUAL_INTENSITY_THRESHOLDS"));
         assertFalse(pixelManual.contains("BACKGROUND_MODE"));
     }
 
     @Test
-    void colocalizationPixelFractionVisibilityKeepsCutoffBesidePositivityMethod() {
-        Set<String> mean = PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_KDE_VALLEY", "IMAGE", "NONE");
-        Set<String> fraction = PipelineLauncher.colocalizationThresholdVisibilityState("LEGACY_BINARY", "PIXEL_POSITIVE_FRACTION", "LOG_KDE_VALLEY", "IMAGE", "NONE");
+    void colocalizationPixelFractionDependencyKeepsCutoffBesidePositivityMethod() {
+        Set<String> mean = PipelineLauncher.colocalizationThresholdEnabledRows("LEGACY_BINARY", "MEAN_INTENSITY", "LOG_KDE_VALLEY", "IMAGE", "NONE");
+        Set<String> fraction = PipelineLauncher.colocalizationThresholdEnabledRows("LEGACY_BINARY", "PIXEL_POSITIVE_FRACTION", "LOG_KDE_VALLEY", "IMAGE", "NONE");
 
         assertFalse(mean.contains("PIXEL_POSITIVE_FRACTION_MIN"));
         assertTrue(fraction.contains("PIXEL_POSITIVE_FRACTION_MIN"));
@@ -1846,7 +1918,20 @@ class PipelineLauncherTest {
         assertTrue(source.contains("feedback.appendScriptText(text, error);"));
         assertTrue(view.contains("copy.setText(\"Copied\")"));
         assertTrue(view.contains("new PauseTransition(Duration.seconds(1.2))"));
-        assertTrue(view.contains("copy.setStyle(copiedLogButtonStyle())"));
+        assertTrue(view.contains("styleCopyButton(copy, true)"));
+        assertTrue(view.contains("addStyleClass(currentHiddenToggle, \"astra-log-disclosure-button\")"));
+        assertTrue(view.contains("addStyleClass(title, \"astra-log-card-title\")"));
+        assertTrue(view.contains("addStyleClass(card, \"astra-log-key-value-card\")"));
+        assertTrue(view.contains("addStyleClass(card, \"astra-log-command-card\")"));
+        assertTrue(view.contains("addStyleClass(badge, \"astra-log-metric-badge\")"));
+        assertTrue(view.contains("addStyleClass(label, \"astra-log-timeline-label\")"));
+        assertTrue(view.contains("addStyleClass(title, \"astra-log-failure-title\")"));
+        assertFalse(view.contains("copy.setStyle(copiedLogButtonStyle())"));
+        assertFalse(view.contains("currentHiddenToggle.setStyle(disclosureButtonStyle())"));
+        assertFalse(view.contains("title.setStyle(\"-fx-font-family: \" + FONT_STACK"));
+        assertFalse(view.contains("badge.setStyle(\"-fx-font-family: \" + FONT_STACK"));
+        assertFalse(view.contains("card.setStyle(\"-fx-background-color: #102733"));
+        assertFalse(view.contains("card.setStyle(\"-fx-background-color: #121d27"));
         assertTrue(view.contains("startSourceGroup(entry.source())"));
         assertTrue(view.contains("sourceTabStyle(source)"));
         assertTrue(view.contains("beginRun(String scriptName, String configuredScript)"));

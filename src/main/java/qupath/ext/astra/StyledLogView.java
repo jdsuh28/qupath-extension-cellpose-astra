@@ -8,6 +8,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.scene.Node;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -48,21 +49,21 @@ final class StyledLogView extends VBox {
 
     StyledLogView() {
         super(7.0);
-        setStyle("-fx-background-color: #061720; -fx-border-color: #355b69; -fx-border-radius: 6; -fx-background-radius: 6; -fx-padding: 8;");
+        addStyleClass(this, "astra-log-view");
 
         Button copy = new Button("Copy All");
         copy.setFocusTraversable(false);
-        copy.setStyle(copyLogButtonStyle());
+        styleCopyButton(copy, false);
         copy.setOnAction(event -> {
             ClipboardContent content = new ClipboardContent();
             content.putString(plainText.toString());
             Clipboard.getSystemClipboard().setContent(content);
             copy.setText("Copied");
-            copy.setStyle(copiedLogButtonStyle());
+            styleCopyButton(copy, true);
             PauseTransition reset = new PauseTransition(Duration.seconds(1.2));
             reset.setOnFinished(done -> {
                 copy.setText("Copy All");
-                copy.setStyle(copyLogButtonStyle());
+                styleCopyButton(copy, false);
             });
             reset.play();
         });
@@ -86,20 +87,20 @@ final class StyledLogView extends VBox {
         failureSummary.setVisible(false);
         failureSummary.setManaged(false);
         failureSummary.setPadding(new Insets(9.0, 10.0, 10.0, 10.0));
-        failureSummary.setStyle("-fx-background-color: #341a18; -fx-border-color: #b9675b; -fx-border-radius: 6; -fx-background-radius: 6;");
+        addStyleClass(failureSummary, "astra-log-failure-summary");
 
         VBox statusContent = new VBox(6.0, statusTitle, statusLine, timelineRail);
         statusContent.setPadding(new Insets(9.0, 10.0, 10.0, 10.0));
-        statusContent.setStyle("-fx-background-color: #0d2430; -fx-border-color: #375f6c; -fx-border-radius: 6; -fx-background-radius: 6;");
-        statusTitle.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12.5px; -fx-font-weight: 900; -fx-text-fill: #ecfbf7;");
-        statusDetail.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: #a9c8ce;");
+        addStyleClass(statusContent, "astra-log-status-card");
+        addStyleClass(statusTitle, "astra-log-status-title");
+        addStyleClass(statusDetail, "astra-log-status-detail");
         timelineRail.setAlignment(Pos.CENTER_LEFT);
 
         entries.setFillWidth(true);
         scroll = new ScrollPane(entries);
         scroll.setFitToWidth(true);
         scroll.setPrefViewportHeight(520.0);
-        scroll.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
+        addStyleClass(scroll, "astra-log-scroll");
         scroll.vvalueProperty().addListener((obs, oldValue, newValue) -> {
             autoScroll = newValue.doubleValue() >= 0.985d;
         });
@@ -312,7 +313,7 @@ final class StyledLogView extends VBox {
         currentHiddenBody.setManaged(false);
         currentHiddenToggle = new Button("Show Cellpose details");
         currentHiddenToggle.setFocusTraversable(false);
-        currentHiddenToggle.setStyle(disclosureButtonStyle());
+        addStyleClass(currentHiddenToggle, "astra-log-disclosure-button");
         currentHiddenToggle.setOnAction(event -> {
             boolean show = !currentHiddenBody.isVisible();
             currentHiddenBody.setVisible(show);
@@ -359,7 +360,7 @@ final class StyledLogView extends VBox {
         card.setStyle(cardStyle(entry.severity()));
         Label title = new Label(RunLogPresenter.shortDisplayText(entry.text()));
         title.setWrapText(true);
-        title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 900; -fx-text-fill: #eefaf6;");
+        addStyleClass(title, "astra-log-card-title");
         card.getChildren().add(title);
         Map<String, String> badges = event == null ? Map.of() : event.metrics();
         HBox badgeRow = badgeRow(badges);
@@ -372,16 +373,16 @@ final class StyledLogView extends VBox {
     private VBox createKeyValueCard(RunLogEntry entry) {
         VBox card = new VBox(5.0);
         card.setPadding(new Insets(7.0, 9.0, 7.0, 9.0));
-        card.setStyle("-fx-background-color: #102733; -fx-border-color: #2f5360; -fx-border-radius: 5; -fx-background-radius: 5;");
+        addStyleClass(card, "astra-log-key-value-card");
         RunLogMetrics.keyValue(entry).ifPresent(kv -> {
             HBox row = new HBox(8.0);
             row.setAlignment(Pos.BASELINE_LEFT);
             Label key = new Label(kv.key());
             key.setMinWidth(118.0);
-            key.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900; -fx-text-fill: #8fb8c0;");
+            addStyleClass(key, "astra-log-key");
             Label value = new Label(RunLogPresenter.shortDisplayText(kv.value()));
             value.setWrapText(true);
-            value.setStyle("-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: #dcebed;");
+            addStyleClass(value, "astra-log-value");
             HBox.setHgrow(value, Priority.ALWAYS);
             row.getChildren().addAll(key, value);
             card.getChildren().add(row);
@@ -399,12 +400,12 @@ final class StyledLogView extends VBox {
         card.setStyle(cardStyle(block.severity()));
         Label title = new Label(RunLogPresenter.shortDisplayText(block.title()));
         title.setWrapText(true);
-        title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 900; -fx-text-fill: #eefaf6;");
+        addStyleClass(title, "astra-log-card-title");
         card.getChildren().add(title);
         if (!block.subtitle().isBlank()) {
             Label subtitle = new Label(RunLogPresenter.shortDisplayText(block.subtitle()));
             subtitle.setWrapText(true);
-            subtitle.setStyle("-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 10.8px; -fx-font-weight: 600; -fx-text-fill: #bcd3d8;");
+            addStyleClass(subtitle, "astra-log-card-subtitle");
             card.getChildren().add(subtitle);
         }
         for (RunLogKeyValue kv : block.keyValues()) {
@@ -422,10 +423,10 @@ final class StyledLogView extends VBox {
         row.setAlignment(Pos.BASELINE_LEFT);
         Label key = new Label(kv.key());
         key.setMinWidth(132.0);
-        key.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900; -fx-text-fill: #8fb8c0;");
+        addStyleClass(key, "astra-log-key");
         Label value = new Label(RunLogPresenter.shortDisplayText(kv.value()));
         value.setWrapText(true);
-        value.setStyle("-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: #dcebed;");
+        addStyleClass(value, "astra-log-value");
         HBox.setHgrow(value, Priority.ALWAYS);
         row.getChildren().addAll(key, value);
         return row;
@@ -434,12 +435,12 @@ final class StyledLogView extends VBox {
     private VBox createCommandBlock(RunLogEntry entry) {
         VBox card = new VBox(5.0);
         card.setPadding(new Insets(8.0, 9.0, 9.0, 9.0));
-        card.setStyle("-fx-background-color: #121d27; -fx-border-color: #586879; -fx-border-radius: 5; -fx-background-radius: 5;");
+        addStyleClass(card, "astra-log-command-card");
         Label title = new Label("Command");
-        title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900; -fx-text-fill: #b9c7cf;");
+        addStyleClass(title, "astra-log-command-title");
         Label command = new Label(RunLogPresenter.shortDisplayText(entry.text()));
         command.setWrapText(true);
-        command.setStyle("-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: #e6edf2;");
+        addStyleClass(command, "astra-log-command-text");
         card.getChildren().addAll(title, command);
         return card;
     }
@@ -453,7 +454,7 @@ final class StyledLogView extends VBox {
         badges.forEach((key, value) -> {
             if (key != null && !key.isBlank() && value != null && !value.isBlank()) {
                 Label badge = new Label(key + " " + RunLogPresenter.shortDisplayText(value));
-                badge.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 9.5px; -fx-font-weight: 900; -fx-text-fill: #06202b; -fx-background-color: #b9efe6; -fx-background-radius: 999; -fx-padding: 2 7 2 7;");
+                addStyleClass(badge, "astra-log-metric-badge");
                 row.getChildren().add(badge);
             }
         });
@@ -482,13 +483,15 @@ final class StyledLogView extends VBox {
         dot.setMinSize(8.0, 8.0);
         dot.setPrefSize(8.0, 8.0);
         dot.setMaxSize(8.0, 8.0);
-        dot.setStyle("-fx-background-color: " + timelineColor(step.state()) + "; -fx-background-radius: 999;");
+        addStyleClass(dot, "astra-log-timeline-dot");
+        dot.setStyle("-fx-background-color: " + timelineColor(step.state()) + ";");
         Label label = new Label(step.label());
-        label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10px; -fx-font-weight: 900; -fx-text-fill: " + timelineTextColor(step.state()) + ";");
+        addStyleClass(label, "astra-log-timeline-label");
+        label.setStyle("-fx-text-fill: " + timelineTextColor(step.state()) + ";");
         node.getChildren().addAll(dot, label);
         if (!step.durationLabel().isBlank() && step.state() != RunTimelineState.PENDING) {
             Label duration = new Label(step.durationLabel());
-            duration.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 9px; -fx-font-weight: 800; -fx-text-fill: #8fb8c0;");
+            addStyleClass(duration, "astra-log-timeline-duration");
             node.getChildren().add(duration);
         }
         return node;
@@ -513,10 +516,10 @@ final class StyledLogView extends VBox {
         failureSummary.getChildren().clear();
         Label title = new Label(advice.family());
         title.setWrapText(true);
-        title.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-font-weight: 900; -fx-text-fill: #ffe1dc;");
+        addStyleClass(title, "astra-log-failure-title");
         Label message = new Label(RunLogPresenter.shortDisplayText(advice.message()));
         message.setWrapText(true);
-        message.setStyle("-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 10.8px; -fx-font-weight: 600; -fx-text-fill: #ffd3cb;");
+        addStyleClass(message, "astra-log-failure-message");
         failureSummary.getChildren().addAll(title, message);
         failureSummary.getChildren().add(createAdviceRow("Likely cause", advice.likelyCause()));
         failureSummary.getChildren().add(createAdviceRow("Next action", advice.nextAction()));
@@ -531,10 +534,10 @@ final class StyledLogView extends VBox {
         row.setAlignment(Pos.BASELINE_LEFT);
         Label label = new Label(labelText);
         label.setMinWidth(86.0);
-        label.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10px; -fx-font-weight: 900; -fx-text-fill: #ffad9f;");
+        addStyleClass(label, "astra-log-advice-label");
         Label value = new Label(RunLogPresenter.shortDisplayText(valueText));
         value.setWrapText(true);
-        value.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 700; -fx-text-fill: #ffe9e5;");
+        addStyleClass(value, "astra-log-advice-value");
         HBox.setHgrow(value, Priority.ALWAYS);
         row.getChildren().addAll(label, value);
         return row;
@@ -561,10 +564,8 @@ final class StyledLogView extends VBox {
 
     private static void styleCountChip(Button chip, RunLogSeverity severity) {
         chip.setFocusTraversable(false);
-        chip.setStyle("-fx-font-family: " + FONT_STACK + "; -fx-font-size: 9.5px; -fx-font-weight: 900;"
-                + " -fx-text-fill: #061720; -fx-padding: 2 7 2 7;"
-                + " -fx-background-color: " + severityAccent(severity) + ";"
-                + " -fx-border-color: transparent; -fx-background-radius: 999;");
+        addStyleClass(chip, "astra-log-count-chip");
+        addStyleClass(chip, "astra-log-count-chip-" + cssToken(severity.name()));
     }
 
     private static String lineTextStyle(RunLogEntry entry) {
@@ -648,12 +649,6 @@ final class StyledLogView extends VBox {
         };
     }
 
-    private static String disclosureButtonStyle() {
-        return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10px; -fx-font-weight: 900;"
-                + " -fx-background-color: #223846; -fx-text-fill: #cfe2e6;"
-                + " -fx-border-color: #405b68; -fx-border-radius: 4; -fx-background-radius: 4;";
-    }
-
     private static String sourceAccent(RunLogSource source) {
         return switch (source) {
             case ASTRA -> "#64d7c7";
@@ -687,15 +682,22 @@ final class StyledLogView extends VBox {
         };
     }
 
-    private static String copyLogButtonStyle() {
-        return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900;"
-                + " -fx-background-color: #163748; -fx-text-fill: #eaf7f4;"
-                + " -fx-border-color: #4d7583; -fx-border-radius: 4; -fx-background-radius: 4;";
+    private static void styleCopyButton(Button copy, boolean copied) {
+        copy.getStyleClass().removeIf(name -> name.startsWith("astra-log-copy-button"));
+        addStyleClass(copy, "astra-log-copy-button");
+        if (copied) {
+            addStyleClass(copy, "astra-log-copy-button-copied");
+        }
     }
 
-    private static String copiedLogButtonStyle() {
-        return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900;"
-                + " -fx-background-color: #dff4e8; -fx-text-fill: #17623b;"
-                + " -fx-border-color: #9fd9b7; -fx-border-radius: 4; -fx-background-radius: 4;";
+    private static void addStyleClass(Node node, String styleClass) {
+        if (node != null && styleClass != null && !styleClass.isBlank()
+                && !node.getStyleClass().contains(styleClass)) {
+            node.getStyleClass().add(styleClass);
+        }
+    }
+
+    private static String cssToken(String raw) {
+        return raw == null ? "" : raw.trim().toLowerCase().replaceAll("[^a-z0-9]+", "-");
     }
 }
