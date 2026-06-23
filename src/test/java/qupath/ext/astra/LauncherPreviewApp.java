@@ -13,6 +13,7 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Labeled;
 import javafx.scene.control.ScrollBar;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TextField;
 import javafx.geometry.Bounds;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.MouseButton;
@@ -151,6 +152,59 @@ public final class LauncherPreviewApp extends Application {
             schedule(10.8, LauncherPreviewApp::closeAllWindows);
             return;
         }
+        if ("header-menus-geometry".equals(snapshotMode)) {
+            schedule(1.5, () -> snapshotSurfaceGeometry("header-action-rail-geometry", title, Surface.HEADER, false));
+            schedule(2.1, () -> showHeaderMenu(title, "Settings"));
+            schedule(2.8, () -> snapshotSurfaceGeometry("settings-menu-geometry", title, Surface.HEADER_MENU, true));
+            schedule(3.1, () -> hideTransientWindows(title));
+            schedule(3.5, () -> showHeaderMenu(title, "Project"));
+            schedule(4.2, () -> snapshotSurfaceGeometry("project-menu-geometry", title, Surface.HEADER_MENU, true));
+            schedule(4.5, () -> hideTransientWindows(title));
+            schedule(4.9, () -> showHeaderMenu(title, "View"));
+            schedule(5.6, () -> snapshotSurfaceGeometry("view-menu-geometry", title, Surface.HEADER_MENU, true));
+            schedule(6.0, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("combo-popup-geometry".equals(snapshotMode)) {
+            schedule(1.5, () -> fireButton(title, "Segmentation"));
+            schedule(2.1, () -> snapshotSurfaceGeometry("closed-combo-geometry", title, Surface.COMBO_CLOSED, false));
+            schedule(2.5, () -> showFirstComboPopup(title));
+            schedule(3.2, () -> snapshotSurfaceGeometry("combo-popup-geometry", title, Surface.COMBO_POPUP, true));
+            schedule(3.8, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("output-pane-geometry".equals(snapshotMode)) {
+            schedule(1.5, () -> snapshotSurfaceGeometry("output-pane-geometry", title, Surface.OUTPUT, false));
+            schedule(2.1, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("all-settings-geometry".equals(snapshotMode)) {
+            schedule(1.5, () -> fireButton(title, "All Settings"));
+            schedule(2.2, () -> snapshotSurfaceGeometry("all-settings-geometry", title, Surface.ALL_SETTINGS, false));
+            schedule(2.8, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("advanced-geometry".equals(snapshotMode)) {
+            schedule(1.5, () -> unlockAdvanced(title));
+            schedule(2.4, () -> snapshotSurfaceGeometry("advanced-geometry", title, Surface.ADVANCED, false));
+            schedule(3.0, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("custom-controls-geometry".equals(snapshotMode)) {
+            schedule(1.5, () -> fireButton(title, "Images & Scope"));
+            schedule(2.2, () -> selectFirstComboValue(title, "PROJECT_IMAGE_SELECTION"));
+            schedule(2.9, () -> snapshotSurfaceGeometry("custom-controls-geometry", title, Surface.CUSTOM_CONTROLS, false));
+            schedule(3.5, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("dialogs-geometry".equals(snapshotMode)) {
+            schedule(1.5, () -> fireButton(title, "Images & Scope"));
+            schedule(2.2, () -> selectFirstComboValue(title, "PROJECT_IMAGE_SELECTION"));
+            schedule(2.9, () -> Platform.runLater(() -> fireButton(title, "Choose Images...")));
+            schedule(4.1, () -> snapshotSurfaceGeometry("selected-images-dialog-geometry", title, Surface.DIALOG, true));
+            schedule(4.7, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
         if ("settings-menu".equals(snapshotMode)) {
             schedule(1.5, () -> showHeaderMenu(title, "Settings"));
             schedule(2.5, () -> snapshotTransientWindow("settings-menu", title));
@@ -273,6 +327,30 @@ public final class LauncherPreviewApp extends Application {
                         .map(Button.class::cast)
                         .findFirst())
                 .ifPresent(button -> Platform.runLater(button::fire));
+    }
+
+    private static void unlockAdvanced(String title) {
+        Optional<Node> rootOptional = findWindowRoot(title);
+        if (rootOptional.isEmpty()) {
+            System.err.println("No launcher root to unlock advanced controls");
+            return;
+        }
+        Node root = rootOptional.get();
+        root.lookupAll(".astra-input").stream()
+                .filter(TextField.class::isInstance)
+                .map(TextField.class::cast)
+                .filter(field -> "Unlock phrase".equals(field.getPromptText()))
+                .findFirst()
+                .ifPresent(field -> {
+                    field.setText(GuiPresentation.advancedUnlockPhrase());
+                    field.fireEvent(new javafx.event.ActionEvent(field, field));
+                });
+        root.lookupAll(".button").stream()
+                .filter(Button.class::isInstance)
+                .map(Button.class::cast)
+                .filter(button -> "Unlock advanced".equals(button.getText()))
+                .findFirst()
+                .ifPresent(Button::fire);
     }
 
     private static void showHeaderMenu(String title, String menuText) {
@@ -488,6 +566,61 @@ public final class LauncherPreviewApp extends Application {
         }
     }
 
+    private static void snapshotSurfaceGeometry(String name,
+                                                String launcherTitle,
+                                                Surface surface,
+                                                boolean transientWindow) {
+        Optional<Node> rootOptional = transientWindow
+                ? findTransientWindowRoot(launcherTitle)
+                : findWindowRoot(launcherTitle);
+        if (rootOptional.isEmpty()) {
+            System.err.println("No " + surface + " root for " + name);
+            return;
+        }
+        Node sceneRoot = rootOptional.get();
+        WritableImage image = sceneRoot.snapshot(new SnapshotParameters(), null);
+        BufferedImage buffered = SwingFXUtils.fromFXImage(image, null);
+        List<DistanceMarker> distances = new ArrayList<>();
+        List<RailMarker> rails = new ArrayList<>();
+        List<BoundsMarker> bounds = surfaceBounds(sceneRoot, surface);
+        List<GeometryMeasurement> measurements = surfaceMeasurements(sceneRoot, surface);
+        if (surface == Surface.ALL_SETTINGS || surface == Surface.ADVANCED
+                || surface == Surface.CUSTOM_CONTROLS) {
+            distances.addAll(focusedPanelMarkers(sceneRoot));
+            rails.addAll(railMarkers(sceneRoot));
+        }
+        drawBoundsMarkers(buffered, bounds);
+        drawDistanceMarkers(buffered, distances);
+        drawRailMarkers(buffered, rails);
+        File file = options.outputPath().resolve(name + ".png").toFile();
+        try {
+            ImageIO.write(buffered, "png", file);
+            writeGeometryTables(name, measurements);
+            System.out.println(file.getAbsolutePath());
+            measurements.forEach(measurement -> System.out.printf(
+                    Locale.ROOT,
+                    "%s expected=%.2f observed=%.2f delta=%.2f formula=%s%n",
+                    measurement.label(),
+                    measurement.expected(),
+                    measurement.observed(),
+                    measurement.delta(),
+                    measurement.formula()));
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+        }
+    }
+
+    private static Optional<Node> findTransientWindowRoot(String launcherTitle) {
+        return Window.getWindows().stream()
+                .filter(Window::isShowing)
+                .filter(window -> !launcherTitle.equals(windowTitle(window)))
+                .filter(window -> !"ASTRA Parameter Help".equals(windowTitle(window)))
+                .filter(window -> window.getScene() != null)
+                .reduce((first, second) -> second)
+                .map(Window::getScene)
+                .map(Scene::getRoot);
+    }
+
     private static void snapshotRailDiagnostic(String name, String launcherTitle) {
         Optional<Node> rootOptional = findWindowRoot(launcherTitle);
         if (rootOptional.isEmpty()) {
@@ -618,6 +751,393 @@ public final class LauncherPreviewApp extends Application {
                         label,
                         relativeBounds(sceneRoot, node, rootMinX, rootMinY),
                         color)));
+    }
+
+    private static List<BoundsMarker> surfaceBounds(Node sceneRoot, Surface surface) {
+        double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
+        double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
+        List<BoundsMarker> bounds = new ArrayList<>();
+        switch (surface) {
+            case HEADER -> {
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "header action rail",
+                        ".astra-header-action-rail", new Color(0, 95, 115));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "header rail tab",
+                        ".astra-header-action-rail-tab", new Color(255, 159, 28));
+                sceneRoot.lookupAll(".astra-header-menu-button").forEach(node -> bounds.add(new BoundsMarker(
+                        "header menu button",
+                        relativeBounds(sceneRoot, node, rootMinX, rootMinY),
+                        new Color(42, 157, 143))));
+            }
+            case HEADER_MENU -> {
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "header context menu",
+                        ".astra-header-context-menu", new Color(0, 95, 115));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "header options panel",
+                        ".astra-header-options-panel", new Color(42, 157, 143));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "header options group",
+                        ".astra-header-options-group", new Color(255, 159, 28));
+                sceneRoot.lookupAll(".astra-header-segment-button").forEach(node -> bounds.add(new BoundsMarker(
+                        "segment button",
+                        relativeBounds(sceneRoot, node, rootMinX, rootMinY),
+                        new Color(131, 56, 236))));
+            }
+            case COMBO_CLOSED -> {
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "combo box",
+                        ".astra-combo", new Color(0, 95, 115));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "combo cell",
+                        ".astra-combo-cell", new Color(42, 157, 143));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "combo arrow button",
+                        ".astra-combo-arrow-button", new Color(255, 159, 28));
+            }
+            case COMBO_POPUP -> {
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "combo popup list",
+                        ".list-view", new Color(0, 95, 115));
+                sceneRoot.lookupAll(".astra-combo-cell").forEach(node -> bounds.add(new BoundsMarker(
+                        "combo popup cell",
+                        relativeBounds(sceneRoot, node, rootMinX, rootMinY),
+                        new Color(42, 157, 143))));
+            }
+            case OUTPUT -> {
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "output pane",
+                        ".astra-output-pane", new Color(0, 95, 115));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "log status card",
+                        ".astra-log-status-card", new Color(42, 157, 143));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "log scroll",
+                        ".astra-log-scroll", new Color(255, 159, 28));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "log copy button",
+                        ".astra-log-copy-button", new Color(131, 56, 236));
+            }
+            case ALL_SETTINGS, ADVANCED, CUSTOM_CONTROLS -> {
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "settings panel",
+                        ".astra-routine-settings-panel", new Color(0, 95, 115));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "section content",
+                        ".astra-section-content", new Color(42, 157, 143));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "focused section content",
+                        ".astra-section-content-focused", new Color(255, 159, 28));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "dependent panel",
+                        ".astra-dependent-panel", new Color(131, 56, 236));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "advanced settings panel",
+                        ".astra-advanced-settings-panel", new Color(88, 129, 87));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "custom nested panel",
+                        ".astra-nested-panel", new Color(230, 57, 70));
+            }
+            case DIALOG -> {
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "dialog pane",
+                        ".dialog-pane", new Color(0, 95, 115));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "dialog content",
+                        ".content", new Color(42, 157, 143));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "list view",
+                        ".astra-list-view", new Color(255, 159, 28));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "dialog input",
+                        ".astra-input", new Color(131, 56, 236));
+            }
+        }
+        return bounds;
+    }
+
+    private static List<GeometryMeasurement> surfaceMeasurements(Node sceneRoot, Surface surface) {
+        List<GeometryMeasurement> measurements = new ArrayList<>();
+        switch (surface) {
+            case HEADER -> addHeaderMeasurements(sceneRoot, measurements);
+            case HEADER_MENU -> addHeaderMenuMeasurements(sceneRoot, measurements);
+            case COMBO_CLOSED -> addClosedComboMeasurements(sceneRoot, measurements);
+            case COMBO_POPUP -> addComboPopupMeasurements(sceneRoot, measurements);
+            case OUTPUT -> addOutputMeasurements(sceneRoot, measurements);
+            case ALL_SETTINGS -> addAllSettingsMeasurements(sceneRoot, measurements);
+            case ADVANCED -> addAdvancedMeasurements(sceneRoot, measurements);
+            case CUSTOM_CONTROLS -> addCustomControlMeasurements(sceneRoot, measurements);
+            case DIALOG -> addDialogMeasurements(sceneRoot, measurements);
+        }
+        return measurements;
+    }
+
+    private static void addHeaderMeasurements(Node sceneRoot, List<GeometryMeasurement> measurements) {
+        double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
+        double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
+        Optional<Node> rail = firstNode(sceneRoot, ".astra-header-action-rail");
+        Optional<Node> tab = firstNode(sceneRoot, ".astra-header-action-rail-tab");
+        List<Node> buttons = managedNodes(sceneRoot, ".astra-header-menu-button");
+        if (rail.isPresent() && tab.isPresent()) {
+            Bounds railBounds = relativeBounds(sceneRoot, rail.get(), rootMinX, rootMinY);
+            Bounds tabBounds = relativeBounds(sceneRoot, tab.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "header tab left inset",
+                    0.0,
+                    tabBounds.getMinX() - railBounds.getMinX(),
+                    "tab shares action rail left edge");
+            addMeasurement(measurements, "header tab top join",
+                    0.0,
+                    tabBounds.getMinY() - railBounds.getMinY(),
+                    "tab joins action rail top edge");
+        }
+        if (buttons.size() >= 2) {
+            Bounds first = relativeBounds(sceneRoot, buttons.get(0), rootMinX, rootMinY);
+            Bounds second = relativeBounds(sceneRoot, buttons.get(1), rootMinX, rootMinY);
+            addMeasurement(measurements, "header menu button gap",
+                    nestedStaticField("HeaderGeometry", "ACTION_CLUSTER_GAP"),
+                    second.getMinX() - first.getMaxX(),
+                    "HeaderGeometry.ACTION_CLUSTER_GAP");
+        }
+        buttons.stream().findFirst().ifPresent(button -> {
+            Bounds buttonBounds = relativeBounds(sceneRoot, button, rootMinX, rootMinY);
+            firstNode(button, ".astra-header-menu-graphic").ifPresent(graphic -> {
+                Bounds graphicBounds = relativeBounds(sceneRoot, graphic, rootMinX, rootMinY);
+                addMeasurement(measurements, "header button left content inset",
+                        nestedStaticField("HeaderGeometry", "MENU_EDGE_MARGIN"),
+                        graphicBounds.getMinX() - buttonBounds.getMinX(),
+                        "HeaderGeometry.MENU_EDGE_MARGIN");
+            });
+        });
+    }
+
+    private static void addHeaderMenuMeasurements(Node sceneRoot, List<GeometryMeasurement> measurements) {
+        double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
+        double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
+        Optional<Node> panel = firstNode(sceneRoot, ".astra-header-options-panel");
+        Optional<Node> group = firstNode(sceneRoot, ".astra-header-options-group");
+        if (panel.isPresent()) {
+            Bounds panelBounds = relativeBounds(sceneRoot, panel.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "header menu panel width",
+                    nestedStaticField("HeaderGeometry", "MENU_WIDTH"),
+                    panelBounds.getWidth(),
+                    "HeaderGeometry.MENU_WIDTH");
+        }
+        if (panel.isPresent() && group.isPresent()) {
+            Bounds panelBounds = relativeBounds(sceneRoot, panel.get(), rootMinX, rootMinY);
+            Bounds groupBounds = relativeBounds(sceneRoot, group.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "header menu panel left inset",
+                    nestedStaticField("HeaderGeometry", "OPTIONS_PANEL_INSET")
+                            + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
+                    groupBounds.getMinX() - panelBounds.getMinX(),
+                    "HeaderGeometry.OPTIONS_PANEL_INSET + SURFACE_BORDER_WIDTH");
+            addMeasurement(measurements, "header menu panel right inset",
+                    nestedStaticField("HeaderGeometry", "OPTIONS_PANEL_INSET")
+                            + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
+                    panelBounds.getMaxX() - groupBounds.getMaxX(),
+                    "HeaderGeometry.OPTIONS_PANEL_INSET + SURFACE_BORDER_WIDTH");
+        }
+        List<Node> buttons = managedNodes(sceneRoot, ".astra-header-segment-button");
+        if (buttons.size() >= 2) {
+            Bounds first = relativeBounds(sceneRoot, buttons.get(0), rootMinX, rootMinY);
+            Bounds second = relativeBounds(sceneRoot, buttons.get(1), rootMinX, rootMinY);
+            addMeasurement(measurements, "header segment button gap",
+                    nestedStaticField("HeaderGeometry", "SEGMENT_CONTROL_GAP"),
+                    second.getMinX() - first.getMaxX(),
+                    "HeaderGeometry.SEGMENT_CONTROL_GAP");
+            addMeasurement(measurements, "header segment button width",
+                    nestedStaticField("HeaderGeometry", "SEGMENT_BUTTON_WIDTH"),
+                    first.getWidth(),
+                    "HeaderGeometry.SEGMENT_BUTTON_WIDTH");
+        }
+    }
+
+    private static void addClosedComboMeasurements(Node sceneRoot, List<GeometryMeasurement> measurements) {
+        double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
+        double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
+        Optional<Node> combo = firstNode(sceneRoot, ".astra-combo");
+        Optional<Node> cell = firstNode(sceneRoot, ".astra-combo-cell");
+        Optional<Node> arrowButton = firstNode(sceneRoot, ".astra-combo-arrow-button");
+        if (combo.isPresent() && cell.isPresent()) {
+            Bounds comboBounds = relativeBounds(sceneRoot, combo.get(), rootMinX, rootMinY);
+            Bounds cellBounds = relativeBounds(sceneRoot, cell.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "closed combo left cell inset",
+                    nestedStaticField("ControlGeometry", "COMBO_CELL_HORIZONTAL_INSET")
+                            + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
+                    textOrNodeMinX(cell.get()) - rootMinX - comboBounds.getMinX(),
+                    "ControlGeometry.COMBO_CELL_HORIZONTAL_INSET + SURFACE_BORDER_WIDTH");
+            arrowButton.ifPresent(arrow -> {
+                Bounds arrowBounds = relativeBounds(sceneRoot, arrow, rootMinX, rootMinY);
+                addMeasurement(measurements, "closed combo cell to arrow",
+                        0.0,
+                        arrowBounds.getMinX() - cellBounds.getMaxX(),
+                        "combo cell and arrow button share edge");
+                addMeasurement(measurements, "closed combo arrow to right edge",
+                        0.0,
+                        comboBounds.getMaxX() - arrowBounds.getMaxX(),
+                        "arrow button reaches combo right edge");
+            });
+        }
+    }
+
+    private static void addComboPopupMeasurements(Node sceneRoot, List<GeometryMeasurement> measurements) {
+        double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
+        double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
+        Optional<Node> list = firstNode(sceneRoot, ".list-view");
+        List<Node> cells = managedNodes(sceneRoot, ".astra-combo-cell");
+        if (list.isPresent() && !cells.isEmpty()) {
+            Bounds listBounds = relativeBounds(sceneRoot, list.get(), rootMinX, rootMinY);
+            Bounds cellBounds = relativeBounds(sceneRoot, cells.get(0), rootMinX, rootMinY);
+            addMeasurement(measurements, "combo popup list left to row",
+                    LauncherGeometryTokens.SURFACE_BORDER_WIDTH * 2.0,
+                    cellBounds.getMinX() - listBounds.getMinX(),
+                    "SURFACE_BORDER_WIDTH * 2");
+            addMeasurement(measurements, "combo popup row text inset",
+                    nestedStaticField("ControlGeometry", "COMBO_CELL_HORIZONTAL_INSET"),
+                    textOrNodeMinX(cells.get(0)) - rootMinX - cellBounds.getMinX(),
+                    "ControlGeometry.COMBO_CELL_HORIZONTAL_INSET");
+            if (cells.size() >= 2) {
+                Bounds second = relativeBounds(sceneRoot, cells.get(1), rootMinX, rootMinY);
+                addMeasurement(measurements, "combo popup row gap",
+                        0.0,
+                        second.getMinY() - cellBounds.getMaxY(),
+                        "combo popup rows are contiguous");
+            }
+        }
+    }
+
+    private static void addOutputMeasurements(Node sceneRoot, List<GeometryMeasurement> measurements) {
+        double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
+        double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
+        Optional<Node> output = firstNode(sceneRoot, ".astra-output-pane");
+        Optional<Node> statusCard = firstNode(sceneRoot, ".astra-log-status-card");
+        Optional<Node> statusTitle = firstNode(sceneRoot, ".astra-log-status-title");
+        Optional<Node> copy = firstNode(sceneRoot, ".astra-log-copy-button");
+        Optional<Node> logScroll = firstNode(sceneRoot, ".astra-log-scroll");
+        if (output.isPresent()) {
+            Bounds outputBounds = relativeBounds(sceneRoot, output.get(), rootMinX, rootMinY);
+            statusCard.ifPresent(card -> {
+                Bounds cardBounds = relativeBounds(sceneRoot, card, rootMinX, rootMinY);
+                addMeasurement(measurements, "output pane left inset to status card",
+                        staticField("OUTPUT_PANE_INSET")
+                                + styledLogField("LOG_ROW_GAP")
+                                + (LauncherGeometryTokens.SURFACE_BORDER_WIDTH * 2.0),
+                        cardBounds.getMinX() - outputBounds.getMinX(),
+                        "OUTPUT_PANE_INSET + StyledLogView.LOG_ROW_GAP + (SURFACE_BORDER_WIDTH * 2)");
+                addMeasurement(measurements, "output pane right inset to status card",
+                        staticField("OUTPUT_PANE_INSET")
+                                + styledLogField("LOG_ROW_GAP")
+                                + (LauncherGeometryTokens.SURFACE_BORDER_WIDTH * 2.0),
+                        outputBounds.getMaxX() - cardBounds.getMaxX(),
+                        "OUTPUT_PANE_INSET + StyledLogView.LOG_ROW_GAP + (SURFACE_BORDER_WIDTH * 2)");
+            });
+            copy.ifPresent(button -> {
+                Bounds copyBounds = relativeBounds(sceneRoot, button, rootMinX, rootMinY);
+                addMeasurement(measurements, "copy button right rail",
+                        staticField("OUTPUT_PANE_INSET")
+                                + styledLogField("LOG_ROW_GAP")
+                                + (LauncherGeometryTokens.SURFACE_BORDER_WIDTH * 2.0),
+                        outputBounds.getMaxX() - copyBounds.getMaxX(),
+                        "OUTPUT_PANE_INSET + StyledLogView.LOG_ROW_GAP + (SURFACE_BORDER_WIDTH * 2)");
+            });
+        }
+        if (statusCard.isPresent() && statusTitle.isPresent()) {
+            Bounds cardBounds = relativeBounds(sceneRoot, statusCard.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "log status card title left inset",
+                    styledLogField("LOG_CARD_HORIZONTAL_INSET")
+                            + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
+                    textOrNodeMinX(statusTitle.get()) - rootMinX - cardBounds.getMinX(),
+                    "StyledLogView.LOG_CARD_HORIZONTAL_INSET + SURFACE_BORDER_WIDTH");
+            addMeasurement(measurements, "log status card title top inset",
+                    styledLogField("LOG_CARD_VERTICAL_INSET")
+                            + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
+                    relativeBounds(sceneRoot, statusTitle.get(), rootMinX, rootMinY).getMinY()
+                            - cardBounds.getMinY(),
+                    "StyledLogView.LOG_CARD_VERTICAL_INSET + SURFACE_BORDER_WIDTH");
+        }
+    }
+
+    private static void addAllSettingsMeasurements(Node sceneRoot, List<GeometryMeasurement> measurements) {
+        addSectionMeasurements(sceneRoot, measurements, ".astra-section-content");
+        double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
+        double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
+        List<Node> sections = managedNodes(sceneRoot, ".astra-collapsible-section");
+        if (sections.size() >= 2) {
+            Bounds first = relativeBounds(sceneRoot, sections.get(0), rootMinX, rootMinY);
+            Bounds second = relativeBounds(sceneRoot, sections.get(1), rootMinX, rootMinY);
+            addMeasurement(measurements, "all settings section gap",
+                    staticField("SECTION_CONTENT_GAP"),
+                    second.getMinY() - first.getMaxY(),
+                    "SECTION_CONTENT_GAP");
+        }
+    }
+
+    private static void addAdvancedMeasurements(Node sceneRoot, List<GeometryMeasurement> measurements) {
+        double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
+        double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
+        Optional<Node> panel = firstNode(sceneRoot, ".astra-advanced-settings-panel");
+        firstNode(sceneRoot, ".astra-routine-settings-panel").ifPresent(settings -> panel.ifPresent(advanced -> {
+            Bounds settingsBounds = relativeBounds(sceneRoot, settings, rootMinX, rootMinY);
+            Bounds advancedBounds = relativeBounds(sceneRoot, advanced, rootMinX, rootMinY);
+            addMeasurement(measurements, "routine to advanced panel gap",
+                    LauncherGeometryTokens.OUTER_MARGIN,
+                    advancedBounds.getMinY() - settingsBounds.getMaxY(),
+                    "INPUT_STACK_GAP");
+        }));
+        addSectionMeasurements(sceneRoot, measurements, ".astra-section-content");
+    }
+
+    private static void addCustomControlMeasurements(Node sceneRoot, List<GeometryMeasurement> measurements) {
+        addSectionMeasurements(sceneRoot, measurements, ".astra-section-content-focused");
+        double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
+        double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
+        Optional<Node> editor = firstNode(sceneRoot, ".astra-parameter-editor");
+        if (editor.isPresent()) {
+            List<Node> buttons = managedNodes(editor.get(), ".button");
+            if (buttons.size() >= 2) {
+                Bounds first = relativeBounds(sceneRoot, buttons.get(0), rootMinX, rootMinY);
+                Bounds second = relativeBounds(sceneRoot, buttons.get(1), rootMinX, rootMinY);
+                addMeasurement(measurements, "custom editor button gap",
+                        nestedStaticField("SelectionGeometry", "DIALOG_ACTION_GAP"),
+                        second.getMinX() - first.getMaxX(),
+                        "SelectionGeometry.DIALOG_ACTION_GAP");
+            }
+        }
+    }
+
+    private static void addDialogMeasurements(Node sceneRoot, List<GeometryMeasurement> measurements) {
+        double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
+        double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
+        Optional<Node> list = firstNode(sceneRoot, ".astra-list-view");
+        firstNode(sceneRoot, ".astra-dialog-section-title").ifPresent(title ->
+                list.ifPresent(listNode -> {
+                    Bounds titleBounds = relativeBounds(sceneRoot, title, rootMinX, rootMinY);
+                    Bounds listBounds = relativeBounds(sceneRoot, listNode, rootMinX, rootMinY);
+                    addMeasurement(measurements, "dialog title to list gap",
+                            nestedStaticField("SelectionGeometry", "LABEL_TO_LIST_GAP"),
+                            listBounds.getMinY() - titleBounds.getMaxY(),
+                            "SelectionGeometry.LABEL_TO_LIST_GAP");
+                }));
+    }
+
+    private static void addSectionMeasurements(Node sceneRoot,
+                                               List<GeometryMeasurement> measurements,
+                                               String contentSelector) {
+        double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
+        double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
+        Optional<Node> content = firstNode(sceneRoot, contentSelector);
+        if (content.isEmpty()) {
+            return;
+        }
+        Bounds contentBounds = relativeBounds(sceneRoot, content.get(), rootMinX, rootMinY);
+        firstManagedNode(content.get(), ".astra-parameter-row").ifPresent(row -> {
+            Bounds rowBounds = relativeBounds(sceneRoot, row, rootMinX, rootMinY);
+            addMeasurement(measurements, "section content left padding",
+                    LauncherGeometryTokens.INTRA_PANEL_MARGIN + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
+                    rowBounds.getMinX() - contentBounds.getMinX(),
+                    "INTRA_PANEL_MARGIN + SURFACE_BORDER_WIDTH");
+        });
+        firstManagedNode(content.get(), ".astra-parameter-editor").ifPresent(editor -> {
+            Bounds editorBounds = relativeBounds(sceneRoot, editor, rootMinX, rootMinY);
+            addMeasurement(measurements, "section content right padding",
+                    LauncherGeometryTokens.INTRA_PANEL_MARGIN + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
+                    contentBounds.getMaxX() - editorBounds.getMaxX(),
+                    "INTRA_PANEL_MARGIN + SURFACE_BORDER_WIDTH");
+        });
+        consecutiveManagedRowsWithSameParent(content.get()).ifPresent(rows -> {
+            Bounds first = relativeBounds(sceneRoot, rows.first(), rootMinX, rootMinY);
+            Bounds second = relativeBounds(sceneRoot, rows.second(), rootMinX, rootMinY);
+            addMeasurement(measurements, "section parameter row gap",
+                    staticField("PARAMETER_ROW_GAP"),
+                    second.getMinY() - first.getMaxY(),
+                    "PARAMETER_ROW_GAP");
+        });
+        Map<String, Double> rails = railPositions(sceneRoot);
+        addMeasurement(measurements, "section help column alignment",
+                0.0,
+                signedDistance(rails, "independent help", "dependent help"),
+                "dependent and independent help rails match");
+        addMeasurement(measurements, "section editor column alignment",
+                0.0,
+                signedDistance(rails, "independent editor", "dependent editor"),
+                "dependent and independent editor rails match");
     }
 
     private static List<GeometryMeasurement> geometryMeasurements(Node sceneRoot) {
@@ -1452,12 +1972,38 @@ public final class LauncherPreviewApp extends Application {
 
     private static double staticField(String name) {
         try {
-            java.lang.reflect.Field field = PipelineLauncher.class.getDeclaredField(name);
-            field.setAccessible(true);
-            return field.getDouble(null);
+            return staticField(PipelineLauncher.class, name);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("Unable to read PipelineLauncher geometry field " + name, e);
         }
+    }
+
+    private static double nestedStaticField(String simpleClassName, String name) {
+        for (Class<?> declared : PipelineLauncher.class.getDeclaredClasses()) {
+            if (declared.getSimpleName().equals(simpleClassName)) {
+                try {
+                    return staticField(declared, name);
+                } catch (ReflectiveOperationException e) {
+                    throw new IllegalStateException("Unable to read PipelineLauncher."
+                            + simpleClassName + " geometry field " + name, e);
+                }
+            }
+        }
+        throw new IllegalStateException("Unable to find PipelineLauncher nested class " + simpleClassName);
+    }
+
+    private static double styledLogField(String name) {
+        try {
+            return staticField(StyledLogView.class, name);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Unable to read StyledLogView geometry field " + name, e);
+        }
+    }
+
+    private static double staticField(Class<?> type, String name) throws ReflectiveOperationException {
+        java.lang.reflect.Field field = type.getDeclaredField(name);
+        field.setAccessible(true);
+        return field.getDouble(null);
     }
 
     private static Optional<Node> firstNode(Node root, String styleClass) {
@@ -1599,6 +2145,18 @@ public final class LauncherPreviewApp extends Application {
         private double delta() {
             return observed - expected;
         }
+    }
+
+    private enum Surface {
+        HEADER,
+        HEADER_MENU,
+        COMBO_CLOSED,
+        COMBO_POPUP,
+        OUTPUT,
+        ALL_SETTINGS,
+        ADVANCED,
+        CUSTOM_CONTROLS,
+        DIALOG
     }
 
     private static void hideTransientWindows(String launcherTitle) {

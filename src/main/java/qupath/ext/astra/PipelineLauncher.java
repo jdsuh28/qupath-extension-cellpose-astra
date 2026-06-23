@@ -279,14 +279,18 @@ final class PipelineLauncher {
                 SEGMENT_LABEL_WIDTH - (LauncherGeometry.INTRA_PANEL_SUBTLE_GAP * 5.0 / 2.0);
         private static final double SEGMENT_BUTTON_HEIGHT =
                 LauncherGeometry.LAYOUT_UNIT + SURFACE_BORDER_WIDTH;
-        private static final double MENU_SIDE_BREATHING =
-                LauncherGeometry.INTRA_PANEL_MARGIN * 7.0 / 8.0;
-        private static final double MENU_WIDTH =
+        private static final double WIDEST_SEGMENT_ROW_WIDTH =
                 SEGMENT_LABEL_WIDTH
+                        + SEGMENT_ROW_GAP
                         + (SEGMENT_BUTTON_WIDTH * 3.0)
-                        + (SEGMENT_CONTROL_GAP * 2.0)
+                        + (SEGMENT_CONTROL_GAP * 2.0);
+        private static final double OPTIONS_GROUP_OUTER_WIDTH =
+                WIDEST_SEGMENT_ROW_WIDTH
+                        + (OPTIONS_GROUP_GAP * 2.0)
+                        + (SURFACE_BORDER_WIDTH * 2.0);
+        private static final double MENU_WIDTH =
+                OPTIONS_GROUP_OUTER_WIDTH
                         + (OPTIONS_PANEL_INSET * 2.0)
-                        + (MENU_SIDE_BREATHING * 2.0)
                         + (SURFACE_BORDER_WIDTH * 2.0);
         private static final double MENU_ITEM_WIDTH =
                 MENU_WIDTH - (OPTIONS_PANEL_INSET * 2.0);
@@ -2885,6 +2889,8 @@ final class PipelineLauncher {
                                                Consumer<Boolean> setOutputVisible,
                                                AnimatedGradientHeader animatedHeader) {
         VBox menuContent = new VBox();
+        menuContent.setMinWidth(HeaderGeometry.MENU_WIDTH);
+        menuContent.setPrefWidth(HeaderGeometry.MENU_WIDTH);
         menuContent.setPadding(new Insets(HeaderGeometry.OPTIONS_PANEL_INSET));
         addStyleClass(menuContent, "astra-header-options-panel");
         menuContent.getChildren().add(createHeaderViewPanel(outputVisible, setOutputVisible, animatedHeader));

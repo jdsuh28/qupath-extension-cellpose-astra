@@ -1082,10 +1082,12 @@ class PipelineLauncherTest {
                 + "                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP - SURFACE_BORDER_WIDTH;"));
         assertTrue(source.contains("private static final double MENU_EDGE_MARGIN =\n"
                 + "                LauncherGeometry.INTRA_PANEL_MARGIN;"));
-        assertTrue(source.contains("private static final double MENU_SIDE_BREATHING =\n"
-                + "                LauncherGeometry.INTRA_PANEL_MARGIN * 7.0 / 8.0;"));
-        assertTrue(source.contains("private static final double MENU_WIDTH =\n"
+        assertTrue(source.contains("private static final double WIDEST_SEGMENT_ROW_WIDTH =\n"
                 + "                SEGMENT_LABEL_WIDTH"));
+        assertTrue(source.contains("private static final double OPTIONS_GROUP_OUTER_WIDTH =\n"
+                + "                WIDEST_SEGMENT_ROW_WIDTH"));
+        assertTrue(source.contains("private static final double MENU_WIDTH =\n"
+                + "                OPTIONS_GROUP_OUTER_WIDTH"));
         assertTrue(source.contains("private static final double MENU_ITEM_WIDTH =\n"
                 + "                MENU_WIDTH - (OPTIONS_PANEL_INSET * 2.0);"));
         assertTrue(source.contains("VBox header = new VBox(HeaderGeometry.HEADER_STACK_GAP);"));
