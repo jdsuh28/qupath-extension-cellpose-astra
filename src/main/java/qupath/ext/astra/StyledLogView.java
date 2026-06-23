@@ -22,8 +22,38 @@ final class StyledLogView extends VBox {
 
     private static final String FONT_STACK = "\"Inter\", \"Avenir Next\", \"Segoe UI\", sans-serif";
     private static final String MONO_FONT_STACK = "\"JetBrains Mono\", \"SFMono-Regular\", \"Consolas\", monospace";
+    private static final double LOG_STACK_GAP =
+            LauncherGeometryTokens.INTRA_PANEL_SUBTLE_GAP - LauncherGeometryTokens.SURFACE_BORDER_WIDTH;
+    private static final double LOG_ROW_GAP =
+            LauncherGeometryTokens.INTRA_PANEL_SUBTLE_GAP;
+    private static final double LOG_TIGHT_GAP =
+            LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP + LauncherGeometryTokens.SURFACE_BORDER_WIDTH;
+    private static final double LOG_CARD_VERTICAL_INSET =
+            LauncherGeometryTokens.INTRA_PANEL_SUBTLE_GAP + LauncherGeometryTokens.SURFACE_BORDER_WIDTH;
+    private static final double LOG_CARD_HORIZONTAL_INSET =
+            LauncherGeometryTokens.INTRA_PANEL_MARGIN - (LauncherGeometryTokens.SURFACE_BORDER_WIDTH * 2.0);
+    private static final double LOG_GROUP_TAB_LEFT_INSET =
+            LOG_CARD_VERTICAL_INSET;
+    private static final double LOG_GROUP_BODY_GAP =
+            LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP;
+    private static final double LOG_LINE_GAP =
+            LOG_STACK_GAP;
+    private static final double LOG_ACCENT_WIDTH =
+            LauncherGeometryTokens.LAYOUT_UNIT / 8.0;
+    private static final double LOG_ACCENT_HEIGHT =
+            LauncherGeometryTokens.INTRA_PANEL_SUBTLE_GAP * 2.0;
+    private static final double LOG_BADGE_MIN_WIDTH =
+            LauncherGeometryTokens.LAYOUT_UNIT * 29.0 / 12.0;
+    private static final double LOG_KEY_VALUE_WIDTH =
+            LauncherGeometryTokens.LAYOUT_UNIT * 59.0 / 12.0;
+    private static final double LOG_COMMAND_KEY_WIDTH =
+            LauncherGeometryTokens.LAYOUT_UNIT * 11.0 / 2.0;
+    private static final double LOG_ADVICE_LABEL_WIDTH =
+            LauncherGeometryTokens.LAYOUT_UNIT * 43.0 / 12.0;
+    private static final double LOG_DOT_SIZE =
+            LauncherGeometryTokens.INTRA_PANEL_SUBTLE_GAP;
 
-    private final VBox entries = new VBox(7.0);
+    private final VBox entries = new VBox(LOG_STACK_GAP);
     private final StringBuilder plainText = new StringBuilder();
     private final StringBuilder rawText = new StringBuilder();
     private final ScrollPane scroll;
@@ -32,10 +62,8 @@ final class StyledLogView extends VBox {
     private final RunLogBlockAccumulator blockAccumulator = new RunLogBlockAccumulator();
     private final Label statusTitle = new Label("Ready");
     private final Label statusDetail = new Label("Waiting for an ASTRA run.");
-    private final Button warningsChip = new Button("Warnings 0");
-    private final Button errorsChip = new Button("Errors 0");
-    private final VBox failureSummary = new VBox(5.0);
-    private final HBox timelineRail = new HBox(6.0);
+    private final VBox failureSummary = new VBox(LOG_TIGHT_GAP);
+    private final HBox timelineRail = new HBox(LOG_TIGHT_GAP + LauncherGeometryTokens.SURFACE_BORDER_WIDTH);
     private RunLogSource currentSource;
     private VBox currentGroupBody;
     private VBox currentHiddenBody;
@@ -48,7 +76,8 @@ final class StyledLogView extends VBox {
     private boolean autoScroll = true;
 
     StyledLogView() {
-        super(7.0);
+        super(LOG_STACK_GAP);
+        setPadding(new Insets(LOG_ROW_GAP));
         addStyleClass(this, "astra-log-view");
 
         Button copy = new Button("Copy All");
@@ -68,29 +97,24 @@ final class StyledLogView extends VBox {
             reset.play();
         });
 
-        HBox toolbar = new HBox(8.0, copy);
+        HBox toolbar = new HBox(LOG_ROW_GAP, copy);
         toolbar.setAlignment(Pos.CENTER_RIGHT);
 
-        styleCountChip(warningsChip, RunLogSeverity.WARNING);
-        styleCountChip(errorsChip, RunLogSeverity.ERROR);
-        warningsChip.setVisible(false);
-        warningsChip.setManaged(false);
-        errorsChip.setVisible(false);
-        errorsChip.setManaged(false);
-        warningsChip.setOnAction(event -> scrollToTarget(firstWarningTarget));
-        errorsChip.setOnAction(event -> scrollToTarget(firstErrorTarget));
-
-        HBox statusLine = new HBox(8.0, statusDetail, warningsChip, errorsChip);
+        HBox statusLine = new HBox(LOG_ROW_GAP, statusDetail);
         statusLine.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(statusDetail, Priority.ALWAYS);
 
         failureSummary.setVisible(false);
         failureSummary.setManaged(false);
-        failureSummary.setPadding(new Insets(9.0, 10.0, 10.0, 10.0));
+        failureSummary.setPadding(logCardPadding());
         addStyleClass(failureSummary, "astra-log-failure-summary");
 
-        VBox statusContent = new VBox(6.0, statusTitle, statusLine, timelineRail);
-        statusContent.setPadding(new Insets(9.0, 10.0, 10.0, 10.0));
+        VBox statusContent = new VBox(
+                LOG_TIGHT_GAP + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
+                statusTitle,
+                statusLine,
+                timelineRail);
+        statusContent.setPadding(logCardPadding());
         addStyleClass(statusContent, "astra-log-status-card");
         addStyleClass(statusTitle, "astra-log-status-title");
         addStyleClass(statusDetail, "astra-log-status-detail");
@@ -106,6 +130,30 @@ final class StyledLogView extends VBox {
         });
         VBox.setVgrow(scroll, Priority.ALWAYS);
         getChildren().addAll(statusContent, failureSummary, toolbar, scroll);
+    }
+
+    private static Insets logCardPadding() {
+        return new Insets(
+                LOG_CARD_VERTICAL_INSET,
+                LOG_CARD_HORIZONTAL_INSET,
+                LOG_CARD_HORIZONTAL_INSET,
+                LOG_CARD_HORIZONTAL_INSET);
+    }
+
+    private static Insets logCompactCardPadding() {
+        return new Insets(
+                LOG_STACK_GAP,
+                LOG_CARD_VERTICAL_INSET,
+                LOG_STACK_GAP,
+                LOG_CARD_VERTICAL_INSET);
+    }
+
+    private static Insets logEmphasisCardPadding() {
+        return new Insets(
+                LOG_CARD_HORIZONTAL_INSET,
+                LOG_CARD_HORIZONTAL_INSET + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
+                LOG_CARD_HORIZONTAL_INSET + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
+                LOG_CARD_HORIZONTAL_INSET + LauncherGeometryTokens.SURFACE_BORDER_WIDTH);
     }
 
     void beginRun(String scriptName, String configuredScript) {
@@ -240,16 +288,22 @@ final class StyledLogView extends VBox {
 
     private void startSourceGroup(RunLogSource source) {
         currentSource = source;
-        VBox wrapper = new VBox(0.0);
+        VBox wrapper = new VBox(LauncherGeometryTokens.FLUSH);
         wrapper.setFillWidth(true);
 
         Label tab = new Label(source.displayName());
-        tab.setStyle(sourceTabStyle(source));
-        VBox.setMargin(tab, new Insets(0.0, 0.0, 0.0, 9.0));
+        addStyleClass(tab, "astra-log-source-tab");
+        addStyleClass(tab, "astra-log-source-" + cssToken(source.name()));
+        VBox.setMargin(tab, new Insets(
+                LauncherGeometryTokens.FLUSH,
+                LauncherGeometryTokens.FLUSH,
+                LauncherGeometryTokens.FLUSH,
+                LOG_GROUP_TAB_LEFT_INSET));
 
-        currentGroupBody = new VBox(4.0);
-        currentGroupBody.setPadding(new Insets(8.0, 9.0, 9.0, 9.0));
-        currentGroupBody.setStyle(sourceBlockStyle(source));
+        currentGroupBody = new VBox(LOG_GROUP_BODY_GAP);
+        currentGroupBody.setPadding(logCardPadding());
+        addStyleClass(currentGroupBody, "astra-log-source-block");
+        addStyleClass(currentGroupBody, "astra-log-source-" + cssToken(source.name()));
         wrapper.getChildren().addAll(tab, currentGroupBody);
         entries.getChildren().add(wrapper);
         currentHiddenBody = null;
@@ -308,11 +362,12 @@ final class StyledLogView extends VBox {
         if (currentHiddenBody != null) {
             return;
         }
-        currentHiddenBody = new VBox(4.0);
+        currentHiddenBody = new VBox(LOG_GROUP_BODY_GAP);
         currentHiddenBody.setVisible(false);
         currentHiddenBody.setManaged(false);
         currentHiddenToggle = new Button("Show Cellpose details");
         currentHiddenToggle.setFocusTraversable(false);
+        addStyleClass(currentHiddenToggle, "astra-button");
         addStyleClass(currentHiddenToggle, "astra-log-disclosure-button");
         currentHiddenToggle.setOnAction(event -> {
             boolean show = !currentHiddenBody.isVisible();
@@ -325,28 +380,34 @@ final class StyledLogView extends VBox {
     }
 
     private HBox createLine(RunLogEntry entry) {
-        HBox row = new HBox(7.0);
+        HBox row = new HBox(LOG_LINE_GAP);
         row.setAlignment(Pos.TOP_LEFT);
         row.setMaxWidth(Double.MAX_VALUE);
 
         Region accent = new Region();
-        accent.setMinWidth(3.0);
-        accent.setPrefWidth(3.0);
-        accent.setMaxWidth(3.0);
-        accent.setMinHeight(16.0);
-        accent.setStyle("-fx-background-color: " + severityAccent(entry.severity()) + "; -fx-background-radius: 4;");
+        accent.setMinWidth(LOG_ACCENT_WIDTH);
+        accent.setPrefWidth(LOG_ACCENT_WIDTH);
+        accent.setMaxWidth(LOG_ACCENT_WIDTH);
+        accent.setMinHeight(LOG_ACCENT_HEIGHT);
+        addStyleClass(accent, "astra-log-line-accent");
+        addStyleClass(accent, "astra-log-severity-" + cssToken(entry.severity().name()));
 
         Label text = new Label(RunLogPresenter.shortDisplayText(entry.text()));
         text.setWrapText(true);
         text.setMaxWidth(Double.MAX_VALUE);
-        text.setStyle(lineTextStyle(entry));
+        addStyleClass(text, "astra-log-line-text");
+        addStyleClass(text, "astra-log-severity-" + cssToken(entry.severity().name()));
+        if (entry.kind() == RunLogKind.SEPARATOR) {
+            addStyleClass(text, "astra-log-line-separator");
+        }
         HBox.setHgrow(text, Priority.ALWAYS);
 
         if (showsSeverityBadge(entry.severity())) {
             Label badge = new Label(entry.severity().displayName());
-            badge.setMinWidth(58.0);
+            badge.setMinWidth(LOG_BADGE_MIN_WIDTH);
             badge.setAlignment(Pos.CENTER);
-            badge.setStyle(severityBadgeStyle(entry.severity()));
+            addStyleClass(badge, "astra-log-severity-badge");
+            addStyleClass(badge, "astra-log-severity-" + cssToken(entry.severity().name()));
             row.getChildren().addAll(accent, badge, text);
         } else {
             row.getChildren().addAll(accent, text);
@@ -355,9 +416,10 @@ final class StyledLogView extends VBox {
     }
 
     private VBox createStageCard(RunLogEntry entry, RunLogEvent event) {
-        VBox card = new VBox(6.0);
-        card.setPadding(new Insets(9.0, 10.0, 10.0, 10.0));
-        card.setStyle(cardStyle(entry.severity()));
+        VBox card = new VBox(LOG_TIGHT_GAP + LauncherGeometryTokens.SURFACE_BORDER_WIDTH);
+        card.setPadding(logCardPadding());
+        addStyleClass(card, "astra-log-message-card");
+        addStyleClass(card, "astra-log-severity-" + cssToken(entry.severity().name()));
         Label title = new Label(RunLogPresenter.shortDisplayText(entry.text()));
         title.setWrapText(true);
         addStyleClass(title, "astra-log-card-title");
@@ -371,14 +433,14 @@ final class StyledLogView extends VBox {
     }
 
     private VBox createKeyValueCard(RunLogEntry entry) {
-        VBox card = new VBox(5.0);
-        card.setPadding(new Insets(7.0, 9.0, 7.0, 9.0));
+        VBox card = new VBox(LOG_TIGHT_GAP);
+        card.setPadding(logCompactCardPadding());
         addStyleClass(card, "astra-log-key-value-card");
         RunLogMetrics.keyValue(entry).ifPresent(kv -> {
-            HBox row = new HBox(8.0);
+            HBox row = new HBox(LOG_ROW_GAP);
             row.setAlignment(Pos.BASELINE_LEFT);
             Label key = new Label(kv.key());
-            key.setMinWidth(118.0);
+            key.setMinWidth(LOG_KEY_VALUE_WIDTH);
             addStyleClass(key, "astra-log-key");
             Label value = new Label(RunLogPresenter.shortDisplayText(kv.value()));
             value.setWrapText(true);
@@ -395,9 +457,10 @@ final class StyledLogView extends VBox {
     }
 
     private VBox createRenderedBlockCard(RunLogRenderedBlock block) {
-        VBox card = new VBox(6.0);
-        card.setPadding(new Insets(10.0, 11.0, 11.0, 11.0));
-        card.setStyle(cardStyle(block.severity()));
+        VBox card = new VBox(LOG_TIGHT_GAP + LauncherGeometryTokens.SURFACE_BORDER_WIDTH);
+        card.setPadding(logEmphasisCardPadding());
+        addStyleClass(card, "astra-log-message-card");
+        addStyleClass(card, "astra-log-severity-" + cssToken(block.severity().name()));
         Label title = new Label(RunLogPresenter.shortDisplayText(block.title()));
         title.setWrapText(true);
         addStyleClass(title, "astra-log-card-title");
@@ -419,10 +482,10 @@ final class StyledLogView extends VBox {
     }
 
     private HBox createKeyValueRow(RunLogKeyValue kv) {
-        HBox row = new HBox(8.0);
+        HBox row = new HBox(LOG_ROW_GAP);
         row.setAlignment(Pos.BASELINE_LEFT);
         Label key = new Label(kv.key());
-        key.setMinWidth(132.0);
+        key.setMinWidth(LOG_COMMAND_KEY_WIDTH);
         addStyleClass(key, "astra-log-key");
         Label value = new Label(RunLogPresenter.shortDisplayText(kv.value()));
         value.setWrapText(true);
@@ -433,8 +496,8 @@ final class StyledLogView extends VBox {
     }
 
     private VBox createCommandBlock(RunLogEntry entry) {
-        VBox card = new VBox(5.0);
-        card.setPadding(new Insets(8.0, 9.0, 9.0, 9.0));
+        VBox card = new VBox(LOG_TIGHT_GAP);
+        card.setPadding(logCardPadding());
         addStyleClass(card, "astra-log-command-card");
         Label title = new Label("Command");
         addStyleClass(title, "astra-log-command-title");
@@ -446,7 +509,7 @@ final class StyledLogView extends VBox {
     }
 
     private HBox badgeRow(Map<String, String> badges) {
-        HBox row = new HBox(5.0);
+        HBox row = new HBox(LOG_TIGHT_GAP);
         row.setAlignment(Pos.CENTER_LEFT);
         if (badges == null) {
             return row;
@@ -464,30 +527,27 @@ final class StyledLogView extends VBox {
     private void renderTimeline() {
         statusTitle.setText(timeline.statusTitle());
         statusDetail.setText(timeline.statusDetail(progressTracker.detail()));
-        warningsChip.setText("Warnings " + timeline.warningCount());
-        errorsChip.setText("Errors " + timeline.errorCount());
-        warningsChip.setVisible(timeline.warningCount() > 0);
-        warningsChip.setManaged(timeline.warningCount() > 0);
-        errorsChip.setVisible(timeline.errorCount() > 0);
-        errorsChip.setManaged(timeline.errorCount() > 0);
         timelineRail.getChildren().clear();
         for (RunTimelineStep step : timeline.steps()) {
+            if (step.state() == RunTimelineState.WARNING) {
+                continue;
+            }
             timelineRail.getChildren().add(timelineNode(step));
         }
     }
 
     private HBox timelineNode(RunTimelineStep step) {
-        HBox node = new HBox(4.0);
+        HBox node = new HBox(LOG_GROUP_BODY_GAP);
         node.setAlignment(Pos.CENTER_LEFT);
         Region dot = new Region();
-        dot.setMinSize(8.0, 8.0);
-        dot.setPrefSize(8.0, 8.0);
-        dot.setMaxSize(8.0, 8.0);
+        dot.setMinSize(LOG_DOT_SIZE, LOG_DOT_SIZE);
+        dot.setPrefSize(LOG_DOT_SIZE, LOG_DOT_SIZE);
+        dot.setMaxSize(LOG_DOT_SIZE, LOG_DOT_SIZE);
         addStyleClass(dot, "astra-log-timeline-dot");
-        dot.setStyle("-fx-background-color: " + timelineColor(step.state()) + ";");
+        addStyleClass(dot, "astra-log-timeline-" + cssToken(step.state().name()));
         Label label = new Label(step.label());
         addStyleClass(label, "astra-log-timeline-label");
-        label.setStyle("-fx-text-fill: " + timelineTextColor(step.state()) + ";");
+        addStyleClass(label, "astra-log-timeline-" + cssToken(step.state().name()));
         node.getChildren().addAll(dot, label);
         if (!step.durationLabel().isBlank() && step.state() != RunTimelineState.PENDING) {
             Label duration = new Label(step.durationLabel());
@@ -530,10 +590,10 @@ final class StyledLogView extends VBox {
     }
 
     private HBox createAdviceRow(String labelText, String valueText) {
-        HBox row = new HBox(8.0);
+        HBox row = new HBox(LOG_ROW_GAP);
         row.setAlignment(Pos.BASELINE_LEFT);
         Label label = new Label(labelText);
-        label.setMinWidth(86.0);
+        label.setMinWidth(LOG_ADVICE_LABEL_WIDTH);
         addStyleClass(label, "astra-log-advice-label");
         Label value = new Label(RunLogPresenter.shortDisplayText(valueText));
         value.setWrapText(true);
@@ -562,128 +622,9 @@ final class StyledLogView extends VBox {
                 || severity == RunLogSeverity.CANCELLED;
     }
 
-    private static void styleCountChip(Button chip, RunLogSeverity severity) {
-        chip.setFocusTraversable(false);
-        addStyleClass(chip, "astra-log-count-chip");
-        addStyleClass(chip, "astra-log-count-chip-" + cssToken(severity.name()));
-    }
-
-    private static String lineTextStyle(RunLogEntry entry) {
-        String color = switch (entry.severity()) {
-            case ERROR -> "#ffd3cb";
-            case WARNING -> "#ffe0a3";
-            case SUCCESS -> "#c5f2d2";
-            case CANCELLED -> "#ffe8b8";
-            case DEBUG -> "#9fb3bd";
-            default -> "#dcebed";
-        };
-        String weight = entry.kind() == RunLogKind.SEPARATOR ? "800" : "500";
-        String opacity = entry.kind() == RunLogKind.SEPARATOR ? "0.72" : "1.0";
-        return "-fx-font-family: " + MONO_FONT_STACK + "; -fx-font-size: 11.5px; -fx-font-weight: " + weight
-                + "; -fx-text-fill: " + color + "; -fx-opacity: " + opacity + ";";
-    }
-
-    private static String sourceTabStyle(RunLogSource source) {
-        return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 10.5px; -fx-font-weight: 900;"
-                + " -fx-text-fill: #061720; -fx-padding: 3 9 3 9;"
-                + " -fx-background-color: " + sourceAccent(source) + ";"
-                + " -fx-background-radius: 5 5 0 0;"
-                + " -fx-border-color: " + sourceBorder(source) + ";"
-                + " -fx-border-radius: 5 5 0 0;";
-    }
-
-    private static String sourceBlockStyle(RunLogSource source) {
-        return "-fx-background-color: " + sourceBackground(source) + ";"
-                + " -fx-border-color: " + sourceBorder(source) + ";"
-                + " -fx-border-radius: 6; -fx-background-radius: 6;";
-    }
-
-    private static String severityBadgeStyle(RunLogSeverity severity) {
-        return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 9.5px; -fx-font-weight: 900;"
-                + " -fx-text-fill: #061720; -fx-padding: 2 5 2 5;"
-                + " -fx-background-color: " + severityAccent(severity) + ";"
-                + " -fx-background-radius: 4;";
-    }
-
-    private static String severityAccent(RunLogSeverity severity) {
-        return switch (severity) {
-            case ERROR -> "#ff8f7f";
-            case WARNING -> "#ffd166";
-            case SUCCESS -> "#8ee6a8";
-            case CANCELLED -> "#f4c56a";
-            case DEBUG -> "#7d92a0";
-            case INFO -> "#6fd6cb";
-            case NEUTRAL -> "#7ca1ad";
-        };
-    }
-
-    private static String cardStyle(RunLogSeverity severity) {
-        String border = switch (severity) {
-            case ERROR -> "#b9675b";
-            case WARNING -> "#a98234";
-            case SUCCESS -> "#4d9a66";
-            case CANCELLED -> "#a98234";
-            default -> "#3b6670";
-        };
-        return "-fx-background-color: #0e2a34; -fx-border-color: " + border + "; -fx-border-radius: 6; -fx-background-radius: 6;";
-    }
-
-    private static String timelineColor(RunTimelineState state) {
-        return switch (state) {
-            case ACTIVE -> "#6fd6cb";
-            case COMPLETE -> "#8ee6a8";
-            case WARNING -> "#ffd166";
-            case ERROR -> "#ff8f7f";
-            case CANCELLED -> "#f4c56a";
-            case PENDING -> "#49636b";
-        };
-    }
-
-    private static String timelineTextColor(RunTimelineState state) {
-        return switch (state) {
-            case ACTIVE, COMPLETE -> "#e7fbf5";
-            case WARNING -> "#ffe0a3";
-            case ERROR -> "#ffd3cb";
-            case CANCELLED -> "#ffe8b8";
-            case PENDING -> "#9eb9bf";
-        };
-    }
-
-    private static String sourceAccent(RunLogSource source) {
-        return switch (source) {
-            case ASTRA -> "#64d7c7";
-            case QUPATH -> "#9fc4ff";
-            case CELLPOSE -> "#c5adff";
-            case PYTHON -> "#f5cf75";
-            case SCRIPT -> "#b9c7cf";
-            case SYSTEM -> "#9ee0b8";
-        };
-    }
-
-    private static String sourceBorder(RunLogSource source) {
-        return switch (source) {
-            case ASTRA -> "#2f8077";
-            case QUPATH -> "#4e6f9d";
-            case CELLPOSE -> "#755fa6";
-            case PYTHON -> "#967234";
-            case SCRIPT -> "#61727b";
-            case SYSTEM -> "#4b8760";
-        };
-    }
-
-    private static String sourceBackground(RunLogSource source) {
-        return switch (source) {
-            case ASTRA -> "#0c2a2d";
-            case QUPATH -> "#0d2235";
-            case CELLPOSE -> "#191f37";
-            case PYTHON -> "#2c2412";
-            case SCRIPT -> "#172630";
-            case SYSTEM -> "#102a1f";
-        };
-    }
-
     private static void styleCopyButton(Button copy, boolean copied) {
         copy.getStyleClass().removeIf(name -> name.startsWith("astra-log-copy-button"));
+        addStyleClass(copy, "astra-button");
         addStyleClass(copy, "astra-log-copy-button");
         if (copied) {
             addStyleClass(copy, "astra-log-copy-button-copied");

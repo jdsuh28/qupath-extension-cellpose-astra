@@ -6,7 +6,7 @@
 .astra-button {
     -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     -fx-font-size: 12px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-padding: 6 12;
     -fx-border-radius: 5;
     -fx-background-radius: 5;
@@ -19,10 +19,11 @@
 }
 
 .astra-button:disabled {
-    -fx-opacity: 0.72;
+    -fx-opacity: 0.88;
 }
 
 .astra-button:hover {
+    -fx-background-insets: 0;
     -fx-effect: dropshadow(gaussian, rgba(10, 47, 56, 0.16), 6, 0.18, 0, 1);
 }
 
@@ -32,30 +33,10 @@
     -fx-border-color: #17696d;
 }
 
-.astra-button-primary:hover {
-    -fx-background-color: #17696d;
-    -fx-effect: dropshadow(gaussian, rgba(10, 47, 56, 0.16), 6, 0.18, 0, 1);
-}
-
-.astra-button-primary:pressed {
-    -fx-background-color: #0b444a;
-    -fx-border-color: #082f34;
-}
-
 .astra-button-secondary {
     -fx-background-color: #f9fcfd;
     -fx-text-fill: #0d4f55;
     -fx-border-color: #b9cdd3;
-}
-
-.astra-button-secondary:hover {
-    -fx-background-color: #ecf4f5;
-    -fx-effect: dropshadow(gaussian, rgba(10, 47, 56, 0.16), 6, 0.18, 0, 1);
-}
-
-.astra-button-secondary:pressed {
-    -fx-background-color: #d7e5e8;
-    -fx-border-color: #91adb6;
 }
 
 .astra-button-header {
@@ -65,54 +46,27 @@
     -fx-font-size: 11px;
 }
 
-.astra-button-header:hover {
-    -fx-background-color: rgba(255, 255, 255, 0.98);
-    -fx-effect: dropshadow(gaussian, rgba(10, 47, 56, 0.18), 6, 0.18, 0, 1);
-}
-
-.astra-button-header:pressed {
-    -fx-background-color: rgba(230, 240, 242, 0.86);
-}
-
-.menu-button.astra-header-menu-button,
-.menu-button.astra-header-menu-button:showing {
+.button.astra-header-menu-button {
     -fx-background-color: rgba(255, 255, 255, 0.94);
     -fx-text-fill: #0d4f55;
     -fx-border-color: rgba(255, 255, 255, 0.95);
 }
 
-.menu-button.astra-header-menu-button:hover {
-    -fx-background-color: #ffffff;
-    -fx-effect: dropshadow(gaussian, rgba(10, 47, 56, 0.16), 6, 0.18, 0, 1);
-}
-
-.menu-button.astra-header-menu-button:pressed,
-.menu-button.astra-header-menu-button:showing {
-    -fx-background-color: #e9f3f4;
-    -fx-border-color: #bfe2e4;
-}
-
-.menu-button.astra-header-menu-button:disabled {
+.button.astra-header-menu-button:disabled {
     -fx-opacity: 0.84;
 }
 
-.menu-button.astra-header-menu-button .label {
+.button.astra-header-menu-button .text,
+.astra-header-menu-label,
+.astra-header-menu-chevron {
     -fx-text-fill: #0d4f55;
     -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-    -fx-font-size: 11px;
-    -fx-font-weight: 900;
+    -fx-font-size: 12.5px;
+    -fx-font-weight: bold;
 }
 
-.menu-button.astra-header-menu-button:disabled .label {
+.button.astra-header-menu-button:disabled .text {
     -fx-text-fill: #49656d;
-}
-
-.menu-button.astra-header-menu-button .arrow {
-    -fx-background-color: #0d4f55;
-}
-
-.menu-button.astra-header-menu-button:disabled .arrow {
-    -fx-background-color: #49656d;
 }
 
 .astra-button-danger {
@@ -122,14 +76,6 @@
     -fx-font-size: 11px;
 }
 
-.astra-button-danger:hover {
-    -fx-background-color: #ffddd5;
-}
-
-.astra-button-danger:pressed {
-    -fx-background-color: #ffc9bd;
-}
-
 .astra-button-success {
     -fx-background-color: #ecf9f1;
     -fx-text-fill: #17623b;
@@ -137,27 +83,11 @@
     -fx-font-size: 11px;
 }
 
-.astra-button-success:hover {
-    -fx-background-color: #dff4e8;
-}
-
-.astra-button-success:pressed {
-    -fx-background-color: #bfe6d0;
-}
-
 .astra-button-small {
     -fx-background-color: #e6f0f2;
     -fx-text-fill: #0d4f55;
     -fx-border-color: #b5cbd2;
     -fx-font-size: 11px;
-}
-
-.astra-button-small:hover {
-    -fx-background-color: #eef6f7;
-}
-
-.astra-button-small:pressed {
-    -fx-background-color: #d1e3e7;
 }
 
 .astra-button-help {
@@ -170,27 +100,17 @@
     -fx-padding: 0;
 }
 
-.astra-button-help:hover {
-    -fx-background-color: #17696d;
-}
-
-.astra-button-help:pressed {
-    -fx-background-color: #0b444a;
-    -fx-border-color: #082f34;
-}
-
 .astra-settings-card {
     -fx-background-color: #ffffff;
     -fx-border-color: #c8dce1;
     -fx-border-radius: 7;
     -fx-background-radius: 7;
-    -fx-padding: 12;
-    -fx-alignment: top-left;
+    -fx-alignment: center-left;
     -fx-cursor: hand;
 }
 
 .astra-settings-card:hover {
-    -fx-background-color: #f7fbfc;
+    -fx-background-color: #ffffff;
     -fx-border-color: #7fa3ad;
     -fx-effect: dropshadow(gaussian, rgba(10, 47, 56, 0.14), 9, 0.18, 0, 2);
 }
@@ -207,20 +127,20 @@
 
 .astra-settings-card-title {
     -fx-font-size: 14px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #172431;
 }
 
 .astra-settings-card-description {
     -fx-font-size: 11.5px;
-    -fx-font-weight: 700;
+    -fx-font-weight: bold;
     -fx-text-fill: #5f7080;
 }
 
 .astra-badge,
 .astra-badge-advanced {
     -fx-font-size: 10.5px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-padding: 3 8;
     -fx-border-radius: 11;
     -fx-background-radius: 11;
@@ -240,20 +160,20 @@
 
 .astra-header-title {
     -fx-font-size: 28px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: white;
 }
 
 .astra-header-subtitle {
     -fx-font-size: 13.5px;
-    -fx-font-weight: 650;
+    -fx-font-weight: bold;
     -fx-text-fill: #dcefee;
     -fx-line-spacing: 2;
 }
 
 .astra-workflow-chip {
     -fx-font-size: 12px;
-    -fx-font-weight: 800;
+    -fx-font-weight: bold;
     -fx-padding: 7 12;
     -fx-background-radius: 16;
     -fx-border-radius: 16;
@@ -273,21 +193,52 @@
 
 .astra-workflow-arrow {
     -fx-font-size: 14px;
-    -fx-font-weight: 800;
+    -fx-font-weight: bold;
     -fx-text-fill: #d9e7e8;
+}
+
+.astra-header-action-rail {
+    -fx-alignment: top-left;
+}
+
+.astra-header-action-rail-tab {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #d8ecee;
+    -fx-padding: 1 8 1 8;
+    -fx-background-color: rgba(255, 255, 255, 0.16);
+    -fx-border-color: rgba(255, 255, 255, 0.26);
+    -fx-background-radius: 8 8 0 0;
+    -fx-border-radius: 8 8 0 0;
 }
 
 .astra-header-actions {
     -fx-padding: 7 8;
     -fx-background-color: rgba(255, 255, 255, 0.14);
     -fx-border-color: rgba(255, 255, 255, 0.24);
-    -fx-background-radius: 10;
-    -fx-border-radius: 10;
+    -fx-background-radius: 0 8 8 8;
+    -fx-border-radius: 0 8 8 8;
 }
 
 .astra-header-menu-button {
-    -fx-min-width: 92px;
+    -fx-min-width: 82px;
     -fx-alignment: center;
+    -fx-padding: 7 11;
+}
+
+.astra-header-menu-graphic {
+    -fx-alignment: center;
+}
+
+.astra-chevron {
+    -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -fx-font-weight: bold;
+    -fx-text-fill: inherit;
+}
+
+.astra-header-menu-chevron {
+    -fx-font-size: 13px;
+    -fx-translate-y: -1px;
 }
 
 .astra-header-menu-button-settings {
@@ -304,17 +255,17 @@
 
 .astra-header-menu-item-danger .label {
     -fx-text-fill: #7c2417;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
 }
 
 .astra-header-menu-item-success .label {
     -fx-text-fill: #17623b;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
 }
 
 .astra-header-menu-item-default .label {
     -fx-text-fill: #172431;
-    -fx-font-weight: 850;
+    -fx-font-weight: bold;
 }
 
 .astra-header-options-panel {
@@ -322,27 +273,33 @@
     -fx-background-radius: 7;
     -fx-border-color: #bfd3d8;
     -fx-border-radius: 7;
+    -fx-padding: 1;
+}
+
+.astra-header-options-group {
+    -fx-background-color: #f7fbfc;
+    -fx-background-radius: 6;
+    -fx-border-color: #d2e3e7;
+    -fx-border-radius: 6;
 }
 
 .astra-header-options-label {
     -fx-font-size: 11px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #314955;
 }
 
 .astra-header-segment-button {
     -fx-font-size: 11px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-background-color: #edf4f5;
     -fx-text-fill: #0d4f55;
     -fx-border-color: #bfd3d8;
     -fx-border-radius: 4;
     -fx-background-radius: 4;
     -fx-cursor: hand;
-}
-
-.astra-header-segment-button:hover {
-    -fx-background-color: #e1eef0;
+    -fx-min-width: 76px;
+    -fx-pref-width: 76px;
 }
 
 .astra-header-segment-button-selected,
@@ -359,10 +316,6 @@
     -fx-effect: innershadow(gaussian, rgba(0, 0, 0, 0.18), 4, 0.2, 0, 1);
 }
 
-.astra-button-toggle-active:hover {
-    -fx-background-color: #0a696c;
-}
-
 .astra-section-shell {
     -fx-background-color: #ffffff;
     -fx-border-color: #cfdce1;
@@ -372,30 +325,38 @@
 }
 
 .astra-section-content {
-    -fx-background-color: #f9fcfd;
-    -fx-border-color: #d7e2e6;
+    -fx-background-color: linear-gradient(to bottom, #f8fbfc, #ffffff);
+    -fx-border-color: #bed3da;
     -fx-border-radius: 0 0 6 6;
     -fx-background-radius: 0 0 6 6;
+    -fx-effect: innershadow(gaussian, rgba(13, 79, 85, 0.045), 7, 0.14, 0, 1);
+}
+
+.astra-section-content-focused {
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
 }
 
 .astra-section-title {
     -fx-font-size: 18px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #172431;
 }
 
 .astra-section-subtitle {
     -fx-font-size: 12.5px;
-    -fx-font-weight: 650;
+    -fx-font-weight: bold;
     -fx-text-fill: #5f7080;
     -fx-line-spacing: 2;
 }
 
 .astra-card-dashboard {
     -fx-padding: 2 6 2 6;
-    -fx-alignment: top-center;
-    -fx-pref-tile-width: 252px;
-    -fx-pref-columns: 3;
+}
+
+.astra-card-dashboard-frame {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
 }
 
 .astra-settings-view-toggle {
@@ -408,25 +369,53 @@
 
 .astra-importance-legend-title {
     -fx-font-size: 11px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #5f7080;
     -fx-padding: 3 4 3 0;
 }
 
 .astra-focused-section-title {
     -fx-font-size: 16px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #172431;
 }
 
 .astra-focused-section-description {
     -fx-font-size: 11.5px;
-    -fx-font-weight: 650;
+    -fx-font-weight: bold;
     -fx-text-fill: #5f7080;
 }
 
 .astra-focused-section-header {
-    -fx-padding: 2 0 4 0;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(23, 36, 49, 0.07), 8, 0.20, 0, 2);
+}
+
+.astra-focused-section-theme-teal {
+    -fx-background-color: linear-gradient(to right, #f3fbfa, #ffffff);
+    -fx-border-color: #8dc7c3;
+}
+
+.astra-focused-section-theme-bluegray {
+    -fx-background-color: linear-gradient(to right, #f5f8fa, #ffffff);
+    -fx-border-color: #aebfc7;
+}
+
+.astra-focused-section-theme-sage {
+    -fx-background-color: linear-gradient(to right, #f5fbf4, #ffffff);
+    -fx-border-color: #a9c9a4;
+}
+
+.astra-focused-section-theme-amber {
+    -fx-background-color: linear-gradient(to right, #fffaf0, #ffffff);
+    -fx-border-color: #e4be65;
+}
+
+.astra-focused-section-theme-gold {
+    -fx-background-color: linear-gradient(to right, #fff8dc, #ffffff);
+    -fx-border-color: #d4a72c;
 }
 
 .astra-semantic-card {
@@ -438,7 +427,7 @@
 
 .astra-semantic-card-title {
     -fx-font-size: 14px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #0d4f55;
 }
 
@@ -456,19 +445,19 @@
 
 .astra-model-source-title {
     -fx-font-size: 13px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #172431;
 }
 
 .astra-form-label {
     -fx-font-size: 12px;
-    -fx-font-weight: 800;
+    -fx-font-weight: bold;
     -fx-text-fill: #172431;
 }
 
 .astra-nested-label {
     -fx-font-size: 10.5px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #172431;
 }
 
@@ -556,8 +545,23 @@
     -fx-background-color: #f4f7f8;
 }
 
+.astra-main-action-bar {
+    -fx-background-color: #f4f7f8;
+}
+
+.astra-launcher-dialog-pane .button-bar {
+    -fx-min-height: 0;
+    -fx-pref-height: 0;
+    -fx-max-height: 0;
+    -fx-padding: 0;
+}
+
+.astra-launcher-dialog-pane .button-bar .container {
+    -fx-padding: 0;
+}
+
 .astra-settings-scroll {
-    -fx-padding: 0 12 0 0;
+    -fx-padding: 0;
     -fx-background: #f4f7f8;
     -fx-background-color: #f4f7f8;
 }
@@ -573,14 +577,38 @@
 
 .scroll-pane .scroll-bar:vertical {
     -fx-background-color: transparent;
-    -fx-padding: 0 3 0 6;
-    -fx-pref-width: 18px;
+}
+
+.astra-settings-scroll .scroll-bar:vertical {
+    -fx-opacity: 1;
+    /* Mirrors PipelineLauncher.LauncherGeometry:
+       gutter = LAYOUT_UNIT, thumb = gutter / 3,
+       side padding = (gutter - thumb) / 2. */
+    -fx-pref-width: 24px;
+    -fx-min-width: 24px;
+    -fx-max-width: 24px;
+    -fx-padding: 0 8 0 8;
+}
+
+.astra-settings-scroll .scroll-bar:vertical:disabled {
+    -fx-opacity: 1;
+}
+
+.astra-settings-scroll .scroll-bar:vertical:disabled .thumb {
+    -fx-opacity: 0;
 }
 
 .scroll-pane .scroll-bar:horizontal {
     -fx-background-color: transparent;
     -fx-padding: 6 0 3 0;
     -fx-pref-height: 18px;
+}
+
+.astra-settings-scroll .scroll-bar:horizontal {
+    -fx-opacity: 0;
+    -fx-pref-height: 0;
+    -fx-max-height: 0;
+    -fx-padding: 0;
 }
 
 .scroll-pane .scroll-bar .thumb {
@@ -604,24 +632,20 @@
 }
 
 .astra-parameter-row {
-    -fx-padding: 3 6;
     -fx-background-radius: 6;
+    -fx-background-color: transparent;
 }
 
 .astra-dependent-panel {
-    -fx-padding: 10 11 11 11;
     -fx-border-radius: 7;
     -fx-background-radius: 7;
     -fx-border-color: rgba(127, 163, 173, 0.42);
+    -fx-border-width: 1;
     -fx-background-color: rgba(255, 255, 255, 0.68);
 }
 
 .astra-dependent-panel-disabled {
-    -fx-opacity: 0.76;
-}
-
-.astra-dependent-panel-rows {
-    -fx-padding: 2 0 0 0;
+    -fx-opacity: 1.0;
 }
 
 .astra-dependent-panel-selected-images,
@@ -668,30 +692,35 @@
 
 .astra-dependent-panel-title {
     -fx-font-size: 12px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #172431;
 }
 
 .astra-dependent-panel-reason {
     -fx-font-size: 11.5px;
-    -fx-font-weight: 650;
-    -fx-text-fill: #5f7080;
+    -fx-font-weight: bold;
+    -fx-text-fill: #41535f;
 }
 
-.astra-collapsible-header {
+.astra-collapsible-header,
+.button.astra-collapsible-header {
     -fx-background-color: #173747;
     -fx-border-color: #173747;
     -fx-background-radius: 6 6 0 0;
     -fx-border-radius: 6 6 0 0;
     -fx-cursor: hand;
+    -fx-background-insets: 0;
+    -fx-opacity: 1.0;
 }
 
-.astra-collapsible-header:hover {
+.astra-collapsible-header:hover,
+.button.astra-collapsible-header:hover {
     -fx-background-color: #1b4253;
     -fx-border-color: #1b4253;
 }
 
-.astra-collapsible-header:pressed {
+.astra-collapsible-header:pressed,
+.button.astra-collapsible-header:pressed {
     -fx-translate-y: 1;
     -fx-background-color: #102e3d;
     -fx-border-color: #102e3d;
@@ -699,28 +728,22 @@
 
 .astra-collapsible-title {
     -fx-font-size: 13px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: white;
 }
 
 .astra-collapsible-arrow {
     -fx-font-size: 13px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #dcebed;
-}
-
-.astra-parameter-row-even {
-    -fx-background-color: rgba(31, 122, 122, 0.035);
-}
-
-.astra-parameter-row-odd {
-    -fx-background-color: transparent;
 }
 
 .astra-parameter-label {
     -fx-font-size: 12px;
-    -fx-font-weight: 850;
+    -fx-font-weight: bold;
     -fx-text-fill: #172431;
+    -fx-fill: #172431;
+    -fx-padding: 0;
 }
 
 .astra-parameter-anchor {
@@ -729,39 +752,39 @@
 }
 
 .astra-parameter-anchor-channel {
-    -fx-fill: #188a88;
+    -fx-fill: linear-gradient(to bottom, #23b5ad, #0d686d);
 }
 
 .astra-parameter-anchor-model {
-    -fx-fill: #6f8795;
+    -fx-fill: linear-gradient(to bottom, #9aafbb, #526b79);
 }
 
 .astra-parameter-anchor-segmentation {
-    -fx-fill: #0d7f80;
+    -fx-fill: linear-gradient(to bottom, #12b0a6, #0b676d);
 }
 
 .astra-parameter-anchor-biological {
-    -fx-fill: #6d9969;
+    -fx-fill: linear-gradient(to bottom, #94be8e, #597f56);
 }
 
 .astra-parameter-anchor-threshold {
-    -fx-fill: #c9902f;
+    -fx-fill: linear-gradient(to bottom, #e2b04e, #a9731d);
 }
 
 .astra-parameter-anchor-runtime {
-    -fx-fill: #587888;
+    -fx-fill: linear-gradient(to bottom, #7898a7, #4d6d7b);
 }
 
 .astra-parameter-anchor-export {
-    -fx-fill: #566a78;
+    -fx-fill: linear-gradient(to bottom, #7c8c97, #4d5f6d);
 }
 
 .astra-parameter-anchor-diagnostic {
-    -fx-fill: #b07a20;
+    -fx-fill: linear-gradient(to bottom, #d29a35, #8a5f15);
 }
 
 .astra-parameter-anchor-setting {
-    -fx-fill: #a8b5bc;
+    -fx-fill: linear-gradient(to bottom, #c4ced3, #899aa4);
 }
 
 .astra-input,
@@ -799,7 +822,7 @@
 }
 
 .combo-box-base.astra-combo:disabled {
-    -fx-opacity: 0.76;
+    -fx-opacity: 1.0;
 }
 
 .combo-box-base.astra-combo:disabled .list-cell,
@@ -832,7 +855,6 @@
     -fx-font-size: 12px;
     -fx-text-fill: #172431;
     -fx-background-color: #ffffff;
-    -fx-padding: 7 10;
 }
 
 .combo-box-popup .list-cell:filled:hover,
@@ -859,6 +881,18 @@
     -fx-padding: 5;
 }
 
+.context-menu.astra-header-context-menu {
+    -fx-min-width: 390px;
+    -fx-pref-width: 390px;
+}
+
+.astra-header-context-menu .menu-item,
+.astra-header-context-menu .custom-menu-item {
+    -fx-min-width: 374px;
+    -fx-pref-width: 374px;
+    -fx-padding: 5 7;
+}
+
 .menu-item,
 .custom-menu-item {
     -fx-background-color: #ffffff;
@@ -869,6 +903,11 @@
     -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     -fx-font-size: 12px;
     -fx-text-fill: #172431;
+}
+
+.astra-header-context-menu .menu-item .label,
+.astra-header-context-menu .custom-menu-item .label {
+    -fx-font-size: 12.5px;
 }
 
 .menu-item:focused,
@@ -896,8 +935,19 @@
     -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 }
 
+.astra-help-title {
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #172431;
+}
+
+.astra-help-subtitle {
+    -fx-font-size: 11.5px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #5f7080;
+}
+
 .astra-help-summary-grid {
-    -fx-padding: 10;
     -fx-background-color: #ffffff;
     -fx-border-color: #c8dce1;
     -fx-border-radius: 6;
@@ -906,7 +956,7 @@
 
 .astra-help-summary-label {
     -fx-font-size: 11px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #415866;
 }
 
@@ -918,7 +968,7 @@
 
 .astra-help-section-title {
     -fx-font-size: 12px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #0d4f55;
 }
 
@@ -927,25 +977,61 @@
     -fx-text-fill: #172431;
 }
 
-.astra-help-details {
+.astra-help-details-shell {
+    -fx-background-color: #f7fbfc;
+    -fx-border-color: #7fa3ad;
+    -fx-border-radius: 7;
+    -fx-background-radius: 7;
+    -fx-effect: dropshadow(gaussian, rgba(10, 47, 56, 0.08), 8, 0.16, 0, 1);
+}
+
+.astra-help-details-accent {
+    -fx-background-color: linear-gradient(to bottom, #16a39c, #0d4f55);
+    -fx-background-radius: 7 0 0 7;
+}
+
+.astra-help-details-scroll {
+    -fx-background-color: #f7fbfc;
+    -fx-background: #f7fbfc;
+    -fx-padding: 0;
+}
+
+.astra-help-details-scroll > .viewport {
+    -fx-background-color: #f7fbfc;
+}
+
+.astra-help-details-cards {
+    -fx-background-color: #f7fbfc;
+}
+
+.astra-help-detail-card {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #d2e3e7;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+}
+
+.astra-help-detail-card-title {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #0d4f55;
+}
+
+.astra-help-detail-card-body {
     -fx-font-size: 12px;
     -fx-text-fill: #172431;
-    -fx-control-inner-background: #fbfdfe;
-    -fx-background-color: #fbfdfe;
-    -fx-border-color: #7fa3ad;
-    -fx-border-radius: 5;
-    -fx-background-radius: 5;
+    -fx-line-spacing: 2;
 }
 
 .astra-dialog-body {
     -fx-font-size: 12px;
-    -fx-font-weight: 650;
+    -fx-font-weight: bold;
     -fx-text-fill: #172431;
 }
 
 .astra-dialog-muted {
     -fx-font-size: 11px;
-    -fx-font-weight: 650;
+    -fx-font-weight: bold;
     -fx-text-fill: #415866;
 }
 
@@ -956,7 +1042,7 @@
 
 .astra-dialog-section-title {
     -fx-font-size: 12px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #172431;
 }
 
@@ -969,7 +1055,7 @@
 
 .astra-channel-panel-title {
     -fx-font-size: 14px;
-    -fx-font-weight: 800;
+    -fx-font-weight: bold;
     -fx-text-fill: #6f5200;
 }
 
@@ -991,7 +1077,7 @@
 
 .astra-channel-chip-name {
     -fx-font-size: 12px;
-    -fx-font-weight: 800;
+    -fx-font-weight: bold;
     -fx-text-fill: #24323a;
 }
 
@@ -1006,6 +1092,18 @@
 .astra-dialog-pane .content,
 .astra-dialog-pane .header-panel {
     -fx-background-color: #f4f7f8;
+}
+
+.dialog-pane .header-panel .label,
+.astra-dialog-pane .header-panel .label {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #172431;
+}
+
+.dialog-pane .content.label,
+.astra-dialog-pane .content.label {
+    -fx-text-fill: #172431;
 }
 
 .check-box.astra-checkbox {
@@ -1027,22 +1125,12 @@
 .astra-dialog-pane .button {
     -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     -fx-font-size: 12px;
-    -fx-font-weight: 850;
+    -fx-font-weight: bold;
     -fx-background-color: #f9fcfd;
     -fx-text-fill: #0d4f55;
     -fx-border-color: #b9cdd3;
     -fx-border-radius: 5;
     -fx-background-radius: 5;
-}
-
-.astra-dialog-pane .button:hover {
-    -fx-background-color: #ecf4f5;
-    -fx-effect: dropshadow(gaussian, rgba(10, 47, 56, 0.16), 6, 0.18, 0, 1);
-}
-
-.astra-dialog-pane .button:pressed {
-    -fx-translate-y: 1;
-    -fx-background-color: #d7e5e8;
 }
 
 .astra-output-pane {
@@ -1066,7 +1154,7 @@
 
 .astra-output-status {
     -fx-font-size: 13px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: white;
 }
 
@@ -1087,7 +1175,6 @@
     -fx-border-color: #355b69;
     -fx-border-radius: 6;
     -fx-background-radius: 6;
-    -fx-padding: 8;
 }
 
 .astra-log-status-card {
@@ -1099,14 +1186,88 @@
 
 .astra-log-status-title {
     -fx-font-size: 12.5px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #ecfbf7;
 }
 
 .astra-log-status-detail {
     -fx-font-size: 11px;
-    -fx-font-weight: 700;
+    -fx-font-weight: bold;
     -fx-text-fill: #a9c8ce;
+}
+
+.astra-log-source-tab {
+    -fx-font-size: 10.5px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #061720;
+    -fx-padding: 3 9 3 9;
+    -fx-background-radius: 5 5 0 0;
+    -fx-border-radius: 5 5 0 0;
+}
+
+.astra-log-source-block {
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+.astra-log-source-astra.astra-log-source-tab {
+    -fx-background-color: #64d7c7;
+    -fx-border-color: #2f8077;
+}
+
+.astra-log-source-astra.astra-log-source-block {
+    -fx-background-color: #0c2a2d;
+    -fx-border-color: #2f8077;
+}
+
+.astra-log-source-qupath.astra-log-source-tab {
+    -fx-background-color: #9fc4ff;
+    -fx-border-color: #4e6f9d;
+}
+
+.astra-log-source-qupath.astra-log-source-block {
+    -fx-background-color: #0d2235;
+    -fx-border-color: #4e6f9d;
+}
+
+.astra-log-source-cellpose.astra-log-source-tab {
+    -fx-background-color: #c5adff;
+    -fx-border-color: #755fa6;
+}
+
+.astra-log-source-cellpose.astra-log-source-block {
+    -fx-background-color: #191f37;
+    -fx-border-color: #755fa6;
+}
+
+.astra-log-source-python.astra-log-source-tab {
+    -fx-background-color: #f5cf75;
+    -fx-border-color: #967234;
+}
+
+.astra-log-source-python.astra-log-source-block {
+    -fx-background-color: #2c2412;
+    -fx-border-color: #967234;
+}
+
+.astra-log-source-script.astra-log-source-tab {
+    -fx-background-color: #b9c7cf;
+    -fx-border-color: #61727b;
+}
+
+.astra-log-source-script.astra-log-source-block {
+    -fx-background-color: #172630;
+    -fx-border-color: #61727b;
+}
+
+.astra-log-source-system.astra-log-source-tab {
+    -fx-background-color: #9ee0b8;
+    -fx-border-color: #4b8760;
+}
+
+.astra-log-source-system.astra-log-source-block {
+    -fx-background-color: #102a1f;
+    -fx-border-color: #4b8760;
 }
 
 .astra-log-failure-summary {
@@ -1122,10 +1283,9 @@
 }
 
 .astra-log-copy-button,
-.astra-log-disclosure-button,
-.astra-log-count-chip {
+.astra-log-disclosure-button {
     -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-cursor: hand;
 }
 
@@ -1136,17 +1296,6 @@
     -fx-border-color: #4d7583;
     -fx-border-radius: 4;
     -fx-background-radius: 4;
-}
-
-.astra-log-copy-button:hover,
-.astra-log-disclosure-button:hover {
-    -fx-effect: dropshadow(gaussian, rgba(111, 214, 203, 0.16), 6, 0.18, 0, 1);
-}
-
-.astra-log-copy-button:pressed,
-.astra-log-disclosure-button:pressed {
-    -fx-translate-y: 1;
-    -fx-effect: innershadow(gaussian, rgba(0, 0, 0, 0.22), 4, 0.2, 0, 1);
 }
 
 .astra-log-copy-button-copied {
@@ -1164,32 +1313,16 @@
     -fx-background-radius: 4;
 }
 
-.astra-log-count-chip {
-    -fx-font-size: 9.5px;
-    -fx-text-fill: #061720;
-    -fx-padding: 2 7 2 7;
-    -fx-border-color: transparent;
-    -fx-background-radius: 999;
-}
-
-.astra-log-count-chip-warning {
-    -fx-background-color: #ffd166;
-}
-
-.astra-log-count-chip-error {
-    -fx-background-color: #ff8f7f;
-}
-
 .astra-log-card-title {
     -fx-font-size: 12px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #eefaf6;
 }
 
 .astra-log-card-subtitle {
     -fx-font-family: "JetBrains Mono", "SF Mono", Consolas, monospace;
     -fx-font-size: 10.8px;
-    -fx-font-weight: 600;
+    -fx-font-weight: bold;
     -fx-text-fill: #bcd3d8;
 }
 
@@ -1202,14 +1335,14 @@
 
 .astra-log-key {
     -fx-font-size: 10.5px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #8fb8c0;
 }
 
 .astra-log-value {
     -fx-font-family: "JetBrains Mono", "SF Mono", Consolas, monospace;
     -fx-font-size: 11px;
-    -fx-font-weight: 600;
+    -fx-font-weight: bold;
     -fx-text-fill: #dcebed;
 }
 
@@ -1222,20 +1355,124 @@
 
 .astra-log-command-title {
     -fx-font-size: 10.5px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #b9c7cf;
 }
 
 .astra-log-command-text {
     -fx-font-family: "JetBrains Mono", "SF Mono", Consolas, monospace;
     -fx-font-size: 11px;
-    -fx-font-weight: 600;
+    -fx-font-weight: bold;
     -fx-text-fill: #e6edf2;
+}
+
+.astra-log-line-accent {
+    -fx-background-radius: 4;
+}
+
+.astra-log-line-text {
+    -fx-font-family: "JetBrains Mono", "SF Mono", Consolas, monospace;
+    -fx-font-size: 11.5px;
+    -fx-font-weight: normal;
+    -fx-text-fill: #dcebed;
+}
+
+.astra-log-line-separator {
+    -fx-font-weight: bold;
+    -fx-opacity: 0.72;
+}
+
+.astra-log-severity-badge {
+    -fx-font-size: 9.5px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #061720;
+    -fx-padding: 2 5 2 5;
+    -fx-background-radius: 4;
+}
+
+.astra-log-message-card {
+    -fx-background-color: #0e2a34;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+.astra-log-severity-error.astra-log-line-accent,
+.astra-log-severity-error.astra-log-severity-badge {
+    -fx-background-color: #ff8f7f;
+}
+
+.astra-log-severity-warning.astra-log-line-accent,
+.astra-log-severity-warning.astra-log-severity-badge {
+    -fx-background-color: #ffd166;
+}
+
+.astra-log-severity-success.astra-log-line-accent,
+.astra-log-severity-success.astra-log-severity-badge {
+    -fx-background-color: #8ee6a8;
+}
+
+.astra-log-severity-cancelled.astra-log-line-accent,
+.astra-log-severity-cancelled.astra-log-severity-badge {
+    -fx-background-color: #f4c56a;
+}
+
+.astra-log-severity-debug.astra-log-line-accent,
+.astra-log-severity-debug.astra-log-severity-badge {
+    -fx-background-color: #7d92a0;
+}
+
+.astra-log-severity-info.astra-log-line-accent,
+.astra-log-severity-info.astra-log-severity-badge {
+    -fx-background-color: #6fd6cb;
+}
+
+.astra-log-severity-neutral.astra-log-line-accent,
+.astra-log-severity-neutral.astra-log-severity-badge {
+    -fx-background-color: #7ca1ad;
+}
+
+.astra-log-severity-error.astra-log-line-text {
+    -fx-text-fill: #ffd3cb;
+}
+
+.astra-log-severity-warning.astra-log-line-text {
+    -fx-text-fill: #ffe0a3;
+}
+
+.astra-log-severity-success.astra-log-line-text {
+    -fx-text-fill: #c5f2d2;
+}
+
+.astra-log-severity-cancelled.astra-log-line-text {
+    -fx-text-fill: #ffe8b8;
+}
+
+.astra-log-severity-debug.astra-log-line-text {
+    -fx-text-fill: #9fb3bd;
+}
+
+.astra-log-severity-error.astra-log-message-card {
+    -fx-border-color: #b9675b;
+}
+
+.astra-log-severity-warning.astra-log-message-card,
+.astra-log-severity-cancelled.astra-log-message-card {
+    -fx-border-color: #a98234;
+}
+
+.astra-log-severity-success.astra-log-message-card {
+    -fx-border-color: #4d9a66;
+}
+
+.astra-log-severity-info.astra-log-message-card,
+.astra-log-severity-neutral.astra-log-message-card,
+.astra-log-severity-debug.astra-log-message-card {
+    -fx-border-color: #3b6670;
 }
 
 .astra-log-metric-badge {
     -fx-font-size: 9.5px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #06202b;
     -fx-background-color: #b9efe6;
     -fx-background-radius: 999;
@@ -1248,37 +1485,79 @@
 
 .astra-log-timeline-label {
     -fx-font-size: 10px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
+    -fx-text-fill: #9eb9bf;
+}
+
+.astra-log-timeline-active.astra-log-timeline-dot {
+    -fx-background-color: #6fd6cb;
+}
+
+.astra-log-timeline-complete.astra-log-timeline-dot {
+    -fx-background-color: #8ee6a8;
+}
+
+.astra-log-timeline-warning.astra-log-timeline-dot {
+    -fx-background-color: #ffd166;
+}
+
+.astra-log-timeline-error.astra-log-timeline-dot {
+    -fx-background-color: #ff8f7f;
+}
+
+.astra-log-timeline-cancelled.astra-log-timeline-dot {
+    -fx-background-color: #f4c56a;
+}
+
+.astra-log-timeline-pending.astra-log-timeline-dot {
+    -fx-background-color: #49636b;
+}
+
+.astra-log-timeline-active.astra-log-timeline-label,
+.astra-log-timeline-complete.astra-log-timeline-label {
+    -fx-text-fill: #e7fbf5;
+}
+
+.astra-log-timeline-warning.astra-log-timeline-label {
+    -fx-text-fill: #ffe0a3;
+}
+
+.astra-log-timeline-error.astra-log-timeline-label {
+    -fx-text-fill: #ffd3cb;
+}
+
+.astra-log-timeline-cancelled.astra-log-timeline-label {
+    -fx-text-fill: #ffe8b8;
 }
 
 .astra-log-timeline-duration {
     -fx-font-size: 9px;
-    -fx-font-weight: 800;
+    -fx-font-weight: bold;
     -fx-text-fill: #8fb8c0;
 }
 
 .astra-log-failure-title {
     -fx-font-size: 12px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #ffe1dc;
 }
 
 .astra-log-failure-message {
     -fx-font-family: "JetBrains Mono", "SF Mono", Consolas, monospace;
     -fx-font-size: 10.8px;
-    -fx-font-weight: 600;
+    -fx-font-weight: bold;
     -fx-text-fill: #ffd3cb;
 }
 
 .astra-log-advice-label {
     -fx-font-size: 10px;
-    -fx-font-weight: 900;
+    -fx-font-weight: bold;
     -fx-text-fill: #ffad9f;
 }
 
 .astra-log-advice-value {
     -fx-font-size: 10.5px;
-    -fx-font-weight: 700;
+    -fx-font-weight: bold;
     -fx-text-fill: #ffe9e5;
 }
 
@@ -1315,7 +1594,6 @@
     -fx-border-color: #d7e2e6;
     -fx-border-radius: 6;
     -fx-background-radius: 6;
-    -fx-padding: 8;
 }
 
 .astra-code-area {
@@ -1332,10 +1610,6 @@
     -fx-background-color: #1f7a7a;
     -fx-text-fill: white;
     -fx-border-color: #17696d;
-}
-
-.astra-dialog-pane .button.astra-button-primary:hover {
-    -fx-background-color: #17696d;
 }
 
 .astra-dialog-pane .button.astra-button-secondary {
@@ -1369,5 +1643,19 @@
 }
 
 .astra-parameter-row-dependent-disabled {
-    -fx-opacity: 0.76;
+    -fx-opacity: 1.0;
+}
+
+.astra-parameter-row-dependent-disabled .text {
+    -fx-fill: #526a74;
+}
+
+.astra-parameter-row-dependent-disabled .text-field,
+.astra-parameter-row-dependent-disabled.text-field,
+.astra-parameter-row-dependent-disabled .combo-box-base,
+.astra-parameter-row-dependent-disabled.combo-box-base {
+    -fx-opacity: 1.0;
+    -fx-text-fill: #49656d;
+    -fx-background-color: #f4f8f9;
+    -fx-border-color: #b7cbd1;
 }

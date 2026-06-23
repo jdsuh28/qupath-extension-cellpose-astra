@@ -70,6 +70,50 @@ The installed extension exposes ASTRA workflows through:
 The development JAR is written under `build/libs`. Generated build outputs and
 Javadocs are not source files and should remain untracked.
 
+## Previewing the Launcher From Source
+
+The launcher can be opened directly from working-tree classes for visual QA
+without creating a release or reinstalling the extension in QuPath.
+
+```bash
+./gradlew previewLauncher -PastraPreviewScript=vascular
+```
+
+To capture representative launcher panels for review:
+
+```bash
+./gradlew previewLauncher \
+  -PastraPreviewScript=vascular \
+  -PastraPreviewSnapshots=true
+```
+
+Snapshots are written to `/private/tmp/astra-gui-snapshots` by default. The
+preview uses a temporary QuPath user path at `/private/tmp/astra-qupath-dev-user`
+so development GUI checks do not modify installed ASTRA settings.
+
+If JavaFX is not found automatically, point the preview at a QuPath app's
+bundled JavaFX jars:
+
+```bash
+./gradlew previewLauncher \
+  -PastraPreviewScript=vascular \
+  -PastraJavafxModulePath=/Applications/QuPath-0.6.0-x64.app/Contents/app
+```
+
+The preview also adds non-JavaFX jars from
+`/Applications/QuPath-0.6.0-x64.app/Contents/app` by default. Override that
+with `-PastraQuPathAppPath=...` if QuPath is installed somewhere else.
+
+On Apple Silicon, QuPath's x64 JavaFX bundle requires an x64 Java executable.
+If one is installed, pass it explicitly:
+
+```bash
+./gradlew previewLauncher \
+  -PastraPreviewScript=vascular \
+  -PastraPreviewJavaExecutable=/path/to/x64/jdk/bin/java \
+  -PastraJavafxModulePath=/Applications/QuPath-0.6.0-x64.app/Contents/app
+```
+
 ## License
 
 This project is distributed under the Apache License 2.0. See `LICENSE`.

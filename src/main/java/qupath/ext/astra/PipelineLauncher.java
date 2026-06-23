@@ -9,8 +9,13 @@ import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.property.StringProperty;
 import javafx.collections.ListChangeListener;
+import javafx.collections.ObservableList;
+import javafx.css.PseudoClass;
+import javafx.geometry.Bounds;
+import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.Rectangle2D;
 import javafx.geometry.VPos;
 import javafx.event.ActionEvent;
 import javafx.scene.Node;
@@ -20,15 +25,17 @@ import javafx.scene.control.ButtonBase;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.ContentDisplay;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.CustomMenuItem;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.DialogPane;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.TextInputDialog;
-import javafx.scene.control.MenuButton;
 import javafx.scene.control.MenuItem;
-import javafx.scene.control.SeparatorMenuItem;
 import javafx.stage.FileChooser;
+import javafx.stage.Screen;
+import javafx.stage.Window;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.ProgressIndicator;
@@ -40,6 +47,7 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.ColumnConstraints;
@@ -48,10 +56,12 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
-import javafx.scene.layout.TilePane;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.StackPane;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.text.Text;
+import javafx.scene.text.TextBoundsType;
 import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -132,21 +142,399 @@ final class PipelineLauncher {
     private static final String GOLD = "#d4a72c";
     private static final String CONTROL_BORDER = "#7fa3ad";
     private static final int SETTINGS_PROFILE_SCHEMA_VERSION = 1;
-    private static final double CONTENT_HORIZONTAL_MARGIN = 24.0;
-    private static final double PARAMETER_ROW_HEIGHT = 34.0;
-    private static final double PARAMETER_ROW_GAP = 8.0;
-    private static final double PARAMETER_LABEL_COLUMN_WIDTH = 292.0;
-    private static final double PARAMETER_LABEL_TEXT_WIDTH = 228.0;
-    private static final double PARAMETER_HELP_COLUMN_WIDTH = 22.0;
-    private static final double DASHBOARD_CARD_WIDTH = 252.0;
-    private static final double SECTION_CONTENT_GAP = 9.0;
-    private static final double CARD_CONTENT_GAP = 8.0;
+    private static final class LauncherGeometry {
+        private static final double FLUSH = LauncherGeometryTokens.FLUSH;
+        private static final double LAYOUT_UNIT = LauncherGeometryTokens.LAYOUT_UNIT;
+        private static final double OUTER_MARGIN = LauncherGeometryTokens.OUTER_MARGIN;
+        private static final double INPUT_STACK_GAP = OUTER_MARGIN;
+        private static final double INTRA_PANEL_MARGIN = LauncherGeometryTokens.INTRA_PANEL_MARGIN;
+        private static final double INTRA_PANEL_TIGHT_GAP = LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP;
+        private static final double INTRA_PANEL_SUBTLE_GAP = LauncherGeometryTokens.INTRA_PANEL_SUBTLE_GAP;
+        private static final double SCROLLBAR_GUTTER_WIDTH = OUTER_MARGIN;
+        private static final double SCROLLBAR_THUMB_WIDTH = SCROLLBAR_GUTTER_WIDTH / 3.0;
+        private static final double SCROLLBAR_SIDE_PADDING =
+                (SCROLLBAR_GUTTER_WIDTH - SCROLLBAR_THUMB_WIDTH) / 2.0;
+        // Visual gap to the bar is derived gap plus the centered gutter padding.
+        private static final double INPUT_CONTENT_TO_BAR_GAP =
+                OUTER_MARGIN - SCROLLBAR_SIDE_PADDING;
+        private static final double INTER_PANE_GAP =
+                OUTER_MARGIN - SCROLLBAR_SIDE_PADDING;
+
+        private LauncherGeometry() {
+        }
+
+        private static Insets uniformOuterMargin() {
+            return LauncherGeometryTokens.uniformOuterMargin();
+        }
+
+        private static Insets inputContentPadding() {
+            return new Insets(FLUSH, INPUT_CONTENT_TO_BAR_GAP, FLUSH, FLUSH);
+        }
+
+        private static Insets intraPanelPadding() {
+            return LauncherGeometryTokens.intraPanelPadding();
+        }
+
+    }
+    private static final double PARAMETER_ROW_HEIGHT =
+            LauncherGeometry.LAYOUT_UNIT
+                    + LauncherGeometry.INTRA_PANEL_SUBTLE_GAP
+                    + (LauncherGeometryTokens.SURFACE_BORDER_WIDTH * 2.0);
+    private static final double PARAMETER_ROW_GAP =
+            LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
+    private static final double PARAMETER_LABEL_COLUMN_WIDTH =
+            (LauncherGeometry.LAYOUT_UNIT * 12.0)
+                    + LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
+    private static final double PARAMETER_HELP_COLUMN_WIDTH =
+            LauncherGeometry.LAYOUT_UNIT
+                    - (LauncherGeometryTokens.SURFACE_BORDER_WIDTH * 2.0);
+    private static final double PARAMETER_ANCHOR_WIDTH =
+            LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
+    private static final double PARAMETER_ANCHOR_COLUMN_WIDTH =
+            PARAMETER_ANCHOR_WIDTH;
+    private static final double PARAMETER_ANCHOR_HEIGHT =
+            PARAMETER_ROW_HEIGHT
+                    - (LauncherGeometry.INTRA_PANEL_SUBTLE_GAP * 2.0);
+    private static final double PARAMETER_HELP_BUTTON_SIZE =
+            PARAMETER_ANCHOR_HEIGHT;
+    private static final double PARAMETER_ROW_HORIZONTAL_PADDING =
+            LauncherGeometry.INTRA_PANEL_MARGIN / 2.0;
+    private static final double PARAMETER_ROW_VERTICAL_PADDING =
+            PARAMETER_ROW_HORIZONTAL_PADDING / 2.0;
+    private static final double SURFACE_BORDER_WIDTH =
+            LauncherGeometryTokens.SURFACE_BORDER_WIDTH;
+    private static final double DEPENDENT_PANEL_RIGHT_PADDING =
+            LauncherGeometry.INTRA_PANEL_MARGIN;
+    private static final double PARAMETER_ROW_CONTAINER_LEFT_INSET =
+            LauncherGeometry.INTRA_PANEL_MARGIN - PARAMETER_ROW_HORIZONTAL_PADDING;
+    private static final double PARAMETER_ROW_EDGE_TO_BAR_GAP =
+            PARAMETER_ROW_HORIZONTAL_PADDING;
+    private static final double PARAMETER_BAR_TO_TEXT_GAP =
+            PARAMETER_ROW_EDGE_TO_BAR_GAP;
+    private static final double PARAMETER_LABEL_COLUMN_GAP =
+            PARAMETER_BAR_TO_TEXT_GAP;
+    private static final double PARAMETER_ROW_TEXT_RAIL =
+            PARAMETER_ROW_EDGE_TO_BAR_GAP
+                    + PARAMETER_ANCHOR_WIDTH
+                    + PARAMETER_BAR_TO_TEXT_GAP;
+    private static final double PARAMETER_GRID_TEXT_RAIL =
+            LauncherGeometry.INTRA_PANEL_MARGIN + PARAMETER_ROW_TEXT_RAIL;
+    private static final double DEPENDENT_PANEL_LEFT_INSET =
+            PARAMETER_ROW_CONTAINER_LEFT_INSET;
+    private static final double DEPENDENT_PANEL_OUTER_LEFT_MARGIN =
+            LauncherGeometry.INTRA_PANEL_MARGIN - PARAMETER_ROW_CONTAINER_LEFT_INSET;
+    private static final double DEPENDENT_LABEL_COLUMN_GAP =
+            DEPENDENT_PANEL_LEFT_INSET + PARAMETER_ROW_EDGE_TO_BAR_GAP;
+    private static final double DEPENDENT_TITLE_TEXT_INSET =
+            DEPENDENT_PANEL_LEFT_INSET
+                    + PARAMETER_ROW_EDGE_TO_BAR_GAP
+                    + PARAMETER_ANCHOR_WIDTH
+                    + DEPENDENT_LABEL_COLUMN_GAP;
+    private static final double DEPENDENT_LABEL_COLUMN_WIDTH =
+            PARAMETER_LABEL_COLUMN_WIDTH - PARAMETER_ROW_CONTAINER_LEFT_INSET;
+    private static final class HeaderGeometry {
+        private static final double HEADER_STACK_GAP =
+                LauncherGeometry.INTRA_PANEL_MARGIN;
+        private static final double TITLE_ROW_GAP =
+                HEADER_STACK_GAP;
+        private static final double TITLE_BLOCK_GAP =
+                LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
+        private static final double ACTION_RAIL_GAP =
+                LauncherGeometry.FLUSH;
+        private static final double ACTION_CLUSTER_GAP =
+                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP - SURFACE_BORDER_WIDTH;
+        private static final double MENU_GRAPHIC_GAP =
+                ACTION_CLUSTER_GAP;
+        private static final double MENU_EDGE_MARGIN =
+                LauncherGeometry.INTRA_PANEL_MARGIN;
+        private static final double MENU_VERTICAL_OFFSET =
+                LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
+        private static final double MENU_MIN_VISIBLE_HEIGHT =
+                LauncherGeometry.LAYOUT_UNIT * 10.0 / 3.0;
+        private static final double OPTIONS_PANEL_INSET =
+                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
+        private static final double OPTIONS_GROUP_GAP =
+                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
+        private static final double SEGMENT_ROW_GAP =
+                ACTION_CLUSTER_GAP;
+        private static final double SEGMENT_LABEL_WIDTH =
+                LauncherGeometry.LAYOUT_UNIT * 4.0;
+        private static final double SEGMENT_CONTROL_GAP =
+                LauncherGeometry.INTRA_PANEL_TIGHT_GAP - SURFACE_BORDER_WIDTH;
+        private static final double SEGMENT_BUTTON_WIDTH =
+                SEGMENT_LABEL_WIDTH - (LauncherGeometry.INTRA_PANEL_SUBTLE_GAP * 5.0 / 2.0);
+        private static final double SEGMENT_BUTTON_HEIGHT =
+                LauncherGeometry.LAYOUT_UNIT + SURFACE_BORDER_WIDTH;
+        private static final double MENU_SIDE_BREATHING =
+                LauncherGeometry.INTRA_PANEL_MARGIN * 7.0 / 8.0;
+        private static final double MENU_WIDTH =
+                SEGMENT_LABEL_WIDTH
+                        + (SEGMENT_BUTTON_WIDTH * 3.0)
+                        + (SEGMENT_CONTROL_GAP * 2.0)
+                        + (OPTIONS_PANEL_INSET * 2.0)
+                        + (MENU_SIDE_BREATHING * 2.0)
+                        + (SURFACE_BORDER_WIDTH * 2.0);
+        private static final double MENU_ITEM_WIDTH =
+                MENU_WIDTH - (OPTIONS_PANEL_INSET * 2.0);
+
+        private HeaderGeometry() {
+        }
+    }
+    private static final class ControlGeometry {
+        private static final double COMBO_CELL_VERTICAL_INSET =
+                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP - SURFACE_BORDER_WIDTH;
+        private static final double COMBO_CELL_HORIZONTAL_INSET =
+                LauncherGeometry.INTRA_PANEL_MARGIN - (SURFACE_BORDER_WIDTH * 2.0);
+
+        private ControlGeometry() {
+        }
+    }
+    private static final class SelectionGeometry {
+        private static final double EDITOR_STACK_GAP =
+                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP - SURFACE_BORDER_WIDTH;
+        private static final double LABEL_TO_LIST_GAP =
+                LauncherGeometry.INTRA_PANEL_TIGHT_GAP + SURFACE_BORDER_WIDTH;
+        private static final double DIALOG_ACTION_GAP =
+                EDITOR_STACK_GAP;
+        private static final double DIALOG_CONTENT_GAP =
+                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP + SURFACE_BORDER_WIDTH;
+        private static final double DUAL_LIST_GAP =
+                LauncherGeometry.INTRA_PANEL_MARGIN;
+        private static final double TRANSFER_BUTTON_GAP =
+                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
+        private static final double DIALOG_CONTENT_INSET =
+                LauncherGeometry.INTRA_PANEL_MARGIN;
+        private static final double PROJECT_LIST_WIDTH =
+                LauncherGeometry.LAYOUT_UNIT * 25.0 / 2.0;
+        private static final double PROJECT_LIST_HEIGHT =
+                LauncherGeometry.LAYOUT_UNIT * 40.0 / 3.0;
+        private static final double SINGLE_LIST_WIDTH =
+                PROJECT_LIST_WIDTH * 7.0 / 5.0;
+        private static final double SINGLE_LIST_HEIGHT =
+                PROJECT_LIST_HEIGHT * 7.0 / 8.0;
+
+        private SelectionGeometry() {
+        }
+    }
+    private static final double SECTION_CONTENT_GAP = LauncherGeometry.INTRA_PANEL_MARGIN;
+    private static final double CARD_CONTENT_GAP = LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
+    private static final double COMPACT_CONTROL_GAP = LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
+    private static final double SECTION_HEADER_CONTROL_GAP = LauncherGeometry.INTRA_PANEL_MARGIN;
+    private static final double LEGEND_HORIZONTAL_GAP =
+            LauncherGeometry.INTRA_PANEL_SUBTLE_GAP - SURFACE_BORDER_WIDTH;
+    private static final double LEGEND_VERTICAL_GAP =
+            LauncherGeometry.INTRA_PANEL_TIGHT_GAP + SURFACE_BORDER_WIDTH;
+    private static final double ADVANCED_UNLOCK_CONTROL_GAP =
+            LauncherGeometry.INTRA_PANEL_MARGIN - (SURFACE_BORDER_WIDTH * 2.0);
+    private static final double MODEL_SOURCE_CARD_INSET =
+            ADVANCED_UNLOCK_CONTROL_GAP;
+    private static final double DASHBOARD_CARD_HEIGHT =
+            LauncherGeometry.LAYOUT_UNIT * 11.0 / 2.0;
+    private static final double DASHBOARD_CARD_INSET =
+            LauncherGeometry.INTRA_PANEL_MARGIN;
+    private static final double DASHBOARD_CARD_BODY_HEIGHT =
+            DASHBOARD_CARD_HEIGHT
+                    - (DASHBOARD_CARD_INSET * 2.0)
+                    - (SURFACE_BORDER_WIDTH * 2.0);
+    private static final double DASHBOARD_CARD_ACCENT_WIDTH =
+            PARAMETER_ANCHOR_WIDTH;
+    private static final double DASHBOARD_CARD_ACCENT_HEIGHT =
+            DASHBOARD_CARD_BODY_HEIGHT
+                    - (LauncherGeometry.INTRA_PANEL_SUBTLE_GAP * 2.0)
+                    - (PARAMETER_ANCHOR_WIDTH);
+    private static final double DASHBOARD_CARD_ACCENT_TO_CONTENT_GAP =
+            DASHBOARD_CARD_INSET;
+    private static final double DASHBOARD_GRID_MAX_WIDTH =
+            (DASHBOARD_CARD_HEIGHT * 2.0 * 3.0)
+                    + (SECTION_CONTENT_GAP * 2.0);
+    private static final double HELP_DIALOG_INSET =
+            LauncherGeometry.INTRA_PANEL_MARGIN;
+    private static final double HELP_DIALOG_SECTION_GAP =
+            HELP_DIALOG_INSET;
+    private static final double HELP_DIALOG_TIGHT_GAP =
+            LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
+    private static final double HELP_SUMMARY_COLUMN_GAP =
+            HELP_DIALOG_INSET;
+    private static final double HELP_SUMMARY_ROW_GAP =
+            LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
+    private static final double HELP_DETAIL_HEADER_GAP =
+            HELP_DIALOG_INSET;
+    private static final double HELP_DETAIL_ACCENT_WIDTH =
+            PARAMETER_ANCHOR_WIDTH;
+    private static final double HELP_DETAIL_CARD_GAP =
+            LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
+    private static final double HELP_DETAIL_CARD_INSET =
+            HELP_DIALOG_INSET;
+    private static final double HELP_DETAIL_CARD_INTERNAL_GAP =
+            HELP_DIALOG_TIGHT_GAP;
+    private static final double HELP_DIALOG_WIDTH =
+            LauncherGeometry.LAYOUT_UNIT * 155.0 / 6.0;
+    private static final double HELP_DETAIL_VIEWPORT_HEIGHT =
+            LauncherGeometry.LAYOUT_UNIT * 65.0 / 6.0;
+    private static final double HELP_SUMMARY_LABEL_WIDTH =
+            LauncherGeometry.LAYOUT_UNIT * 55.0 / 12.0;
+    private static final double FORM_BLOCK_GAP =
+            LauncherGeometry.INTRA_PANEL_TIGHT_GAP + (SURFACE_BORDER_WIDTH * 2.0);
+    private static final double NESTED_FIELD_GAP =
+            LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
+    private static final double NESTED_PANEL_INSET =
+            LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
+    private static final double CHANNEL_PANEL_GAP =
+            COMPACT_CONTROL_GAP;
+    private static final double CHANNEL_PANEL_INSET =
+            LauncherGeometry.INTRA_PANEL_MARGIN + (SURFACE_BORDER_WIDTH * 2.0);
+    private static final double CHANNEL_CHIP_GAP =
+            LauncherGeometry.INTRA_PANEL_TIGHT_GAP + (SURFACE_BORDER_WIDTH * 2.0);
+    private static final double CHANNEL_CHIP_VERTICAL_INSET =
+            LauncherGeometry.INTRA_PANEL_TIGHT_GAP + SURFACE_BORDER_WIDTH;
+    private static final double CHANNEL_CHIP_HORIZONTAL_INSET =
+            LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
+    private static final double CHANNEL_SWATCH_SIZE =
+            LauncherGeometry.INTRA_PANEL_MARGIN;
+    private static final double CHANNEL_SWATCH_ARC =
+            PARAMETER_ANCHOR_WIDTH;
+    private static final double UNGROUPED_SECTION_HGAP =
+            LauncherGeometry.INTRA_PANEL_MARGIN;
+    private static final double UNGROUPED_LABEL_WIDTH =
+            HELP_SUMMARY_LABEL_WIDTH + (LauncherGeometry.INTRA_PANEL_MARGIN * 5.0);
+    private static final double OUTPUT_PANE_GAP =
+            COMPACT_CONTROL_GAP;
+    private static final double OUTPUT_PANE_INSET =
+            CHANNEL_PANEL_INSET;
+    private static final double OUTPUT_PANE_PREF_WIDTH =
+            LauncherGeometry.LAYOUT_UNIT * 215.0 / 12.0;
+    private static final double OUTPUT_PANE_MIN_WIDTH =
+            LauncherGeometry.LAYOUT_UNIT * 15.0;
+    private static final double OUTPUT_HEADER_GAP =
+            ADVANCED_UNLOCK_CONTROL_GAP;
+    private static final double OUTPUT_PROGRESS_SIZE =
+            PARAMETER_HELP_BUTTON_SIZE;
+    private static final double COLLAPSIBLE_ARROW_WIDTH =
+            PARAMETER_HELP_BUTTON_SIZE;
+    private static final double COLLAPSIBLE_HEADER_VERTICAL_INSET =
+            HELP_DIALOG_TIGHT_GAP + SURFACE_BORDER_WIDTH;
+    private static final double COLLAPSIBLE_HEADER_HORIZONTAL_INSET =
+            LauncherGeometry.INTRA_PANEL_MARGIN;
+    private static final double COLLAPSIBLE_HEADER_WIDTH_ADJUSTMENT =
+            ADVANCED_UNLOCK_CONTROL_GAP;
+    private static final double CHECK_ROW_MIN_HEIGHT =
+            PARAMETER_ROW_HEIGHT
+                    + LauncherGeometry.INTRA_PANEL_MARGIN
+                    + PARAMETER_HELP_BUTTON_SIZE;
+    private static final double CHECK_LABEL_MIN_WIDTH =
+            LauncherGeometry.LAYOUT_UNIT * 15.0 / 2.0;
+    private static final double CHECK_COMPARTMENT_MIN_WIDTH =
+            LauncherGeometry.LAYOUT_UNIT * 5.0;
+    private static final double CHECK_COMPARTMENT_PREF_WIDTH =
+            CHECK_COMPARTMENT_MIN_WIDTH + ADVANCED_UNLOCK_CONTROL_GAP;
+    private static final double CHECK_REMOVE_BUTTON_HEIGHT =
+            LauncherGeometry.LAYOUT_UNIT + LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
+    private static final double CHECK_REMOVE_BUTTON_WIDTH =
+            LauncherGeometry.LAYOUT_UNIT * 23.0 / 6.0;
+    private static final double COLOCALIZATION_CHECK_EDITOR_GAP =
+            COMPACT_CONTROL_GAP;
+    private static final double STRUCTURED_VALUE_EDITOR_GAP =
+            SelectionGeometry.LABEL_TO_LIST_GAP;
+    private static final double SETTINGS_VIEWPORT_WIDTH =
+            LauncherGeometry.LAYOUT_UNIT * 30.0;
+    private static final double SETTINGS_VIEWPORT_HEIGHT =
+            (LauncherGeometry.LAYOUT_UNIT * 29.0)
+                    + LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
+    private static final double COLOCALIZATION_PANEL_LABEL_WIDTH =
+            LauncherGeometry.LAYOUT_UNIT * 20.0 / 3.0;
+    private static final double COLOCALIZATION_PANEL_WIDE_LABEL_WIDTH =
+            LauncherGeometry.LAYOUT_UNIT * 15.0 / 2.0;
+    private static final int MULTI_SELECT_BUTTON_SUMMARY_LIMIT = 64;
+    private static final String CHEVRON_DOWN = "▾";
+    private static final String CHEVRON_RIGHT = "▸";
+    private static final PseudoClass PRESSED_PSEUDO = PseudoClass.getPseudoClass("pressed");
     private static final String HEADER_MODE_PREFERENCE_KEY = "qupath.ext.astra.headerMode";
     private static final String HEADER_MOTION_PREFERENCE_KEY = "qupath.ext.astra.headerMotion";
     private static final StringProperty HEADER_MODE_PREFERENCE =
             PathPrefs.createPersistentPreference(HEADER_MODE_PREFERENCE_KEY, AnimatedGradientHeader.HeaderMode.DYNAMIC.name());
     private static final StringProperty HEADER_MOTION_PREFERENCE =
             PathPrefs.createPersistentPreference(HEADER_MOTION_PREFERENCE_KEY, AnimatedGradientHeader.MotionSpeed.SMOOTH.name());
+
+    private static Insets parameterGridPadding() {
+        return new Insets(
+                LauncherGeometry.INTRA_PANEL_MARGIN,
+                LauncherGeometry.INTRA_PANEL_MARGIN,
+                LauncherGeometry.INTRA_PANEL_MARGIN,
+                LauncherGeometry.INTRA_PANEL_MARGIN);
+    }
+
+    private static Insets mainActionBarPadding() {
+        return new Insets(
+                LauncherGeometry.FLUSH,
+                LauncherGeometry.OUTER_MARGIN,
+                LauncherGeometry.OUTER_MARGIN,
+                LauncherGeometry.OUTER_MARGIN);
+    }
+
+    private static Insets parameterRowPadding() {
+        return new Insets(
+                PARAMETER_ROW_VERTICAL_PADDING,
+                PARAMETER_ROW_HORIZONTAL_PADDING,
+                PARAMETER_ROW_VERTICAL_PADDING,
+                PARAMETER_ROW_HORIZONTAL_PADDING);
+    }
+
+    private static Insets dependentPanelPadding() {
+        return new Insets(
+                LauncherGeometry.INTRA_PANEL_MARGIN,
+                DEPENDENT_PANEL_RIGHT_PADDING,
+                LauncherGeometry.INTRA_PANEL_MARGIN,
+                LauncherGeometry.FLUSH);
+    }
+
+    private static Insets dependentRowsPadding() {
+        return new Insets(
+                LauncherGeometry.INTRA_PANEL_TIGHT_GAP,
+                LauncherGeometry.FLUSH,
+                LauncherGeometry.FLUSH,
+                DEPENDENT_PANEL_LEFT_INSET);
+    }
+
+    private static Insets dependentTitlePadding() {
+        return new Insets(
+                LauncherGeometry.FLUSH,
+                LauncherGeometry.FLUSH,
+                LauncherGeometry.FLUSH,
+                DEPENDENT_TITLE_TEXT_INSET);
+    }
+
+    private static Insets dependentPanelGridMargin() {
+        return new Insets(
+                LauncherGeometry.FLUSH,
+                LauncherGeometry.FLUSH,
+                LauncherGeometry.FLUSH,
+                DEPENDENT_PANEL_OUTER_LEFT_MARGIN);
+    }
+
+    private static Insets comboCellPadding() {
+        return new Insets(
+                ControlGeometry.COMBO_CELL_VERTICAL_INSET,
+                ControlGeometry.COMBO_CELL_HORIZONTAL_INSET,
+                ControlGeometry.COMBO_CELL_VERTICAL_INSET,
+                ControlGeometry.COMBO_CELL_HORIZONTAL_INSET);
+    }
+
+    private static double parameterLabelTextWidth(double labelColumnWidth,
+                                                  double labelColumnGap) {
+        return labelColumnWidth
+                - (PARAMETER_ROW_HORIZONTAL_PADDING * 2.0)
+                - PARAMETER_ANCHOR_COLUMN_WIDTH
+                - PARAMETER_HELP_COLUMN_WIDTH
+                - (labelColumnGap * 2.0);
+    }
+
+    private static Insets helpDialogPadding() {
+        return new Insets(HELP_DIALOG_INSET);
+    }
+
+    private static Insets helpDetailCardPadding() {
+        return new Insets(HELP_DETAIL_CARD_INSET);
+    }
     private static final Gson PROFILE_GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final int LAUNCHER_VIEW_SCHEMA_VERSION = 1;
     private static final List<String> STANDARD_GROUP_ORDER = GuiPresentation.standardGroups()
@@ -190,12 +578,21 @@ final class PipelineLauncher {
         dialog.initOwner(qupath.getStage());
         dialog.setTitle(scriptName);
         dialog.setHeaderText(null);
-        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         RunFeedback feedback = new RunFeedback(scriptName);
         AtomicReference<Button> runButtonRef = new AtomicReference<>();
         AtomicReference<Button> exportButtonRef = new AtomicReference<>();
         AtomicReference<Button> resetImageButtonRef = new AtomicReference<>();
         AtomicReference<Button> resetProjectButtonRef = new AtomicReference<>();
+        Button runButton = new Button("Run");
+        runButtonRef.set(runButton);
+        runButton.setFocusTraversable(false);
+        styleButton(runButton, ButtonRole.PRIMARY);
+        applyMainActionButtonGeometry(runButton);
+        Button cancelButton = new Button("Cancel");
+        cancelButton.setFocusTraversable(false);
+        styleButton(cancelButton, ButtonRole.SECONDARY);
+        applyMainActionButtonGeometry(cancelButton);
+        cancelButton.setOnAction(event -> dialog.close());
         Consumer<ActionEvent> exportAction = event -> {
             event.consume();
             String configuredScript;
@@ -217,17 +614,11 @@ final class PipelineLauncher {
             event.consume();
             runHeaderReset(qupath, scriptName, scriptText, constants, profileState, schemaId, feedback, runButtonRef.get(), resetProjectButtonRef.get(), "RESET_PROJECT", true);
         };
-        dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants, true, feedback, schemaId, sourceScriptSha256, profileState, exportAction, exportButtonRef::set, resetImageAction, resetImageButtonRef::set, resetProjectAction, resetProjectButtonRef::set));
+        dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants, true, feedback, schemaId, sourceScriptSha256, profileState, exportAction, exportButtonRef::set, resetImageAction, resetImageButtonRef::set, resetProjectAction, resetProjectButtonRef::set, cancelButton, runButton));
         installAstraStyles(dialog.getDialogPane());
+        addStyleClass(dialog.getDialogPane(), "astra-launcher-dialog-pane");
         dialog.setResizable(true);
-
-        Button runButton = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
-        runButtonRef.set(runButton);
-        runButton.setText("Run");
-        styleButton(runButton, ButtonRole.PRIMARY);
-        Button cancelButton = (Button) dialog.getDialogPane().lookupButton(ButtonType.CANCEL);
-        styleButton(cancelButton, ButtonRole.SECONDARY);
-        runButton.addEventFilter(ActionEvent.ACTION, event -> {
+        runButton.setOnAction(event -> {
             event.consume();
             String configuredScript;
             try {
@@ -1234,7 +1625,8 @@ final class PipelineLauncher {
                                       RunFeedback feedback, String schemaId, String sourceScriptSha256, SettingsProfileState profileState,
                                       Consumer<ActionEvent> exportAction, Consumer<Button> exportButtonSink,
                                       Consumer<ActionEvent> resetImageAction, Consumer<Button> resetImageButtonSink,
-                                      Consumer<ActionEvent> resetProjectAction, Consumer<Button> resetProjectButtonSink) {
+                                      Consumer<ActionEvent> resetProjectAction, Consumer<Button> resetProjectButtonSink,
+                                      Button cancelButton, Button runButton) {
         List<ImageChannel> imageChannels = imageChannels(qupath);
         if (applyChannelDefaults) {
             applyImageChannelDefaults(constants, imageChannels);
@@ -1253,15 +1645,15 @@ final class PipelineLauncher {
         installProjectImageNameSelector(qupath, constants);
         installProjectAssetSelectors(qupath, constants);
 
-        VBox root = new VBox(14.0);
-        root.setPadding(new Insets(0));
+        VBox root = new VBox(LauncherGeometry.FLUSH);
+        root.setPadding(new Insets(LauncherGeometry.FLUSH));
         addStyleClass(root, "astra-launcher-root");
 
-        VBox header = new VBox(12.0);
-        header.setPadding(new Insets(22.0, CONTENT_HORIZONTAL_MARGIN, 20.0, CONTENT_HORIZONTAL_MARGIN));
-        HBox titleRow = new HBox(12.0);
+        VBox header = new VBox(HeaderGeometry.HEADER_STACK_GAP);
+        header.setPadding(LauncherGeometry.uniformOuterMargin());
+        HBox titleRow = new HBox(HeaderGeometry.TITLE_ROW_GAP);
         titleRow.setAlignment(Pos.CENTER_LEFT);
-        VBox titleBlock = new VBox(4.0);
+        VBox titleBlock = new VBox(HeaderGeometry.TITLE_BLOCK_GAP);
         Label title = new Label(scriptName);
         title.getStyleClass().add("astra-header-title");
         Label subtitle = new Label(descriptionFor(scriptName));
@@ -1270,12 +1662,17 @@ final class PipelineLauncher {
         titleBlock.getChildren().addAll(title, subtitle);
         Region titleSpacer = new Region();
         HBox.setHgrow(titleSpacer, Priority.ALWAYS);
-        HBox actionCluster = new HBox(8.0);
+        VBox actionRail = new VBox(HeaderGeometry.ACTION_RAIL_GAP);
+        actionRail.setAlignment(Pos.TOP_LEFT);
+        addStyleClass(actionRail, "astra-header-action-rail");
+        Label actionRailTab = new Label("Actions");
+        addStyleClass(actionRailTab, "astra-header-action-rail-tab");
+        HBox actionCluster = new HBox(HeaderGeometry.ACTION_CLUSTER_GAP);
         actionCluster.setAlignment(Pos.CENTER_RIGHT);
         addStyleClass(actionCluster, "astra-header-actions");
-        MenuButton settingsMenu = createHeaderMenuButton("Settings", "settings");
-        MenuButton projectMenu = createHeaderMenuButton("Project", "project");
-        MenuButton viewMenu = createHeaderMenuButton("View", "view");
+        HeaderActionMenu settingsMenu = createHeaderMenuButton("Settings", "settings");
+        HeaderActionMenu projectMenu = createHeaderMenuButton("Project", "project");
+        HeaderActionMenu viewMenu = createHeaderMenuButton("View", "view");
         Button reset = new Button("Reset settings");
         reset.setFocusTraversable(false);
         styleButton(reset, ButtonRole.HEADER);
@@ -1298,7 +1695,7 @@ final class PipelineLauncher {
                 createHeaderActionMenuItem("Save settings profile", ButtonRole.HEADER, saveProfile::fire, saveProfile),
                 createHeaderActionMenuItem("Load settings profile", ButtonRole.HEADER, loadProfile::fire, loadProfile)
         );
-        actionCluster.getChildren().add(settingsMenu);
+        actionCluster.getChildren().add(settingsMenu.button());
         if (GuiPresentation.supportsAnalysisHeaderActions(scriptName)) {
             Button resetImage = new Button("Reset Image");
             resetImage.setFocusTraversable(false);
@@ -1330,25 +1727,20 @@ final class PipelineLauncher {
             if (exportButtonSink != null) {
                 exportButtonSink.accept(export);
             }
-            if (!projectMenu.getItems().isEmpty()) {
-                projectMenu.getItems().add(new SeparatorMenuItem());
-            }
             projectMenu.getItems().add(createHeaderActionMenuItem("Export", ButtonRole.SUCCESS, export::fire, export));
         }
         if (!projectMenu.getItems().isEmpty()) {
-            actionCluster.getChildren().add(projectMenu);
+            actionCluster.getChildren().add(projectMenu.button());
         }
-        MenuItem outputToggle = createHeaderActionMenuItem("Output", ButtonRole.HEADER, () -> {
-        }, null);
-        updateOutputToggleState(outputToggle, launcherViewState.outputVisible());
-        viewMenu.getItems().add(outputToggle);
-        actionCluster.getChildren().add(viewMenu);
-        titleRow.getChildren().addAll(titleBlock, titleSpacer, actionCluster);
+        actionCluster.getChildren().add(viewMenu.button());
+        actionRail.getChildren().addAll(actionRailTab, actionCluster);
+        titleRow.getChildren().addAll(titleBlock, titleSpacer, actionRail);
         header.getChildren().addAll(titleRow, createPipelineFlow(scriptName));
         AnimatedGradientHeader animatedHeader = new AnimatedGradientHeader(header);
 
-        VBox body = new VBox(14.0);
-        body.setPadding(new Insets(0, 0, 18.0, 0));
+        VBox body = new VBox(LauncherGeometry.INPUT_STACK_GAP);
+        body.setFillWidth(true);
+        body.setPadding(LauncherGeometry.inputContentPadding());
         body.getChildren().add(createChannelPanel(imageChannels));
         List<SettingsSectionModel> routineSections = new ArrayList<>();
         if (colocalization) {
@@ -1398,19 +1790,23 @@ final class PipelineLauncher {
             }
         }
 
-        body.getChildren().add(createSettingsNavigator("Settings Dashboard",
+        Node routineNavigator = createSettingsNavigator("Settings Dashboard",
                 "Choose one settings group at a time, or switch to All Settings for a full review.",
                 routineSections,
-                launcherViewState));
+                launcherViewState);
+        addStyleClass(routineNavigator, "astra-routine-settings-panel");
+        body.getChildren().add(routineNavigator);
         if (!advancedSections.isEmpty()) {
             Node advanced = createSettingsNavigator("Advanced Settings",
                     "Developer controls for deliberate tuning, diagnostics, and publication-specific overrides.",
                     advancedSections,
                     launcherViewState);
+            addStyleClass(advanced, "astra-advanced-settings-panel");
             if (GuiPresentation.advancedControlsLockedByDefault()) {
                 advanced.setVisible(false);
                 advanced.setManaged(false);
                 VBox advancedUnlock = createAdvancedUnlockPanel(advanced);
+                addStyleClass(advancedUnlock, "astra-advanced-unlock-panel");
                 body.getChildren().addAll(advancedUnlock, advanced);
             } else {
                 body.getChildren().add(advanced);
@@ -1419,31 +1815,43 @@ final class PipelineLauncher {
 
         ScrollPane scroll = new ScrollPane(body);
         scroll.setFitToWidth(true);
-        scroll.setPrefViewportWidth(720.0);
-        scroll.setPrefViewportHeight(700.0);
+        scroll.setFitToHeight(true);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.ALWAYS);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setPrefViewportWidth(SETTINGS_VIEWPORT_WIDTH);
+        scroll.setPrefViewportHeight(SETTINGS_VIEWPORT_HEIGHT);
+        scroll.viewportBoundsProperty().addListener((obs, oldBounds, newBounds) ->
+                body.setMinHeight(newBounds == null ? Region.USE_COMPUTED_SIZE : newBounds.getHeight()));
         addStyleClass(scroll, "astra-settings-scroll");
         HBox.setHgrow(scroll, Priority.ALWAYS);
 
-        HBox workspace = new HBox(14.0);
-        workspace.setPadding(new Insets(CONTENT_HORIZONTAL_MARGIN, CONTENT_HORIZONTAL_MARGIN, 18.0, CONTENT_HORIZONTAL_MARGIN));
+        HBox workspace = new HBox(LauncherGeometry.INTER_PANE_GAP);
+        workspace.setPadding(LauncherGeometry.uniformOuterMargin());
         addStyleClass(workspace, "astra-launcher-workspace");
         Node feedbackNode = feedback.node();
         setNodeVisibleManaged(feedbackNode, launcherViewState.outputVisible());
-        updateOutputToggleState(outputToggle, launcherViewState.outputVisible());
         Consumer<Boolean> setOutputVisible = outputVisible -> {
             setNodeVisibleManaged(feedbackNode, outputVisible);
             launcherViewState.setOutputVisible(outputVisible);
             launcherViewState.save();
-            updateOutputToggleState(outputToggle, outputVisible);
         };
-        outputToggle.setOnAction(event -> setOutputVisible.accept(!feedbackNode.isManaged()));
-        viewMenu.getItems().add(new SeparatorMenuItem());
-        viewMenu.getItems().add(createHeaderOptionsMenu(animatedHeader));
+        viewMenu.getItems().add(createViewMenuItem(launcherViewState.outputVisible(), setOutputVisible, animatedHeader));
         workspace.getChildren().addAll(scroll, feedbackNode);
         VBox.setVgrow(workspace, Priority.ALWAYS);
 
-        root.getChildren().addAll(animatedHeader, workspace);
+        root.getChildren().addAll(animatedHeader, workspace, createMainActionBar(cancelButton, runButton));
         return root;
+    }
+
+    private static Node createMainActionBar(Button cancelButton, Button runButton) {
+        HBox bar = new HBox(LauncherGeometry.INTRA_PANEL_MARGIN);
+        bar.setAlignment(Pos.TOP_RIGHT);
+        bar.setPadding(mainActionBarPadding());
+        addStyleClass(bar, "astra-main-action-bar");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        bar.getChildren().addAll(spacer, cancelButton, runButton);
+        return bar;
     }
 
     private static void saveSettingsProfileWithDialog(QuPathGUI qupath, String scriptName, String schemaId, String sourceScriptSha256,
@@ -1545,21 +1953,23 @@ final class PipelineLauncher {
 
     private static VBox sectionShell(String titleText, String subtitleText, Node headerControls) {
         VBox box = new VBox(SECTION_CONTENT_GAP);
-        box.setPadding(new Insets(14.0));
+        box.setPadding(LauncherGeometry.intraPanelPadding());
         addStyleClass(box, "astra-section-shell");
         Label title = new Label(titleText);
         title.getStyleClass().add("astra-section-title");
         Label subtitle = new Label(subtitleText);
         subtitle.getStyleClass().add("astra-section-subtitle");
         subtitle.setWrapText(true);
-        VBox titleBlock = new VBox(4.0, title, subtitle);
+        VBox titleBlock = new VBox(LauncherGeometry.INTRA_PANEL_TIGHT_GAP, title, subtitle);
         titleBlock.setFillWidth(true);
         if (headerControls == null) {
+            addStyleClass(titleBlock, "astra-section-title-block");
             box.getChildren().add(titleBlock);
             return box;
         }
-        HBox header = new HBox(12.0);
+        HBox header = new HBox(SECTION_HEADER_CONTROL_GAP);
         header.setAlignment(Pos.TOP_LEFT);
+        addStyleClass(header, "astra-section-heading-row");
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         header.getChildren().addAll(titleBlock, spacer, headerControls);
@@ -1591,7 +2001,7 @@ final class PipelineLauncher {
         };
         unlock.setOnAction(event -> tryUnlock.run());
         phrase.setOnAction(event -> tryUnlock.run());
-        HBox row = new HBox(10.0, phrase, unlock);
+        HBox row = new HBox(ADVANCED_UNLOCK_CONTROL_GAP, phrase, unlock);
         row.setAlignment(Pos.CENTER_LEFT);
         box.getChildren().addAll(row, status);
         return box;
@@ -1600,7 +2010,7 @@ final class PipelineLauncher {
     private static Node createSettingsNavigator(String titleText, String subtitleText,
                                                 List<SettingsSectionModel> sections,
                                                 LauncherViewState launcherViewState) {
-        HBox viewRow = new HBox(8.0);
+        HBox viewRow = new HBox(COMPACT_CONTROL_GAP);
         viewRow.setAlignment(Pos.TOP_RIGHT);
         addStyleClass(viewRow, "astra-settings-view-toggle");
         Button dashboard = new Button("Dashboard");
@@ -1618,6 +2028,7 @@ final class PipelineLauncher {
 
         VBox host = new VBox(SECTION_CONTENT_GAP);
         host.setFillWidth(true);
+        addStyleClass(host, "astra-settings-host");
 
         Runnable[] showDashboard = new Runnable[1];
         Runnable[] showAll = new Runnable[1];
@@ -1626,10 +2037,12 @@ final class PipelineLauncher {
             VBox focused = new VBox(SECTION_CONTENT_GAP);
             focused.setFillWidth(true);
             BorderPane top = new BorderPane();
+            top.setPadding(LauncherGeometry.intraPanelPadding());
             addStyleClass(top, "astra-focused-section-header");
+            GuiPresentation.StandardGroup group = GuiPresentation.standardGroup(section.title());
+            addStyleClass(top, "astra-focused-section-theme-" + cssToken(group.accentTheme()));
             Button back = new Button("Back to Dashboard");
             styleButton(back, ButtonRole.SECONDARY);
-            GuiPresentation.StandardGroup group = GuiPresentation.standardGroup(section.title());
             Label badge = new Label(group.importance());
             addStyleClass(badge, "astra-badge");
             addStyleClass(badge, "astra-badge-importance-" + cssToken(group.importance()));
@@ -1638,14 +2051,15 @@ final class PipelineLauncher {
             Label description = new Label(section.description());
             description.setWrapText(true);
             addStyleClass(description, "astra-focused-section-description");
-            VBox focusedTitleBlock = new VBox(2.0, title, description);
-            HBox titleLine = new HBox(9.0, badge, focusedTitleBlock);
-            titleLine.setAlignment(Pos.CENTER_LEFT);
-            top.setLeft(titleLine);
+            VBox focusedTitleBlock = new VBox(LauncherGeometry.INTRA_PANEL_TIGHT_GAP,
+                    badge, title, description);
+            focusedTitleBlock.setAlignment(Pos.CENTER_LEFT);
+            top.setLeft(focusedTitleBlock);
             top.setRight(back);
             BorderPane.setAlignment(back, Pos.CENTER_RIGHT);
             back.setOnAction(event -> showDashboard[0].run());
             detachFromParent(section.content());
+            setCollapsibleHeaderVisible(section.content(), false);
             focused.getChildren().setAll(top, section.content());
             host.getChildren().setAll(focused);
         };
@@ -1654,18 +2068,30 @@ final class PipelineLauncher {
             markSettingsViewButtons(dashboard, allSettings, LauncherViewMode.DASHBOARD);
             launcherViewState.setViewMode(LauncherViewMode.DASHBOARD);
             launcherViewState.save();
-            TilePane cards = new TilePane(12.0, 12.0);
+            GridPane cards = new GridPane();
+            cards.setHgap(SECTION_CONTENT_GAP);
+            cards.setVgap(SECTION_CONTENT_GAP);
+            cards.setMaxWidth(DASHBOARD_GRID_MAX_WIDTH);
             addStyleClass(cards, "astra-card-dashboard");
-            cards.setAlignment(Pos.TOP_CENTER);
-            cards.setTileAlignment(Pos.TOP_LEFT);
-            cards.setPrefColumns(3);
-            cards.setPrefTileWidth(DASHBOARD_CARD_WIDTH);
-            cards.setPrefTileHeight(132.0);
-            cards.setMinWidth(3 * DASHBOARD_CARD_WIDTH + 2 * 12.0);
-            for (SettingsSectionModel section : sections) {
-                cards.getChildren().add(createSettingsCard(section, () -> showOne.accept(section)));
+            for (int i = 0; i < 3; i++) {
+                ColumnConstraints column = new ColumnConstraints();
+                column.setPercentWidth(100.0d / 3.0d);
+                column.setHgrow(Priority.ALWAYS);
+                column.setFillWidth(true);
+                cards.getColumnConstraints().add(column);
             }
-            host.getChildren().setAll(createImportanceLegend(sections), cards);
+            int index = 0;
+            for (SettingsSectionModel section : sections) {
+                Button card = createSettingsCard(section, () -> showOne.accept(section));
+                GridPane.setFillWidth(card, true);
+                GridPane.setHgrow(card, Priority.ALWAYS);
+                cards.add(card, index % 3, index / 3);
+                index++;
+            }
+            BorderPane cardFrame = new BorderPane(cards);
+            BorderPane.setAlignment(cards, Pos.TOP_CENTER);
+            addStyleClass(cardFrame, "astra-card-dashboard-frame");
+            host.getChildren().setAll(createImportanceLegend(sections), cardFrame);
         };
         showAll[0] = () -> {
             markSettingsViewButtons(dashboard, allSettings, LauncherViewMode.ALL_SETTINGS);
@@ -1675,6 +2101,7 @@ final class PipelineLauncher {
             all.setFillWidth(true);
             sections.forEach(section -> {
                 detachFromParent(section.content());
+                setCollapsibleHeaderVisible(section.content(), true);
                 all.getChildren().add(section.content());
             });
             host.getChildren().setAll(all);
@@ -1691,6 +2118,12 @@ final class PipelineLauncher {
         return root;
     }
 
+    private static void setCollapsibleHeaderVisible(Node node, boolean visible) {
+        if (node instanceof CollapsibleSection section) {
+            section.setHeaderVisible(visible);
+        }
+    }
+
     private static Node createImportanceLegend(List<SettingsSectionModel> sections) {
         LinkedHashSet<String> levels = new LinkedHashSet<>();
         for (SettingsSectionModel section : sections) {
@@ -1699,7 +2132,7 @@ final class PipelineLauncher {
         if (levels.isEmpty()) {
             return new Pane();
         }
-        FlowPane legend = new FlowPane(7.0, 5.0);
+        FlowPane legend = new FlowPane(LEGEND_HORIZONTAL_GAP, LEGEND_VERTICAL_GAP);
         legend.setAlignment(Pos.CENTER_LEFT);
         addStyleClass(legend, "astra-importance-legend");
         Label prefix = new Label("Setting priority");
@@ -1735,32 +2168,44 @@ final class PipelineLauncher {
         GuiPresentation.StandardGroup group = GuiPresentation.standardGroup(section.title());
         Button card = new Button();
         card.setFocusTraversable(false);
-        card.setMinSize(236.0, 124.0);
-        card.setPrefSize(DASHBOARD_CARD_WIDTH, 132.0);
+        card.setMinWidth(LauncherGeometry.FLUSH);
+        card.setMinHeight(DASHBOARD_CARD_HEIGHT);
+        card.setPrefHeight(DASHBOARD_CARD_HEIGHT);
         card.setMaxWidth(Double.MAX_VALUE);
+        card.setPadding(new Insets(DASHBOARD_CARD_INSET));
         addStyleClass(card, "astra-settings-card");
         addStyleClass(card, "astra-settings-card-theme-" + cssToken(group.accentTheme()));
         addStyleClass(card, "astra-settings-card-importance-" + cssToken(group.importance()));
         if (section.advanced()) {
             addStyleClass(card, "astra-settings-card-advanced");
         }
-        Rectangle accent = new Rectangle(4.0, 88.0);
+        Rectangle accent = new Rectangle(
+                DASHBOARD_CARD_ACCENT_WIDTH,
+                DASHBOARD_CARD_ACCENT_HEIGHT);
         addStyleClass(accent, "astra-settings-card-accent");
         addStyleClass(accent, "astra-accent-" + cssToken(group.accentTheme()));
-        VBox content = new VBox(7.0);
-        content.setAlignment(Pos.TOP_LEFT);
+        VBox content = new VBox(CARD_CONTENT_GAP);
+        content.setAlignment(Pos.CENTER_LEFT);
+        content.setMinWidth(LauncherGeometry.FLUSH);
+        content.setMaxWidth(Double.MAX_VALUE);
         Label title = new Label(section.title());
+        title.setMinWidth(LauncherGeometry.FLUSH);
+        title.setMaxWidth(Double.MAX_VALUE);
         title.setWrapText(true);
         title.getStyleClass().add("astra-settings-card-title");
         Label description = new Label(section.description());
+        description.setMinWidth(LauncherGeometry.FLUSH);
+        description.setMaxWidth(Double.MAX_VALUE);
         description.setWrapText(true);
         description.getStyleClass().add("astra-settings-card-description");
         Label badge = new Label(section.badge());
         badge.getStyleClass().add(section.advanced() ? "astra-badge-advanced" : "astra-badge");
         badge.getStyleClass().add("astra-badge-importance-" + cssToken(group.importance()));
         content.getChildren().addAll(badge, title, description);
-        HBox shell = new HBox(10.0, accent, content);
-        shell.setAlignment(Pos.TOP_LEFT);
+        HBox shell = new HBox(DASHBOARD_CARD_ACCENT_TO_CONTENT_GAP, accent, content);
+        shell.setAlignment(Pos.CENTER_LEFT);
+        shell.setMinHeight(DASHBOARD_CARD_BODY_HEIGHT);
+        HBox.setHgrow(content, Priority.ALWAYS);
         card.setGraphic(shell);
         card.setOnAction(event -> openAction.run());
         return card;
@@ -1844,7 +2289,8 @@ final class PipelineLauncher {
         VBox targetPanel = semanticCard(displayLabel("DETECTION_TARGET"), "Choose whether colocalization runs nucleus segmentation, cell segmentation, or paired nucleus/cell detection.");
         if (detectionTarget != null) {
             Node editor = detectionTarget.createEditor();
-            HBox row = labeledRow(displayLabel("DETECTION_TARGET"), editor, 160.0);
+            HBox row = labeledRow(displayLabel("DETECTION_TARGET"), editor,
+                    COLOCALIZATION_PANEL_LABEL_WIDTH);
             detectionTarget.addChangeListener(autosave::markManualEditAndSave);
             targetPanel.getChildren().add(row);
         }
@@ -1980,7 +2426,8 @@ final class PipelineLauncher {
                 displayCheck.setValue(labels.get(0));
             }
         };
-        checksPanel.getChildren().add(labeledRow("Display in QuPath UI", displayCheck, 160.0));
+        checksPanel.getChildren().add(labeledRow("Display in QuPath UI", displayCheck,
+                COLOCALIZATION_PANEL_LABEL_WIDTH));
         checksEditor.addChangeListener(refreshChoices);
         refreshChoices.run();
     }
@@ -1997,9 +2444,9 @@ final class PipelineLauncher {
         }
         Node row = editor instanceof MarkerKeyMapEditor || editor instanceof ProjectImageSelectionEditor
                 ? labeledVariableBlock(label, editor)
-                : labeledRow(label, editor, 180.0);
+                : labeledRow(label, editor, COLOCALIZATION_PANEL_WIDE_LABEL_WIDTH);
         panel.getChildren().add(row);
-        rows.put(constant.name, new RowNodes(row, row));
+        rows.put(constant.name, new RowNodes(row, row, true));
     }
 
     private static void installColocalizationThresholdDependencies(Map<String, EditableConstant> byName,
@@ -2081,7 +2528,7 @@ final class PipelineLauncher {
 
     private static VBox semanticCard(String titleText, String subtitleText) {
         VBox box = new VBox(CARD_CONTENT_GAP);
-        box.setPadding(new Insets(12.0));
+        box.setPadding(LauncherGeometry.intraPanelPadding());
         addStyleClass(box, "astra-semantic-card");
         Label title = new Label(titleText);
         addStyleClass(title, "astra-semantic-card-title");
@@ -2095,7 +2542,7 @@ final class PipelineLauncher {
     private static VBox targetModelGroup(String title, EditableConstant source, EditableConstant name, EditableConstant file,
                                          EditableConstant savedModelId, SavedModelDiscovery savedModelDiscovery, SettingsAutosave autosave) {
         VBox group = new VBox(PARAMETER_ROW_GAP);
-        group.setPadding(new Insets(10.0));
+        group.setPadding(new Insets(MODEL_SOURCE_CARD_INSET));
         addStyleClass(group, "astra-model-source-card");
         Label label = new Label(title);
         addStyleClass(label, "astra-model-source-title");
@@ -2109,9 +2556,10 @@ final class PipelineLauncher {
                 continue;
             }
             Node editor = constant.createEditor();
-            HBox row = labeledRow(displayLabel(constant.name), editor, 160.0);
+            HBox row = labeledRow(displayLabel(constant.name), editor,
+                    COLOCALIZATION_PANEL_LABEL_WIDTH);
             group.getChildren().add(row);
-            rows.put(constant.name, new RowNodes(row, editor));
+            rows.put(constant.name, new RowNodes(row, editor, false));
             constant.addChangeListener(autosave::markManualEditAndSave);
         }
         if (savedModelDiscovery != null && !savedModelDiscovery.invalidModels().isEmpty()) {
@@ -2160,8 +2608,7 @@ final class PipelineLauncher {
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
                 setText(empty ? null : discovery.labelFor(item));
-                setStyle("");
-                addStyleClass(this, "astra-combo-cell");
+                styleComboCell(this);
             }
         };
     }
@@ -2213,10 +2660,15 @@ final class PipelineLauncher {
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
                 setText(empty ? null : item);
-                setStyle("");
-                addStyleClass(this, "astra-combo-cell");
+                styleComboCell(this);
             }
         };
+    }
+
+    private static void styleComboCell(ListCell<?> cell) {
+        cell.setStyle("");
+        cell.setPadding(comboCellPadding());
+        addStyleClass(cell, "astra-combo-cell");
     }
 
     private static ListCell<String> readableListCell() {
@@ -2252,7 +2704,7 @@ final class PipelineLauncher {
     }
 
     private static Node createPipelineFlow(String scriptName) {
-        HBox flow = new HBox(8.0);
+        HBox flow = new HBox(COMPACT_CONTROL_GAP);
         flow.setAlignment(Pos.CENTER_LEFT);
         List<String> stages = GuiPresentation.workflowSequence(scriptName);
         if (stages.isEmpty()) {
@@ -2278,15 +2730,115 @@ final class PipelineLauncher {
         return flow;
     }
 
-    private static MenuButton createHeaderMenuButton(String title, String token) {
-        MenuButton menu = new MenuButton(title);
-        menu.setFocusTraversable(false);
-        menu.setMinWidth(92.0);
-        styleButton(menu, ButtonRole.HEADER);
-        addStyleClass(menu, "astra-header-menu-button");
-        addStyleClass(menu, "astra-header-menu-button-" + cssToken(token));
-        menu.setTooltip(new Tooltip(title + " actions."));
-        return menu;
+    private static HeaderActionMenu createHeaderMenuButton(String title, String token) {
+        Button button = new Button(title);
+        button.setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+        button.setFocusTraversable(false);
+        styleButton(button, ButtonRole.HEADER);
+        addStyleClass(button, "astra-header-menu-button");
+        addStyleClass(button, "astra-header-menu-button-" + cssToken(token));
+        Label label = new Label(title);
+        addStyleClass(label, "astra-header-menu-label");
+        Label chevron = new Label(CHEVRON_DOWN);
+        addStyleClass(chevron, "astra-chevron");
+        addStyleClass(chevron, "astra-header-menu-chevron");
+        HBox graphic = new HBox(HeaderGeometry.MENU_GRAPHIC_GAP, label, chevron);
+        graphic.setAlignment(Pos.CENTER);
+        addStyleClass(graphic, "astra-header-menu-graphic");
+        button.setGraphic(graphic);
+        button.setTooltip(new Tooltip(title + " actions."));
+        ContextMenu menu = new ContextMenu();
+        menu.setMinWidth(HeaderGeometry.MENU_WIDTH);
+        menu.setPrefWidth(HeaderGeometry.MENU_WIDTH);
+        menu.getStyleClass().add("astra-header-context-menu");
+        button.setOnAction(event -> showHeaderActionMenu(button, menu));
+        return new HeaderActionMenu(button, menu);
+    }
+
+    private static void showHeaderActionMenu(Button button, ContextMenu menu) {
+        if (button == null || menu == null) {
+            return;
+        }
+        if (menu.isShowing()) {
+            menu.hide();
+            return;
+        }
+        Bounds screenBounds = button.localToScreen(button.getBoundsInLocal());
+        if (screenBounds == null) {
+            menu.show(button, LauncherGeometry.FLUSH, button.getHeight());
+            return;
+        }
+        Window owner = button.getScene() == null ? null : button.getScene().getWindow();
+        double launcherMinX = owner == null ? screenBounds.getMinX() : owner.getX();
+        double launcherMaxX = owner == null ? screenBounds.getMaxX() : owner.getX() + owner.getWidth();
+        double x = preferredHeaderMenuX(
+                launcherMinX,
+                launcherMaxX,
+                screenBounds.getMinX(),
+                screenBounds.getMaxX(),
+                HeaderGeometry.MENU_WIDTH,
+                HeaderGeometry.MENU_EDGE_MARGIN);
+        double y = screenBounds.getMaxY() + HeaderGeometry.MENU_VERTICAL_OFFSET;
+        Rectangle2D visualBounds = Screen.getScreensForRectangle(
+                        screenBounds.getMinX(),
+                        screenBounds.getMinY(),
+                        Math.max(1.0d, screenBounds.getWidth()),
+                        Math.max(1.0d, screenBounds.getHeight()))
+                .stream()
+                .findFirst()
+                .map(Screen::getVisualBounds)
+                .orElse(Screen.getPrimary().getVisualBounds());
+        x = clamp(x, visualBounds.getMinX() + HeaderGeometry.MENU_EDGE_MARGIN,
+                visualBounds.getMaxX() - HeaderGeometry.MENU_WIDTH - HeaderGeometry.MENU_EDGE_MARGIN);
+        y = Math.min(y, visualBounds.getMaxY() - HeaderGeometry.MENU_MIN_VISIBLE_HEIGHT);
+        menu.show(button, x, y);
+        installAstraStyles(menu);
+        Platform.runLater(() -> {
+            double width = Math.max(HeaderGeometry.MENU_WIDTH, menu.getWidth());
+            double alignedX = preferredHeaderMenuX(
+                    launcherMinX,
+                    launcherMaxX,
+                    screenBounds.getMinX(),
+                    screenBounds.getMaxX(),
+                    width,
+                    HeaderGeometry.MENU_EDGE_MARGIN);
+            alignedX = clamp(alignedX, visualBounds.getMinX() + HeaderGeometry.MENU_EDGE_MARGIN,
+                    visualBounds.getMaxX() - width - HeaderGeometry.MENU_EDGE_MARGIN);
+            menu.setX(alignedX);
+        });
+    }
+
+    static double preferredHeaderMenuX(double launcherMinX, double launcherMaxX,
+                                       double buttonMinX, double buttonMaxX,
+                                       double menuWidth, double margin) {
+        double safeMargin = Math.max(LauncherGeometry.FLUSH, margin);
+        double width = Math.max(1.0d, menuWidth);
+        double minX = Math.min(launcherMinX, launcherMaxX);
+        double maxX = Math.max(launcherMinX, launcherMaxX);
+        double leftAligned = buttonMinX;
+        if (leftAligned + width <= maxX - safeMargin) {
+            return leftAligned;
+        }
+        double rightAligned = buttonMaxX - width;
+        if (rightAligned >= minX + safeMargin) {
+            return rightAligned;
+        }
+        return clamp(leftAligned, minX + safeMargin, maxX - width - safeMargin);
+    }
+
+    static double headerMenuEdgeMarginForTesting() {
+        return HeaderGeometry.MENU_EDGE_MARGIN;
+    }
+
+    static double headerMenuWidthForTesting() {
+        return HeaderGeometry.MENU_WIDTH;
+    }
+
+    private static double clamp(double value, double min, double max) {
+        if (max < min) {
+            return min;
+        }
+        return Math.max(min, Math.min(value, max));
     }
 
     private static MenuItem createHeaderActionMenuItem(String label, ButtonRole role,
@@ -2309,12 +2861,41 @@ final class PipelineLauncher {
         return item;
     }
 
-    private static void updateOutputToggleState(MenuItem item, boolean outputVisible) {
-        item.setText(outputVisible ? "Hide Output" : "Show Output");
-        item.setDisable(false);
+    private static MenuItem createViewMenuItem(boolean outputVisible,
+                                               Consumer<Boolean> setOutputVisible,
+                                               AnimatedGradientHeader animatedHeader) {
+        VBox menuContent = new VBox();
+        menuContent.setPadding(new Insets(HeaderGeometry.OPTIONS_PANEL_INSET));
+        addStyleClass(menuContent, "astra-header-options-panel");
+        menuContent.getChildren().add(createHeaderViewPanel(outputVisible, setOutputVisible, animatedHeader));
+        CustomMenuItem item = new CustomMenuItem(menuContent, false);
+        item.getStyleClass().add("astra-header-menu-item");
+        item.getStyleClass().add("astra-header-menu-item-default");
+        item.getStyleClass().add("astra-header-options-menu-item");
+        return item;
     }
 
-    private static MenuItem createHeaderOptionsMenu(AnimatedGradientHeader animatedHeader) {
+    private static Node createHeaderViewPanel(boolean outputVisible,
+                                              Consumer<Boolean> setOutputVisible,
+                                              AnimatedGradientHeader animatedHeader) {
+        ToggleButton show = headerSegmentButton("Show");
+        ToggleButton hide = headerSegmentButton("Hide");
+        ToggleGroup group = new ToggleGroup();
+        show.setToggleGroup(group);
+        hide.setToggleGroup(group);
+        show.setUserData(Boolean.TRUE);
+        hide.setUserData(Boolean.FALSE);
+        group.selectToggle(outputVisible ? show : hide);
+        List.of(show, hide).forEach(button ->
+                button.selectedProperty().addListener((obs, wasSelected, isSelected) -> styleHeaderSegmentButton(button)));
+        List.of(show, hide).forEach(PipelineLauncher::styleHeaderSegmentButton);
+        group.selectedToggleProperty().addListener((obs, oldToggle, newToggle) -> {
+            if (newToggle == null) {
+                group.selectToggle(oldToggle == null ? show : oldToggle);
+                return;
+            }
+            setOutputVisible.accept(Boolean.TRUE.equals(newToggle.getUserData()));
+        });
         ToggleButton staticMode = headerSegmentButton("Static");
         ToggleButton dynamicMode = headerSegmentButton("Dynamic");
         ToggleGroup modeGroup = new ToggleGroup();
@@ -2336,9 +2917,10 @@ final class PipelineLauncher {
 
         HBox modeRow = headerSegmentRow("Header", staticMode, dynamicMode);
         HBox motionRow = headerSegmentRow("Motion", slow, smooth, lively);
-        VBox menuContent = new VBox(8.0, modeRow, motionRow);
-        menuContent.setPadding(new Insets(8.0));
-        addStyleClass(menuContent, "astra-header-options-panel");
+        HBox outputRow = headerSegmentRow("Run Log Pane", show, hide);
+        VBox menuContent = new VBox(HeaderGeometry.OPTIONS_GROUP_GAP, outputRow, modeRow, motionRow);
+        menuContent.setPadding(new Insets(HeaderGeometry.OPTIONS_GROUP_GAP));
+        addStyleClass(menuContent, "astra-header-options-group");
 
         AnimatedGradientHeader.HeaderMode initialMode = headerModePreference();
         AnimatedGradientHeader.MotionSpeed initialSpeed = headerMotionPreference();
@@ -2374,11 +2956,7 @@ final class PipelineLauncher {
         List.of(staticMode, dynamicMode, slow, smooth, lively)
                 .forEach(button -> button.selectedProperty().addListener((obs, wasSelected, isSelected) -> styleHeaderSegmentButton(button)));
         List.of(staticMode, dynamicMode, slow, smooth, lively).forEach(PipelineLauncher::styleHeaderSegmentButton);
-        CustomMenuItem item = new CustomMenuItem(menuContent, false);
-        item.getStyleClass().add("astra-header-menu-item");
-        item.getStyleClass().add("astra-header-menu-item-default");
-        item.getStyleClass().add("astra-header-options-menu-item");
-        return item;
+        return menuContent;
     }
 
     private static AnimatedGradientHeader.HeaderMode headerModePreference() {
@@ -2400,12 +2978,14 @@ final class PipelineLauncher {
     }
 
     private static HBox headerSegmentRow(String labelText, ToggleButton... buttons) {
-        HBox row = new HBox(7.0);
+        HBox row = new HBox(HeaderGeometry.SEGMENT_ROW_GAP);
         row.setAlignment(Pos.CENTER_LEFT);
         Label label = new Label(labelText);
-        label.setMinWidth(52.0);
+        label.setMinWidth(HeaderGeometry.SEGMENT_LABEL_WIDTH);
+        label.setPrefWidth(HeaderGeometry.SEGMENT_LABEL_WIDTH);
+        label.setMaxWidth(HeaderGeometry.SEGMENT_LABEL_WIDTH);
         addStyleClass(label, "astra-header-options-label");
-        HBox controls = new HBox(3.0, buttons);
+        HBox controls = new HBox(HeaderGeometry.SEGMENT_CONTROL_GAP, buttons);
         controls.setAlignment(Pos.CENTER_LEFT);
         row.getChildren().addAll(label, controls);
         return row;
@@ -2414,8 +2994,12 @@ final class PipelineLauncher {
     private static ToggleButton headerSegmentButton(String text) {
         ToggleButton button = new ToggleButton(text);
         button.setFocusTraversable(false);
-        button.setMinWidth(58.0);
-        button.setMinHeight(25.0);
+        button.setMinWidth(HeaderGeometry.SEGMENT_BUTTON_WIDTH);
+        button.setPrefWidth(HeaderGeometry.SEGMENT_BUTTON_WIDTH);
+        button.setMaxWidth(HeaderGeometry.SEGMENT_BUTTON_WIDTH);
+        button.setMinHeight(HeaderGeometry.SEGMENT_BUTTON_HEIGHT);
+        button.setPrefHeight(HeaderGeometry.SEGMENT_BUTTON_HEIGHT);
+        addStyleClass(button, "astra-button");
         addStyleClass(button, "astra-header-segment-button");
         return button;
     }
@@ -2452,7 +3036,7 @@ final class PipelineLauncher {
     }
 
     private static VBox labeledVariableBlock(String labelText, Node editor) {
-        VBox block = new VBox(6.0);
+        VBox block = new VBox(FORM_BLOCK_GAP);
         block.setFillWidth(true);
         Label label = new Label(labelText);
         addStyleClass(label, "astra-form-label");
@@ -2464,7 +3048,7 @@ final class PipelineLauncher {
     }
 
     private static VBox nestedField(String labelText, Node editor) {
-        VBox box = new VBox(4.0);
+        VBox box = new VBox(NESTED_FIELD_GAP);
         Label label = new Label(labelText);
         addStyleClass(label, "astra-nested-label");
         if (editor instanceof Region region) {
@@ -2480,8 +3064,8 @@ final class PipelineLauncher {
                                                     boolean expanded,
                                                     SettingsAutosave autosave) {
         GridPane grid = new GridPane();
-        grid.setPadding(new Insets(14.0));
-        grid.setHgap(12.0);
+        grid.setPadding(parameterGridPadding());
+        grid.setHgap(SECTION_CONTENT_GAP);
         grid.setVgap(PARAMETER_ROW_GAP);
         addStyleClass(grid, "astra-section-content");
 
@@ -2502,6 +3086,9 @@ final class PipelineLauncher {
                     Node panel = createDependentPanel(controllerPanel, dependents, rows, autosave);
                     grid.add(panel, 0, row);
                     GridPane.setColumnSpan(panel, 2);
+                    GridPane.setHgrow(panel, Priority.ALWAYS);
+                    GridPane.setFillWidth(panel, true);
+                    GridPane.setMargin(panel, dependentPanelGridMargin());
                     row++;
                     consumed.addAll(dependents.stream().map(c -> c.name).toList());
                 }
@@ -2514,6 +3101,9 @@ final class PipelineLauncher {
                     Node panel = createDependentPanel(dependentPanel, dependents, rows, autosave);
                     grid.add(panel, 0, row);
                     GridPane.setColumnSpan(panel, 2);
+                    GridPane.setHgrow(panel, Priority.ALWAYS);
+                    GridPane.setFillWidth(panel, true);
+                    GridPane.setMargin(panel, dependentPanelGridMargin());
                     row++;
                     consumed.addAll(dependents.stream().map(c -> c.name).toList());
                 }
@@ -2531,45 +3121,59 @@ final class PipelineLauncher {
                                         EditableConstant constant,
                                         Map<String, RowNodes> rows,
                                         SettingsAutosave autosave) {
-        RowNodes nodes = createParameterRowNodes(constant, visualRow, autosave);
+        addParameterRow(grid, row, visualRow, constant, rows, autosave, false);
+    }
+
+    private static void addParameterRow(GridPane grid, int row, int visualRow,
+                                        EditableConstant constant,
+                                        Map<String, RowNodes> rows,
+                                        SettingsAutosave autosave,
+                                        boolean dependent) {
+        RowNodes nodes = createParameterRowNodes(constant, visualRow, autosave, dependent);
         grid.add(nodes.label, 0, row);
+        GridPane.setValignment(nodes.label, nodes.tall() ? VPos.TOP : VPos.CENTER);
         GridPane.setHgrow(nodes.editor, Priority.ALWAYS);
         grid.add(nodes.editor, 1, row);
+        GridPane.setValignment(nodes.editor, nodes.tall() ? VPos.TOP : VPos.CENTER);
         rows.put(constant.name, nodes);
     }
 
     private static RowNodes createParameterRowNodes(EditableConstant constant, int visualRow,
-                                                    SettingsAutosave autosave) {
+                                                    SettingsAutosave autosave,
+                                                    boolean dependent) {
+        double labelColumnWidth = dependent ? DEPENDENT_LABEL_COLUMN_WIDTH : PARAMETER_LABEL_COLUMN_WIDTH;
+        double labelColumnGap = dependent ? DEPENDENT_LABEL_COLUMN_GAP : PARAMETER_LABEL_COLUMN_GAP;
+        double labelTextWidth = parameterLabelTextWidth(labelColumnWidth, labelColumnGap);
         GridPane labelBox = new GridPane();
-        labelBox.setHgap(7.0);
-        labelBox.setAlignment(Pos.TOP_LEFT);
-        labelBox.setMinWidth(PARAMETER_LABEL_COLUMN_WIDTH);
-        labelBox.setPrefWidth(PARAMETER_LABEL_COLUMN_WIDTH);
-        labelBox.setMaxWidth(PARAMETER_LABEL_COLUMN_WIDTH);
-        ColumnConstraints anchorColumn = new ColumnConstraints(8.0, 8.0, 8.0);
+        labelBox.setHgap(labelColumnGap);
+        labelBox.setPadding(parameterRowPadding());
+        labelBox.setMinWidth(labelColumnWidth);
+        labelBox.setPrefWidth(labelColumnWidth);
+        labelBox.setMaxWidth(labelColumnWidth);
+        ColumnConstraints anchorColumn = new ColumnConstraints(
+                PARAMETER_ANCHOR_COLUMN_WIDTH,
+                PARAMETER_ANCHOR_COLUMN_WIDTH,
+                PARAMETER_ANCHOR_COLUMN_WIDTH);
         ColumnConstraints labelColumn = new ColumnConstraints(
-                PARAMETER_LABEL_TEXT_WIDTH,
-                PARAMETER_LABEL_TEXT_WIDTH,
-                PARAMETER_LABEL_TEXT_WIDTH);
+                labelTextWidth,
+                labelTextWidth,
+                labelTextWidth);
         ColumnConstraints helpColumn = new ColumnConstraints(
                 PARAMETER_HELP_COLUMN_WIDTH,
                 PARAMETER_HELP_COLUMN_WIDTH,
                 PARAMETER_HELP_COLUMN_WIDTH);
         labelBox.getColumnConstraints().addAll(anchorColumn, labelColumn, helpColumn);
         addStyleClass(labelBox, "astra-parameter-row");
-        addStyleClass(labelBox, visualRow % 2 == 0 ? "astra-parameter-row-even" : "astra-parameter-row-odd");
-        Rectangle anchor = new Rectangle(4.0, 18.0);
+        Rectangle anchor = new Rectangle(PARAMETER_ANCHOR_WIDTH, PARAMETER_ANCHOR_HEIGHT);
         addStyleClass(anchor, "astra-parameter-anchor");
         addStyleClass(anchor, "astra-parameter-anchor-" + parameterTypeToken(constant));
-        Label label = new Label(displayLabel(constant.name));
-        label.setMinWidth(PARAMETER_LABEL_TEXT_WIDTH);
-        label.setPrefWidth(PARAMETER_LABEL_TEXT_WIDTH);
-        label.setMaxWidth(PARAMETER_LABEL_TEXT_WIDTH);
-        label.setWrapText(true);
+        Text label = new Text(displayLabel(constant.name));
+        label.setBoundsType(TextBoundsType.VISUAL);
+        label.setWrappingWidth(labelTextWidth);
         label.getStyleClass().add("astra-parameter-label");
         Button info = new Button("?");
-        info.setMinSize(18.0, 18.0);
-        info.setMaxSize(18.0, 18.0);
+        info.setMinSize(PARAMETER_HELP_BUTTON_SIZE, PARAMETER_HELP_BUTTON_SIZE);
+        info.setMaxSize(PARAMETER_HELP_BUTTON_SIZE, PARAMETER_HELP_BUTTON_SIZE);
         info.setFocusTraversable(false);
         styleButton(info, ButtonRole.HELP);
         Tooltip tooltip = new Tooltip(constant.helpText());
@@ -2579,44 +3183,58 @@ final class PipelineLauncher {
         labelBox.add(anchor, 0, 0);
         labelBox.add(label, 1, 0);
         labelBox.add(info, 2, 0);
-        GridPane.setValignment(anchor, VPos.TOP);
-        GridPane.setValignment(label, VPos.TOP);
-        GridPane.setValignment(info, VPos.TOP);
-        labelBox.setMinHeight(PARAMETER_ROW_HEIGHT);
+        GridPane.setHalignment(anchor, HPos.LEFT);
 
         Node editor = constant.createEditor();
+        boolean tall = isTallParameterEditor(editor);
+        labelBox.setAlignment(tall ? Pos.TOP_LEFT : Pos.CENTER_LEFT);
+        GridPane.setValignment(anchor, tall ? VPos.TOP : VPos.CENTER);
+        GridPane.setValignment(label, tall ? VPos.TOP : VPos.CENTER);
+        GridPane.setValignment(info, tall ? VPos.TOP : VPos.CENTER);
+        labelBox.setMinHeight(PARAMETER_ROW_HEIGHT);
         addStyleClass(editor, "astra-parameter-editor");
-        addStyleClass(editor, visualRow % 2 == 0 ? "astra-parameter-row-even" : "astra-parameter-row-odd");
         constant.addChangeListener(autosave::markManualEditAndSave);
         if (editor instanceof Region region) {
             region.setMinHeight(PARAMETER_ROW_HEIGHT);
         }
-        return new RowNodes(labelBox, editor);
+        return new RowNodes(labelBox, editor, tall);
+    }
+
+    private static boolean isTallParameterEditor(Node editor) {
+        return editor instanceof TextArea
+                || editor instanceof ScrollPane
+                || editor instanceof ProjectImageSelectionEditor
+                || editor instanceof MarkerKeyMapEditor
+                || editor instanceof StageModeEditor
+                || editor instanceof MultiSelectListEditor
+                || editor instanceof ColocalizationChecksEditor;
     }
 
     private static Node createDependentPanel(DependencyPanel panel,
                                              List<EditableConstant> constants,
                                              Map<String, RowNodes> rows,
                                              SettingsAutosave autosave) {
-        VBox box = new VBox(7.0);
+        VBox box = new VBox(LauncherGeometry.INTRA_PANEL_TIGHT_GAP);
+        box.setPadding(dependentPanelPadding());
+        box.setMaxWidth(Double.MAX_VALUE);
         addStyleClass(box, "astra-dependent-panel");
         addStyleClass(box, "astra-dependent-panel-" + cssToken(panel.token()));
         Label title = new Label(panel.title());
+        title.setPadding(dependentTitlePadding());
         addStyleClass(title, "astra-dependent-panel-title");
         Label reason = new Label(panel.reason());
         reason.setWrapText(true);
+        reason.setPadding(dependentTitlePadding());
         addStyleClass(reason, "astra-dependent-panel-reason");
         GridPane inner = new GridPane();
-        inner.setHgap(12.0);
+        inner.setPadding(dependentRowsPadding());
+        inner.setHgap(SECTION_CONTENT_GAP);
         inner.setVgap(PARAMETER_ROW_GAP);
+        inner.setMaxWidth(Double.MAX_VALUE);
         addStyleClass(inner, "astra-dependent-panel-rows");
         int row = 0;
         for (EditableConstant constant : constants) {
-            RowNodes nodes = createParameterRowNodes(constant, row, autosave);
-            inner.add(nodes.label, 0, row);
-            GridPane.setHgrow(nodes.editor, Priority.ALWAYS);
-            inner.add(nodes.editor, 1, row);
-            rows.put(constant.name, nodes);
+            addParameterRow(inner, row, row, constant, rows, autosave, true);
             row++;
         }
         box.getChildren().addAll(title, reason, inner);
@@ -2795,15 +3413,22 @@ final class PipelineLauncher {
     private static void showParameterHelpDialog(EditableConstant constant) {
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("ASTRA Parameter Help");
-        dialog.setHeaderText(displayLabel(constant.name));
+        dialog.setHeaderText(null);
 
-        VBox content = new VBox(12.0);
-        content.setPadding(new Insets(14.0));
+        VBox content = new VBox(HELP_DIALOG_SECTION_GAP);
+        content.setPadding(helpDialogPadding());
         addStyleClass(content, "astra-help-dialog-content");
 
+        Label title = new Label(displayLabel(constant.name));
+        addStyleClass(title, "astra-help-title");
+        Label subtitle = new Label("ASTRA parameter reference");
+        addStyleClass(subtitle, "astra-help-subtitle");
+        VBox titleBlock = new VBox(HELP_DIALOG_TIGHT_GAP, title, subtitle);
+
         GridPane summary = new GridPane();
-        summary.setHgap(12.0);
-        summary.setVgap(8.0);
+        summary.setHgap(HELP_SUMMARY_COLUMN_GAP);
+        summary.setVgap(HELP_SUMMARY_ROW_GAP);
+        summary.setPadding(helpDialogPadding());
         addStyleClass(summary, "astra-help-summary-grid");
         addHelpSummaryRow(summary, 0, "Parameter", constant.name);
         addHelpSummaryRow(summary, 1, "Current value", safeCurrentDisplayValue(constant));
@@ -2815,18 +3440,35 @@ final class PipelineLauncher {
         quick.setWrapText(true);
         addStyleClass(quick, "astra-help-body");
 
+        Button copyDetails = new Button("Copy Details");
+        copyDetails.setFocusTraversable(false);
+        styleButton(copyDetails, ButtonRole.SMALL);
+        copyDetails.setOnAction(event -> {
+            ClipboardContent clip = new ClipboardContent();
+            clip.putString(constant.detailsText());
+            Clipboard.getSystemClipboard().setContent(clip);
+        });
         Label detailTitle = new Label("Details");
         addStyleClass(detailTitle, "astra-help-section-title");
-        TextArea details = new TextArea(constant.detailsText());
-        details.setEditable(false);
-        details.setWrapText(true);
-        details.setPrefRowCount(11);
-        addStyleClass(details, "astra-help-details");
+        Region detailSpacer = new Region();
+        HBox.setHgrow(detailSpacer, Priority.ALWAYS);
+        HBox detailHeader = new HBox(HELP_DETAIL_HEADER_GAP, detailTitle, detailSpacer, copyDetails);
+        detailHeader.setAlignment(Pos.CENTER_LEFT);
 
-        content.getChildren().addAll(summary, quickTitle, quick, detailTitle, details);
+        Region detailAccent = new Region();
+        detailAccent.setMinWidth(HELP_DETAIL_ACCENT_WIDTH);
+        detailAccent.setPrefWidth(HELP_DETAIL_ACCENT_WIDTH);
+        detailAccent.setMaxWidth(HELP_DETAIL_ACCENT_WIDTH);
+        addStyleClass(detailAccent, "astra-help-details-accent");
+        BorderPane detailShell = new BorderPane();
+        addStyleClass(detailShell, "astra-help-details-shell");
+        detailShell.setLeft(detailAccent);
+        detailShell.setCenter(createHelpDetailsContent(constant.detailsText()));
+
+        content.getChildren().addAll(titleBlock, summary, quickTitle, quick, detailHeader, detailShell);
         dialog.getDialogPane().setContent(content);
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-        dialog.getDialogPane().setPrefWidth(620.0);
+        dialog.getDialogPane().setPrefWidth(HELP_DIALOG_WIDTH);
         installAstraStyles(dialog.getDialogPane());
         Node close = dialog.getDialogPane().lookupButton(ButtonType.CLOSE);
         if (close instanceof ButtonBase button) {
@@ -2835,9 +3477,95 @@ final class PipelineLauncher {
         dialog.showAndWait();
     }
 
+    private static Node createHelpDetailsContent(String detailsText) {
+        VBox cards = new VBox(HELP_DETAIL_CARD_GAP);
+        cards.setPadding(helpDialogPadding());
+        addStyleClass(cards, "astra-help-details-cards");
+        List<HelpDetailSection> sections = parseHelpDetailSections(detailsText);
+        if (sections.isEmpty()) {
+            sections = List.of(new HelpDetailSection("Details", String.valueOf(detailsText == null ? "" : detailsText).trim()));
+        }
+        for (HelpDetailSection section : sections) {
+            VBox card = new VBox(HELP_DETAIL_CARD_INTERNAL_GAP);
+            card.setPadding(helpDetailCardPadding());
+            addStyleClass(card, "astra-help-detail-card");
+            Label title = new Label(section.title());
+            addStyleClass(title, "astra-help-detail-card-title");
+            Label body = new Label(section.body().isBlank() ? "(not specified)" : section.body());
+            body.setWrapText(true);
+            addStyleClass(body, "astra-help-detail-card-body");
+            card.getChildren().addAll(title, body);
+            cards.getChildren().add(card);
+        }
+        ScrollPane scroll = new ScrollPane(cards);
+        scroll.setFitToWidth(true);
+        scroll.setPrefViewportHeight(HELP_DETAIL_VIEWPORT_HEIGHT);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        addStyleClass(scroll, "astra-help-details-scroll");
+        return scroll;
+    }
+
+    static List<HelpDetailSection> parseHelpDetailSections(String detailsText) {
+        String text = String.valueOf(detailsText == null ? "" : detailsText).trim();
+        if (text.isBlank()) {
+            return List.of();
+        }
+        Pattern heading = Pattern.compile("^(What it does|When to change|Analysis consequence|Allowed values|Default value|Examples?|Notes?|Important)\\s*:?\\s*(.*)$",
+                Pattern.CASE_INSENSITIVE);
+        List<HelpDetailSection> sections = new ArrayList<>();
+        String currentTitle = "";
+        StringBuilder currentBody = new StringBuilder();
+        boolean sawHeading = false;
+        for (String line : text.split("\\R")) {
+            String trimmed = line.trim();
+            Matcher matcher = heading.matcher(trimmed);
+            if (matcher.matches()) {
+                sawHeading = true;
+                if (!currentTitle.isBlank() || !currentBody.toString().isBlank()) {
+                    sections.add(new HelpDetailSection(cleanHelpHeading(currentTitle), currentBody.toString().trim()));
+                    currentBody.setLength(0);
+                }
+                currentTitle = cleanHelpHeading(matcher.group(1));
+                if (matcher.group(2) != null && !matcher.group(2).isBlank()) {
+                    currentBody.append(matcher.group(2).trim());
+                }
+            } else if (!trimmed.isBlank()) {
+                if (!currentBody.isEmpty()) {
+                    currentBody.append('\n');
+                }
+                currentBody.append(trimmed);
+            }
+        }
+        if (!currentTitle.isBlank() || !currentBody.toString().isBlank()) {
+            sections.add(new HelpDetailSection(cleanHelpHeading(currentTitle), currentBody.toString().trim()));
+        }
+        if (!sawHeading) {
+            return List.of();
+        }
+        return sections;
+    }
+
+    private static String cleanHelpHeading(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "Details";
+        }
+        String normalized = raw.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "what it does" -> "What it does";
+            case "when to change" -> "When to change";
+            case "analysis consequence" -> "Analysis consequence";
+            case "allowed values" -> "Allowed values";
+            case "default value" -> "Default value";
+            case "example", "examples" -> "Example";
+            case "note", "notes" -> "Notes";
+            case "important" -> "Important";
+            default -> raw.trim();
+        };
+    }
+
     private static void addHelpSummaryRow(GridPane grid, int row, String labelText, String valueText) {
         Label label = new Label(labelText);
-        label.setMinWidth(110.0);
+        label.setMinWidth(HELP_SUMMARY_LABEL_WIDTH);
         addStyleClass(label, "astra-help-summary-label");
         Label value = new Label(valueText == null || valueText.isBlank() ? "(blank)" : valueText);
         value.setWrapText(true);
@@ -2869,14 +3597,14 @@ final class PipelineLauncher {
 
     private static GridPane createUngroupedSection(List<EditableConstant> constants, boolean expanded, SettingsAutosave autosave) {
         GridPane grid = new GridPane();
-        grid.setPadding(new Insets(0));
-        grid.setHgap(12.0);
+        grid.setPadding(new Insets(LauncherGeometry.FLUSH));
+        grid.setHgap(UNGROUPED_SECTION_HGAP);
         grid.setVgap(PARAMETER_ROW_GAP);
         int row = 0;
         for (EditableConstant constant : constants) {
             Node editor = constant.createEditor();
             Label label = new Label(displayLabel(constant.name));
-            label.setMinWidth(170.0);
+            label.setMinWidth(UNGROUPED_LABEL_WIDTH);
             addStyleClass(label, "astra-form-label");
             grid.add(label, 0, row);
             grid.add(editor, 1, row);
@@ -2888,14 +3616,14 @@ final class PipelineLauncher {
     }
 
     private static Node createChannelPanel(List<ImageChannel> channels) {
-        VBox panel = new VBox(8.0);
-        panel.setPadding(new Insets(14.0));
+        VBox panel = new VBox(CHANNEL_PANEL_GAP);
+        panel.setPadding(new Insets(CHANNEL_PANEL_INSET));
         addStyleClass(panel, "astra-channel-panel");
 
         Label title = new Label("Open image channels");
         addStyleClass(title, "astra-channel-panel-title");
 
-        FlowPane chips = new FlowPane(8.0, 8.0);
+        FlowPane chips = new FlowPane(CHANNEL_CHIP_HORIZONTAL_INSET, CHANNEL_CHIP_HORIZONTAL_INSET);
         addStyleClass(chips, "astra-channel-panel-chips");
         if (channels.isEmpty()) {
             Label empty = new Label("No image is open. Channel-dependent fields still use the script defaults.");
@@ -2905,13 +3633,17 @@ final class PipelineLauncher {
         }
 
         for (ImageChannel channel : channels) {
-            HBox chip = new HBox(6.0);
+            HBox chip = new HBox(CHANNEL_CHIP_GAP);
             chip.setAlignment(Pos.CENTER_LEFT);
-            chip.setPadding(new Insets(5.0, 8.0, 5.0, 8.0));
+            chip.setPadding(new Insets(
+                    CHANNEL_CHIP_VERTICAL_INSET,
+                    CHANNEL_CHIP_HORIZONTAL_INSET,
+                    CHANNEL_CHIP_VERTICAL_INSET,
+                    CHANNEL_CHIP_HORIZONTAL_INSET));
             addStyleClass(chip, "astra-channel-chip");
-            Rectangle swatch = new Rectangle(12.0, 12.0);
-            swatch.setArcHeight(4.0);
-            swatch.setArcWidth(4.0);
+            Rectangle swatch = new Rectangle(CHANNEL_SWATCH_SIZE, CHANNEL_SWATCH_SIZE);
+            swatch.setArcHeight(CHANNEL_SWATCH_ARC);
+            swatch.setArcWidth(CHANNEL_SWATCH_ARC);
             swatch.setStyle("-fx-fill: " + channelColor(channel) + "; -fx-stroke: #31404a; -fx-stroke-width: 0.5;");
             Label name = new Label(channel.getName());
             addStyleClass(name, "astra-channel-chip-name");
@@ -3144,6 +3876,15 @@ final class PipelineLauncher {
     private record SettingsSectionModel(String title, String description, String badge, Node content, boolean advanced) {
     }
 
+    private record HeaderActionMenu(Button button, ContextMenu menu) {
+        private ObservableList<MenuItem> getItems() {
+            return menu.getItems();
+        }
+    }
+
+    record HelpDetailSection(String title, String body) {
+    }
+
     private static void installAstraStyles(DialogPane pane) {
         if (pane == null) {
             return;
@@ -3157,6 +3898,19 @@ final class PipelineLauncher {
         }
         if (!pane.getStyleClass().contains("astra-dialog-pane")) {
             pane.getStyleClass().add("astra-dialog-pane");
+        }
+    }
+
+    private static void installAstraStyles(ContextMenu menu) {
+        if (menu == null || menu.getScene() == null) {
+            return;
+        }
+        var resource = PipelineLauncher.class.getResource(LAUNCHER_STYLESHEET_RESOURCE);
+        if (resource != null) {
+            String css = resource.toExternalForm();
+            if (!menu.getScene().getStylesheets().contains(css)) {
+                menu.getScene().getStylesheets().add(css);
+            }
         }
     }
 
@@ -3205,6 +3959,11 @@ final class PipelineLauncher {
             case SMALL -> "astra-button-small";
             case HELP -> "astra-button-help";
         });
+    }
+
+    private static void applyMainActionButtonGeometry(ButtonBase button) {
+        button.setMinHeight(PARAMETER_ROW_HEIGHT);
+        button.setPrefHeight(PARAMETER_ROW_HEIGHT);
     }
 
     private static void styleCheckBox(CheckBox box) {
@@ -3495,7 +4254,6 @@ final class PipelineLauncher {
         if (row == null) {
             return;
         }
-        row.label.setDisable(!enabled);
         row.editor.setDisable(!enabled);
         if (enabled) {
             removeStyleClass(row.label, "astra-parameter-row-dependent-disabled");
@@ -3784,19 +4542,19 @@ final class PipelineLauncher {
 
         private RunFeedback(String scriptName) {
             this.scriptName = scriptName;
-            box = new VBox(8.0);
-            box.setPadding(new Insets(14.0));
+            box = new VBox(OUTPUT_PANE_GAP);
+            box.setPadding(new Insets(OUTPUT_PANE_INSET));
             addStyleClass(box, "astra-output-pane");
-            box.setPrefWidth(430.0);
-            box.setMinWidth(360.0);
-            box.setMaxWidth(Double.MAX_VALUE);
-            HBox.setHgrow(box, Priority.ALWAYS);
+            box.setPrefWidth(OUTPUT_PANE_PREF_WIDTH);
+            box.setMinWidth(OUTPUT_PANE_MIN_WIDTH);
+            box.setMaxWidth(Region.USE_PREF_SIZE);
+            HBox.setHgrow(box, Priority.NEVER);
 
-            HBox header = new HBox(10.0);
+            HBox header = new HBox(OUTPUT_HEADER_GAP);
             header.setAlignment(Pos.CENTER_LEFT);
             addStyleClass(header, "astra-output-header");
             progress = new ProgressIndicator();
-            progress.setPrefSize(18.0, 18.0);
+            progress.setPrefSize(OUTPUT_PROGRESS_SIZE, OUTPUT_PROGRESS_SIZE);
             progress.setVisible(false);
             progress.setManaged(false);
 
@@ -3977,31 +4735,39 @@ final class PipelineLauncher {
     private static final class CollapsibleSection extends VBox {
 
         private final Node content;
+        private final Node header;
         private final Label arrow;
 
         private CollapsibleSection(String title, Node content, boolean expanded) {
-            super(0.0);
+            super(LauncherGeometry.FLUSH);
             this.content = content;
-            this.arrow = new Label(expanded ? "v" : ">");
+            this.arrow = new Label(expanded ? CHEVRON_DOWN : CHEVRON_RIGHT);
 
-            Button header = new Button();
+            StackPane header = new StackPane();
+            this.header = header;
             header.setMaxWidth(Double.MAX_VALUE);
             header.setFocusTraversable(false);
-            header.setPadding(new Insets(0));
             addStyleClass(header, "astra-collapsible-header");
 
             Label titleLabel = new Label(title);
             addStyleClass(titleLabel, "astra-collapsible-title");
-            arrow.setMinWidth(18.0);
+            arrow.setMinWidth(COLLAPSIBLE_ARROW_WIDTH);
             addStyleClass(arrow, "astra-collapsible-arrow");
             BorderPane headerContent = new BorderPane();
-            headerContent.setPadding(new Insets(9.0, 12.0, 9.0, 12.0));
+            headerContent.setPadding(new Insets(
+                    COLLAPSIBLE_HEADER_VERTICAL_INSET,
+                    COLLAPSIBLE_HEADER_HORIZONTAL_INSET,
+                    COLLAPSIBLE_HEADER_VERTICAL_INSET,
+                    COLLAPSIBLE_HEADER_HORIZONTAL_INSET));
             headerContent.setLeft(titleLabel);
             headerContent.setRight(arrow);
-            header.setGraphic(headerContent);
-            headerContent.prefWidthProperty().bind(header.widthProperty().subtract(10.0));
+            header.getChildren().add(headerContent);
+            headerContent.prefWidthProperty().bind(header.widthProperty().subtract(COLLAPSIBLE_HEADER_WIDTH_ADJUSTMENT));
 
-            header.setOnAction(event -> setExpanded(!this.content.isVisible()));
+            header.setOnMousePressed(event -> header.pseudoClassStateChanged(PRESSED_PSEUDO, true));
+            header.setOnMouseReleased(event -> header.pseudoClassStateChanged(PRESSED_PSEUDO, false));
+            header.setOnMouseExited(event -> header.pseudoClassStateChanged(PRESSED_PSEUDO, false));
+            header.setOnMouseClicked(event -> setExpanded(!this.content.isVisible()));
             getChildren().addAll(header, content);
             setExpanded(expanded);
         }
@@ -4009,11 +4775,21 @@ final class PipelineLauncher {
         private void setExpanded(boolean expanded) {
             content.setVisible(expanded);
             content.setManaged(expanded);
-            arrow.setText(expanded ? "v" : ">");
+            arrow.setText(expanded ? CHEVRON_DOWN : CHEVRON_RIGHT);
+        }
+
+        private void setHeaderVisible(boolean visible) {
+            header.setVisible(visible);
+            header.setManaged(visible);
+            if (visible) {
+                removeStyleClass(content, "astra-section-content-focused");
+            } else {
+                addStyleClass(content, "astra-section-content-focused");
+            }
         }
     }
 
-    private record RowNodes(Node label, Node editor) {
+    private record RowNodes(Node label, Node editor, boolean tall) {
     }
 
     private record DependencyPanel(String token, String title, String reason,
@@ -4397,7 +5173,7 @@ final class PipelineLauncher {
 
         private MultiSelectListEditor(String titleText, List<String> choices, List<String> initialSelection,
                                       String emptyMessage, Function<String, String> display) {
-            super(7.0);
+            super(SelectionGeometry.EDITOR_STACK_GAP);
             this.titleText = titleText == null ? "" : titleText;
             this.emptyMessage = emptyMessage == null || emptyMessage.isBlank()
                     ? "No choices available."
@@ -4458,18 +5234,31 @@ final class PipelineLauncher {
                 selector.setDisable(false);
                 summary.setText("None selected.");
             } else if (selectedValues.size() <= 2) {
-                selector.setText(selectedValues.stream().map(display).reduce((a, b) -> a + ", " + b).orElse(""));
+                selector.setText(selectedButtonText(selectedValues));
                 selector.setDisable(false);
-                summary.setText(selectedValues.size() + " of " + choices.size() + " selected.");
+                summary.setText(selectedValues.size() + " of " + choices.size() + " available stages selected.");
             } else {
-                selector.setText(selectedValues.size() + " selected");
+                String buttonText = selectedButtonText(selectedValues);
+                boolean buttonCarriesSelection = buttonText.length() <= MULTI_SELECT_BUTTON_SUMMARY_LIMIT;
+                selector.setText(buttonCarriesSelection ? buttonText : selectedValues.size() + " selected");
                 selector.setDisable(false);
-                summary.setText(selectedValues.stream()
-                        .limit(4)
-                        .map(display)
-                        .reduce((a, b) -> a + ", " + b)
-                        .orElse("") + (selectedValues.size() > 4 ? ", +" + (selectedValues.size() - 4) + " more" : ""));
+                summary.setText(buttonCarriesSelection
+                        ? selectedValues.size() + " of " + choices.size() + " available stages selected."
+                        : selectedValues.stream()
+                                .limit(4)
+                                .map(display)
+                                .reduce((a, b) -> a + ", " + b)
+                                .orElse("") + (selectedValues.size() > 4
+                                        ? ", +" + (selectedValues.size() - 4) + " more"
+                                        : ""));
             }
+        }
+
+        private String selectedButtonText(List<String> selectedValues) {
+            return selectedValues.stream()
+                    .map(display)
+                    .reduce((a, b) -> a + ", " + b)
+                    .orElse("");
         }
 
         private void openSelectionDialog() {
@@ -4487,7 +5276,9 @@ final class PipelineLauncher {
             addStyleClass(filter, "astra-input");
             ListView<String> list = new ListView<>();
             list.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-            list.setPrefSize(420.0, 280.0);
+            list.setPrefSize(
+                    SelectionGeometry.SINGLE_LIST_WIDTH,
+                    SelectionGeometry.SINGLE_LIST_HEIGHT);
             addStyleClass(list, "astra-list-view");
             list.setCellFactory(view -> new ListCell<>() {
                 @Override
@@ -4550,12 +5341,22 @@ final class PipelineLauncher {
                 working.clear();
                 refresh.run();
             });
-            FlowPane actions = new FlowPane(7.0, 7.0, selectAll, clear);
+            FlowPane actions = new FlowPane(
+                    SelectionGeometry.DIALOG_ACTION_GAP,
+                    SelectionGeometry.DIALOG_ACTION_GAP,
+                    selectAll,
+                    clear);
             Label hint = new Label("Use shift or command/control to select multiple rows, then Apply.");
             hint.setWrapText(true);
             addStyleClass(hint, "astra-dialog-muted");
-            VBox content = new VBox(9.0, filter, list, actions, dialogSummary, hint);
-            content.setPadding(new Insets(12.0));
+            VBox content = new VBox(
+                    SelectionGeometry.DIALOG_CONTENT_GAP,
+                    filter,
+                    list,
+                    actions,
+                    dialogSummary,
+                    hint);
+            content.setPadding(new Insets(SelectionGeometry.DIALOG_CONTENT_INSET));
             dialog.getDialogPane().setContent(content);
             refresh.run();
 
@@ -4578,7 +5379,7 @@ final class PipelineLauncher {
         }
 
         private ChannelCheckboxEditor(String titleText, List<String> channels, String rawValue, String emptyMessage) {
-            super(0.0);
+            super(LauncherGeometry.FLUSH);
             editor = new MultiSelectListEditor(titleText, channels, EditableConstant.csvValues(rawValue), emptyMessage, Function.identity());
             getChildren().add(editor);
         }
@@ -4608,7 +5409,7 @@ final class PipelineLauncher {
         private final List<Runnable> listeners = new ArrayList<>();
 
         private ColocalizationChecksEditor(List<String> imageChannels, String rawValue) {
-            super(8.0);
+            super(COLOCALIZATION_CHECK_EDITOR_GAP);
             this.imageChannels = List.copyOf(imageChannels);
             List<ColocalizationCheck> parsed = parseColocalizationChecks(rawValue);
             parsed.forEach(this::addRow);
@@ -4660,17 +5461,18 @@ final class PipelineLauncher {
             private final ChannelCheckboxEditor exclusionSelector;
 
             private CheckRow(ColocalizationCheck check) {
-                node.setMinHeight(64.0);
+                node.setMinHeight(CHECK_ROW_MIN_HEIGHT);
+                node.setPadding(new Insets(NESTED_PANEL_INSET));
                 addStyleClass(node, "astra-nested-panel");
                 label.setPromptText("Label");
                 label.setText(check.label());
                 label.setPrefColumnCount(18);
-                label.setMinWidth(180.0);
+                label.setMinWidth(CHECK_LABEL_MIN_WIDTH);
                 addStyleClass(label, "astra-input");
                 compartment.getItems().addAll("Nucleus", "Cytoplasm", "Cell");
                 compartment.setValue(check.compartment().isBlank() ? "Nucleus" : check.compartment());
-                compartment.setMinWidth(120.0);
-                compartment.setPrefWidth(130.0);
+                compartment.setMinWidth(CHECK_COMPARTMENT_MIN_WIDTH);
+                compartment.setPrefWidth(CHECK_COMPARTMENT_PREF_WIDTH);
                 styleComboBox(compartment);
                 channelSelector = new ChannelCheckboxEditor("", imageChannels, renderStringList(check.channels()));
                 exclusionSelector = new ChannelCheckboxEditor("", check.channels(), renderStringList(check.excludedChannels()), "Choose check channels first.");
@@ -4681,9 +5483,9 @@ final class PipelineLauncher {
                 exclusionSelector.addChangeListener(() -> notifyListeners());
                 Button remove = new Button("Delete check");
                 remove.setTooltip(new Tooltip("Delete check"));
-                remove.setMinHeight(28.0);
-                remove.setPrefHeight(28.0);
-                remove.setMinWidth(92.0);
+                remove.setMinHeight(CHECK_REMOVE_BUTTON_HEIGHT);
+                remove.setPrefHeight(CHECK_REMOVE_BUTTON_HEIGHT);
+                remove.setMinWidth(CHECK_REMOVE_BUTTON_WIDTH);
                 remove.setFocusTraversable(false);
                 styleButton(remove, ButtonRole.SMALL);
                 remove.setOnAction(event -> {
@@ -4742,12 +5544,13 @@ final class PipelineLauncher {
         private List<String> markerKeys = List.of();
 
         MarkerKeyMapEditor(String rawValue, MarkerMapValueType valueType, String emptyMessage) {
-            super(7.0);
+            super(SelectionGeometry.EDITOR_STACK_GAP);
             this.valueType = Objects.requireNonNull(valueType, "valueType");
             this.emptyMessage = emptyMessage == null || emptyMessage.isBlank()
                     ? "Marker-key rows appear after colocalization checks define marker keys."
                     : emptyMessage;
             values.putAll(parseMarkerKeyMapValues(rawValue, valueType));
+            setPadding(new Insets(NESTED_PANEL_INSET));
             addStyleClass(this, "astra-nested-panel");
         }
 
@@ -4837,7 +5640,7 @@ final class PipelineLauncher {
         private final List<Runnable> listeners = new ArrayList<>();
 
         private ProjectImageSelectionEditor(List<String> imageNames, String rawValue) {
-            super(7.0);
+            super(SelectionGeometry.EDITOR_STACK_GAP);
             this.allNames = List.copyOf(imageNames);
             selected.addAll(EditableConstant.csvValues(rawValue));
             selected.retainAll(allNames);
@@ -4849,7 +5652,11 @@ final class PipelineLauncher {
             Button paste = smallButton("Paste Image Names");
             paste.setTooltip(new Tooltip("Paste one project image name per line, or comma-separated image names."));
             paste.setOnAction(event -> pasteNamesFromClipboard());
-            FlowPane actions = new FlowPane(7.0, 7.0, choose, paste);
+            FlowPane actions = new FlowPane(
+                    SelectionGeometry.DIALOG_ACTION_GAP,
+                    SelectionGeometry.DIALOG_ACTION_GAP,
+                    choose,
+                    paste);
             Label hint = new Label("Project-scale runs use this explicit selected-image list. Use Choose Images to pick one, several, or all project images.");
             hint.setWrapText(true);
             addStyleClass(hint, "astra-dialog-muted");
@@ -4859,7 +5666,7 @@ final class PipelineLauncher {
 
         private static Button smallButton(String text) {
             Button button = new Button(text);
-        button.setFocusTraversable(false);
+            button.setFocusTraversable(false);
             styleButton(button, ButtonRole.SMALL);
             return button;
         }
@@ -4878,8 +5685,12 @@ final class PipelineLauncher {
             ListView<String> chosen = new ListView<>();
             available.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
             chosen.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-            available.setPrefSize(300.0, 320.0);
-            chosen.setPrefSize(300.0, 320.0);
+            available.setPrefSize(
+                    SelectionGeometry.PROJECT_LIST_WIDTH,
+                    SelectionGeometry.PROJECT_LIST_HEIGHT);
+            chosen.setPrefSize(
+                    SelectionGeometry.PROJECT_LIST_WIDTH,
+                    SelectionGeometry.PROJECT_LIST_HEIGHT);
             addStyleClass(available, "astra-list-view");
             addStyleClass(chosen, "astra-list-view");
             available.setCellFactory(list -> readableListCell());
@@ -4917,14 +5728,26 @@ final class PipelineLauncher {
                 refresh.run();
             });
 
-            VBox moveButtons = new VBox(8.0, addSelected, addAll, removeSelected, removeAll);
+            VBox moveButtons = new VBox(
+                    SelectionGeometry.TRANSFER_BUTTON_GAP,
+                    addSelected,
+                    addAll,
+                    removeSelected,
+                    removeAll);
             moveButtons.setAlignment(Pos.CENTER);
             VBox availableBox = labeledSelector("Available Images", available);
             VBox chosenBox = labeledSelector("Selected Images", chosen);
-            HBox chooser = new HBox(12.0, availableBox, moveButtons, chosenBox);
+            HBox chooser = new HBox(
+                    SelectionGeometry.DUAL_LIST_GAP,
+                    availableBox,
+                    moveButtons,
+                    chosenBox);
             chooser.setAlignment(Pos.CENTER);
-            VBox content = new VBox(10.0, filter, chooser);
-            content.setPadding(new Insets(12.0));
+            VBox content = new VBox(
+                    SelectionGeometry.DIALOG_CONTENT_GAP,
+                    filter,
+                    chooser);
+            content.setPadding(new Insets(SelectionGeometry.DIALOG_CONTENT_INSET));
             dialog.getDialogPane().setContent(content);
             filter.textProperty().addListener((obs, oldValue, newValue) -> refresh.run());
             refresh.run();
@@ -4940,7 +5763,7 @@ final class PipelineLauncher {
         private static VBox labeledSelector(String labelText, ListView<String> list) {
             Label label = new Label(labelText);
             addStyleClass(label, "astra-dialog-section-title");
-            return new VBox(5.0, label, list);
+            return new VBox(SelectionGeometry.LABEL_TO_LIST_GAP, label, list);
         }
 
         private static Button transferButton(String text) {
@@ -5009,7 +5832,7 @@ final class PipelineLauncher {
         private final List<Runnable> listeners = new ArrayList<>();
 
         private StageModeEditor(List<String> modes, String rawValue) {
-            super(7.0);
+            super(SelectionGeometry.EDITOR_STACK_GAP);
             this.orderedModes = List.copyOf(modes);
             selector = new MultiSelectListEditor("", orderedModes, EditableConstant.csvValues(rawValue),
                     "No stages available.", StageModeEditor::displayMode);
@@ -5052,7 +5875,7 @@ final class PipelineLauncher {
         private final TextField field;
 
         private ListEditor(String example) {
-            super(5.0);
+            super(STRUCTURED_VALUE_EDITOR_GAP);
             field = new TextField(EditableConstant.simpleListToCsv(example));
             field.setPromptText("comma-separated values");
             field.setPrefColumnCount(48);
@@ -5085,7 +5908,7 @@ final class PipelineLauncher {
         private final TextArea area;
 
         private CodeEditor(String example) {
-            super(5.0);
+            super(STRUCTURED_VALUE_EDITOR_GAP);
             area = new TextArea(example);
             area.setPrefRowCount(Math.max(3, Math.min(12, example.split("\\R", -1).length + 1)));
             area.setWrapText(false);
@@ -5497,8 +6320,7 @@ final class PipelineLauncher {
                 protected void updateItem(String item, boolean empty) {
                     super.updateItem(item, empty);
                     setText(empty ? null : GuiPresentation.displayOption(name, item));
-                    setStyle("");
-                    addStyleClass(this, "astra-combo-cell");
+                    styleComboCell(this);
                 }
             });
             comboBox.setButtonCell(new ListCell<>() {
@@ -5506,8 +6328,7 @@ final class PipelineLauncher {
                 protected void updateItem(String item, boolean empty) {
                     super.updateItem(item, empty);
                     setText(empty ? null : GuiPresentation.displayOption(name, item));
-                    setStyle("");
-                    addStyleClass(this, "astra-combo-cell");
+                    styleComboCell(this);
                 }
             });
         }
