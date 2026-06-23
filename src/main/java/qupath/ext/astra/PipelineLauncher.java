@@ -182,14 +182,18 @@ final class PipelineLauncher {
                     + (LauncherGeometryTokens.SURFACE_BORDER_WIDTH * 2.0);
     private static final double PARAMETER_ROW_GAP =
             LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
+    private static final double BORDER_WIDTH =
+            LauncherGeometryTokens.SURFACE_BORDER_WIDTH;
     private static final double PARAMETER_LABEL_COLUMN_WIDTH =
             (LauncherGeometry.LAYOUT_UNIT * 12.0)
                     + LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
     private static final double PARAMETER_HELP_COLUMN_WIDTH =
             LauncherGeometry.LAYOUT_UNIT
-                    - (LauncherGeometryTokens.SURFACE_BORDER_WIDTH * 2.0);
+                    - (BORDER_WIDTH * 2.0);
     private static final double PARAMETER_ANCHOR_WIDTH =
             LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
+    private static final double BAR_WIDTH =
+            PARAMETER_ANCHOR_WIDTH;
     private static final double PARAMETER_ANCHOR_COLUMN_WIDTH =
             PARAMETER_ANCHOR_WIDTH;
     private static final double PARAMETER_ANCHOR_HEIGHT =
@@ -209,8 +213,12 @@ final class PipelineLauncher {
             LauncherGeometry.INTRA_PANEL_MARGIN - PARAMETER_ROW_HORIZONTAL_PADDING;
     private static final double PARAMETER_ROW_EDGE_TO_BAR_GAP =
             PARAMETER_ROW_HORIZONTAL_PADDING;
+    private static final double ACCENT_INDENT =
+            LauncherGeometry.INTRA_PANEL_MARGIN
+                    + BORDER_WIDTH
+                    + PARAMETER_ROW_EDGE_TO_BAR_GAP;
     private static final double PARAMETER_BAR_TO_TEXT_GAP =
-            PARAMETER_ROW_EDGE_TO_BAR_GAP;
+            ACCENT_INDENT - (BAR_WIDTH - BORDER_WIDTH);
     private static final double PARAMETER_LABEL_COLUMN_GAP =
             PARAMETER_BAR_TO_TEXT_GAP;
     private static final double PARAMETER_ROW_TEXT_RAIL =
@@ -218,20 +226,26 @@ final class PipelineLauncher {
                     + PARAMETER_ANCHOR_WIDTH
                     + PARAMETER_BAR_TO_TEXT_GAP;
     private static final double PARAMETER_GRID_TEXT_RAIL =
-            LauncherGeometry.INTRA_PANEL_MARGIN + PARAMETER_ROW_TEXT_RAIL;
+            LauncherGeometry.INTRA_PANEL_MARGIN + BORDER_WIDTH + PARAMETER_ROW_TEXT_RAIL;
+    private static final double PARAMETER_HELP_RAIL =
+            LauncherGeometry.INTRA_PANEL_MARGIN
+                    + BORDER_WIDTH
+                    + PARAMETER_LABEL_COLUMN_WIDTH
+                    - PARAMETER_ROW_HORIZONTAL_PADDING
+                    - PARAMETER_HELP_COLUMN_WIDTH;
     private static final double DEPENDENT_PANEL_LEFT_INSET =
-            PARAMETER_ROW_CONTAINER_LEFT_INSET;
+            ACCENT_INDENT - BORDER_WIDTH - PARAMETER_ROW_EDGE_TO_BAR_GAP;
     private static final double DEPENDENT_PANEL_OUTER_LEFT_MARGIN =
             LauncherGeometry.INTRA_PANEL_MARGIN - PARAMETER_ROW_CONTAINER_LEFT_INSET;
     private static final double DEPENDENT_LABEL_COLUMN_GAP =
-            DEPENDENT_PANEL_LEFT_INSET + PARAMETER_ROW_EDGE_TO_BAR_GAP;
+            PARAMETER_BAR_TO_TEXT_GAP;
     private static final double DEPENDENT_TITLE_TEXT_INSET =
             DEPENDENT_PANEL_LEFT_INSET
                     + PARAMETER_ROW_EDGE_TO_BAR_GAP
                     + PARAMETER_ANCHOR_WIDTH
                     + DEPENDENT_LABEL_COLUMN_GAP;
     private static final double DEPENDENT_LABEL_COLUMN_WIDTH =
-            PARAMETER_LABEL_COLUMN_WIDTH - PARAMETER_ROW_CONTAINER_LEFT_INSET;
+            PARAMETER_LABEL_COLUMN_WIDTH - ACCENT_INDENT;
     private static final class HeaderGeometry {
         private static final double HEADER_STACK_GAP =
                 LauncherGeometry.INTRA_PANEL_MARGIN;
@@ -317,6 +331,12 @@ final class PipelineLauncher {
         }
     }
     private static final double SECTION_CONTENT_GAP = LauncherGeometry.INTRA_PANEL_MARGIN;
+    private static final double HELP_RAIL = PARAMETER_HELP_RAIL;
+    private static final double EDITOR_RAIL =
+            LauncherGeometry.INTRA_PANEL_MARGIN
+                    + BORDER_WIDTH
+                    + PARAMETER_LABEL_COLUMN_WIDTH
+                    + SECTION_CONTENT_GAP;
     private static final double CARD_CONTENT_GAP = LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
     private static final double COMPACT_CONTROL_GAP = LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
     private static final double SECTION_HEADER_CONTROL_GAP = LauncherGeometry.INTRA_PANEL_MARGIN;
@@ -1815,7 +1835,7 @@ final class PipelineLauncher {
 
         ScrollPane scroll = new ScrollPane(body);
         scroll.setFitToWidth(true);
-        scroll.setFitToHeight(true);
+        scroll.setFitToHeight(false);
         scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.ALWAYS);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scroll.setPrefViewportWidth(SETTINGS_VIEWPORT_WIDTH);

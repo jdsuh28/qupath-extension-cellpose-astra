@@ -1013,7 +1013,7 @@ class PipelineLauncherTest {
                 + "                    + LauncherGeometry.INTRA_PANEL_TIGHT_GAP;"));
         assertTrue(source.contains("private static final double PARAMETER_HELP_COLUMN_WIDTH =\n"
                 + "            LauncherGeometry.LAYOUT_UNIT\n"
-                + "                    - (LauncherGeometryTokens.SURFACE_BORDER_WIDTH * 2.0);"));
+                + "                    - (BORDER_WIDTH * 2.0);"));
         assertTrue(source.contains("private static final double PARAMETER_ANCHOR_WIDTH =\n"
                 + "            LauncherGeometry.INTRA_PANEL_TIGHT_GAP;"));
         assertTrue(source.contains("private static final double PARAMETER_ANCHOR_COLUMN_WIDTH =\n"
@@ -1034,7 +1034,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private static final double PARAMETER_ROW_EDGE_TO_BAR_GAP =\n"
                 + "            PARAMETER_ROW_HORIZONTAL_PADDING;"));
         assertTrue(source.contains("private static final double PARAMETER_BAR_TO_TEXT_GAP =\n"
-                + "            PARAMETER_ROW_EDGE_TO_BAR_GAP;"));
+                + "            ACCENT_INDENT - (BAR_WIDTH - BORDER_WIDTH);"));
         assertTrue(source.contains("private static final double PARAMETER_LABEL_COLUMN_GAP =\n"
                 + "            PARAMETER_BAR_TO_TEXT_GAP;"));
         assertTrue(source.contains("private static final double PARAMETER_ANCHOR_COLUMN_WIDTH =\n"
@@ -1044,22 +1044,22 @@ class PipelineLauncherTest {
                 + "                    + PARAMETER_ANCHOR_WIDTH\n"
                 + "                    + PARAMETER_BAR_TO_TEXT_GAP;"));
         assertTrue(source.contains("private static final double PARAMETER_GRID_TEXT_RAIL =\n"
-                + "            LauncherGeometry.INTRA_PANEL_MARGIN + PARAMETER_ROW_TEXT_RAIL;"));
+                + "            LauncherGeometry.INTRA_PANEL_MARGIN + BORDER_WIDTH + PARAMETER_ROW_TEXT_RAIL;"));
         assertTrue(source.contains("private static final double DEPENDENT_PANEL_LEFT_INSET =\n"
-                + "            PARAMETER_ROW_CONTAINER_LEFT_INSET;"));
+                + "            ACCENT_INDENT - BORDER_WIDTH - PARAMETER_ROW_EDGE_TO_BAR_GAP;"));
         assertTrue(source.contains("private static final double DEPENDENT_PANEL_OUTER_LEFT_MARGIN =\n"
                 + "            LauncherGeometry.INTRA_PANEL_MARGIN - PARAMETER_ROW_CONTAINER_LEFT_INSET;"));
         assertTrue(source.contains("private static final double DEPENDENT_PANEL_RIGHT_PADDING =\n"
                 + "            LauncherGeometry.INTRA_PANEL_MARGIN;"));
         assertTrue(source.contains("private static final double DEPENDENT_LABEL_COLUMN_GAP =\n"
-                + "            DEPENDENT_PANEL_LEFT_INSET + PARAMETER_ROW_EDGE_TO_BAR_GAP;"));
+                + "            PARAMETER_BAR_TO_TEXT_GAP;"));
         assertTrue(source.contains("private static final double DEPENDENT_TITLE_TEXT_INSET =\n"
                 + "            DEPENDENT_PANEL_LEFT_INSET\n"
                 + "                    + PARAMETER_ROW_EDGE_TO_BAR_GAP\n"
                 + "                    + PARAMETER_ANCHOR_WIDTH\n"
                 + "                    + DEPENDENT_LABEL_COLUMN_GAP;"));
         assertTrue(source.contains("private static final double DEPENDENT_LABEL_COLUMN_WIDTH =\n"
-                + "            PARAMETER_LABEL_COLUMN_WIDTH - PARAMETER_ROW_CONTAINER_LEFT_INSET;"));
+                + "            PARAMETER_LABEL_COLUMN_WIDTH - ACCENT_INDENT;"));
         assertTrue(source.contains("private static Insets parameterGridPadding()"));
         assertTrue(source.contains("LauncherGeometry.INTRA_PANEL_MARGIN);"));
         assertTrue(source.contains("private static Insets mainActionBarPadding()"));
@@ -1204,12 +1204,23 @@ class PipelineLauncherTest {
     }
 
     @Test
+    void settingsScrollPaneDoesNotClampContentHeightToViewport() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+
+        assertTrue(source.contains("scroll.setFitToWidth(true);"));
+        assertTrue(source.contains("scroll.setFitToHeight(false);"));
+        assertTrue(source.contains("body.setMinHeight(newBounds == null ? Region.USE_COMPUTED_SIZE : newBounds.getHeight())"));
+    }
+
+    @Test
     void parameterRailConstantsSatisfyTrueBlankspaceEquations() throws Exception {
         Class<?> launcherGeometry = nestedClass(PipelineLauncher.class, "LauncherGeometry");
         double layoutUnit = staticDouble(launcherGeometry, "LAYOUT_UNIT");
         double intraPanelMargin = staticDouble(launcherGeometry, "INTRA_PANEL_MARGIN");
         double intraPanelTightGap = staticDouble(launcherGeometry, "INTRA_PANEL_TIGHT_GAP");
         double intraPanelSubtleGap = staticDouble(launcherGeometry, "INTRA_PANEL_SUBTLE_GAP");
+        double borderWidth = staticDouble(PipelineLauncher.class,
+                "BORDER_WIDTH");
         double surfaceBorderWidth = staticDouble(PipelineLauncher.class,
                 "SURFACE_BORDER_WIDTH");
         double rowHeight = staticDouble(PipelineLauncher.class,
@@ -1228,8 +1239,12 @@ class PipelineLauncherTest {
                 "PARAMETER_ROW_EDGE_TO_BAR_GAP");
         double anchorWidth = staticDouble(PipelineLauncher.class,
                 "PARAMETER_ANCHOR_WIDTH");
+        double barWidth = staticDouble(PipelineLauncher.class,
+                "BAR_WIDTH");
         double anchorColumnWidth = staticDouble(PipelineLauncher.class,
                 "PARAMETER_ANCHOR_COLUMN_WIDTH");
+        double accentIndent = staticDouble(PipelineLauncher.class,
+                "ACCENT_INDENT");
         double barToTextGap = staticDouble(PipelineLauncher.class,
                 "PARAMETER_BAR_TO_TEXT_GAP");
         double rowTextRail = staticDouble(PipelineLauncher.class,
@@ -1242,8 +1257,14 @@ class PipelineLauncherTest {
                 "DEPENDENT_PANEL_OUTER_LEFT_MARGIN");
         double dependentLabelColumnGap = staticDouble(PipelineLauncher.class,
                 "DEPENDENT_LABEL_COLUMN_GAP");
+        double dependentLabelColumnWidth = staticDouble(PipelineLauncher.class,
+                "DEPENDENT_LABEL_COLUMN_WIDTH");
         double dependentTitleTextInset = staticDouble(PipelineLauncher.class,
                 "DEPENDENT_TITLE_TEXT_INSET");
+        double helpRail = staticDouble(PipelineLauncher.class,
+                "HELP_RAIL");
+        double editorRail = staticDouble(PipelineLauncher.class,
+                "EDITOR_RAIL");
         double anchorHeight = staticDouble(PipelineLauncher.class,
                 "PARAMETER_ANCHOR_HEIGHT");
         double helpButtonSize = staticDouble(PipelineLauncher.class,
@@ -1258,32 +1279,50 @@ class PipelineLauncherTest {
                 "COLOCALIZATION_PANEL_WIDE_LABEL_WIDTH");
 
         assertEquals(layoutUnit + intraPanelSubtleGap + (surfaceBorderWidth * 2.0d), rowHeight);
+        assertEquals(surfaceBorderWidth, borderWidth);
         assertEquals(intraPanelSubtleGap, rowGap);
         assertEquals((layoutUnit * 12.0d) + intraPanelTightGap, labelColumnWidth);
-        assertEquals(layoutUnit - (surfaceBorderWidth * 2.0d), helpColumnWidth);
+        assertEquals(layoutUnit - (borderWidth * 2.0d), helpColumnWidth);
         assertEquals(intraPanelMargin / 2.0d, rowHorizontalPadding);
         assertEquals(intraPanelMargin - rowHorizontalPadding, rowContainerLeftInset);
         assertEquals(rowHorizontalPadding, rowEdgeToBarGap);
         assertEquals(intraPanelTightGap, anchorWidth);
+        assertEquals(anchorWidth, barWidth);
         assertEquals(anchorWidth, anchorColumnWidth);
         assertEquals(rowHeight - (intraPanelSubtleGap * 2.0d), anchorHeight);
         assertEquals(anchorHeight, helpButtonSize);
-        assertEquals(rowEdgeToBarGap, barToTextGap);
+        assertEquals(intraPanelMargin + borderWidth + rowEdgeToBarGap, accentIndent);
+        assertEquals(accentIndent - (barWidth - borderWidth), barToTextGap);
+        assertTrue(barToTextGap > 0.0d);
         assertEquals(rowEdgeToBarGap + anchorWidth + barToTextGap, rowTextRail);
-        assertEquals(intraPanelMargin + rowTextRail, gridTextRail);
+        assertEquals(intraPanelMargin + borderWidth + rowTextRail, gridTextRail);
+        assertEquals(
+                intraPanelMargin
+                        + borderWidth
+                        + labelColumnWidth
+                        - rowHorizontalPadding
+                        - helpColumnWidth,
+                helpRail);
+        assertEquals(
+                intraPanelMargin
+                        + borderWidth
+                        + labelColumnWidth
+                        + staticDouble(PipelineLauncher.class, "SECTION_CONTENT_GAP"),
+                editorRail);
         assertEquals(layoutUnit * 30.0d, settingsViewportWidth);
         assertEquals((layoutUnit * 29.0d) + intraPanelTightGap, settingsViewportHeight);
         assertEquals(layoutUnit * 20.0d / 3.0d, colocalizationLabelWidth);
         assertEquals(layoutUnit * 15.0d / 2.0d, colocalizationWideLabelWidth);
-        assertEquals(rowContainerLeftInset, dependentPanelLeftInset);
+        assertEquals(accentIndent - borderWidth - rowEdgeToBarGap, dependentPanelLeftInset);
         assertEquals(intraPanelMargin - rowContainerLeftInset, dependentPanelOuterLeftMargin);
-        assertEquals(dependentPanelLeftInset + rowEdgeToBarGap, dependentLabelColumnGap);
+        assertEquals(barToTextGap, dependentLabelColumnGap);
         assertEquals(
                 dependentPanelLeftInset
                         + rowEdgeToBarGap
                         + anchorWidth
                         + dependentLabelColumnGap,
                 dependentTitleTextInset);
+        assertEquals(labelColumnWidth - accentIndent, dependentLabelColumnWidth);
     }
 
     @Test
