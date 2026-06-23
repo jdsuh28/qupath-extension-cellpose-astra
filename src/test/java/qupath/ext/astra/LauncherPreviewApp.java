@@ -32,6 +32,7 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -130,6 +131,24 @@ public final class LauncherPreviewApp extends Application {
             schedule(6.9, () -> fireButton(title, "Segmentation"));
             schedule(7.6, () -> snapshotFocusedPanelDiagnostic("segmentation-focused-panel-diagnostic", title));
             schedule(8.2, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("geometry-overlay".equals(snapshotMode)) {
+            schedule(1.5, () -> snapshotGeometryOverlay("dashboard-geometry-overlay", title));
+            schedule(2.1, () -> fireButton(title, "Run Setup"));
+            schedule(2.8, () -> snapshotGeometryOverlay("run-setup-geometry-overlay", title));
+            schedule(3.4, () -> fireButton(title, "Back to Dashboard"));
+            schedule(4.0, () -> fireButton(title, "Images & Scope"));
+            schedule(4.7, () -> snapshotGeometryOverlay("images-scope-geometry-overlay", title));
+            schedule(5.3, () -> fireButton(title, "Back to Dashboard"));
+            schedule(5.9, () -> fireButton(title, "Models"));
+            schedule(6.6, () -> snapshotGeometryOverlay("models-geometry-overlay", title));
+            schedule(7.2, () -> fireButton(title, "Back to Dashboard"));
+            schedule(7.8, () -> fireButton(title, "Segmentation"));
+            schedule(8.5, () -> snapshotGeometryOverlay("segmentation-geometry-overlay", title));
+            schedule(9.1, () -> fireFirstHelpButton(title));
+            schedule(10.1, () -> snapshotGeometryOverlay("help-dialog-geometry-overlay", "ASTRA Parameter Help"));
+            schedule(10.8, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("settings-menu".equals(snapshotMode)) {
@@ -433,6 +452,42 @@ public final class LauncherPreviewApp extends Application {
         }
     }
 
+    private static void snapshotGeometryOverlay(String name, String launcherTitle) {
+        Optional<Node> rootOptional = findWindowRoot(launcherTitle);
+        if (rootOptional.isEmpty()) {
+            System.err.println("No launcher root for " + name);
+            return;
+        }
+        Node sceneRoot = rootOptional.get();
+        WritableImage image = sceneRoot.snapshot(new SnapshotParameters(), null);
+        BufferedImage buffered = SwingFXUtils.fromFXImage(image, null);
+        List<DistanceMarker> distances = new ArrayList<>();
+        distances.addAll(marginMarkers(sceneRoot));
+        distances.addAll(focusedPanelMarkers(sceneRoot));
+        List<RailMarker> rails = railMarkers(sceneRoot);
+        List<BoundsMarker> bounds = geometryBounds(sceneRoot);
+        List<GeometryMeasurement> measurements = geometryMeasurements(sceneRoot);
+        drawBoundsMarkers(buffered, bounds);
+        drawDistanceMarkers(buffered, distances);
+        drawRailMarkers(buffered, rails);
+        File file = options.outputPath().resolve(name + ".png").toFile();
+        try {
+            ImageIO.write(buffered, "png", file);
+            writeGeometryTables(name, measurements);
+            System.out.println(file.getAbsolutePath());
+            measurements.forEach(measurement -> System.out.printf(
+                    Locale.ROOT,
+                    "%s expected=%.2f observed=%.2f delta=%.2f formula=%s%n",
+                    measurement.label(),
+                    measurement.expected(),
+                    measurement.observed(),
+                    measurement.delta(),
+                    measurement.formula()));
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+        }
+    }
+
     private static void snapshotRailDiagnostic(String name, String launcherTitle) {
         Optional<Node> rootOptional = findWindowRoot(launcherTitle);
         if (rootOptional.isEmpty()) {
@@ -512,6 +567,381 @@ public final class LauncherPreviewApp extends Application {
                     marker.distance()));
         } catch (Exception e) {
             e.printStackTrace(System.err);
+        }
+    }
+
+    private static List<BoundsMarker> geometryBounds(Node sceneRoot) {
+        double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
+        double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
+        List<BoundsMarker> bounds = new ArrayList<>();
+        addBounds(bounds, sceneRoot, rootMinX, rootMinY, "input pane", ".astra-settings-scroll",
+                new Color(0, 95, 115));
+        addBounds(bounds, sceneRoot, rootMinX, rootMinY, "scrollbar gutter", ".scroll-bar",
+                new Color(255, 159, 28));
+        firstNode(sceneRoot, ".astra-settings-scroll")
+                .flatMap(LauncherPreviewApp::verticalScrollBar)
+                .flatMap(LauncherPreviewApp::visibleScrollbarBar)
+                .ifPresent(node -> bounds.add(new BoundsMarker(
+                        "visible scrollbar bar",
+                        relativeBounds(sceneRoot, node, rootMinX, rootMinY),
+                        new Color(255, 0, 110))));
+        addBounds(bounds, sceneRoot, rootMinX, rootMinY, "output pane", ".astra-output-pane",
+                new Color(42, 157, 143));
+        addBounds(bounds, sceneRoot, rootMinX, rootMinY, "bottom action bar", ".astra-main-action-bar",
+                new Color(131, 56, 236));
+        addBounds(bounds, sceneRoot, rootMinX, rootMinY, "focused panel", ".astra-routine-settings-panel",
+                new Color(88, 129, 87));
+        addBounds(bounds, sceneRoot, rootMinX, rootMinY, "parameter grid", ".astra-section-content-focused",
+                new Color(230, 57, 70));
+        addBounds(bounds, sceneRoot, rootMinX, rootMinY, "dependent panel", ".astra-dependent-panel",
+                new Color(69, 123, 157));
+        addBounds(bounds, sceneRoot, rootMinX, rootMinY, "help dialog content", ".astra-help-dialog-content",
+                new Color(88, 129, 87));
+        addBounds(bounds, sceneRoot, rootMinX, rootMinY, "help summary", ".astra-help-summary-grid",
+                new Color(230, 57, 70));
+        addBounds(bounds, sceneRoot, rootMinX, rootMinY, "help details shell", ".astra-help-details-shell",
+                new Color(42, 157, 143));
+        addBounds(bounds, sceneRoot, rootMinX, rootMinY, "help detail card", ".astra-help-detail-card",
+                new Color(131, 56, 236));
+        return bounds;
+    }
+
+    private static void addBounds(List<BoundsMarker> markers,
+                                  Node sceneRoot,
+                                  double rootMinX,
+                                  double rootMinY,
+                                  String label,
+                                  String styleClass,
+                                  Color color) {
+        firstNode(sceneRoot, styleClass)
+                .ifPresent(node -> markers.add(new BoundsMarker(
+                        label,
+                        relativeBounds(sceneRoot, node, rootMinX, rootMinY),
+                        color)));
+    }
+
+    private static List<GeometryMeasurement> geometryMeasurements(Node sceneRoot) {
+        double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
+        double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
+        Bounds root = relativeBounds(sceneRoot, sceneRoot, rootMinX, rootMinY);
+        Optional<Node> headerNode = firstNode(sceneRoot, ".astra-animated-gradient-header");
+        Optional<Node> inputNode = firstNode(sceneRoot, ".astra-settings-scroll");
+        Optional<Node> outputNode = firstNode(sceneRoot, ".astra-output-pane");
+        Optional<Node> runButton = buttonByText(sceneRoot, "Run");
+        Optional<Node> channelPanel = firstNode(sceneRoot, ".astra-channel-panel");
+        Optional<Node> settingsPanel = firstNode(sceneRoot, ".astra-routine-settings-panel");
+        Optional<Node> advancedPanel = firstNode(sceneRoot, ".astra-advanced-unlock-panel");
+        Optional<Node> focusedPanel = firstNode(sceneRoot, ".astra-routine-settings-panel");
+        Optional<Node> parameterGrid = firstNode(sceneRoot, ".astra-section-content-focused");
+        Optional<Node> focusedHeader = firstNode(sceneRoot, ".astra-focused-section-header");
+        Optional<Node> dashboardFrame = firstNode(sceneRoot, ".astra-card-dashboard-frame");
+        Optional<Node> dashboardGrid = firstNode(sceneRoot, ".astra-card-dashboard");
+        Optional<Node> helpSummary = firstNode(sceneRoot, ".astra-help-summary-grid");
+        Optional<Node> helpQuickTitle = firstNode(sceneRoot, ".astra-help-section-title");
+        Optional<Node> helpBody = firstNode(sceneRoot, ".astra-help-body");
+        Optional<Node> helpDetailsShell = firstNode(sceneRoot, ".astra-help-details-shell");
+        Optional<Node> helpDetailsAccent = firstNode(sceneRoot, ".astra-help-details-accent");
+
+        double outerMargin = LauncherGeometryTokens.OUTER_MARGIN;
+        double intraPanelMargin = LauncherGeometryTokens.INTRA_PANEL_MARGIN;
+        double borderWidth = LauncherGeometryTokens.SURFACE_BORDER_WIDTH;
+        double scrollbarGutter = LauncherGeometryTokens.OUTER_MARGIN;
+        double scrollbarThumb = scrollbarGutter / 3.0;
+        double scrollbarSidePadding = (scrollbarGutter - scrollbarThumb) / 2.0;
+        double interPaneGap = outerMargin - scrollbarSidePadding;
+        double inputContentToBarGap = outerMargin - scrollbarSidePadding;
+        double sectionContentGap = staticField("SECTION_CONTENT_GAP");
+
+        List<GeometryMeasurement> measurements = new ArrayList<>();
+        inputNode.ifPresent(input -> {
+            Bounds inputBounds = relativeBounds(sceneRoot, input, rootMinX, rootMinY);
+            addMeasurement(measurements, "left outer margin", outerMargin,
+                    inputBounds.getMinX() - root.getMinX(), "OUTER_MARGIN");
+            addMeasurement(measurements, "input pane to output pane", interPaneGap,
+                    outputNode.map(output -> relativeBounds(sceneRoot, output, rootMinX, rootMinY).getMinX()
+                            - inputBounds.getMaxX()).orElse(Double.NaN),
+                    "OUTER_MARGIN - SCROLLBAR_SIDE_PADDING");
+            verticalScrollBar(input).ifPresent(gutter -> {
+                Bounds gutterBounds = relativeBounds(sceneRoot, gutter, rootMinX, rootMinY);
+                addMeasurement(measurements, "scrollbar gutter width", scrollbarGutter,
+                        gutterBounds.getWidth(), "SCROLLBAR_GUTTER_WIDTH");
+                visibleScrollbarBar(gutter).ifPresent(bar -> {
+                    Bounds barBounds = relativeBounds(sceneRoot, bar, rootMinX, rootMinY);
+                    addMeasurement(measurements, "visible bar width", scrollbarThumb,
+                            barBounds.getWidth(), "SCROLLBAR_GUTTER_WIDTH / 3");
+                    inputContentRightEdge(input, sceneRoot, rootMinX, rootMinY).ifPresent(contentRight ->
+                            addMeasurement(measurements, "input content to visible bar",
+                                    inputContentToBarGap + scrollbarSidePadding,
+                                    barBounds.getMinX() - contentRight,
+                                    "INPUT_CONTENT_TO_BAR_GAP + SCROLLBAR_SIDE_PADDING"));
+                    outputNode.ifPresent(output -> {
+                        Bounds outputBounds = relativeBounds(sceneRoot, output, rootMinX, rootMinY);
+                        addMeasurement(measurements, "visible bar to output pane",
+                                scrollbarSidePadding + interPaneGap,
+                                outputBounds.getMinX() - barBounds.getMaxX(),
+                                "SCROLLBAR_SIDE_PADDING + INTER_PANE_GAP");
+                    });
+                });
+            });
+        });
+        outputNode.ifPresent(output -> {
+            Bounds outputBounds = relativeBounds(sceneRoot, output, rootMinX, rootMinY);
+            addMeasurement(measurements, "right outer margin", outerMargin,
+                    root.getMaxX() - outputBounds.getMaxX(), "OUTER_MARGIN");
+            inputNode.ifPresent(input -> {
+                Bounds inputBounds = relativeBounds(sceneRoot, input, rootMinX, rootMinY);
+                addMeasurement(measurements, "input pane bottom to output pane bottom",
+                        0.0,
+                        outputBounds.getMaxY() - inputBounds.getMaxY(),
+                        "input/output panes share workspace bottom");
+            });
+        });
+        if (headerNode.isPresent() && inputNode.isPresent()) {
+            Bounds header = relativeBounds(sceneRoot, headerNode.get(), rootMinX, rootMinY);
+            Bounds input = relativeBounds(sceneRoot, inputNode.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "header to input pane", outerMargin,
+                    input.getMinY() - header.getMaxY(), "workspace top OUTER_MARGIN");
+        }
+        if (outputNode.isPresent() && runButton.isPresent()) {
+            Bounds output = relativeBounds(sceneRoot, outputNode.get(), rootMinX, rootMinY);
+            Bounds run = relativeBounds(sceneRoot, runButton.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "output pane to run button", outerMargin,
+                    run.getMinY() - output.getMaxY(), "main action bar top OUTER_MARGIN");
+            addMeasurement(measurements, "run button to bottom", outerMargin,
+                    root.getMaxY() - run.getMaxY(), "main action bar bottom OUTER_MARGIN");
+            addMeasurement(measurements, "run button to right edge", outerMargin,
+                    root.getMaxX() - run.getMaxX(), "main action bar right OUTER_MARGIN");
+        }
+        if (channelPanel.isPresent() && settingsPanel.isPresent()) {
+            Bounds channel = relativeBounds(sceneRoot, channelPanel.get(), rootMinX, rootMinY);
+            Bounds settings = relativeBounds(sceneRoot, settingsPanel.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "channel panel to settings panel", outerMargin,
+                    settings.getMinY() - channel.getMaxY(), "INPUT_STACK_GAP");
+        }
+        if (settingsPanel.isPresent() && advancedPanel.isPresent()) {
+            Bounds settings = relativeBounds(sceneRoot, settingsPanel.get(), rootMinX, rootMinY);
+            Bounds advanced = relativeBounds(sceneRoot, advancedPanel.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "settings panel to advanced panel", outerMargin,
+                    advanced.getMinY() - settings.getMaxY(), "INPUT_STACK_GAP");
+        }
+        if (focusedPanel.isPresent() && parameterGrid.isPresent()) {
+            Bounds panel = relativeBounds(sceneRoot, focusedPanel.get(), rootMinX, rootMinY);
+            Bounds grid = relativeBounds(sceneRoot, parameterGrid.get(), rootMinX, rootMinY);
+            double borderedInset = intraPanelMargin + borderWidth;
+            addMeasurement(measurements, "focused panel left inset", borderedInset,
+                    grid.getMinX() - panel.getMinX(), "INTRA_PANEL_MARGIN + SURFACE_BORDER_WIDTH");
+            addMeasurement(measurements, "focused panel right inset", borderedInset,
+                    panel.getMaxX() - grid.getMaxX(), "INTRA_PANEL_MARGIN + SURFACE_BORDER_WIDTH");
+            focusedHeader.ifPresent(header -> {
+                Bounds headerBounds = relativeBounds(sceneRoot, header, rootMinX, rootMinY);
+                addMeasurement(measurements, "focused header to parameter grid",
+                        sectionContentGap,
+                        grid.getMinY() - headerBounds.getMaxY(),
+                        "SECTION_CONTENT_GAP");
+            });
+            firstManagedNode(parameterGrid.get(), ".astra-parameter-row").ifPresent(row -> {
+                Bounds rowBounds = relativeBounds(sceneRoot, row, rootMinX, rootMinY);
+                addMeasurement(measurements, "parameter grid left padding",
+                        intraPanelMargin + borderWidth,
+                        rowBounds.getMinX() - grid.getMinX(),
+                        "INTRA_PANEL_MARGIN + SURFACE_BORDER_WIDTH");
+            });
+            firstManagedNode(parameterGrid.get(), ".astra-parameter-editor").ifPresent(editor -> {
+                Bounds editorBounds = relativeBounds(sceneRoot, editor, rootMinX, rootMinY);
+                addMeasurement(measurements, "editor to parameter grid right",
+                        intraPanelMargin + borderWidth,
+                        grid.getMaxX() - editorBounds.getMaxX(),
+                        "INTRA_PANEL_MARGIN + SURFACE_BORDER_WIDTH");
+            });
+            consecutiveManagedRowsWithSameParent(parameterGrid.get()).ifPresent(rows -> {
+                Bounds first = relativeBounds(sceneRoot, rows.first(), rootMinX, rootMinY);
+                Bounds second = relativeBounds(sceneRoot, rows.second(), rootMinX, rootMinY);
+                addMeasurement(measurements, "parameter row to row gap",
+                        staticField("PARAMETER_ROW_GAP"),
+                        second.getMinY() - first.getMaxY(),
+                        "PARAMETER_ROW_GAP");
+            });
+        }
+        Map<String, Double> rails = railPositions(sceneRoot);
+        addMeasurement(measurements, "independent box edge to bar",
+                staticField("ACCENT_INDENT"),
+                distance(rails, "independent box left", "independent bar left"),
+                "ACCENT_INDENT");
+        addMeasurement(measurements, "dependent panel edge to bar",
+                staticField("ACCENT_INDENT"),
+                distance(rails, "dependent panel left", "bar left"),
+                "ACCENT_INDENT");
+        addMeasurement(measurements, "independent edge to bar",
+                staticField("PARAMETER_ROW_EDGE_TO_BAR_GAP"),
+                distance(rails, "independent row left", "independent bar left"),
+                "PARAMETER_ROW_EDGE_TO_BAR_GAP");
+        addMeasurement(measurements, "independent bar to text",
+                staticField("PARAMETER_BAR_TO_TEXT_GAP"),
+                distance(rails, "independent bar right", "independent label"),
+                "PARAMETER_BAR_TO_TEXT_GAP");
+        addMeasurement(measurements, "dependent bar to text",
+                staticField("PARAMETER_BAR_TO_TEXT_GAP"),
+                distance(rails, "bar right", "dependent row label"),
+                "PARAMETER_BAR_TO_TEXT_GAP");
+        addMeasurement(measurements, "dependent title to dependent row label",
+                0.0,
+                signedDistance(rails, "dependent title", "dependent row label"),
+                "dependent title uses dependent text rail");
+        addMeasurement(measurements, "independent help to dependent help",
+                0.0,
+                signedDistance(rails, "independent help", "dependent help"),
+                "same help column rail");
+        addMeasurement(measurements, "independent editor to dependent editor",
+                0.0,
+                signedDistance(rails, "independent editor", "dependent editor"),
+                "same editor rail");
+        addMeasurement(measurements, "independent help to editor",
+                staticField("EDITOR_RAIL") - staticField("HELP_RAIL") - staticField("PARAMETER_HELP_BUTTON_SIZE"),
+                distance(rails, "independent help right", "independent editor"),
+                "EDITOR_RAIL - HELP_RAIL - PARAMETER_HELP_BUTTON_SIZE");
+        addMeasurement(measurements, "dependent help to editor",
+                staticField("EDITOR_RAIL") - staticField("HELP_RAIL") - staticField("PARAMETER_HELP_BUTTON_SIZE"),
+                distance(rails, "dependent help right", "dependent editor"),
+                "EDITOR_RAIL - HELP_RAIL - PARAMETER_HELP_BUTTON_SIZE");
+        if (parameterGrid.isPresent()) {
+            Bounds grid = relativeBounds(sceneRoot, parameterGrid.get(), rootMinX, rootMinY);
+            firstManagedNode(parameterGrid.get(), ".astra-dependent-panel").ifPresent(panel -> {
+                Bounds panelBounds = relativeBounds(sceneRoot, panel, rootMinX, rootMinY);
+                addMeasurement(measurements, "dependent panel outer left margin",
+                        intraPanelMargin + borderWidth + staticField("DEPENDENT_PANEL_OUTER_LEFT_MARGIN"),
+                        panelBounds.getMinX() - grid.getMinX(),
+                        "INTRA_PANEL_MARGIN + SURFACE_BORDER_WIDTH + DEPENDENT_PANEL_OUTER_LEFT_MARGIN");
+                addMeasurement(measurements, "dependent panel fills grid right edge",
+                        intraPanelMargin + borderWidth,
+                        grid.getMaxX() - panelBounds.getMaxX(),
+                        "INTRA_PANEL_MARGIN + SURFACE_BORDER_WIDTH");
+                firstManagedNode(panel, ".astra-dependent-panel-rows").ifPresent(rows -> {
+                    Bounds rowsBounds = relativeBounds(sceneRoot, rows, rootMinX, rootMinY);
+                    addMeasurement(measurements, "dependent rows container left border inset",
+                            borderWidth,
+                            rowsBounds.getMinX() - panelBounds.getMinX(),
+                            "SURFACE_BORDER_WIDTH");
+                    addMeasurement(measurements, "dependent rows container right inset",
+                            staticField("DEPENDENT_PANEL_RIGHT_PADDING") + borderWidth,
+                            panelBounds.getMaxX() - rowsBounds.getMaxX(),
+                            "DEPENDENT_PANEL_RIGHT_PADDING + SURFACE_BORDER_WIDTH");
+                });
+                firstManagedNode(panel, ".astra-dependent-panel-title").ifPresent(title -> {
+                    Bounds titleBounds = relativeBounds(sceneRoot, title, rootMinX, rootMinY);
+                    addMeasurement(measurements, "dependent title text inset",
+                            staticField("DEPENDENT_TITLE_TEXT_INSET") + borderWidth,
+                            textOrNodeMinX(title) - rootMinX - panelBounds.getMinX(),
+                            "DEPENDENT_TITLE_TEXT_INSET + SURFACE_BORDER_WIDTH");
+                    firstManagedNode(panel, ".astra-dependent-panel-reason").ifPresent(reason -> {
+                        Bounds reasonBounds = relativeBounds(sceneRoot, reason, rootMinX, rootMinY);
+                        addMeasurement(measurements, "dependent title to reason gap",
+                                LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
+                                reasonBounds.getMinY() - titleBounds.getMaxY(),
+                                "INTRA_PANEL_TIGHT_GAP");
+                        firstManagedNode(panel, ".astra-dependent-panel-rows").ifPresent(rows -> {
+                            Bounds rowsBounds = relativeBounds(sceneRoot, rows, rootMinX, rootMinY);
+                            addMeasurement(measurements, "dependent reason to row grid gap",
+                                    LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
+                                    rowsBounds.getMinY() - reasonBounds.getMaxY(),
+                                    "INTRA_PANEL_TIGHT_GAP");
+                        });
+                    });
+                });
+            });
+        }
+        if (dashboardFrame.isPresent() && dashboardGrid.isPresent()) {
+            Bounds frame = relativeBounds(sceneRoot, dashboardFrame.get(), rootMinX, rootMinY);
+            Bounds grid = relativeBounds(sceneRoot, dashboardGrid.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "dashboard grid left frame inset",
+                    0.0,
+                    grid.getMinX() - frame.getMinX(),
+                    "dashboard frame has FLUSH padding");
+            addMeasurement(measurements, "dashboard grid right frame inset",
+                    0.0,
+                    frame.getMaxX() - grid.getMaxX(),
+                    "dashboard frame has FLUSH padding");
+            List<Node> cards = managedNodes(dashboardGrid.get(), ".astra-settings-card");
+            if (cards.size() >= 2) {
+                Bounds first = relativeBounds(sceneRoot, cards.get(0), rootMinX, rootMinY);
+                Bounds second = relativeBounds(sceneRoot, cards.get(1), rootMinX, rootMinY);
+                addMeasurement(measurements, "dashboard card column gap",
+                        sectionContentGap,
+                        second.getMinX() - first.getMaxX(),
+                        "SECTION_CONTENT_GAP");
+            }
+            if (cards.size() >= 4) {
+                Bounds first = relativeBounds(sceneRoot, cards.get(0), rootMinX, rootMinY);
+                Bounds fourth = relativeBounds(sceneRoot, cards.get(3), rootMinX, rootMinY);
+                addMeasurement(measurements, "dashboard card row gap",
+                        sectionContentGap,
+                        fourth.getMinY() - first.getMaxY(),
+                        "SECTION_CONTENT_GAP");
+            }
+            cards.stream().findFirst()
+                    .filter(Button.class::isInstance)
+                    .map(Button.class::cast)
+                    .filter(button -> button.getGraphic() != null)
+                    .ifPresent(card -> {
+                        Bounds cardBounds = relativeBounds(sceneRoot, card, rootMinX, rootMinY);
+                        Bounds graphicBounds = relativeBounds(sceneRoot, card.getGraphic(), rootMinX, rootMinY);
+                        addMeasurement(measurements, "dashboard card left internal padding",
+                                staticField("DASHBOARD_CARD_INSET") + borderWidth,
+                                graphicBounds.getMinX() - cardBounds.getMinX(),
+                                "DASHBOARD_CARD_INSET + SURFACE_BORDER_WIDTH");
+                    });
+        }
+        if (helpSummary.isPresent() && helpQuickTitle.isPresent()) {
+            Bounds summary = relativeBounds(sceneRoot, helpSummary.get(), rootMinX, rootMinY);
+            Bounds quickTitle = relativeBounds(sceneRoot, helpQuickTitle.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "help summary to next section title",
+                    staticField("HELP_DIALOG_SECTION_GAP"),
+                    quickTitle.getMinY() - summary.getMaxY(),
+                    "HELP_DIALOG_SECTION_GAP");
+        }
+        if (helpQuickTitle.isPresent() && helpBody.isPresent()) {
+            Bounds quickTitle = relativeBounds(sceneRoot, helpQuickTitle.get(), rootMinX, rootMinY);
+            Bounds body = relativeBounds(sceneRoot, helpBody.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "help section title to body",
+                    staticField("HELP_DIALOG_SECTION_GAP"),
+                    body.getMinY() - quickTitle.getMaxY(),
+                    "HELP_DIALOG_SECTION_GAP");
+        }
+        if (helpDetailsAccent.isPresent()) {
+            Bounds accent = relativeBounds(sceneRoot, helpDetailsAccent.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "help details accent width",
+                    staticField("HELP_DETAIL_ACCENT_WIDTH"),
+                    accent.getWidth(),
+                    "HELP_DETAIL_ACCENT_WIDTH");
+        }
+        if (helpDetailsShell.isPresent()) {
+            firstManagedNode(helpDetailsShell.get(), ".astra-help-details-cards").ifPresent(cards -> {
+                Bounds shell = relativeBounds(sceneRoot, helpDetailsShell.get(), rootMinX, rootMinY);
+                Bounds cardBounds = relativeBounds(sceneRoot, cards, rootMinX, rootMinY);
+                addMeasurement(measurements, "help details cards right inset",
+                        staticField("HELP_DIALOG_INSET") - (borderWidth * 2.0),
+                        shell.getMaxX() - cardBounds.getMaxX(),
+                        "HELP_DIALOG_INSET - (SURFACE_BORDER_WIDTH * 2)");
+            });
+            List<Node> cards = managedNodes(helpDetailsShell.get(), ".astra-help-detail-card");
+            if (cards.size() >= 2) {
+                Bounds first = relativeBounds(sceneRoot, cards.get(0), rootMinX, rootMinY);
+                Bounds second = relativeBounds(sceneRoot, cards.get(1), rootMinX, rootMinY);
+                addMeasurement(measurements, "help detail card vertical gap",
+                        staticField("HELP_DETAIL_CARD_GAP"),
+                        second.getMinY() - first.getMaxY(),
+                        "HELP_DETAIL_CARD_GAP");
+            }
+        }
+        return measurements;
+    }
+
+    private static void addMeasurement(List<GeometryMeasurement> measurements,
+                                       String label,
+                                       double expected,
+                                       double observed,
+                                       String formula) {
+        if (!Double.isNaN(observed)) {
+            measurements.add(new GeometryMeasurement(label, expected, observed, formula));
         }
     }
 
@@ -779,6 +1209,25 @@ public final class LauncherPreviewApp extends Application {
                             "independent label",
                             textOrNodeMinX(node) - rootMinX,
                             new Color(230, 57, 70)));
+                    node.getParent().lookupAll(".astra-button-help").stream()
+                            .findFirst()
+                            .ifPresent(help -> {
+                                Bounds helpBounds = help.localToScene(help.getBoundsInLocal());
+                                markers.add(new RailMarker(
+                                        "independent help",
+                                        helpBounds.getMinX() - rootMinX,
+                                        new Color(255, 102, 0)));
+                                markers.add(new RailMarker(
+                                        "independent help right",
+                                        helpBounds.getMaxX() - rootMinX,
+                                        new Color(255, 190, 11)));
+                            });
+                    firstNode(root, ".astra-section-content-focused")
+                            .flatMap(content -> nthNode(content, ".astra-parameter-editor", 0))
+                            .ifPresent(editor -> markers.add(new RailMarker(
+                                    "independent editor",
+                                    editor.localToScene(editor.getBoundsInLocal()).getMinX() - rootMinX,
+                                    new Color(46, 196, 182))));
                 });
         findFirst(root, ".astra-dependent-panel-title", "Nucleus model-source controls")
                 .ifPresent(node -> markers.add(new RailMarker(
@@ -810,10 +1259,23 @@ public final class LauncherPreviewApp extends Application {
                                     new Color(131, 56, 236))));
                     panel.lookupAll(".astra-button-help").stream()
                             .findFirst()
-                            .ifPresent(help -> markers.add(new RailMarker(
-                                    "dependent help",
-                                    help.localToScene(help.getBoundsInLocal()).getMinX() - rootMinX,
-                                    new Color(255, 0, 110))));
+                            .ifPresent(help -> {
+                                Bounds helpBounds = help.localToScene(help.getBoundsInLocal());
+                                markers.add(new RailMarker(
+                                        "dependent help",
+                                        helpBounds.getMinX() - rootMinX,
+                                        new Color(255, 0, 110)));
+                                markers.add(new RailMarker(
+                                        "dependent help right",
+                                        helpBounds.getMaxX() - rootMinX,
+                                        new Color(255, 115, 166)));
+                            });
+                    panel.lookupAll(".astra-parameter-editor").stream()
+                            .findFirst()
+                            .ifPresent(editor -> markers.add(new RailMarker(
+                                    "dependent editor",
+                                    editor.localToScene(editor.getBoundsInLocal()).getMinX() - rootMinX,
+                                    new Color(87, 117, 144))));
                 });
         return markers;
     }
@@ -835,6 +1297,33 @@ public final class LauncherPreviewApp extends Application {
                 g.setColor(marker.color());
                 g.drawString(marker.label(), x + 8, labelY + 1);
                 labelY += 20;
+            }
+        } finally {
+            g.dispose();
+        }
+    }
+
+    private static void drawBoundsMarkers(BufferedImage image, List<BoundsMarker> markers) {
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setFont(new Font("SansSerif", Font.BOLD, 12));
+            for (BoundsMarker marker : markers) {
+                Bounds b = marker.bounds();
+                g.setColor(marker.color());
+                g.setStroke(new BasicStroke(2.0f));
+                g.drawRoundRect(
+                        (int)Math.round(b.getMinX()),
+                        (int)Math.round(b.getMinY()),
+                        (int)Math.round(b.getWidth()),
+                        (int)Math.round(b.getHeight()),
+                        10,
+                        10);
+                drawLabel(g,
+                        marker.label(),
+                        (int)Math.round(b.getMinX()) + 6,
+                        (int)Math.round(b.getMinY()) + 16,
+                        marker.color());
             }
         } finally {
             g.dispose();
@@ -906,6 +1395,71 @@ public final class LauncherPreviewApp extends Application {
         return colors[index % colors.length];
     }
 
+    private static void writeGeometryTables(String name,
+                                            List<GeometryMeasurement> measurements) throws IOException {
+        Path csv = options.outputPath().resolve(name + ".csv");
+        Path markdown = options.outputPath().resolve(name + ".md");
+        StringBuilder csvText = new StringBuilder("label,expected_px,observed_px,delta_px,formula\n");
+        StringBuilder mdText = new StringBuilder();
+        mdText.append("| Measurement | Expected px | Observed px | Delta px | Formula |\n");
+        mdText.append("| --- | ---: | ---: | ---: | --- |\n");
+        for (GeometryMeasurement measurement : measurements) {
+            csvText.append(csvEscape(measurement.label())).append(',')
+                    .append(format(measurement.expected())).append(',')
+                    .append(format(measurement.observed())).append(',')
+                    .append(format(measurement.delta())).append(',')
+                    .append(csvEscape(measurement.formula())).append('\n');
+            mdText.append("| ")
+                    .append(measurement.label()).append(" | ")
+                    .append(format(measurement.expected())).append(" | ")
+                    .append(format(measurement.observed())).append(" | ")
+                    .append(format(measurement.delta())).append(" | `")
+                    .append(measurement.formula()).append("` |\n");
+        }
+        Files.writeString(csv, csvText.toString());
+        Files.writeString(markdown, mdText.toString());
+        System.out.println(csv.toAbsolutePath());
+        System.out.println(markdown.toAbsolutePath());
+    }
+
+    private static String csvEscape(String text) {
+        return "\"" + text.replace("\"", "\"\"") + "\"";
+    }
+
+    private static String format(double value) {
+        return String.format(Locale.ROOT, "%.2f", value);
+    }
+
+    private static Map<String, Double> railPositions(Node root) {
+        Map<String, Double> rails = new HashMap<>();
+        railMarkers(root).forEach(marker -> rails.put(marker.label(), marker.x()));
+        return rails;
+    }
+
+    private static double distance(Map<String, Double> rails, String start, String end) {
+        if (!rails.containsKey(start) || !rails.containsKey(end)) {
+            return Double.NaN;
+        }
+        return Math.abs(rails.get(end) - rails.get(start));
+    }
+
+    private static double signedDistance(Map<String, Double> rails, String start, String end) {
+        if (!rails.containsKey(start) || !rails.containsKey(end)) {
+            return Double.NaN;
+        }
+        return rails.get(end) - rails.get(start);
+    }
+
+    private static double staticField(String name) {
+        try {
+            java.lang.reflect.Field field = PipelineLauncher.class.getDeclaredField(name);
+            field.setAccessible(true);
+            return field.getDouble(null);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Unable to read PipelineLauncher geometry field " + name, e);
+        }
+    }
+
     private static Optional<Node> firstNode(Node root, String styleClass) {
         return root.lookupAll(styleClass).stream().findFirst();
     }
@@ -913,6 +1467,28 @@ public final class LauncherPreviewApp extends Application {
     private static Optional<Node> nthNode(Node root, String styleClass, int index) {
         List<Node> nodes = root.lookupAll(styleClass).stream().toList();
         return index < nodes.size() ? Optional.of(nodes.get(index)) : Optional.empty();
+    }
+
+    private static Optional<Node> firstManagedNode(Node root, String styleClass) {
+        return managedNodes(root, styleClass).stream().findFirst();
+    }
+
+    private static List<Node> managedNodes(Node root, String styleClass) {
+        return root.lookupAll(styleClass).stream()
+                .filter(Node::isManaged)
+                .toList();
+    }
+
+    private static Optional<RowPair> consecutiveManagedRowsWithSameParent(Node root) {
+        List<Node> rows = managedNodes(root, ".astra-parameter-row");
+        for (int i = 0; i + 1 < rows.size(); i++) {
+            Node first = rows.get(i);
+            Node second = rows.get(i + 1);
+            if (first.getParent() == second.getParent()) {
+                return Optional.of(new RowPair(first, second));
+            }
+        }
+        return Optional.empty();
     }
 
     private static Optional<Node> buttonByText(Node root, String text) {
@@ -932,7 +1508,8 @@ public final class LauncherPreviewApp extends Application {
                     Bounds bounds = node.getBoundsInParent();
                     return bounds.getHeight() > bounds.getWidth();
                 })
-                .findFirst();
+                .max(java.util.Comparator.comparingDouble(node ->
+                        node.localToScene(node.getBoundsInLocal()).getMaxX()));
     }
 
     private static Optional<Node> visibleScrollbarBar(Node scrollBar) {
@@ -1004,10 +1581,23 @@ public final class LauncherPreviewApp extends Application {
     private record RailDistance(String label, double distance) {
     }
 
+    private record RowPair(Node first, Node second) {
+    }
+
+    private record BoundsMarker(String label, Bounds bounds, Color color) {
+    }
+
     private record DistanceMarker(String label, boolean horizontal,
                                   double start, double end, double cross) {
         private double distance() {
             return Math.abs(end - start);
+        }
+    }
+
+    private record GeometryMeasurement(String label, double expected,
+                                       double observed, String formula) {
+        private double delta() {
+            return observed - expected;
         }
     }
 
