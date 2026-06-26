@@ -62,6 +62,8 @@ final class RuntimeInstaller {
     static final String DEFAULT_CELLPOSE_REF = "v4.1.1+astra.1";
     static final String DEFAULT_PYTHON_VERSION = "3.10";
     static final String ENVIRONMENT_NAME = "cellpose-astra";
+    static final String CONDA_OVERRIDE_OSX = "CONDA_OVERRIDE_OSX";
+    static final String MACOS_CONDA_SOLVER_VERSION = "10.15";
 
     private static final String RUNTIME_FOLDER_NAME = ENVIRONMENT_NAME;
     private static final String RELEASE_PROPERTIES_RESOURCE = "qupath/ext/astra/release/runtime.properties";
@@ -161,7 +163,7 @@ final class RuntimeInstaller {
     private static void installRuntime(File runtimeDirectory, File python, InstallProgress progress, File logFile) throws IOException, InterruptedException {
         String conda = findOrBootstrapCondaExecutable(progress, logFile);
         progress.step("Creating conda runtime", String.join(" ", condaCreateCommand(conda, runtimeDirectory)));
-        runCommand(condaCreateCommand(conda, runtimeDirectory), null, progress, logFile);
+        runCommand(condaCreateCommand(conda, runtimeDirectory), null, condaCreateEnvironmentOverrides(), progress, logFile);
         progress.step("Upgrading Python packaging tools", python.getAbsolutePath());
         runCommand(List.of(python.getAbsolutePath(), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"), null, progress, logFile);
         progress.step("Installing Cellpose-ASTRA", cellposePackageSpec());
@@ -258,7 +260,58 @@ final class RuntimeInstaller {
      * @return command tokens.
      */
     static List<String> condaCreateCommand(String condaExecutable, File runtimeDirectory) {
-        return List.of(condaExecutable, "create", "-y", "-p", runtimeDirectory.getAbsolutePath(), "python=" + pinnedPythonVersion());
+        List<String> command = new ArrayList<>();
+        command.add(condaExecutable);
+        command.add("create");
+        if (usesCondaExecutable(condaExecutable)) {
+            command.add("--solver=libmamba");
+        }
+        command.add("-y");
+        command.add("-p");
+        command.add(runtimeDirectory.getAbsolutePath());
+        command.add("python=" + pinnedPythonVersion());
+        return List.copyOf(command);
+    }
+
+    /**
+     * Detects the classic {@code conda} frontend so ASTRA can request the
+     * libmamba solver explicitly during environment creation.
+     *
+     * @param condaExecutable conda-compatible executable name/path.
+     * @return true for conda, false for mamba/micromamba.
+     */
+    static boolean usesCondaExecutable(String condaExecutable) {
+        String name = new File(String.valueOf(condaExecutable)).getName().toLowerCase(Locale.ROOT);
+        return "conda".equals(name) || "conda.exe".equals(name);
+    }
+
+    /**
+     * Builds deterministic environment overrides for conda runtime creation.
+     *
+     * <p>Conda represents the host macOS version as a virtual package named
+     * {@code __osx}. Future macOS marketing versions can make old-but-valid
+     * Python package constraints look unsatisfiable to the solver. ASTRA
+     * targets a conservative macOS solver version for the managed runtime so
+     * Python 3.10.x can be resolved reproducibly.</p>
+     *
+     * @return environment overrides for conda create.
+     */
+    static Map<String, String> condaCreateEnvironmentOverrides() {
+        return condaCreateEnvironmentOverrides(System.getProperty("os.name", ""));
+    }
+
+    /**
+     * Builds deterministic environment overrides for conda runtime creation.
+     *
+     * @param osName JVM operating-system name.
+     * @return environment overrides for conda create.
+     */
+    static Map<String, String> condaCreateEnvironmentOverrides(String osName) {
+        if (String.valueOf(osName).toLowerCase(Locale.ROOT).contains("mac")
+                || String.valueOf(osName).toLowerCase(Locale.ROOT).contains("darwin")) {
+            return Map.of(CONDA_OVERRIDE_OSX, MACOS_CONDA_SOLVER_VERSION);
+        }
+        return Map.of();
     }
 
     /**
@@ -671,7 +724,7 @@ final class RuntimeInstaller {
      * @throws InterruptedException if interrupted while waiting.
      */
     private static void runCommand(List<String> command, File workingDirectory) throws IOException, InterruptedException {
-        CommandResult result = runCommand(command, workingDirectory, COMMAND_TIMEOUT, null, null);
+        CommandResult result = runCommand(command, workingDirectory, Map.of(), COMMAND_TIMEOUT, null, null);
         if (result.exitCode() != 0) {
             throw new IOException(formatCommandFailure(command, result));
         }
@@ -688,7 +741,27 @@ final class RuntimeInstaller {
      * @throws InterruptedException if interrupted while waiting.
      */
     private static void runCommand(List<String> command, File workingDirectory, InstallProgress progress, File logFile) throws IOException, InterruptedException {
-        CommandResult result = runCommand(command, workingDirectory, COMMAND_TIMEOUT, progress, logFile);
+        runCommand(command, workingDirectory, Map.of(), progress, logFile);
+    }
+
+    /**
+     * Runs a command with explicit environment overrides and fails on nonzero
+     * exit.
+     *
+     * @param command command tokens.
+     * @param workingDirectory optional working directory.
+     * @param environmentOverrides deterministic environment overrides.
+     * @param progress progress UI/log sink.
+     * @param logFile persistent install log.
+     * @throws IOException if the command fails.
+     * @throws InterruptedException if command execution is interrupted.
+     */
+    private static void runCommand(List<String> command,
+                                   File workingDirectory,
+                                   Map<String, String> environmentOverrides,
+                                   InstallProgress progress,
+                                   File logFile) throws IOException, InterruptedException {
+        CommandResult result = runCommand(command, workingDirectory, environmentOverrides, COMMAND_TIMEOUT, progress, logFile);
         if (result.exitCode() != 0) {
             throw new IOException(formatCommandFailure(command, result));
         }
@@ -705,13 +778,40 @@ final class RuntimeInstaller {
      * @throws InterruptedException if interrupted while waiting.
      */
     private static CommandResult runCommand(List<String> command, File workingDirectory, Duration timeout, InstallProgress progress, File logFile) throws IOException, InterruptedException {
+        return runCommand(command, workingDirectory, Map.of(), timeout, progress, logFile);
+    }
+
+    /**
+     * Runs a command and captures merged stdout/stderr.
+     *
+     * @param command command tokens.
+     * @param workingDirectory optional working directory.
+     * @param environmentOverrides deterministic environment overrides.
+     * @param timeout maximum run time.
+     * @param progress optional progress sink.
+     * @param logFile optional persistent log file.
+     * @return command result.
+     * @throws IOException if the command cannot start.
+     * @throws InterruptedException if interrupted while waiting.
+     */
+    private static CommandResult runCommand(List<String> command,
+                                            File workingDirectory,
+                                            Map<String, String> environmentOverrides,
+                                            Duration timeout,
+                                            InstallProgress progress,
+                                            File logFile) throws IOException, InterruptedException {
         if (progress != null && progress.cancelRequested) {
             throw new CancellationException("ASTRA runtime installation cancelled by user before starting command:\n" + String.join(" ", command));
         }
         appendLog(logFile, "\n$ " + String.join(" ", command) + System.lineSeparator());
+        if (!environmentOverrides.isEmpty()) {
+            appendLog(logFile, "with environment overrides: " + environmentOverrides + System.lineSeparator());
+            progressLine(progress, "Using environment overrides: " + environmentOverrides);
+        }
         progressLine(progress, "$ " + String.join(" ", command));
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.redirectErrorStream(true);
+        builder.environment().putAll(environmentOverrides);
         if (workingDirectory != null) {
             builder.directory(workingDirectory);
         }
