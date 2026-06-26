@@ -630,6 +630,8 @@ final class PipelineLauncher {
         dialog.initOwner(qupath.getStage());
         dialog.setTitle(scriptName);
         dialog.setHeaderText(null);
+        dialog.setResultConverter(button -> button == null ? ButtonType.CANCEL : button);
+        dialog.setOnCloseRequest(event -> dialog.setResult(ButtonType.CANCEL));
         RunFeedback feedback = new RunFeedback(scriptName);
         AtomicReference<Button> runButtonRef = new AtomicReference<>();
         AtomicReference<Button> exportButtonRef = new AtomicReference<>();
@@ -644,7 +646,10 @@ final class PipelineLauncher {
         cancelButton.setFocusTraversable(false);
         styleButton(cancelButton, ButtonRole.SECONDARY);
         applyMainActionButtonGeometry(cancelButton);
-        cancelButton.setOnAction(event -> dialog.close());
+        cancelButton.setOnAction(event -> {
+            dialog.setResult(ButtonType.CANCEL);
+            dialog.close();
+        });
         Consumer<ActionEvent> exportAction = event -> {
             event.consume();
             String configuredScript;

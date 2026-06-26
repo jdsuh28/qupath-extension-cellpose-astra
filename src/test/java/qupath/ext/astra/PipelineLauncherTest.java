@@ -211,6 +211,18 @@ class PipelineLauncherTest {
     }
 
     @Test
+    void mainLauncherDialogHasCancelClosePath() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+
+        assertTrue(source.contains("dialog.setResultConverter(button -> button == null ? ButtonType.CANCEL : button);"));
+        assertTrue(source.contains("dialog.setOnCloseRequest(event -> dialog.setResult(ButtonType.CANCEL));"));
+        assertTrue(source.contains("cancelButton.setOnAction(event -> {"));
+        assertTrue(source.contains("dialog.setResult(ButtonType.CANCEL);"));
+        assertTrue(source.contains("dialog.close();"));
+        assertFalse(source.contains("cancelButton.setOnAction(event -> dialog.close());"));
+    }
+
+    @Test
     void launcherUsesStandardGroupOrderAndUiOrder() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
