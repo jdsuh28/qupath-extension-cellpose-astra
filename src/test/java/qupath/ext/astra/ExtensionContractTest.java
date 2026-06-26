@@ -388,6 +388,101 @@ class ExtensionContractTest {
     }
 
     /**
+     * Verifies ASTRA bootstraps only a user-local, release-pinned Miniforge
+     * when no conda-compatible executable is already present.
+     */
+    @Test
+    void runtimeInstallerSelectsPinnedMiniforgeInstallerFromManifest() {
+        RuntimeInstaller.MiniforgeInstaller macArm = RuntimeInstaller.miniforgeInstallerForPlatform("macos-arm64");
+        RuntimeInstaller.MiniforgeInstaller macIntel = RuntimeInstaller.miniforgeInstallerForPlatform("macos-x86_64");
+        RuntimeInstaller.MiniforgeInstaller linux = RuntimeInstaller.miniforgeInstallerForPlatform("linux-x86_64");
+        RuntimeInstaller.MiniforgeInstaller windows = RuntimeInstaller.miniforgeInstallerForPlatform("windows-x86_64");
+
+        assertEquals("26.3.2-3", macArm.version());
+        assertEquals("Miniforge3-MacOSX-arm64.sh", macArm.fileName());
+        assertEquals("59168f1e24d0a4ad9932021170809fca836cd240e183eeeb331d5bcfc0098168", macArm.sha256());
+        assertEquals("Miniforge3-MacOSX-x86_64.sh", macIntel.fileName());
+        assertEquals("Miniforge3-Linux-x86_64.sh", linux.fileName());
+        assertEquals("Miniforge3-Windows-x86_64.exe", windows.fileName());
+        assertTrue(RuntimeInstaller.miniforgeDirectory().getPath().contains(".astra"));
+        assertTrue(RuntimeInstaller.miniforgeDirectory().getName().contains("miniforge"));
+        assertTrue(RuntimeInstaller.miniforgeDownloadDirectory().getPath().contains(".astra"));
+        assertTrue(RuntimeInstaller.miniforgeDownloadDirectory().getPath().contains("downloads"));
+    }
+
+    /**
+     * Verifies supported JVM OS/architecture values normalize to the manifest
+     * platform keys.
+     */
+    @Test
+    void runtimeInstallerNormalizesMiniforgePlatformKeys() {
+        assertEquals("macos-arm64", RuntimeInstaller.platformKey("Mac OS X", "aarch64"));
+        assertEquals("macos-x86_64", RuntimeInstaller.platformKey("Mac OS X", "x86_64"));
+        assertEquals("linux-x86_64", RuntimeInstaller.platformKey("Linux", "amd64"));
+        assertEquals("windows-x86_64", RuntimeInstaller.platformKey("Windows 11", "x64"));
+    }
+
+    /**
+     * Verifies silent installer commands do not modify shell startup files or
+     * the user's PATH.
+     */
+    @Test
+    void runtimeInstallerBuildsSilentMiniforgeCommands() {
+        RuntimeInstaller.MiniforgeInstaller mac = RuntimeInstaller.miniforgeInstallerForPlatform("macos-arm64");
+        RuntimeInstaller.MiniforgeInstaller windows = RuntimeInstaller.miniforgeInstallerForPlatform("windows-x86_64");
+
+        List<String> sh = RuntimeInstaller.miniforgeInstallCommand(mac, new File("/tmp/miniforge.sh"));
+        List<String> exe = RuntimeInstaller.miniforgeInstallCommand(windows, new File("C:/tmp/miniforge.exe"));
+
+        assertEquals("bash", sh.get(0));
+        assertTrue(sh.contains("-b"));
+        assertTrue(sh.contains("-p"));
+        assertTrue(sh.contains(RuntimeInstaller.miniforgeDirectory().getAbsolutePath()));
+        assertTrue(exe.contains("/S"));
+        assertTrue(exe.contains("/RegisterPython=0"));
+        assertTrue(exe.contains("/AddToPath=0"));
+        assertTrue(exe.contains("/NoRegistry=1"));
+        assertTrue(exe.get(exe.size() - 1).startsWith("/D="));
+    }
+
+    /**
+     * Verifies Miniforge checksums are enforced before installer execution.
+     */
+    @Test
+    void runtimeInstallerVerifiesMiniforgeSha256(@TempDir Path tempDir) throws Exception {
+        Path installer = tempDir.resolve("installer.sh");
+        Files.writeString(installer, "astra");
+
+        RuntimeInstaller.verifySha256(installer.toFile(), "693b286515bd1dd00865e7b60e4e53556537bbe4b1cc90ab608d94eb7c56fdc6");
+        try {
+            RuntimeInstaller.verifySha256(installer.toFile(), "0000000000000000000000000000000000000000000000000000000000000000");
+            assertFalse(true, "Expected checksum mismatch.");
+        } catch (Exception expected) {
+            assertTrue(expected.getMessage().contains("checksum mismatch"));
+        }
+    }
+
+    /**
+     * Verifies release manifest metadata remains present for every supported
+     * private Miniforge bootstrap platform.
+     *
+     * @throws Exception if the manifest cannot be read.
+     */
+    @Test
+    void releaseManifestPinsMiniforgeBootstrapMetadata() throws Exception {
+        String release = Files.readString(new File(ROOT, "src/test/resources/astra/rulebook/manifests/release.json").toPath());
+
+        assertTrue(release.contains("\"miniforge\""));
+        assertTrue(release.contains("\"version\": \"26.3.2-3\""));
+        assertTrue(release.contains("\"macos-arm64\""));
+        assertTrue(release.contains("\"macos-x86_64\""));
+        assertTrue(release.contains("\"linux-x86_64\""));
+        assertTrue(release.contains("\"windows-x86_64\""));
+        assertTrue(release.contains("\"sha256\""));
+        assertTrue(release.contains("\"condaExecutable\""));
+    }
+
+    /**
      * Verifies runtime validation checks Python, NumPy, torch, Cellpose, the
      * ASTRA fork marker, and Cellpose startup before reporting success.
      */

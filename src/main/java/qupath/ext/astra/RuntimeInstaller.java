@@ -1,5 +1,8 @@
 package qupath.ext.astra;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
+import com.google.gson.reflect.TypeToken;
 import javafx.application.Platform;
 import javafx.beans.property.StringProperty;
 import javafx.geometry.Insets;
@@ -20,13 +23,23 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.lang.reflect.Type;
+import java.net.URI;
+import java.net.URLConnection;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
@@ -52,7 +65,12 @@ final class RuntimeInstaller {
 
     private static final String RUNTIME_FOLDER_NAME = ENVIRONMENT_NAME;
     private static final String RELEASE_PROPERTIES_RESOURCE = "qupath/ext/astra/release/runtime.properties";
+    private static final String RELEASE_MANIFEST_RESOURCE = "astra/rulebook/manifests/release.json";
+    private static final String MINIFORGE_FOLDER_NAME = "miniforge";
     private static final Duration COMMAND_TIMEOUT = Duration.ofMinutes(45);
+    private static final Duration BOOTSTRAP_TIMEOUT = Duration.ofMinutes(20);
+    private static final Gson GSON = new Gson();
+    private static final Type MAP_TYPE = new TypeToken<LinkedHashMap<String, Object>>() {}.getType();
 
     private static final class InstallerGeometry {
         private static final double ROOT_PADDING =
@@ -147,7 +165,7 @@ final class RuntimeInstaller {
             List<String> seedPython = findSeedPython();
             runCommand(seedPythonWithArgs(seedPython, "-m", "venv", runtimeDirectory.getAbsolutePath()), null, progress, logFile);
         } else {
-            String conda = findCondaExecutable();
+            String conda = findOrBootstrapCondaExecutable(progress, logFile);
             progress.step("Creating conda runtime", String.join(" ", condaCreateCommand(conda, runtimeDirectory)));
             runCommand(condaCreateCommand(conda, runtimeDirectory), null, progress, logFile);
         }
@@ -255,6 +273,21 @@ final class RuntimeInstaller {
      * @throws InterruptedException if probing is interrupted.
      */
     static String findCondaExecutable() throws IOException, InterruptedException {
+        String conda = findExistingCondaExecutable();
+        if (conda != null) {
+            return conda;
+        }
+        throw new IOException("No conda-compatible executable was found. Install Miniforge/conda or set ASTRA_CONDA. " +
+                "The venv installer is available only when ASTRA_RUNTIME_INSTALL_STRATEGY=venv is set explicitly.");
+    }
+
+    /**
+     * Locates an existing conda-compatible executable without bootstrapping.
+     *
+     * @return executable name/path, or null when none can be probed.
+     * @throws InterruptedException if probing is interrupted.
+     */
+    static String findExistingCondaExecutable() throws InterruptedException {
         List<String> candidates = new ArrayList<>();
         String override = System.getenv("ASTRA_CONDA");
         if (override != null && !override.isBlank()) {
@@ -274,8 +307,290 @@ final class RuntimeInstaller {
                 // Try the next conda-compatible executable.
             }
         }
-        throw new IOException("No conda-compatible executable was found. Install Miniforge/conda or set ASTRA_CONDA. " +
-                "The venv installer is available only when ASTRA_RUNTIME_INSTALL_STRATEGY=venv is set explicitly.");
+        return null;
+    }
+
+    /**
+     * Locates conda, installing ASTRA-private Miniforge when no conda-compatible
+     * command exists.
+     *
+     * @param progress progress UI/log sink.
+     * @param logFile persistent install log.
+     * @return existing or bootstrapped conda executable.
+     * @throws IOException if lookup, download, checksum, or install fails.
+     * @throws InterruptedException if command probing or installation is interrupted.
+     */
+    static String findOrBootstrapCondaExecutable(InstallProgress progress, File logFile) throws IOException, InterruptedException {
+        String existing = findExistingCondaExecutable();
+        if (existing != null) {
+            return existing;
+        }
+
+        MiniforgeInstaller installer = miniforgeInstallerForCurrentPlatform();
+        File conda = miniforgeCondaExecutable(installer);
+        if (isUsableCondaExecutable(conda)) {
+            return conda.getAbsolutePath();
+        }
+
+        bootstrapMiniforge(installer, progress, logFile);
+        if (!isUsableCondaExecutable(conda)) {
+            throw new IOException("ASTRA Miniforge install completed, but conda is not usable: " + conda.getAbsolutePath());
+        }
+        return conda.getAbsolutePath();
+    }
+
+    /**
+     * Resolves the ASTRA-private Miniforge root.
+     *
+     * @return user-local Miniforge directory.
+     */
+    static File miniforgeDirectory() {
+        return new File(new File(System.getProperty("user.home"), ".astra"), MINIFORGE_FOLDER_NAME);
+    }
+
+    /**
+     * Resolves the ASTRA-private Miniforge installer download cache.
+     *
+     * @return user-local download directory.
+     */
+    static File miniforgeDownloadDirectory() {
+        return new File(new File(new File(System.getProperty("user.home"), ".astra"), "downloads"), MINIFORGE_FOLDER_NAME);
+    }
+
+    /**
+     * Selects the release-pinned Miniforge installer for the current platform.
+     *
+     * @return selected installer metadata.
+     */
+    static MiniforgeInstaller miniforgeInstallerForCurrentPlatform() {
+        return miniforgeInstallerForPlatform(platformKey(System.getProperty("os.name", ""), System.getProperty("os.arch", "")));
+    }
+
+    /**
+     * Selects the release-pinned Miniforge installer for a normalized platform.
+     *
+     * @param platformKey normalized platform key.
+     * @return selected installer metadata.
+     */
+    static MiniforgeInstaller miniforgeInstallerForPlatform(String platformKey) {
+        Map<String, Object> manifest = releaseManifest();
+        Map<String, Object> miniforge = mapValue(manifest.get("miniforge"));
+        String version = stringValue(miniforge.get("version"));
+        Map<String, Object> platform = mapValue(mapValue(miniforge.get("platforms")).get(platformKey));
+        if (version.isBlank() || platform.isEmpty()) {
+            throw new IllegalStateException("ASTRA release manifest does not support Miniforge platform '" + platformKey + "'.");
+        }
+        return new MiniforgeInstaller(
+                version,
+                platformKey,
+                stringValue(platform.get("installerType")),
+                stringValue(platform.get("fileName")),
+                stringValue(platform.get("url")),
+                normalizeSha256(stringValue(platform.get("sha256"))),
+                stringValue(platform.get("condaExecutable"))
+        );
+    }
+
+    /**
+     * Builds a normalized platform key for release-manifest lookup.
+     *
+     * @param osName JVM operating-system name.
+     * @param osArch JVM architecture name.
+     * @return normalized platform key.
+     */
+    static String platformKey(String osName, String osArch) {
+        String os = String.valueOf(osName).toLowerCase(Locale.ROOT);
+        String arch = normalizeArch(osArch);
+        if (os.contains("mac") || os.contains("darwin")) {
+            return "macos-" + arch;
+        }
+        if (os.contains("win")) {
+            return "windows-" + arch;
+        }
+        if (os.contains("linux")) {
+            return "linux-" + arch;
+        }
+        return os.replaceAll("[^a-z0-9]+", "-") + "-" + arch;
+    }
+
+    /**
+     * Builds the silent Miniforge install command.
+     *
+     * @param installer selected installer metadata.
+     * @param installerFile downloaded installer.
+     * @return command tokens.
+     */
+    static List<String> miniforgeInstallCommand(MiniforgeInstaller installer, File installerFile) {
+        File target = miniforgeDirectory();
+        if ("sh".equals(installer.installerType())) {
+            return List.of("bash", installerFile.getAbsolutePath(), "-b", "-p", target.getAbsolutePath());
+        }
+        if ("exe".equals(installer.installerType())) {
+            return List.of(
+                    installerFile.getAbsolutePath(),
+                    "/S",
+                    "/InstallationType=JustMe",
+                    "/RegisterPython=0",
+                    "/AddToPath=0",
+                    "/NoRegistry=1",
+                    "/D=" + target.getAbsolutePath()
+            );
+        }
+        throw new IllegalStateException("Unsupported Miniforge installer type: " + installer.installerType());
+    }
+
+    /**
+     * Resolves the conda executable inside ASTRA-private Miniforge.
+     *
+     * @param installer selected installer metadata.
+     * @return expected conda executable path.
+     */
+    static File miniforgeCondaExecutable(MiniforgeInstaller installer) {
+        return new File(miniforgeDirectory(), installer.condaExecutable());
+    }
+
+    /**
+     * Downloads, verifies, and silently installs ASTRA-private Miniforge.
+     *
+     * @param installer selected installer metadata.
+     * @param progress progress UI/log sink.
+     * @param logFile persistent install log.
+     * @throws IOException if download, checksum, or install fails.
+     * @throws InterruptedException if install is interrupted.
+     */
+    private static void bootstrapMiniforge(MiniforgeInstaller installer, InstallProgress progress, File logFile) throws IOException, InterruptedException {
+        Files.createDirectories(miniforgeDownloadDirectory().toPath());
+        Files.createDirectories(miniforgeDirectory().getParentFile().toPath());
+        File installerFile = new File(miniforgeDownloadDirectory(), installer.fileName());
+        progressStep(progress, "Downloading Miniforge", installer.url());
+        downloadFile(installer.url(), installerFile, progress, logFile);
+        progressStep(progress, "Verifying Miniforge checksum", installerFile.getAbsolutePath());
+        verifySha256(installerFile, installer.sha256());
+        progressStep(progress, "Installing ASTRA-private Miniforge", miniforgeDirectory().getAbsolutePath());
+        List<String> command = miniforgeInstallCommand(installer, installerFile);
+        CommandResult result = runCommand(command, null, BOOTSTRAP_TIMEOUT, progress, logFile);
+        if (result.exitCode() != 0) {
+            throw new IOException(formatCommandFailure(command, result));
+        }
+    }
+
+    private static boolean isUsableCondaExecutable(File conda) throws InterruptedException {
+        if (conda == null || !conda.isFile()) {
+            return false;
+        }
+        try {
+            return runCommand(List.of(conda.getAbsolutePath(), "--version"), null, Duration.ofSeconds(20), null, null).exitCode() == 0;
+        } catch (IOException ignored) {
+            return false;
+        }
+    }
+
+    private static void downloadFile(String url, File target, InstallProgress progress, File logFile) throws IOException {
+        if (progress != null && progress.cancelRequested) {
+            throw new CancellationException("ASTRA runtime installation cancelled before Miniforge download.");
+        }
+        appendLog(logFile, "\n$ download " + url + " -> " + target.getAbsolutePath() + System.lineSeparator());
+        URLConnection connection = URI.create(url).toURL().openConnection();
+        connection.setConnectTimeout((int) Duration.ofSeconds(30).toMillis());
+        connection.setReadTimeout((int) Duration.ofSeconds(30).toMillis());
+        try (InputStream stream = connection.getInputStream();
+             OutputStream out = Files.newOutputStream(target.toPath())) {
+            byte[] buffer = new byte[8192];
+            int n;
+            while ((n = stream.read(buffer)) >= 0) {
+                if (progress != null && progress.cancelRequested) {
+                    throw new CancellationException("ASTRA runtime installation cancelled during Miniforge download.");
+                }
+                out.write(buffer, 0, n);
+            }
+        }
+        if (progress != null && progress.cancelRequested) {
+            throw new CancellationException("ASTRA runtime installation cancelled after Miniforge download.");
+        }
+        progressLine(progress, "Downloaded " + target.getAbsolutePath());
+    }
+
+    /**
+     * Verifies a file against an expected SHA256 digest.
+     *
+     * @param file file to verify.
+     * @param expected expected lowercase SHA256.
+     * @throws IOException if hashing fails or the digest differs.
+     */
+    static void verifySha256(File file, String expected) throws IOException {
+        String actual = sha256(file);
+        String normalizedExpected = normalizeSha256(expected);
+        if (!actual.equalsIgnoreCase(normalizedExpected)) {
+            throw new IOException("Miniforge checksum mismatch for " + file.getAbsolutePath()
+                    + ": expected " + normalizedExpected + " but got " + actual + ".");
+        }
+    }
+
+    private static String sha256(File file) throws IOException {
+        try (InputStream stream = Files.newInputStream(file.toPath())) {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] buffer = new byte[8192];
+            int n;
+            while ((n = stream.read(buffer)) >= 0) {
+                digest.update(buffer, 0, n);
+            }
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is not available in this Java runtime.", e);
+        }
+    }
+
+    private static String normalizeSha256(String value) {
+        String normalized = String.valueOf(value == null ? "" : value).trim().toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("sha256:")) {
+            normalized = normalized.substring("sha256:".length());
+        }
+        return normalized;
+    }
+
+    private static String normalizeArch(String osArch) {
+        String arch = String.valueOf(osArch).trim().toLowerCase(Locale.ROOT).replace('-', '_');
+        if (arch.equals("amd64") || arch.equals("x64")) {
+            return "x86_64";
+        }
+        if (arch.equals("aarch64")) {
+            return "arm64";
+        }
+        return arch;
+    }
+
+    private static Map<String, Object> releaseManifest() {
+        try (InputStream stream = RuntimeInstaller.class.getClassLoader().getResourceAsStream(RELEASE_MANIFEST_RESOURCE)) {
+            if (stream == null) {
+                throw new IllegalStateException("Missing bundled ASTRA release manifest: " + RELEASE_MANIFEST_RESOURCE);
+            }
+            try (InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+                Map<String, Object> parsed = GSON.fromJson(reader, MAP_TYPE);
+                if (parsed == null) {
+                    throw new IllegalStateException("Bundled ASTRA release manifest is empty: " + RELEASE_MANIFEST_RESOURCE);
+                }
+                return parsed;
+            }
+        } catch (JsonSyntaxException e) {
+            throw new IllegalStateException("Bundled ASTRA release manifest is malformed: " + RELEASE_MANIFEST_RESOURCE, e);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to read bundled ASTRA release manifest: " + RELEASE_MANIFEST_RESOURCE, e);
+        }
+    }
+
+    private static Map<String, Object> mapValue(Object raw) {
+        if (raw instanceof Map<?, ?> map) {
+            LinkedHashMap<String, Object> out = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                out.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+            return out;
+        }
+        return Map.of();
+    }
+
+    private static String stringValue(Object raw) {
+        return raw == null ? "" : String.valueOf(raw).trim();
     }
 
     /**
@@ -613,6 +928,37 @@ final class RuntimeInstaller {
      * @param output merged stdout/stderr output.
      */
     record CommandResult(int exitCode, String output) {
+    }
+
+    /**
+     * Release-pinned Miniforge installer metadata.
+     *
+     * @param version Miniforge release tag.
+     * @param platformKey normalized platform key.
+     * @param installerType installer command family.
+     * @param fileName local download file name.
+     * @param url download URL.
+     * @param sha256 installer SHA256.
+     * @param condaExecutable relative conda executable path under install root.
+     */
+    record MiniforgeInstaller(String version,
+                              String platformKey,
+                              String installerType,
+                              String fileName,
+                              String url,
+                              String sha256,
+                              String condaExecutable) {
+        MiniforgeInstaller {
+            if (version == null || version.isBlank()
+                    || platformKey == null || platformKey.isBlank()
+                    || installerType == null || installerType.isBlank()
+                    || fileName == null || fileName.isBlank()
+                    || url == null || url.isBlank()
+                    || sha256 == null || sha256.isBlank()
+                    || condaExecutable == null || condaExecutable.isBlank()) {
+                throw new IllegalStateException("Incomplete Miniforge installer metadata for platform " + platformKey + ".");
+            }
+        }
     }
 
     /**

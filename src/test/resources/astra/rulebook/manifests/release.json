@@ -18,6 +18,41 @@
     "repo": "jdsuh28/cellpose-astra",
     "baseRef": "v4.1.1+astra.1"
   },
+  "miniforge": {
+    "version": "26.3.2-3",
+    "installRoot": "~/.astra/miniforge",
+    "downloadRoot": "~/.astra/downloads/miniforge",
+    "platforms": {
+      "macos-arm64": {
+        "installerType": "sh",
+        "fileName": "Miniforge3-MacOSX-arm64.sh",
+        "url": "https://github.com/conda-forge/miniforge/releases/download/26.3.2-3/Miniforge3-MacOSX-arm64.sh",
+        "sha256": "59168f1e24d0a4ad9932021170809fca836cd240e183eeeb331d5bcfc0098168",
+        "condaExecutable": "bin/conda"
+      },
+      "macos-x86_64": {
+        "installerType": "sh",
+        "fileName": "Miniforge3-MacOSX-x86_64.sh",
+        "url": "https://github.com/conda-forge/miniforge/releases/download/26.3.2-3/Miniforge3-MacOSX-x86_64.sh",
+        "sha256": "39273e4c89a0a1af4538010615d44ae8f44e1af41007e02def593d20f316b003",
+        "condaExecutable": "bin/conda"
+      },
+      "linux-x86_64": {
+        "installerType": "sh",
+        "fileName": "Miniforge3-Linux-x86_64.sh",
+        "url": "https://github.com/conda-forge/miniforge/releases/download/26.3.2-3/Miniforge3-Linux-x86_64.sh",
+        "sha256": "848194851a98903134187fbb4ab50efe87b003e0c0f808f97644b7524a62bf2c",
+        "condaExecutable": "bin/conda"
+      },
+      "windows-x86_64": {
+        "installerType": "exe",
+        "fileName": "Miniforge3-Windows-x86_64.exe",
+        "url": "https://github.com/conda-forge/miniforge/releases/download/26.3.2-3/Miniforge3-Windows-x86_64.exe",
+        "sha256": "14a8635465b5190537ddad6286746ffebbc55a1ed2a7bb14a506595fe3191e1e",
+        "condaExecutable": "Scripts/conda.exe"
+      }
+    }
+  },
   "packaging": {
     "resourceDestination": "extension/src/main/resources/astra",
     "vendoredFolders": [
