@@ -372,6 +372,7 @@
     "CELL_MEAN": "Cell Mean",
     "MEAN_INTENSITY": "Mean Intensity",
     "PIXEL_POSITIVE_FRACTION": "Pixel Positive Fraction",
+    "ANY_PIXEL_ABOVE_THRESHOLD": "Any Pixel Above Threshold",
     "LOCAL_PERCENTILE": "Local Percentile",
     "MANUAL_OFFSET": "Manual Offset",
     "LOG_KDE_VALLEY": "Log KDE Valley",

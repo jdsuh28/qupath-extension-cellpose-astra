@@ -163,16 +163,18 @@ class ExtensionContractTest {
     void pipelineHeaderUsesFluidGradientAnimation() throws Exception {
         String header = Files.readString(new File(ROOT,
                 "src/main/java/qupath/ext/astra/AnimatedGradientHeader.java").toPath());
+        String surface = Files.readString(new File(ROOT,
+                "src/main/java/qupath/ext/astra/AnimatedGradientSurface.java").toPath());
         String launcher = Files.readString(new File(ROOT,
                 "src/main/java/qupath/ext/astra/PipelineLauncher.java").toPath());
         String logView = Files.readString(new File(ROOT,
                 "src/main/java/qupath/ext/astra/StyledLogView.java").toPath());
 
-        assertTrue(header.contains("WritableImage"));
-        assertTrue(header.contains("ImageView"));
-        assertTrue(header.contains("TranslateTransition"));
-        assertTrue(header.contains("getPixelWriter()"));
-        assertTrue(header.contains("CYCLE_SECONDS = 16.0d"));
+        assertTrue(surface.contains("WritableImage"));
+        assertTrue(surface.contains("ImageView"));
+        assertTrue(surface.contains("TranslateTransition"));
+        assertTrue(surface.contains("getPixelWriter()"));
+        assertTrue(surface.contains("DEFAULT_CYCLE_SECONDS = 16.0d"));
         assertTrue(header.contains("enum HeaderMode"));
         assertTrue(header.contains("STATIC"));
         assertTrue(header.contains("DYNAMIC"));
@@ -182,14 +184,16 @@ class ExtensionContractTest {
         assertTrue(header.contains("LIVELY(\"Lively\", 10.0d)"));
         assertTrue(header.contains("void setHeaderMode(HeaderMode nextMode)"));
         assertTrue(header.contains("void setMotionSpeed(MotionSpeed nextSpeed)"));
-        assertTrue(header.contains("TEXTURE_SCALE = 3.0d"));
-        assertTrue(header.contains("GRADIENT_SPAN_MULTIPLIER = 3.0d"));
-        assertTrue(header.contains("TEXTURE_MAX_PIXEL_HEIGHT = 128"));
-        assertTrue(header.contains("DITHER_AMPLITUDE = 1.2d / 255.0d"));
-        assertTrue(header.contains("setToX(-stripLogicalWidth)"));
-        assertTrue(header.contains("stripLayer.setManaged(false)"));
-        assertTrue(header.contains("stripLayer.setMouseTransparent(true)"));
+        assertTrue(surface.contains("TEXTURE_SCALE = 3.0d"));
+        assertTrue(surface.contains("GRADIENT_SPAN_MULTIPLIER = 3.0d"));
+        assertTrue(surface.contains("TEXTURE_MAX_PIXEL_HEIGHT = 128"));
+        assertTrue(surface.contains("DITHER_AMPLITUDE = 1.2d / 255.0d"));
+        assertTrue(surface.contains("animation.setToX(-stripLogicalWidth)"));
+        assertTrue(surface.contains("setManaged(false)"));
+        assertTrue(surface.contains("setMouseTransparent(true)"));
+        assertTrue(header.contains("private final AnimatedGradientSurface gradientSurface"));
         assertTrue(launcher.contains("new AnimatedGradientHeader(header)"));
+        assertTrue(launcher.contains("RunProgressLane runProgressLane = new RunProgressLane();"));
         assertFalse(logView.contains("new AnimatedGradientHeader"));
         assertFalse(launcher.contains("installDynamicHeaderGradient"));
         assertFalse(launcher.contains("Timeline timeline = new Timeline"));
@@ -200,6 +204,13 @@ class ExtensionContractTest {
         assertFalse(header.contains("RENDER_SCALE = 8.0d"));
         assertFalse(header.contains("new LinearGradient"));
         assertFalse(header.contains("graphics.scale("));
+        assertFalse(surface.contains("Canvas"));
+        assertFalse(surface.contains("GraphicsContext"));
+        assertFalse(surface.contains("AnimationTimer"));
+        assertFalse(surface.contains("MediaView"));
+        assertFalse(surface.contains("RENDER_SCALE = 8.0d"));
+        assertFalse(surface.contains("new LinearGradient"));
+        assertFalse(surface.contains("graphics.scale("));
     }
 
     /**

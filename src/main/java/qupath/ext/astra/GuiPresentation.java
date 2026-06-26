@@ -137,6 +137,7 @@ final class GuiPresentation {
         if ("POSITIVITY_METHOD".equals(constantName)) {
             if ("MEAN_INTENSITY".equals(option)) return "Mean Intensity";
             if ("PIXEL_POSITIVE_FRACTION".equals(option)) return "Pixel Positive Fraction";
+            if ("ANY_PIXEL_ABOVE_THRESHOLD".equals(option)) return "Any Pixel Above Threshold";
         }
         if ("EXPRESSION_CLASSIFICATION_MODE".equals(constantName)) {
             if ("PIXEL_LEVEL_SCORE".equals(option)) return "Pixel-Level Score";

@@ -174,6 +174,43 @@ class PipelineLauncherTest {
     }
 
     @Test
+    void settingsProfileNameDialogUsesAstraOwnedGeometry() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+
+        assertFalse(source.contains("TextInputDialog"));
+        assertTrue(source.contains("static Dialog<String> createSettingsProfileNameDialog(Window owner)"));
+        assertTrue(source.contains("VBox content = new VBox(SelectionGeometry.LABEL_TO_LIST_GAP, title, field);"));
+        assertTrue(source.contains("content.setPadding(new Insets(SelectionGeometry.DIALOG_CONTENT_INSET));"));
+        assertTrue(source.contains("addStyleClass(field, \"astra-input\")"));
+        assertTrue(source.contains("addStyleClass(title, \"astra-dialog-section-title\")"));
+    }
+
+    @Test
+    void confirmationDialogsUseAstraOwnedGeometry() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+        String runtime = Files.readString(Path.of("src/main/java/qupath/ext/astra/RuntimeInstaller.java"));
+
+        assertFalse(source.contains("new Alert"));
+        assertFalse(source.contains("Dialogs.showErrorMessage"));
+        assertFalse(source.contains("Dialogs.showInfoNotification"));
+        assertFalse(runtime.contains("qupath.fx.dialogs.Dialogs"));
+        assertFalse(runtime.contains("Dialogs.show"));
+        assertTrue(source.contains("static Dialog<ButtonType> createResetConfirmationDialog(Window owner)"));
+        assertTrue(source.contains("static Dialog<ButtonType> createProvisionalVascularConfirmationDialog(Window owner)"));
+        assertTrue(source.contains("static Dialog<ButtonType> createAstraSuccessConfirmationDialog(Window owner"));
+        assertTrue(source.contains("static void showAstraMessage(Window owner"));
+        assertTrue(source.contains("static Dialog<ButtonType> createRunFailureDialog(Window owner"));
+        assertTrue(source.contains("private static Dialog<ButtonType> createAstraConfirmationDialog"));
+        assertTrue(source.contains("private static Dialog<ButtonType> createAstraMessageDialog"));
+        assertTrue(source.contains("VBox content = new VBox(SelectionGeometry.DIALOG_CONTENT_GAP, title, body);"));
+        assertTrue(source.contains("addStyleClass(content, \"astra-dialog-owned-content\")"));
+        assertTrue(runtime.contains("PipelineLauncher.createAstraSuccessConfirmationDialog"));
+        assertTrue(runtime.contains("PipelineLauncher.showAstraMessage"));
+        assertTrue(runtime.contains("PipelineLauncher.showAstraErrorMessage"));
+        assertTrue(source.contains("Platform.runLater(() -> showAstraMessage("));
+    }
+
+    @Test
     void launcherUsesStandardGroupOrderAndUiOrder() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
@@ -248,13 +285,19 @@ class PipelineLauncherTest {
         assertTrue(source.contains("installAstraStyles(dialog.getDialogPane())"));
         assertTrue(source.contains("addStyleClass(root, \"astra-launcher-root\")"));
         assertTrue(source.contains("addStyleClass(grid, \"astra-section-content\")"));
+        assertTrue(source.contains("addStyleClass(this, \"astra-collapsible-section\")"));
         assertTrue(source.contains("addStyleClass(header, \"astra-collapsible-header\")"));
         assertTrue(source.contains("addStyleClass(chip, \"astra-workflow-chip\")"));
         assertTrue(source.contains("addStyleClass(panel, \"astra-channel-panel\")"));
+        assertTrue(source.contains("static Node createChannelPanel(List<ImageChannel> channels)"));
+        assertTrue(source.contains("addStyleClass(swatch, \"astra-channel-chip-swatch\")"));
+        assertTrue(source.contains("CHANNEL_SWATCH_STROKE_WIDTH ="));
+        assertTrue(source.contains("SURFACE_BORDER_WIDTH / 2.0"));
         assertTrue(source.contains("createSettingsCard(section"));
         assertTrue(source.contains("GridPane cards = new GridPane()"));
         assertTrue(source.contains("column.setPercentWidth(100.0d / 3.0d)"));
         assertTrue(source.contains("scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER)"));
+        assertFalse(source.contains("COLLAPSIBLE_HEADER_WIDTH_ADJUSTMENT"));
         assertFalse(source.contains("cards.setMinWidth(3 *"));
         assertFalse(source.contains("setPrefTileWidth"));
         assertTrue(source.contains("detachFromParent(section.content())"));
@@ -268,6 +311,7 @@ class PipelineLauncherTest {
         assertTrue(css.contains(".astra-collapsible-header"));
         assertTrue(css.contains(".astra-workflow-chip"));
         assertTrue(css.contains(".astra-channel-panel"));
+        assertTrue(css.contains(".astra-channel-chip"));
         assertTrue(css.contains(".astra-button-toggle-active"));
         assertTrue(css.contains(".astra-button:pressed"));
         assertFalse(css.contains(".astra-button-help:pressed"));
@@ -278,6 +322,8 @@ class PipelineLauncherTest {
         assertTrue(css.contains(".astra-animated-gradient-header"));
         assertTrue(css.contains(".astra-log-copy-button"));
         assertTrue(css.contains(".astra-log-disclosure-button"));
+        assertTrue(css.contains(".astra-log-scroll-frame"));
+        assertTrue(css.contains(".astra-log-scroll-top-fade"));
         assertTrue(css.contains(".astra-log-card-title"));
         assertTrue(css.contains(".astra-log-key-value-card"));
         assertTrue(css.contains(".astra-log-command-card"));
@@ -339,6 +385,11 @@ class PipelineLauncherTest {
         assertFalse(source.contains("title + \" v\""));
         assertTrue(source.contains("private static final String CHEVRON_DOWN"));
         assertTrue(source.contains("addStyleClass(chevron, \"astra-header-menu-chevron\")"));
+        assertTrue(css.contains("-fx-background-insets: 0;"));
+        assertTrue(css.contains(".astra-button:hover"));
+        assertTrue(css.contains("-fx-effect: null;"));
+        assertFalse(css.contains("-fx-translate-y: 1;"));
+        assertFalse(css.contains("dropshadow(gaussian, rgba(10, 47, 56, 0.14"));
         assertFalse(css.contains(".astra-button-primary:hover"));
         assertFalse(css.contains(".astra-button-secondary:hover"));
         assertFalse(css.contains(".astra-button-danger:hover"));
@@ -358,6 +409,101 @@ class PipelineLauncherTest {
         assertFalse(animatedHeader.contains("setStyle(\"-fx-background-color: #0d2430"));
         assertTrue(source.contains("private static List<String> resolveContractOptions(String expr)"));
         assertTrue(source.contains("List.of(\"BALANCED\", \"STRICT\", \"SENSITIVE\", \"CUSTOM\")"));
+    }
+
+    @Test
+    void residualGuiMarginAuditClassifiesKnownResidualSurfaces() throws Exception {
+        Path auditPath = Path.of("docs/gui-residual-margin-audit.csv");
+        if (!Files.exists(auditPath)) {
+            return;
+        }
+        String residualAudit = Files.readString(auditPath);
+
+        assertTrue(residualAudit.contains("settings profile load FileChooser"));
+        assertTrue(residualAudit.contains("run-complete dialog"));
+        assertTrue(residualAudit.contains("runtime setup confirmation"));
+        assertTrue(residualAudit.contains("bottom run progress lane"));
+        assertTrue(residualAudit.contains("header action tooltips"));
+        assertTrue(residualAudit.contains("parameter help tooltips"));
+        assertTrue(residualAudit.contains("dependent reason tooltips"));
+        assertTrue(residualAudit.contains("tooltip popup preview geometry"));
+        assertTrue(residualAudit.contains("RuntimeInstaller progress window"));
+        assertTrue(residualAudit.contains("RuntimeInstaller progress preview geometry"));
+        assertTrue(residualAudit.contains("AnimatedGradientHeader visual geometry"));
+        assertTrue(residualAudit.contains("ASTRA launcher CSS layout literals"));
+        assertFalse(residualAudit.contains(",violation,"));
+    }
+
+    @Test
+    void cssLayoutLiteralsHaveResidualProvenanceRows() throws Exception {
+        Path provenancePath = Path.of("docs/gui-css-layout-literals.csv");
+        if (!Files.exists(provenancePath)) {
+            return;
+        }
+        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+        List<String> provenanceRows = Files.readAllLines(provenancePath);
+        Pattern layoutDeclaration = Pattern.compile(
+                "-fx-(padding|spacing|border-radius|background-radius|min-width|pref-width|max-width|min-height|pref-height|max-height|translate-[xy]|background-insets|border-insets):\\s*([^;]+);");
+        long cssDeclarationCount = css.lines()
+                .filter(line -> layoutDeclaration.matcher(line).find())
+                .count();
+
+        assertEquals(cssDeclarationCount, provenanceRows.size() - 1);
+        assertTrue(provenanceRows.get(0).contains("classification"));
+        assertFalse(String.join("\n", provenanceRows).contains(",violation,"));
+    }
+
+    @Test
+    void runtimeInstallerProgressWindowUsesNamedGeometryTokens() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/RuntimeInstaller.java"));
+
+        assertTrue(source.contains("private static final class InstallerGeometry"));
+        assertTrue(source.contains("LauncherGeometryTokens.INTRA_PANEL_MARGIN"));
+        assertTrue(source.contains("LauncherGeometryTokens.LAYOUT_UNIT * 65.0 / 2.0"));
+        assertTrue(source.contains("LauncherGeometryTokens.LAYOUT_UNIT * 35.0 / 2.0"));
+        assertTrue(source.contains("static VBox createInstallProgressRootForTesting()"));
+        assertTrue(source.contains("createInstallProgressRoot(indicator, step, cancel, log)"));
+        assertTrue(source.contains("addAstraStylesheet(scene);"));
+        assertFalse(source.contains("new HBox(10"));
+        assertFalse(source.contains("new VBox(10"));
+        assertFalse(source.contains("new Insets(12"));
+        assertFalse(source.contains("new Scene(root, 780, 420"));
+    }
+
+    @Test
+    void tooltipGeometryUsesSharedTokensAndPreviewMode() throws Exception {
+        String tokens = Files.readString(Path.of("src/main/java/qupath/ext/astra/LauncherGeometryTokens.java"));
+        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+        String preview = Files.readString(Path.of("src/test/java/qupath/ext/astra/LauncherPreviewApp.java"));
+
+        assertTrue(tokens.contains("TOOLTIP_VERTICAL_INSET = INTRA_PANEL_TIGHT_GAP"));
+        assertTrue(tokens.contains("TOOLTIP_HORIZONTAL_INSET = INTRA_PANEL_SUBTLE_GAP"));
+        assertTrue(css.contains("Mirrors LauncherGeometryTokens tooltip inset formulas"));
+        assertTrue(css.contains("-fx-padding: 4px 8px 4px 8px;"));
+        assertTrue(preview.contains("\"tooltip-geometry\".equals(snapshotMode)"));
+        assertTrue(preview.contains("Surface.TOOLTIP"));
+        assertTrue(preview.contains("addTooltipMeasurements(sceneRoot, measurements)"));
+    }
+
+    @Test
+    void runtimeInstallerGeometryHasPreviewMode() throws Exception {
+        String preview = Files.readString(Path.of("src/test/java/qupath/ext/astra/LauncherPreviewApp.java"));
+
+        assertTrue(preview.contains("\"runtime-installer-geometry\".equals(snapshotMode)"));
+        assertTrue(preview.contains("Surface.RUNTIME_INSTALLER"));
+        assertTrue(preview.contains("addRuntimeInstallerMeasurements(sceneRoot, measurements)"));
+        assertTrue(preview.contains("RuntimeInstaller.createInstallProgressRootForTesting()"));
+    }
+
+    @Test
+    void animatedGradientHeaderClipRadiusUsesSharedGeometryToken() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/AnimatedGradientHeader.java"));
+
+        assertTrue(source.contains("HEADER_CLIP_ARC =\n            LauncherGeometryTokens.INTRA_PANEL_MARGIN"));
+        assertTrue(source.contains("clip.setArcWidth(HEADER_CLIP_ARC);"));
+        assertTrue(source.contains("clip.setArcHeight(HEADER_CLIP_ARC);"));
+        assertFalse(source.contains("clip.setArcWidth(12.0d);"));
+        assertFalse(source.contains("clip.setArcHeight(12.0d);"));
     }
 
     @Test
@@ -1015,18 +1161,24 @@ class PipelineLauncherTest {
                 + "            LauncherGeometry.LAYOUT_UNIT\n"
                 + "                    - (BORDER_WIDTH * 2.0);"));
         assertTrue(source.contains("private static final double PARAMETER_ANCHOR_WIDTH =\n"
-                + "            LauncherGeometry.INTRA_PANEL_TIGHT_GAP;"));
+                + "            LauncherGeometry.LAYOUT_UNIT / 4.0;"));
         assertTrue(source.contains("private static final double PARAMETER_ANCHOR_COLUMN_WIDTH =\n"
                 + "            PARAMETER_ANCHOR_WIDTH;"));
+        assertTrue(source.contains("private static final double PARAMETER_FIRST_ROW_HEIGHT =\n"
+                + "            PARAMETER_ROW_HEIGHT;"));
         assertTrue(source.contains("private static final double PARAMETER_ANCHOR_HEIGHT =\n"
-                + "            PARAMETER_ROW_HEIGHT\n"
-                + "                    - (LauncherGeometry.INTRA_PANEL_SUBTLE_GAP * 2.0);"));
+                + "            PARAMETER_FIRST_ROW_HEIGHT;"));
+        assertTrue(source.contains("private static final double PARAMETER_ANCHOR_PAINT_RADIUS =\n"
+                + "            Math.min(PARAMETER_ANCHOR_WIDTH, PARAMETER_FIRST_ROW_HEIGHT) / 2.0;"));
+        assertTrue(source.contains("private static final double PARAMETER_ANCHOR_PAINT_ARC =\n"
+                + "            PARAMETER_ANCHOR_PAINT_RADIUS * 2.0;"));
         assertTrue(source.contains("private static final double PARAMETER_HELP_BUTTON_SIZE =\n"
-                + "            PARAMETER_ANCHOR_HEIGHT;"));
+                + "            PARAMETER_HELP_COLUMN_WIDTH\n"
+                + "                    - LauncherGeometry.INTRA_PANEL_TIGHT_GAP;"));
         assertTrue(source.contains("private static final double PARAMETER_ROW_HORIZONTAL_PADDING =\n"
-                + "            LauncherGeometry.INTRA_PANEL_MARGIN / 2.0;"));
+                + "            LauncherGeometry.FLUSH;"));
         assertTrue(source.contains("private static final double PARAMETER_ROW_VERTICAL_PADDING =\n"
-                + "            PARAMETER_ROW_HORIZONTAL_PADDING / 2.0;"));
+                + "            LauncherGeometry.FLUSH;"));
         assertTrue(source.contains("private static final double SURFACE_BORDER_WIDTH =\n"
                 + "            LauncherGeometryTokens.SURFACE_BORDER_WIDTH;"));
         assertTrue(source.contains("private static final double PARAMETER_ROW_CONTAINER_LEFT_INSET =\n"
@@ -1034,7 +1186,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private static final double PARAMETER_ROW_EDGE_TO_BAR_GAP =\n"
                 + "            PARAMETER_ROW_HORIZONTAL_PADDING;"));
         assertTrue(source.contains("private static final double PARAMETER_BAR_TO_TEXT_GAP =\n"
-                + "            ACCENT_INDENT - (BAR_WIDTH - BORDER_WIDTH);"));
+                + "            ACCENT_INDENT - BAR_WIDTH;"));
         assertTrue(source.contains("private static final double PARAMETER_LABEL_COLUMN_GAP =\n"
                 + "            PARAMETER_BAR_TO_TEXT_GAP;"));
         assertTrue(source.contains("private static final double PARAMETER_ANCHOR_COLUMN_WIDTH =\n"
@@ -1046,7 +1198,9 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private static final double PARAMETER_GRID_TEXT_RAIL =\n"
                 + "            LauncherGeometry.INTRA_PANEL_MARGIN + BORDER_WIDTH + PARAMETER_ROW_TEXT_RAIL;"));
         assertTrue(source.contains("private static final double DEPENDENT_PANEL_LEFT_INSET =\n"
-                + "            ACCENT_INDENT - BORDER_WIDTH - PARAMETER_ROW_EDGE_TO_BAR_GAP;"));
+                + "            ACCENT_INDENT - (BORDER_WIDTH * 2.0) - PARAMETER_ROW_EDGE_TO_BAR_GAP;"));
+        assertTrue(source.contains("private static final double DEPENDENT_ROWS_LEFT_INSET =\n"
+                + "            DEPENDENT_PANEL_LEFT_INSET + BORDER_WIDTH;"));
         assertTrue(source.contains("private static final double DEPENDENT_PANEL_OUTER_LEFT_MARGIN =\n"
                 + "            LauncherGeometry.INTRA_PANEL_MARGIN - PARAMETER_ROW_CONTAINER_LEFT_INSET;"));
         assertTrue(source.contains("private static final double DEPENDENT_PANEL_RIGHT_PADDING =\n"
@@ -1054,10 +1208,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private static final double DEPENDENT_LABEL_COLUMN_GAP =\n"
                 + "            PARAMETER_BAR_TO_TEXT_GAP;"));
         assertTrue(source.contains("private static final double DEPENDENT_TITLE_TEXT_INSET =\n"
-                + "            DEPENDENT_PANEL_LEFT_INSET\n"
-                + "                    + PARAMETER_ROW_EDGE_TO_BAR_GAP\n"
-                + "                    + PARAMETER_ANCHOR_WIDTH\n"
-                + "                    + DEPENDENT_LABEL_COLUMN_GAP;"));
+                + "            ACCENT_INDENT - BORDER_WIDTH;"));
         assertTrue(source.contains("private static final double DEPENDENT_LABEL_COLUMN_WIDTH =\n"
                 + "            PARAMETER_LABEL_COLUMN_WIDTH - ACCENT_INDENT;"));
         assertTrue(source.contains("private static Insets parameterGridPadding()"));
@@ -1082,10 +1233,16 @@ class PipelineLauncherTest {
                 + "                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP - SURFACE_BORDER_WIDTH;"));
         assertTrue(source.contains("private static final double MENU_EDGE_MARGIN =\n"
                 + "                LauncherGeometry.INTRA_PANEL_MARGIN;"));
-        assertTrue(source.contains("private static final double MENU_SIDE_BREATHING =\n"
-                + "                LauncherGeometry.INTRA_PANEL_MARGIN * 7.0 / 8.0;"));
-        assertTrue(source.contains("private static final double MENU_WIDTH =\n"
+        assertTrue(source.contains("private static final double WIDEST_SEGMENT_ROW_WIDTH =\n"
                 + "                SEGMENT_LABEL_WIDTH"));
+        assertTrue(source.contains("private static final double OPTIONS_GROUP_OUTER_WIDTH =\n"
+                + "                WIDEST_SEGMENT_ROW_WIDTH"));
+        assertTrue(source.contains("private static final double MENU_WIDTH =\n"
+                + "                OPTIONS_GROUP_OUTER_WIDTH"));
+        assertTrue(source.contains("private static final double MENU_POPUP_WIDTH =\n"
+                + "                MENU_WIDTH"));
+        assertTrue(source.contains("private static final double SIMPLE_MENU_ITEM_SHELL_INSET =\n"
+                + "                OPTIONS_PANEL_INSET - (SURFACE_BORDER_WIDTH * 2.0);"));
         assertTrue(source.contains("private static final double MENU_ITEM_WIDTH =\n"
                 + "                MENU_WIDTH - (OPTIONS_PANEL_INSET * 2.0);"));
         assertTrue(source.contains("VBox header = new VBox(HeaderGeometry.HEADER_STACK_GAP);"));
@@ -1093,8 +1250,8 @@ class PipelineLauncherTest {
         assertTrue(source.contains("VBox titleBlock = new VBox(HeaderGeometry.TITLE_BLOCK_GAP);"));
         assertTrue(source.contains("HBox actionCluster = new HBox(HeaderGeometry.ACTION_CLUSTER_GAP);"));
         assertTrue(source.contains("new HBox(HeaderGeometry.MENU_GRAPHIC_GAP, label, chevron);"));
-        assertTrue(source.contains("menu.setMinWidth(HeaderGeometry.MENU_WIDTH);"));
-        assertTrue(source.contains("menu.setPrefWidth(HeaderGeometry.MENU_WIDTH);"));
+        assertTrue(source.contains("menu.setMinWidth(HeaderGeometry.MENU_POPUP_WIDTH);"));
+        assertTrue(source.contains("menu.setPrefWidth(HeaderGeometry.MENU_POPUP_WIDTH);"));
         assertTrue(source.contains("HeaderGeometry.MENU_EDGE_MARGIN);"));
         assertTrue(source.contains("screenBounds.getMaxY() + HeaderGeometry.MENU_VERTICAL_OFFSET;"));
         assertTrue(source.contains("visualBounds.getMaxY() - HeaderGeometry.MENU_MIN_VISIBLE_HEIGHT"));
@@ -1120,7 +1277,8 @@ class PipelineLauncherTest {
         assertTrue(source.contains("addStyleClass(dialog.getDialogPane(), \"astra-launcher-dialog-pane\");"));
         assertTrue(source.contains("applyMainActionButtonGeometry(runButton);"));
         assertTrue(source.contains("applyMainActionButtonGeometry(cancelButton);"));
-        assertTrue(source.contains("createMainActionBar(cancelButton, runButton)"));
+        assertTrue(source.contains("createMainActionBar(runProgressLane, cancelButton, runButton)"));
+        assertTrue(source.contains("HBox.setHgrow(progressLane, Priority.ALWAYS);"));
         assertTrue(source.contains("addStyleClass(bar, \"astra-main-action-bar\");"));
         assertFalse(source.contains("applyLauncherDialogButtonBarGeometry"));
         assertTrue(css.contains(".astra-main-action-bar"));
@@ -1243,6 +1401,8 @@ class PipelineLauncherTest {
                 "BAR_WIDTH");
         double anchorColumnWidth = staticDouble(PipelineLauncher.class,
                 "PARAMETER_ANCHOR_COLUMN_WIDTH");
+        double firstRowHeight = staticDouble(PipelineLauncher.class,
+                "PARAMETER_FIRST_ROW_HEIGHT");
         double accentIndent = staticDouble(PipelineLauncher.class,
                 "ACCENT_INDENT");
         double barToTextGap = staticDouble(PipelineLauncher.class,
@@ -1253,6 +1413,8 @@ class PipelineLauncherTest {
                 "PARAMETER_GRID_TEXT_RAIL");
         double dependentPanelLeftInset = staticDouble(PipelineLauncher.class,
                 "DEPENDENT_PANEL_LEFT_INSET");
+        double dependentRowsLeftInset = staticDouble(PipelineLauncher.class,
+                "DEPENDENT_ROWS_LEFT_INSET");
         double dependentPanelOuterLeftMargin = staticDouble(PipelineLauncher.class,
                 "DEPENDENT_PANEL_OUTER_LEFT_MARGIN");
         double dependentLabelColumnGap = staticDouble(PipelineLauncher.class,
@@ -1267,6 +1429,10 @@ class PipelineLauncherTest {
                 "EDITOR_RAIL");
         double anchorHeight = staticDouble(PipelineLauncher.class,
                 "PARAMETER_ANCHOR_HEIGHT");
+        double anchorPaintRadius = staticDouble(PipelineLauncher.class,
+                "PARAMETER_ANCHOR_PAINT_RADIUS");
+        double anchorPaintArc = staticDouble(PipelineLauncher.class,
+                "PARAMETER_ANCHOR_PAINT_ARC");
         double helpButtonSize = staticDouble(PipelineLauncher.class,
                 "PARAMETER_HELP_BUTTON_SIZE");
         double settingsViewportWidth = staticDouble(PipelineLauncher.class,
@@ -1283,16 +1449,19 @@ class PipelineLauncherTest {
         assertEquals(intraPanelSubtleGap, rowGap);
         assertEquals((layoutUnit * 12.0d) + intraPanelTightGap, labelColumnWidth);
         assertEquals(layoutUnit - (borderWidth * 2.0d), helpColumnWidth);
-        assertEquals(intraPanelMargin / 2.0d, rowHorizontalPadding);
+        assertEquals(0.0d, rowHorizontalPadding);
         assertEquals(intraPanelMargin - rowHorizontalPadding, rowContainerLeftInset);
         assertEquals(rowHorizontalPadding, rowEdgeToBarGap);
-        assertEquals(intraPanelTightGap, anchorWidth);
+        assertEquals(layoutUnit / 4.0d, anchorWidth);
         assertEquals(anchorWidth, barWidth);
         assertEquals(anchorWidth, anchorColumnWidth);
-        assertEquals(rowHeight - (intraPanelSubtleGap * 2.0d), anchorHeight);
-        assertEquals(anchorHeight, helpButtonSize);
+        assertEquals(rowHeight, firstRowHeight);
+        assertEquals(firstRowHeight, anchorHeight);
+        assertEquals(Math.min(anchorWidth, firstRowHeight) / 2.0d, anchorPaintRadius);
+        assertEquals(anchorPaintRadius * 2.0d, anchorPaintArc);
+        assertEquals(helpColumnWidth - intraPanelTightGap, helpButtonSize);
         assertEquals(intraPanelMargin + borderWidth + rowEdgeToBarGap, accentIndent);
-        assertEquals(accentIndent - (barWidth - borderWidth), barToTextGap);
+        assertEquals(accentIndent - barWidth, barToTextGap);
         assertTrue(barToTextGap > 0.0d);
         assertEquals(rowEdgeToBarGap + anchorWidth + barToTextGap, rowTextRail);
         assertEquals(intraPanelMargin + borderWidth + rowTextRail, gridTextRail);
@@ -1313,15 +1482,11 @@ class PipelineLauncherTest {
         assertEquals((layoutUnit * 29.0d) + intraPanelTightGap, settingsViewportHeight);
         assertEquals(layoutUnit * 20.0d / 3.0d, colocalizationLabelWidth);
         assertEquals(layoutUnit * 15.0d / 2.0d, colocalizationWideLabelWidth);
-        assertEquals(accentIndent - borderWidth - rowEdgeToBarGap, dependentPanelLeftInset);
+        assertEquals(accentIndent - (borderWidth * 2.0d) - rowEdgeToBarGap, dependentPanelLeftInset);
+        assertEquals(dependentPanelLeftInset + borderWidth, dependentRowsLeftInset);
         assertEquals(intraPanelMargin - rowContainerLeftInset, dependentPanelOuterLeftMargin);
         assertEquals(barToTextGap, dependentLabelColumnGap);
-        assertEquals(
-                dependentPanelLeftInset
-                        + rowEdgeToBarGap
-                        + anchorWidth
-                        + dependentLabelColumnGap,
-                dependentTitleTextInset);
+        assertEquals(accentIndent - borderWidth, dependentTitleTextInset);
         assertEquals(labelColumnWidth - accentIndent, dependentLabelColumnWidth);
     }
 
@@ -1341,11 +1506,37 @@ class PipelineLauncherTest {
         assertFalse(source.contains("createHeaderActionGroup(\"Settings\""));
         assertTrue(source.contains("createViewMenuItem("));
         assertTrue(source.contains("createHeaderViewPanel("));
+        assertTrue(source.contains("InputGradientFillPanel inputFillPanel = new InputGradientFillPanel();"));
+        assertTrue(source.contains("VBox.setVgrow(inputFillPanel, Priority.ALWAYS);"));
+        assertTrue(source.contains("RunProgressLane runProgressLane = new RunProgressLane();"));
+        assertTrue(source.contains("feedback.attachRunProgressLane(runProgressLane);"));
+        assertTrue(source.contains("createMainActionBar(runProgressLane, cancelButton, runButton)"));
+        assertTrue(source.contains("private final Label progressText = new Label();"));
+        assertTrue(source.contains("setPrefHeight(LauncherGeometry.ACTION_PROGRESS_TOTAL_HEIGHT);"));
+        assertTrue(source.contains("progressTextFor(state)"));
+        assertTrue(source.contains("Ready for the next ASTRA run."));
+        assertTrue(source.contains("runProgressLane.setGradientMode(initialMode);"));
+        assertTrue(source.contains("runProgressLane.setMotionSpeed(initialSpeed);"));
+        assertTrue(source.contains("inputFillPanel.setGradientMode(initialMode);"));
+        assertTrue(source.contains("inputFillPanel.setMotionSpeed(initialSpeed);"));
+        assertTrue(source.contains("private static final class ParameterAccentBar extends StackPane"));
+        assertTrue(source.contains("HEADER_MODE_PREFERENCE.addListener"));
+        assertTrue(source.contains("gradientSurface.setHeaderMode(headerModePreference());"));
+        assertFalse(source.contains("state == RunProgressState.RUNNING\n"
+                + "                    ? selectedMode\n"
+                + "                    : AnimatedGradientHeader.HeaderMode.STATIC"));
         assertTrue(source.contains("headerSegmentRow(\"Run Log Pane\", show, hide)"));
         assertTrue(source.contains("label.setMinWidth(HeaderGeometry.SEGMENT_LABEL_WIDTH)"));
         assertTrue(source.contains("showHeaderActionMenu(button, menu)"));
         assertTrue(source.contains("preferredHeaderMenuX("));
-        assertTrue(source.contains("menu.setX(alignedX)"));
+        assertTrue(source.contains("MENU_RENDERED_POPUP_WIDTH ="));
+        assertTrue(source.contains("MENU_POPUP_WIDTH + (MENU_EDGE_MARGIN * 2.0)"));
+        assertTrue(source.contains("MENU_ANCHOR_TO_WINDOW_OFFSET ="));
+        assertTrue(source.contains("MENU_EDGE_MARGIN;"));
+        assertTrue(source.contains("Window popupWindow = menu.getScene() == null ? null : menu.getScene().getWindow();"));
+        assertTrue(source.contains("popupWindow.getWidth()"));
+        assertTrue(source.contains("menu.show(button, x + HeaderGeometry.MENU_ANCHOR_TO_WINDOW_OFFSET, y)"));
+        assertTrue(source.contains("menu.setX(alignedX);"));
         assertTrue(source.contains("PathPrefs.createPersistentPreference(HEADER_MODE_PREFERENCE_KEY"));
         assertTrue(source.contains("PathPrefs.createPersistentPreference(HEADER_MOTION_PREFERENCE_KEY"));
         assertTrue(source.contains("AnimatedGradientHeader.HeaderMode.DYNAMIC.name()"));
@@ -1389,8 +1580,14 @@ class PipelineLauncherTest {
         assertTrue(source.contains("grid.setVgap(PARAMETER_ROW_GAP);"));
         assertTrue(source.contains("VBox group = new VBox(PARAMETER_ROW_GAP);"));
         assertTrue(source.contains("private final VBox rows = new VBox(PARAMETER_ROW_GAP);"));
-        assertTrue(source.contains("labelBox.setAlignment(tall ? Pos.TOP_LEFT : Pos.CENTER_LEFT);"));
-        assertTrue(source.contains("GridPane.setValignment(info, tall ? VPos.TOP : VPos.CENTER);"));
+        assertTrue(source.contains("labelBox.setAlignment(Pos.CENTER_LEFT);"));
+        assertTrue(source.contains("GridPane.setValignment(info, VPos.CENTER);"));
+        assertTrue(source.contains("The accent midpoint belongs on the first-row rail midpoint"));
+        assertTrue(source.contains("labelBox.setMaxHeight(tall ? Double.MAX_VALUE : PARAMETER_ROW_HEIGHT);"));
+        assertTrue(source.contains("labelBox.add(anchor, 0, 0, 1, 2);"));
+        assertTrue(source.contains("GridPane.setFillHeight(anchor, true);"));
+        assertTrue(source.contains("GridPane.setFillHeight(nodes.label, nodes.tall());"));
+        assertTrue(source.contains("GridPane.setValignment(nodes.label, nodes.tall() ? VPos.TOP : VPos.CENTER);"));
         assertTrue(source.contains("private static boolean isTallParameterEditor(Node editor)"));
         assertTrue(source.contains("|| editor instanceof StageModeEditor"));
         assertTrue(source.contains("HBox row = labeledRow(displayLabel(constant.name), editor,\n"
@@ -1420,9 +1617,12 @@ class PipelineLauncherTest {
         assertTrue(source.contains("selectedButtonText(selectedValues)"));
         assertTrue(source.contains("double labelColumnWidth = dependent ? DEPENDENT_LABEL_COLUMN_WIDTH : PARAMETER_LABEL_COLUMN_WIDTH;"));
         assertTrue(source.contains("double labelColumnGap = dependent ? DEPENDENT_LABEL_COLUMN_GAP : PARAMETER_LABEL_COLUMN_GAP;"));
-        assertTrue(source.contains("Text label = new Text(displayLabel(constant.name));"));
-        assertTrue(source.contains("label.setBoundsType(TextBoundsType.VISUAL);"));
-        assertTrue(source.contains("label.setWrappingWidth(labelTextWidth);"));
+        assertTrue(source.contains("Label label = new Label(displayLabel(constant.name));"));
+        assertTrue(source.contains("label.setWrapText(true);"));
+        assertTrue(source.contains("label.setAlignment(Pos.CENTER_LEFT);"));
+        assertTrue(source.contains("label.setMinSize(labelTextWidth, PARAMETER_FIRST_ROW_HEIGHT);"));
+        assertTrue(source.contains("label.setPrefSize(labelTextWidth, PARAMETER_FIRST_ROW_HEIGHT);"));
+        assertTrue(source.contains("label.setMaxWidth(labelTextWidth);"));
         assertTrue(css.contains(".astra-parameter-label {\n"
                 + "    -fx-font-size: 12px;\n"
                 + "    -fx-font-weight: bold;\n"
@@ -1435,7 +1635,22 @@ class PipelineLauncherTest {
         assertTrue(source.contains("labelBox.setPadding(parameterRowPadding());"));
         assertTrue(source.contains("ColumnConstraints anchorColumn = new ColumnConstraints(\n"
                 + "                PARAMETER_ANCHOR_COLUMN_WIDTH,"));
-        assertTrue(source.contains("Rectangle anchor = new Rectangle(PARAMETER_ANCHOR_WIDTH, PARAMETER_ANCHOR_HEIGHT);"));
+        assertTrue(source.contains("ParameterAccentBar anchor = new ParameterAccentBar();"));
+        assertTrue(source.contains("private final Rectangle paintMask = new Rectangle();"));
+        assertTrue(source.contains("gradientSurface.setManaged(false);"));
+        assertFalse(source.contains("bevelOverlay"));
+        assertTrue(source.contains("setClip(paintMask);"));
+        assertTrue(source.contains("paintMask.setWidth(width);"));
+        assertTrue(source.contains("paintMask.setHeight(height);"));
+        assertTrue(source.contains("paintMask.setArcWidth(PARAMETER_ANCHOR_PAINT_ARC);"));
+        assertTrue(source.contains("paintMask.setArcHeight(PARAMETER_ANCHOR_PAINT_ARC);"));
+        assertTrue(source.contains("double width = PARAMETER_ANCHOR_WIDTH;"));
+        assertFalse(source.contains("PARAMETER_ANCHOR_CLIP_ARC"));
+        assertFalse(source.contains("strokeRoundRect("));
+        String previewSource = Files.readString(Path.of("src/test/java/qupath/ext/astra/LauncherPreviewApp.java"));
+        assertTrue(previewSource.contains("anchor.localToScene(anchor.getLayoutBounds()).getMinX()"));
+        assertTrue(previewSource.contains("anchor.localToScene(anchor.getLayoutBounds()).getMaxX()"));
+        assertTrue(previewSource.contains("node.getParent().localToScene(node.getParent().getLayoutBounds()).getMinX()"));
         assertTrue(source.contains("GridPane.setHalignment(anchor, HPos.LEFT);"));
         assertTrue(source.contains("info.setMinSize(PARAMETER_HELP_BUTTON_SIZE, PARAMETER_HELP_BUTTON_SIZE);"));
         assertTrue(source.contains("box.setPadding(dependentPanelPadding());"));
@@ -1494,6 +1709,7 @@ class PipelineLauncherTest {
         assertEquals("Cell Mean", GuiPresentation.displayOption("THRESHOLD_POPULATION", "CELL_MEAN"));
         assertEquals("Pixel Intensity", GuiPresentation.displayOption("THRESHOLD_POPULATION", "PIXEL_INTENSITY"));
         assertEquals("Pixel Positive Fraction", GuiPresentation.displayOption("POSITIVITY_METHOD", "PIXEL_POSITIVE_FRACTION"));
+        assertEquals("Any Pixel Above Threshold", GuiPresentation.displayOption("POSITIVITY_METHOD", "ANY_PIXEL_ABOVE_THRESHOLD"));
         assertEquals("Pixel-Level Score", GuiPresentation.displayOption("EXPRESSION_CLASSIFICATION_MODE", "PIXEL_LEVEL_SCORE"));
         assertEquals("Legacy Binary", GuiPresentation.displayOption("EXPRESSION_CLASSIFICATION_MODE", "LEGACY_BINARY"));
         assertEquals("Local Percentile", GuiPresentation.displayOption("LOCAL_PERCENTILE"));
@@ -1928,7 +2144,8 @@ class PipelineLauncherTest {
         assertTrue(source.contains("styleButton(resetProject, ButtonRole.DANGER)"));
         assertTrue(source.contains("styleButton(export, ButtonRole.SUCCESS)"));
         assertTrue(source.contains("AnimatedGradientHeader animatedHeader = new AnimatedGradientHeader(header);"));
-        assertTrue(source.contains("createViewMenuItem(launcherViewState.outputVisible(), setOutputVisible, animatedHeader)"));
+        assertTrue(source.contains("createViewMenuItem("));
+        assertTrue(source.contains("animatedHeader,\n                runProgressLane,\n                inputFillPanel"));
         assertTrue(source.contains("headerSegmentButton(\"Show\")"));
         assertTrue(source.contains("headerSegmentButton(\"Hide\")"));
         assertFalse(source.contains("\"Hide Output\""));
@@ -2504,13 +2721,20 @@ class PipelineLauncherTest {
         assertTrue(view.contains("copy.setText(\"Copied\")"));
         assertTrue(view.contains("new PauseTransition(Duration.seconds(1.2))"));
         assertTrue(view.contains("styleCopyButton(copy, true)"));
-        assertTrue(view.contains("addStyleClass(currentHiddenToggle, \"astra-log-disclosure-button\")"));
+        assertTrue(view.contains("addStyleClass(hiddenToggle, \"astra-log-disclosure-button\")"));
+        assertTrue(view.contains("StackPane scrollFrame = new StackPane(scroll, topFade);"));
+        assertTrue(view.contains("topFade.prefWidthProperty().bind(scrollFrame.widthProperty());"));
+        assertTrue(view.contains("topFade.prefHeightProperty().bind(scrollFrame.heightProperty());"));
+        assertTrue(view.contains("StackPane.setAlignment(topFade, Pos.TOP_CENTER);"));
+        assertTrue(view.contains("addStyleClass(topFade, \"astra-log-scroll-top-fade\")"));
+        assertTrue(view.contains("topFade.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE)"));
         assertTrue(view.contains("addStyleClass(tab, \"astra-log-source-tab\")"));
         assertTrue(view.contains("addStyleClass(currentGroupBody, \"astra-log-source-block\")"));
         assertTrue(view.contains("addStyleClass(card, \"astra-log-message-card\")"));
         assertTrue(view.contains("addStyleClass(title, \"astra-log-card-title\")"));
         assertTrue(view.contains("addStyleClass(card, \"astra-log-key-value-card\")"));
         assertTrue(view.contains("addStyleClass(card, \"astra-log-command-card\")"));
+        assertTrue(view.contains("addStyleClass(row, \"astra-log-metric-row\")"));
         assertTrue(view.contains("addStyleClass(badge, \"astra-log-metric-badge\")"));
         assertTrue(view.contains("addStyleClass(label, \"astra-log-timeline-label\")"));
         assertTrue(view.contains("addStyleClass(title, \"astra-log-failure-title\")"));

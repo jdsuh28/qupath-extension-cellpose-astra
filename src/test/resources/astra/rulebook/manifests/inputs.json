@@ -4176,14 +4176,14 @@
           "name": "POSITIVITY_METHOD",
           "type": "String",
           "defaultGroovy": "\"MEAN_INTENSITY\"",
-          "optionsGroovy": "[\"MEAN_INTENSITY\", \"PIXEL_POSITIVE_FRACTION\"]",
+          "optionsGroovy": "[\"MEAN_INTENSITY\", \"PIXEL_POSITIVE_FRACTION\", \"ANY_PIXEL_ABOVE_THRESHOLD\"]",
           "helpGroovy": "\"Legacy binary method used only when EXPRESSION_CLASSIFICATION_MODE is LEGACY_BINARY.\"",
           "editable": true,
           "internal": false,
           "group": "Thresholds & Background",
           "advanced": true,
           "uiOrder": 8040,
-          "detailsMarkdown": "What it does: Legacy binary method used only when EXPRESSION_CLASSIFICATION_MODE is LEGACY_BINARY. MEAN_INTENSITY compares compartment mean intensity; PIXEL_POSITIVE_FRACTION compares the fraction of compartment pixels above threshold.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes intensity calls, local background handling, or marker positivity.\n\nAllowed values are controlled by POSITIVITY_METHOD_OPTIONS in the manifest/script contract.\n\nDefault value: \"MEAN_INTENSITY\"."
+          "detailsMarkdown": "What it does: Legacy binary method used only when EXPRESSION_CLASSIFICATION_MODE is LEGACY_BINARY. MEAN_INTENSITY compares compartment mean intensity; PIXEL_POSITIVE_FRACTION compares the fraction of compartment pixels above threshold; ANY_PIXEL_ABOVE_THRESHOLD calls a marker positive when at least one compartment pixel is at or above threshold.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes intensity calls, local background handling, or marker positivity.\n\nAllowed values are controlled by POSITIVITY_METHOD_OPTIONS in the manifest/script contract.\n\nDefault value: \"MEAN_INTENSITY\"."
         },
         {
           "name": "PIXEL_POSITIVE_FRACTION_MIN",
