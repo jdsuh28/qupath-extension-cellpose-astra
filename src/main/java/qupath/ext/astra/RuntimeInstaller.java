@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Properties;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 
@@ -52,16 +53,15 @@ import java.util.concurrent.TimeUnit;
  * environment, installs the ASTRA Cellpose fork, validates imports/startup, and
  * then writes the extension preference consumed by {@link CellposeSetup}.</p>
  *
- * <p>Conda/miniforge is the default path. The venv installer is available only
- * when explicitly requested with {@code ASTRA_RUNTIME_INSTALL_STRATEGY=venv};
- * it is not used silently when conda is missing.</p>
+ * <p>Conda/miniforge is the only supported installer path. It allows ASTRA to
+ * bootstrap a pinned Python runtime without relying on system Python.</p>
  */
 final class RuntimeInstaller {
 
     static final String ASTRA_CELLPOSE_REPO = "https://github.com/jdsuh28/cellpose-astra.git";
     static final String DEFAULT_CELLPOSE_REF = "v4.1.1+astra.1";
+    static final String DEFAULT_PYTHON_VERSION = "3.10";
     static final String ENVIRONMENT_NAME = "cellpose-astra";
-    static final String PYTHON_VERSION = "3.10";
 
     private static final String RUNTIME_FOLDER_NAME = ENVIRONMENT_NAME;
     private static final String RELEASE_PROPERTIES_RESOURCE = "qupath/ext/astra/release/runtime.properties";
@@ -149,7 +149,7 @@ final class RuntimeInstaller {
     }
 
     /**
-     * Installs the ASTRA runtime by the explicitly selected strategy.
+     * Installs the ASTRA runtime into the deterministic conda prefix.
      *
      * @param runtimeDirectory deterministic runtime directory.
      * @param python runtime Python executable.
@@ -159,16 +159,9 @@ final class RuntimeInstaller {
      * @throws InterruptedException if command execution is interrupted.
      */
     private static void installRuntime(File runtimeDirectory, File python, InstallProgress progress, File logFile) throws IOException, InterruptedException {
-        String strategy = System.getenv("ASTRA_RUNTIME_INSTALL_STRATEGY");
-        if (strategy != null && strategy.trim().equalsIgnoreCase("venv")) {
-            progress.step("Creating explicit advanced venv runtime", runtimeDirectory.getAbsolutePath());
-            List<String> seedPython = findSeedPython();
-            runCommand(seedPythonWithArgs(seedPython, "-m", "venv", runtimeDirectory.getAbsolutePath()), null, progress, logFile);
-        } else {
-            String conda = findOrBootstrapCondaExecutable(progress, logFile);
-            progress.step("Creating conda runtime", String.join(" ", condaCreateCommand(conda, runtimeDirectory)));
-            runCommand(condaCreateCommand(conda, runtimeDirectory), null, progress, logFile);
-        }
+        String conda = findOrBootstrapCondaExecutable(progress, logFile);
+        progress.step("Creating conda runtime", String.join(" ", condaCreateCommand(conda, runtimeDirectory)));
+        runCommand(condaCreateCommand(conda, runtimeDirectory), null, progress, logFile);
         progress.step("Upgrading Python packaging tools", python.getAbsolutePath());
         runCommand(List.of(python.getAbsolutePath(), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"), null, progress, logFile);
         progress.step("Installing Cellpose-ASTRA", cellposePackageSpec());
@@ -190,16 +183,37 @@ final class RuntimeInstaller {
      * @return release-pinned Cellpose-ASTRA ref, or the development fallback.
      */
     static String pinnedCellposeRef() {
+        return releaseProperty("cellpose_astra_ref", DEFAULT_CELLPOSE_REF);
+    }
+
+    /**
+     * Resolves the Python version pinned into the packaged release.
+     *
+     * @return release-pinned Python major/minor version, or the development
+     * fallback.
+     */
+    static String pinnedPythonVersion() {
+        return releaseProperty("python_version", DEFAULT_PYTHON_VERSION);
+    }
+
+    /**
+     * Reads a packaged release property with a development fallback.
+     *
+     * @param key property key.
+     * @param fallback value used when release metadata is absent.
+     * @return trimmed property value or fallback.
+     */
+    private static String releaseProperty(String key, String fallback) {
         try (var stream = RuntimeInstaller.class.getClassLoader().getResourceAsStream(RELEASE_PROPERTIES_RESOURCE)) {
             if (stream == null) {
-                return DEFAULT_CELLPOSE_REF;
+                return fallback;
             }
-            java.util.Properties properties = new java.util.Properties();
+            Properties properties = new Properties();
             properties.load(stream);
-            String ref = properties.getProperty("cellpose_astra_ref", "").trim();
-            return ref.isEmpty() ? DEFAULT_CELLPOSE_REF : ref;
+            String value = properties.getProperty(key, "").trim();
+            return value.isEmpty() ? fallback : value;
         } catch (IOException ignored) {
-            return DEFAULT_CELLPOSE_REF;
+            return fallback;
         }
     }
 
@@ -244,7 +258,7 @@ final class RuntimeInstaller {
      * @return command tokens.
      */
     static List<String> condaCreateCommand(String condaExecutable, File runtimeDirectory) {
-        return List.of(condaExecutable, "create", "-y", "-p", runtimeDirectory.getAbsolutePath(), "python=" + PYTHON_VERSION);
+        return List.of(condaExecutable, "create", "-y", "-p", runtimeDirectory.getAbsolutePath(), "python=" + pinnedPythonVersion());
     }
 
     /**
@@ -255,7 +269,13 @@ final class RuntimeInstaller {
      */
     static List<List<String>> validationCommands(File python) {
         String py = python.getAbsolutePath();
+        String required = pinnedPythonVersion();
         return List.of(
+                List.of(py, "-c", "import sys; required='" + required + "'; "
+                        + "detected=f'{sys.version_info.major}.{sys.version_info.minor}'; "
+                        + "msg='ASTRA runtime Python version mismatch: required Python " + required
+                        + ", detected Python ' + detected + '. Use ASTRA Runtime Setup to create the managed Miniforge/conda runtime.'; "
+                        + "raise SystemExit(msg) if detected != required else print('python', detected)"),
                 List.of(py, "--version"),
                 List.of(py, "-c", "import numpy; print('numpy', numpy.__version__)"),
                 List.of(py, "-c", "import torch; print('torch', torch.__version__)"),
@@ -278,7 +298,7 @@ final class RuntimeInstaller {
             return conda;
         }
         throw new IOException("No conda-compatible executable was found. Install Miniforge/conda or set ASTRA_CONDA. " +
-                "The venv installer is available only when ASTRA_RUNTIME_INSTALL_STRATEGY=venv is set explicitly.");
+                "ASTRA can also bootstrap its managed Miniforge runtime when downloads are available.");
     }
 
     /**
@@ -594,40 +614,6 @@ final class RuntimeInstaller {
     }
 
     /**
-     * Finds a system Python capable of creating the ASTRA virtual environment.
-     *
-     * @return command prefix for the selected Python interpreter.
-     * @throws IOException if no usable Python command is found.
-     * @throws InterruptedException if command probing is interrupted.
-     */
-    static List<String> findSeedPython() throws IOException, InterruptedException {
-        List<List<String>> candidates = new ArrayList<>();
-        String override = System.getenv("ASTRA_PYTHON_BOOTSTRAP");
-        if (override != null && !override.isBlank()) {
-            candidates.add(List.of(override.trim()));
-        }
-        if (isWindows()) {
-            candidates.add(List.of("py", "-3"));
-        }
-        candidates.add(List.of("python3"));
-        candidates.add(List.of("python"));
-
-        for (List<String> candidate : candidates) {
-            try {
-                CommandResult result = runCommand(seedPythonWithArgs(candidate, "-c", "import venv"), null, Duration.ofSeconds(20), null, null);
-                if (result.exitCode() == 0) {
-                    return candidate;
-                }
-            } catch (IOException ignored) {
-                // Try the next Python candidate.
-            }
-        }
-
-        throw new IOException("No Python executable with the standard venv module was found. " +
-                "Install Python 3.10 or newer, or set ASTRA_PYTHON_BOOTSTRAP to a Python executable before retrying.");
-    }
-
-    /**
      * Tests whether an existing runtime can import required packages.
      *
      * @param python runtime Python executable.
@@ -674,19 +660,6 @@ final class RuntimeInstaller {
             runtimePythonPath.set(path);
             CellposeSetup.getInstance().setCellposePythonPath(path);
         });
-    }
-
-    /**
-     * Appends arguments to a Python command prefix.
-     *
-     * @param seedPython command prefix.
-     * @param args command arguments.
-     * @return full command list.
-     */
-    private static List<String> seedPythonWithArgs(List<String> seedPython, String... args) {
-        List<String> command = new ArrayList<>(seedPython);
-        command.addAll(List.of(args));
-        return command;
     }
 
     /**

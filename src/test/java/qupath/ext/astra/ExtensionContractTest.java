@@ -377,14 +377,14 @@ class ExtensionContractTest {
     }
 
     /**
-     * Verifies the default installer builds a conda-prefix runtime rather than
-     * silently creating a venv.
+     * Verifies the installer builds a release-pinned conda-prefix runtime.
      */
     @Test
     void runtimeInstallerBuildsCondaPrefixCommand() {
         List<String> command = RuntimeInstaller.condaCreateCommand("conda", new File("/tmp/cellpose-astra"));
 
         assertEquals(List.of("conda", "create", "-y", "-p", "/tmp/cellpose-astra", "python=3.10"), command);
+        assertEquals("3.10", RuntimeInstaller.pinnedPythonVersion());
     }
 
     /**
@@ -491,6 +491,10 @@ class ExtensionContractTest {
         List<List<String>> commands = RuntimeInstaller.validationCommands(new File("/runtime/bin/python"));
         String joined = commands.toString();
 
+        assertTrue(joined.indexOf("ASTRA runtime Python version mismatch") < joined.indexOf("--version"));
+        assertTrue(joined.contains("required Python 3.10"));
+        assertTrue(joined.contains("detected Python"));
+        assertTrue(joined.contains("managed Miniforge/conda runtime"));
         assertTrue(joined.contains("--version"));
         assertTrue(joined.contains("import numpy"));
         assertTrue(joined.contains("import torch"));
@@ -542,6 +546,21 @@ class ExtensionContractTest {
 
         assertTrue(verify >= 0);
         assertTrue(apply > verify);
+    }
+
+    /**
+     * Verifies ASTRA exposes only the deterministic conda runtime installer path.
+     *
+     * @throws Exception if the installer source cannot be read.
+     */
+    @Test
+    void runtimeInstallerDoesNotExposeVenvEscapeHatch() throws Exception {
+        String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/RuntimeInstaller.java").toPath());
+
+        assertFalse(source.contains("ASTRA_RUNTIME_INSTALL_STRATEGY"));
+        assertFalse(source.contains("ASTRA_PYTHON_BOOTSTRAP"));
+        assertFalse(source.contains("findSeedPython"));
+        assertFalse(source.contains("-m\", \"venv"));
     }
 
     /**

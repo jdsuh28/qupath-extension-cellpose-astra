@@ -16,7 +16,8 @@
   },
   "cellposeAstra": {
     "repo": "jdsuh28/cellpose-astra",
-    "baseRef": "v4.1.1+astra.1"
+    "baseRef": "v4.1.1+astra.1",
+    "pythonVersion": "3.10"
   },
   "miniforge": {
     "version": "26.3.2-3",
