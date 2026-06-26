@@ -843,7 +843,10 @@ final class RuntimeInstaller {
     private static void verifyRuntime(File python, InstallProgress progress, File logFile) throws IOException, InterruptedException {
         progressStep(progress, "Validating runtime", python.getAbsolutePath());
         for (List<String> command : validationCommands(python)) {
-            runCommand(command, null, Duration.ofMinutes(2), progress, logFile);
+            CommandResult result = runCommand(command, null, Duration.ofMinutes(2), progress, logFile);
+            if (result.exitCode() != 0) {
+                throw new IOException(formatCommandFailure(command, result));
+            }
         }
     }
 

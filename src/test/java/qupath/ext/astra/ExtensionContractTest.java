@@ -595,6 +595,10 @@ class ExtensionContractTest {
 
         assertTrue(verify >= 0);
         assertTrue(apply > verify);
+        assertTrue(source.contains("if (result.exitCode() != 0)"));
+        assertTrue(source.contains("throw new IOException(formatCommandFailure(command, result));"));
+        assertFalse(source.contains("cellpose-astra-invalid-"));
+        assertFalse(source.contains("removeInvalidManagedRuntime"));
     }
 
     /**
