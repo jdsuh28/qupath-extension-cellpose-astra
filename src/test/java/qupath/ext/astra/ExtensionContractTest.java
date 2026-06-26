@@ -382,9 +382,24 @@ class ExtensionContractTest {
     @Test
     void runtimeInstallerBuildsCondaPrefixCommand() {
         List<String> command = RuntimeInstaller.condaCreateCommand("conda", new File("/tmp/cellpose-astra"));
+        List<String> pathCommand = RuntimeInstaller.condaCreateCommand("/opt/miniforge/bin/conda", new File("/tmp/cellpose-astra"));
+        List<String> mambaCommand = RuntimeInstaller.condaCreateCommand("mamba", new File("/tmp/cellpose-astra"));
 
-        assertEquals(List.of("conda", "create", "-y", "-p", "/tmp/cellpose-astra", "python=3.10"), command);
+        assertEquals(List.of("conda", "create", "--solver=libmamba", "-y", "-p", "/tmp/cellpose-astra", "python=3.10"), command);
+        assertEquals(List.of("/opt/miniforge/bin/conda", "create", "--solver=libmamba", "-y", "-p", "/tmp/cellpose-astra", "python=3.10"), pathCommand);
+        assertEquals(List.of("mamba", "create", "-y", "-p", "/tmp/cellpose-astra", "python=3.10"), mambaCommand);
+        assertTrue(RuntimeInstaller.usesCondaExecutable("conda"));
+        assertTrue(RuntimeInstaller.usesCondaExecutable("/opt/miniforge/bin/conda"));
+        assertTrue(RuntimeInstaller.usesCondaExecutable("conda.exe"));
+        assertFalse(RuntimeInstaller.usesCondaExecutable("mamba"));
+        assertFalse(RuntimeInstaller.usesCondaExecutable("micromamba"));
         assertEquals("3.10", RuntimeInstaller.pinnedPythonVersion());
+        assertEquals(Map.of(RuntimeInstaller.CONDA_OVERRIDE_OSX, RuntimeInstaller.MACOS_CONDA_SOLVER_VERSION),
+                RuntimeInstaller.condaCreateEnvironmentOverrides("Mac OS X"));
+        assertEquals(Map.of(RuntimeInstaller.CONDA_OVERRIDE_OSX, RuntimeInstaller.MACOS_CONDA_SOLVER_VERSION),
+                RuntimeInstaller.condaCreateEnvironmentOverrides("Darwin"));
+        assertEquals(Map.of(), RuntimeInstaller.condaCreateEnvironmentOverrides("Linux"));
+        assertEquals(Map.of(), RuntimeInstaller.condaCreateEnvironmentOverrides("Windows 11"));
     }
 
     /**

@@ -214,6 +214,10 @@ class PipelineLauncherTest {
     void mainLauncherDialogHasCancelClosePath() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
+        assertTrue(source.contains("dialog.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);"));
+        assertTrue(source.contains("Node nativeCancelClose = dialog.getDialogPane().lookupButton(ButtonType.CANCEL);"));
+        assertTrue(source.contains("nativeCancelClose.setManaged(false);"));
+        assertTrue(source.contains("nativeCancelClose.setVisible(false);"));
         assertTrue(source.contains("dialog.setResultConverter(button -> button == null ? ButtonType.CANCEL : button);"));
         assertTrue(source.contains("dialog.setOnCloseRequest(event -> dialog.setResult(ButtonType.CANCEL));"));
         assertTrue(source.contains("cancelButton.setOnAction(event -> {"));

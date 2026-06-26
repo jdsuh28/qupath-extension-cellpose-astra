@@ -630,6 +630,10 @@ final class PipelineLauncher {
         dialog.initOwner(qupath.getStage());
         dialog.setTitle(scriptName);
         dialog.setHeaderText(null);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);
+        Node nativeCancelClose = dialog.getDialogPane().lookupButton(ButtonType.CANCEL);
+        nativeCancelClose.setManaged(false);
+        nativeCancelClose.setVisible(false);
         dialog.setResultConverter(button -> button == null ? ButtonType.CANCEL : button);
         dialog.setOnCloseRequest(event -> dialog.setResult(ButtonType.CANCEL));
         RunFeedback feedback = new RunFeedback(scriptName);
