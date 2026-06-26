@@ -394,6 +394,10 @@ class ExtensionContractTest {
         assertFalse(RuntimeInstaller.usesCondaExecutable("mamba"));
         assertFalse(RuntimeInstaller.usesCondaExecutable("micromamba"));
         assertEquals("3.10", RuntimeInstaller.pinnedPythonVersion());
+        assertEquals("1.26.4", RuntimeInstaller.runtimePins().get("numpy"));
+        assertEquals("2.2.2", RuntimeInstaller.runtimePins().get("torch"));
+        assertEquals("0.17.2", RuntimeInstaller.runtimePins().get("torchvision"));
+        assertEquals("4.10.0.84", RuntimeInstaller.runtimePins().get("opencv-python-headless"));
         assertEquals(Map.of(RuntimeInstaller.CONDA_OVERRIDE_OSX, RuntimeInstaller.MACOS_CONDA_SOLVER_VERSION),
                 RuntimeInstaller.condaCreateEnvironmentOverrides("Mac OS X"));
         assertEquals(Map.of(RuntimeInstaller.CONDA_OVERRIDE_OSX, RuntimeInstaller.MACOS_CONDA_SOLVER_VERSION),
@@ -510,14 +514,44 @@ class ExtensionContractTest {
         assertTrue(joined.contains("required Python 3.10"));
         assertTrue(joined.contains("detected Python"));
         assertTrue(joined.contains("managed Miniforge/conda runtime"));
+        assertFalse(joined.contains("raise SystemExit(msg) if detected != required else print"));
         assertTrue(joined.contains("--version"));
         assertTrue(joined.contains("import numpy"));
+        assertTrue(joined.contains("runtime pins OK"));
         assertTrue(joined.contains("import torch"));
+        assertTrue(joined.contains("torch.from_numpy"));
+        assertTrue(joined.contains("torch numpy bridge OK"));
         assertTrue(joined.contains("import cellpose"));
         assertTrue(joined.contains("import cellpose, cellpose.astra"));
         assertTrue(joined.contains("astra"));
         assertTrue(joined.contains("-m, cellpose.astra, --version"));
         assertFalse(joined.contains("segment_anything"));
+    }
+
+    /**
+     * Verifies the installer constrains pip using release metadata instead of
+     * relying on PyPI's live resolver to choose dependency versions.
+     *
+     * @throws Exception if the generated constraints file cannot be inspected.
+     */
+    @Test
+    void runtimeInstallerGeneratesPipConstraintsFromReleasePins(@TempDir Path tempDir) throws Exception {
+        File log = tempDir.resolve("cellpose-astra-install.log").toFile();
+        Files.writeString(log.toPath(), "");
+
+        File constraints = RuntimeInstaller.writePipConstraintsFile(log);
+        String text = Files.readString(constraints.toPath());
+        List<String> command = RuntimeInstaller.pipInstallCellposeCommand(new File("/runtime/bin/python"), constraints);
+
+        assertTrue(text.contains("numpy==1.26.4"));
+        assertTrue(text.contains("torch==2.2.2"));
+        assertTrue(text.contains("torchvision==0.17.2"));
+        assertTrue(text.contains("opencv-python-headless==4.10.0.84"));
+        assertTrue(command.contains("-c"));
+        assertTrue(command.contains(constraints.getAbsolutePath()));
+        assertTrue(command.contains(RuntimeInstaller.cellposePackageSpec()));
+        assertEquals(List.of("/runtime/bin/python", "-m", "pip", "check"),
+                RuntimeInstaller.pipCheckCommand(new File("/runtime/bin/python")));
     }
 
     /**

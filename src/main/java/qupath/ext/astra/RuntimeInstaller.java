@@ -35,6 +35,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,6 +43,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 
@@ -64,6 +66,7 @@ final class RuntimeInstaller {
     static final String ENVIRONMENT_NAME = "cellpose-astra";
     static final String CONDA_OVERRIDE_OSX = "CONDA_OVERRIDE_OSX";
     static final String MACOS_CONDA_SOLVER_VERSION = "10.15";
+    static final String RUNTIME_PIN_PREFIX = "runtime_pin.";
 
     private static final String RUNTIME_FOLDER_NAME = ENVIRONMENT_NAME;
     private static final String RELEASE_PROPERTIES_RESOURCE = "qupath/ext/astra/release/runtime.properties";
@@ -73,6 +76,30 @@ final class RuntimeInstaller {
     private static final Duration BOOTSTRAP_TIMEOUT = Duration.ofMinutes(20);
     private static final Gson GSON = new Gson();
     private static final Type MAP_TYPE = new TypeToken<LinkedHashMap<String, Object>>() {}.getType();
+    private static final Map<String, String> DEFAULT_RUNTIME_PINS = Map.ofEntries(
+            Map.entry("MarkupSafe", "3.0.3"),
+            Map.entry("fastremap", "1.20.0"),
+            Map.entry("filelock", "3.29.4"),
+            Map.entry("fill-voids", "2.1.2"),
+            Map.entry("fsspec", "2026.6.0"),
+            Map.entry("imagecodecs", "2025.3.30"),
+            Map.entry("jinja2", "3.1.6"),
+            Map.entry("mpmath", "1.3.0"),
+            Map.entry("natsort", "8.4.0"),
+            Map.entry("networkx", "3.4.2"),
+            Map.entry("numpy", "1.26.4"),
+            Map.entry("opencv-python-headless", "4.10.0.84"),
+            Map.entry("pillow", "12.2.0"),
+            Map.entry("roifile", "2025.12.12"),
+            Map.entry("scipy", "1.15.3"),
+            Map.entry("segment-anything", "1.0"),
+            Map.entry("sympy", "1.14.0"),
+            Map.entry("tifffile", "2025.5.10"),
+            Map.entry("torch", "2.2.2"),
+            Map.entry("torchvision", "0.17.2"),
+            Map.entry("tqdm", "4.68.3"),
+            Map.entry("typing-extensions", "4.15.0")
+    );
 
     private static final class InstallerGeometry {
         private static final double ROOT_PADDING =
@@ -166,8 +193,11 @@ final class RuntimeInstaller {
         runCommand(condaCreateCommand(conda, runtimeDirectory), null, condaCreateEnvironmentOverrides(), progress, logFile);
         progress.step("Upgrading Python packaging tools", python.getAbsolutePath());
         runCommand(List.of(python.getAbsolutePath(), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"), null, progress, logFile);
-        progress.step("Installing Cellpose-ASTRA", cellposePackageSpec());
-        runCommand(List.of(python.getAbsolutePath(), "-m", "pip", "install", "--upgrade", cellposePackageSpec()), null, progress, logFile);
+        File constraints = writePipConstraintsFile(logFile);
+        progress.step("Installing Cellpose-ASTRA", cellposePackageSpec() + "\nconstraints: " + constraints.getAbsolutePath());
+        runCommand(pipInstallCellposeCommand(python, constraints), null, progress, logFile);
+        progress.step("Checking Python package consistency", python.getAbsolutePath());
+        runCommand(pipCheckCommand(python), null, progress, logFile);
     }
 
     /**
@@ -199,6 +229,77 @@ final class RuntimeInstaller {
     }
 
     /**
+     * Resolves all release-pinned Python packages for the managed runtime.
+     *
+     * @return deterministic package/version map sorted by package name.
+     */
+    static Map<String, String> runtimePins() {
+        Properties properties = releaseProperties();
+        Map<String, String> pins = new TreeMap<>();
+        for (String name : properties.stringPropertyNames()) {
+            if (name.startsWith(RUNTIME_PIN_PREFIX)) {
+                String packageName = name.substring(RUNTIME_PIN_PREFIX.length()).trim();
+                String version = properties.getProperty(name, "").trim();
+                if (!packageName.isEmpty() && !version.isEmpty()) {
+                    pins.put(packageName, version);
+                }
+            }
+        }
+        if (pins.isEmpty()) {
+            pins.putAll(DEFAULT_RUNTIME_PINS);
+        }
+        return Collections.unmodifiableMap(pins);
+    }
+
+    /**
+     * Writes a pip constraints file from release-pinned runtime metadata.
+     *
+     * @param logFile install log used to choose a colocated diagnostics path.
+     * @return generated constraints file.
+     * @throws IOException if writing fails.
+     */
+    static File writePipConstraintsFile(File logFile) throws IOException {
+        File dir = logFile == null ? Files.createTempDirectory("astra-runtime-constraints").toFile() : logFile.getParentFile();
+        Files.createDirectories(dir.toPath());
+        String base = logFile == null ? "cellpose-astra-runtime" : logFile.getName().replaceFirst("\\.log$", "");
+        File constraints = new File(dir, base + "-constraints.txt");
+        StringBuilder text = new StringBuilder();
+        runtimePins().forEach((name, version) -> text.append(name).append("==").append(version).append(System.lineSeparator()));
+        Files.writeString(constraints.toPath(), text.toString(), StandardCharsets.UTF_8);
+        return constraints;
+    }
+
+    /**
+     * Builds the constrained Cellpose-ASTRA pip install command.
+     *
+     * @param python runtime Python executable.
+     * @param constraints generated constraints file.
+     * @return command tokens.
+     */
+    static List<String> pipInstallCellposeCommand(File python, File constraints) {
+        return List.of(
+                python.getAbsolutePath(),
+                "-m",
+                "pip",
+                "install",
+                "--upgrade",
+                "-c",
+                constraints.getAbsolutePath(),
+                cellposePackageSpec()
+        );
+    }
+
+    /**
+     * Builds the package consistency check command.
+     *
+     * @param python runtime Python executable.
+     * @return command tokens.
+     */
+    static List<String> pipCheckCommand(File python) {
+        return List.of(python.getAbsolutePath(), "-m", "pip", "check");
+    }
+
+    /**
      * Reads a packaged release property with a development fallback.
      *
      * @param key property key.
@@ -206,17 +307,22 @@ final class RuntimeInstaller {
      * @return trimmed property value or fallback.
      */
     private static String releaseProperty(String key, String fallback) {
+        Properties properties = releaseProperties();
+        String value = properties.getProperty(key, "").trim();
+        return value.isEmpty() ? fallback : value;
+    }
+
+    private static Properties releaseProperties() {
+        Properties properties = new Properties();
         try (var stream = RuntimeInstaller.class.getClassLoader().getResourceAsStream(RELEASE_PROPERTIES_RESOURCE)) {
             if (stream == null) {
-                return fallback;
+                return properties;
             }
-            Properties properties = new Properties();
             properties.load(stream);
-            String value = properties.getProperty(key, "").trim();
-            return value.isEmpty() ? fallback : value;
         } catch (IOException ignored) {
-            return fallback;
+            return new Properties();
         }
+        return properties;
     }
 
     /**
@@ -324,18 +430,58 @@ final class RuntimeInstaller {
         String py = python.getAbsolutePath();
         String required = pinnedPythonVersion();
         return List.of(
-                List.of(py, "-c", "import sys; required='" + required + "'; "
-                        + "detected=f'{sys.version_info.major}.{sys.version_info.minor}'; "
-                        + "msg='ASTRA runtime Python version mismatch: required Python " + required
-                        + ", detected Python ' + detected + '. Use ASTRA Runtime Setup to create the managed Miniforge/conda runtime.'; "
-                        + "raise SystemExit(msg) if detected != required else print('python', detected)"),
+                List.of(py, "-c", pythonVersionProbeCode(required)),
                 List.of(py, "--version"),
                 List.of(py, "-c", "import numpy; print('numpy', numpy.__version__)"),
+                List.of(py, "-c", runtimePinProbeCode()),
                 List.of(py, "-c", "import torch; print('torch', torch.__version__)"),
+                List.of(py, "-c", torchNumpyBridgeProbeCode()),
                 List.of(py, "-c", "import cellpose; from cellpose.version import version_str; assert 'astra' in version_str.lower(), version_str; print('cellpose', version_str)"),
                 List.of(py, "-c", "import cellpose, cellpose.astra, torch, numpy; print('ASTRA runtime import validation OK')"),
                 List.of(py, "-m", "cellpose.astra", "--version")
         );
+    }
+
+    static String pythonVersionProbeCode(String required) {
+        return "import sys\n"
+                + "required='" + pythonString(required) + "'\n"
+                + "detected=f'{sys.version_info.major}.{sys.version_info.minor}'\n"
+                + "if detected != required:\n"
+                + "    raise SystemExit('ASTRA runtime Python version mismatch: required Python " + pythonString(required)
+                + ", detected Python ' + detected + '. Use ASTRA Runtime Setup to create the managed Miniforge/conda runtime.')\n"
+                + "print('python', detected)\n";
+    }
+
+    static String runtimePinProbeCode() {
+        StringBuilder pins = new StringBuilder("{");
+        runtimePins().forEach((name, version) -> {
+            if (pins.length() > 1) {
+                pins.append(", ");
+            }
+            pins.append("'").append(pythonString(name)).append("': '").append(pythonString(version)).append("'");
+        });
+        pins.append("}");
+        return "from importlib import metadata as md\n"
+                + "pins=" + pins + "\n"
+                + "for name, expected in pins.items():\n"
+                + "    actual=md.version(name)\n"
+                + "    if actual != expected:\n"
+                + "        raise SystemExit(f'ASTRA runtime package mismatch for {name}: required {expected}, detected {actual}. Use ASTRA Runtime Setup to recreate the managed runtime.')\n"
+                + "print('runtime pins OK', ','.join(f'{k}=={v}' for k, v in sorted(pins.items())))\n";
+    }
+
+    static String torchNumpyBridgeProbeCode() {
+        return "import numpy as np\n"
+                + "if int(np.__version__.split('.')[0]) >= 2:\n"
+                + "    raise SystemExit('ASTRA runtime NumPy mismatch: required NumPy < 2, detected ' + np.__version__ + '. Use ASTRA Runtime Setup to recreate the managed runtime.')\n"
+                + "import torch\n"
+                + "x=np.zeros((2,), dtype=np.float32)\n"
+                + "y=torch.from_numpy(x)\n"
+                + "print('torch numpy bridge OK', np.__version__, torch.__version__, tuple(y.shape))\n";
+    }
+
+    private static String pythonString(String value) {
+        return String.valueOf(value).replace("\\", "\\\\").replace("'", "\\'");
     }
 
     /**

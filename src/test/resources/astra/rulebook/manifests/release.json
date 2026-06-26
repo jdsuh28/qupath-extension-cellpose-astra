@@ -1,23 +1,47 @@
 {
   "schemaVersion": 1,
   "sourcePath": "rulebook/manifests/release.json",
-  "astraTag": "v0.1.95",
+  "astraTag": "v0.1.151",
   "extension": {
     "repo": "jdsuh28/qupath-extension-cellpose-astra",
-    "sourceRef": "c79d4e3637a30941269908c51365ed6f16ceba41",
+    "sourceRef": "a85f9dec92b1bc7f9c25070def9003bc8ebfb681",
     "targetBranch": "main",
-    "releaseTag": "v0.12.0+astra.95"
+    "releaseTag": "v0.12.0+astra.151"
   },
   "catalog": {
     "repo": "jdsuh28/qupath-astra-catalog",
-    "baseRef": "d59e0faa0093c5e92eb7dcc8a59728314846da94",
+    "baseRef": "affa2c5f4cfed6faedf0457c2ece0724a053c03b",
     "targetBranch": "main",
     "releaseTag": "${astra_tag}"
   },
   "cellposeAstra": {
     "repo": "jdsuh28/cellpose-astra",
-    "baseRef": "v4.1.1+astra.2",
-    "pythonVersion": "3.10"
+    "baseRef": "v4.1.1+astra.3",
+    "pythonVersion": "3.10",
+    "runtimePins": {
+      "numpy": "1.26.4",
+      "torch": "2.2.2",
+      "torchvision": "0.17.2",
+      "opencv-python-headless": "4.10.0.84",
+      "scipy": "1.15.3",
+      "natsort": "8.4.0",
+      "tifffile": "2025.5.10",
+      "tqdm": "4.68.3",
+      "fastremap": "1.20.0",
+      "imagecodecs": "2025.3.30",
+      "roifile": "2025.12.12",
+      "fill-voids": "2.1.2",
+      "segment-anything": "1.0",
+      "pillow": "12.2.0",
+      "typing-extensions": "4.15.0",
+      "filelock": "3.29.4",
+      "fsspec": "2026.6.0",
+      "jinja2": "3.1.6",
+      "MarkupSafe": "3.0.3",
+      "networkx": "3.4.2",
+      "sympy": "1.14.0",
+      "mpmath": "1.3.0"
+    }
   },
   "miniforge": {
     "version": "26.3.2-3",
