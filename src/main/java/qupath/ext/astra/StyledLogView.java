@@ -12,6 +12,7 @@ import javafx.scene.Node;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 
@@ -52,7 +53,6 @@ final class StyledLogView extends VBox {
             LauncherGeometryTokens.LAYOUT_UNIT * 43.0 / 12.0;
     private static final double LOG_DOT_SIZE =
             LauncherGeometryTokens.INTRA_PANEL_SUBTLE_GAP;
-
     private final VBox entries = new VBox(LOG_STACK_GAP);
     private final StringBuilder plainText = new StringBuilder();
     private final StringBuilder rawText = new StringBuilder();
@@ -125,11 +125,21 @@ final class StyledLogView extends VBox {
         scroll.setFitToWidth(true);
         scroll.setPrefViewportHeight(520.0);
         addStyleClass(scroll, "astra-log-scroll");
+        Region topFade = new Region();
+        topFade.setMouseTransparent(true);
+        topFade.setMinSize(0.0d, 0.0d);
+        topFade.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        addStyleClass(topFade, "astra-log-scroll-top-fade");
+        StackPane scrollFrame = new StackPane(scroll, topFade);
+        topFade.prefWidthProperty().bind(scrollFrame.widthProperty());
+        topFade.prefHeightProperty().bind(scrollFrame.heightProperty());
+        StackPane.setAlignment(topFade, Pos.TOP_CENTER);
+        addStyleClass(scrollFrame, "astra-log-scroll-frame");
         scroll.vvalueProperty().addListener((obs, oldValue, newValue) -> {
             autoScroll = newValue.doubleValue() >= 0.985d;
         });
-        VBox.setVgrow(scroll, Priority.ALWAYS);
-        getChildren().addAll(statusContent, failureSummary, toolbar, scroll);
+        VBox.setVgrow(scrollFrame, Priority.ALWAYS);
+        getChildren().addAll(statusContent, failureSummary, toolbar, scrollFrame);
     }
 
     private static Insets logCardPadding() {
@@ -362,27 +372,31 @@ final class StyledLogView extends VBox {
         if (currentHiddenBody != null) {
             return;
         }
-        currentHiddenBody = new VBox(LOG_GROUP_BODY_GAP);
-        currentHiddenBody.setVisible(false);
-        currentHiddenBody.setManaged(false);
-        currentHiddenToggle = new Button("Show Cellpose details");
-        currentHiddenToggle.setFocusTraversable(false);
-        addStyleClass(currentHiddenToggle, "astra-button");
-        addStyleClass(currentHiddenToggle, "astra-log-disclosure-button");
-        currentHiddenToggle.setOnAction(event -> {
-            boolean show = !currentHiddenBody.isVisible();
-            currentHiddenBody.setVisible(show);
-            currentHiddenBody.setManaged(show);
-            currentHiddenToggle.setText(show ? "Hide Cellpose details" : "Show Cellpose details");
+        VBox hiddenBody = new VBox(LOG_GROUP_BODY_GAP);
+        hiddenBody.setVisible(false);
+        hiddenBody.setManaged(false);
+        addStyleClass(hiddenBody, "astra-log-hidden-body");
+        Button hiddenToggle = new Button("Show Cellpose details");
+        hiddenToggle.setFocusTraversable(false);
+        addStyleClass(hiddenToggle, "astra-button");
+        addStyleClass(hiddenToggle, "astra-log-disclosure-button");
+        hiddenToggle.setOnAction(event -> {
+            boolean show = !hiddenBody.isVisible();
+            hiddenBody.setVisible(show);
+            hiddenBody.setManaged(show);
+            hiddenToggle.setText(show ? "Hide Cellpose details" : "Show Cellpose details");
         });
-        currentGroupBody.getChildren().add(currentHiddenToggle);
-        currentGroupBody.getChildren().add(currentHiddenBody);
+        currentHiddenBody = hiddenBody;
+        currentHiddenToggle = hiddenToggle;
+        currentGroupBody.getChildren().add(hiddenToggle);
+        currentGroupBody.getChildren().add(hiddenBody);
     }
 
     private HBox createLine(RunLogEntry entry) {
         HBox row = new HBox(LOG_LINE_GAP);
         row.setAlignment(Pos.TOP_LEFT);
         row.setMaxWidth(Double.MAX_VALUE);
+        addStyleClass(row, "astra-log-line-row");
 
         Region accent = new Region();
         accent.setMinWidth(LOG_ACCENT_WIDTH);
@@ -511,6 +525,7 @@ final class StyledLogView extends VBox {
     private HBox badgeRow(Map<String, String> badges) {
         HBox row = new HBox(LOG_TIGHT_GAP);
         row.setAlignment(Pos.CENTER_LEFT);
+        addStyleClass(row, "astra-log-metric-row");
         if (badges == null) {
             return row;
         }

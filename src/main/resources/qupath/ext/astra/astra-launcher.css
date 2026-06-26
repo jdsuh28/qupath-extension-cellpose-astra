@@ -10,11 +10,12 @@
     -fx-padding: 6 12;
     -fx-border-radius: 5;
     -fx-background-radius: 5;
+    -fx-background-insets: 0;
     -fx-cursor: hand;
 }
 
 .astra-button:pressed {
-    -fx-translate-y: 1;
+    -fx-translate-y: 0;
     -fx-effect: innershadow(gaussian, rgba(0, 0, 0, 0.18), 4, 0.2, 0, 1);
 }
 
@@ -23,8 +24,7 @@
 }
 
 .astra-button:hover {
-    -fx-background-insets: 0;
-    -fx-effect: dropshadow(gaussian, rgba(10, 47, 56, 0.16), 6, 0.18, 0, 1);
+    -fx-effect: null;
 }
 
 .astra-button-primary {
@@ -112,11 +112,11 @@
 .astra-settings-card:hover {
     -fx-background-color: #ffffff;
     -fx-border-color: #7fa3ad;
-    -fx-effect: dropshadow(gaussian, rgba(10, 47, 56, 0.14), 9, 0.18, 0, 2);
+    -fx-effect: null;
 }
 
 .astra-settings-card:pressed {
-    -fx-translate-y: 1;
+    -fx-translate-y: 0;
     -fx-background-color: #eef6f7;
     -fx-effect: innershadow(gaussian, rgba(0, 0, 0, 0.14), 4, 0.18, 0, 1);
 }
@@ -393,27 +393,27 @@
 }
 
 .astra-focused-section-theme-teal {
-    -fx-background-color: linear-gradient(to right, #f3fbfa, #ffffff);
+    -fx-background-color: linear-gradient(to right, #dff4f1, #f2fbfa 72%, #ffffff);
     -fx-border-color: #8dc7c3;
 }
 
 .astra-focused-section-theme-bluegray {
-    -fx-background-color: linear-gradient(to right, #f5f8fa, #ffffff);
+    -fx-background-color: linear-gradient(to right, #e4eef3, #f5f8fa 72%, #ffffff);
     -fx-border-color: #aebfc7;
 }
 
 .astra-focused-section-theme-sage {
-    -fx-background-color: linear-gradient(to right, #f5fbf4, #ffffff);
+    -fx-background-color: linear-gradient(to right, #e3f2e2, #f5fbf4 72%, #ffffff);
     -fx-border-color: #a9c9a4;
 }
 
 .astra-focused-section-theme-amber {
-    -fx-background-color: linear-gradient(to right, #fffaf0, #ffffff);
+    -fx-background-color: linear-gradient(to right, #fff0c8, #fffaf0 72%, #ffffff);
     -fx-border-color: #e4be65;
 }
 
 .astra-focused-section-theme-gold {
-    -fx-background-color: linear-gradient(to right, #fff8dc, #ffffff);
+    -fx-background-color: linear-gradient(to right, #ffedaa, #fff8dc 72%, #ffffff);
     -fx-border-color: #d4a72c;
 }
 
@@ -546,6 +546,95 @@
 
 .astra-main-action-bar {
     -fx-background-color: #f4f7f8;
+}
+
+.astra-input-gradient-filler {
+    -fx-background-color: rgba(13, 79, 85, 0.06);
+    -fx-border-color: rgba(31, 122, 122, 0.22);
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+}
+
+.astra-input-gradient-filler .astra-animated-gradient-surface {
+    -fx-opacity: 0.42;
+}
+
+.astra-run-progress-lane {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-opacity: 1;
+}
+
+.astra-run-progress-text {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #425664;
+}
+
+.astra-run-progress-bar {
+    -fx-background-color: rgba(13, 79, 85, 0.08);
+    -fx-border-color: rgba(31, 122, 122, 0.32);
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+
+.astra-run-progress-bar .astra-animated-gradient-surface {
+    -fx-opacity: 0.36;
+}
+
+.astra-run-progress-idle .astra-run-progress-text {
+    -fx-text-fill: #5f7080;
+}
+
+.astra-run-progress-idle .astra-animated-gradient-surface {
+    -fx-opacity: 0.18;
+}
+
+.astra-run-progress-running .astra-run-progress-text {
+    -fx-text-fill: #0d4f55;
+}
+
+.astra-run-progress-running .astra-animated-gradient-surface {
+    -fx-opacity: 0.88;
+}
+
+.astra-run-progress-success .astra-run-progress-bar {
+    -fx-border-color: rgba(31, 138, 120, 0.48);
+}
+
+.astra-run-progress-success .astra-run-progress-text {
+    -fx-text-fill: #0d4f55;
+}
+
+.astra-run-progress-success .astra-animated-gradient-surface {
+    -fx-opacity: 0.54;
+}
+
+.astra-run-progress-error .astra-run-progress-bar {
+    -fx-border-color: rgba(217, 96, 76, 0.58);
+}
+
+.astra-run-progress-error .astra-run-progress-text {
+    -fx-text-fill: #9f3427;
+}
+
+.astra-run-progress-error .astra-animated-gradient-surface {
+    -fx-opacity: 0.32;
+}
+
+.astra-run-progress-cancelled .astra-run-progress-bar {
+    -fx-border-color: rgba(212, 167, 44, 0.58);
+}
+
+.astra-run-progress-cancelled .astra-run-progress-text {
+    -fx-text-fill: #7a4e00;
+}
+
+.astra-run-progress-cancelled .astra-animated-gradient-surface {
+    -fx-opacity: 0.32;
 }
 
 .astra-launcher-dialog-pane .button-bar {
@@ -720,7 +809,7 @@
 
 .astra-collapsible-header:pressed,
 .button.astra-collapsible-header:pressed {
-    -fx-translate-y: 1;
+    -fx-translate-y: 0;
     -fx-background-color: #102e3d;
     -fx-border-color: #102e3d;
 }
@@ -746,44 +835,15 @@
 }
 
 .astra-parameter-anchor {
-    -fx-arc-width: 4;
-    -fx-arc-height: 4;
+    -fx-background-color: transparent;
 }
 
-.astra-parameter-anchor-channel {
-    -fx-fill: linear-gradient(to bottom, #23b5ad, #0d686d);
+.astra-parameter-anchor .astra-animated-gradient-surface {
+    -fx-opacity: 0.82;
 }
 
-.astra-parameter-anchor-model {
-    -fx-fill: linear-gradient(to bottom, #9aafbb, #526b79);
-}
-
-.astra-parameter-anchor-segmentation {
-    -fx-fill: linear-gradient(to bottom, #12b0a6, #0b676d);
-}
-
-.astra-parameter-anchor-biological {
-    -fx-fill: linear-gradient(to bottom, #94be8e, #597f56);
-}
-
-.astra-parameter-anchor-threshold {
-    -fx-fill: linear-gradient(to bottom, #e2b04e, #a9731d);
-}
-
-.astra-parameter-anchor-runtime {
-    -fx-fill: linear-gradient(to bottom, #7898a7, #4d6d7b);
-}
-
-.astra-parameter-anchor-export {
-    -fx-fill: linear-gradient(to bottom, #7c8c97, #4d5f6d);
-}
-
-.astra-parameter-anchor-diagnostic {
-    -fx-fill: linear-gradient(to bottom, #d29a35, #8a5f15);
-}
-
-.astra-parameter-anchor-setting {
-    -fx-fill: linear-gradient(to bottom, #c4ced3, #899aa4);
+.astra-parameter-anchor-setting .astra-animated-gradient-surface {
+    -fx-opacity: 0.62;
 }
 
 .astra-input,
@@ -929,6 +989,8 @@
     -fx-text-fill: #172431;
     -fx-background-color: #fffdf4;
     -fx-border-color: #d7b653;
+    /* Mirrors LauncherGeometryTokens tooltip inset formulas: 4px vertical, 8px horizontal. */
+    -fx-padding: 4px 8px 4px 8px;
     -fx-border-radius: 5;
     -fx-background-radius: 5;
 }
@@ -1151,6 +1213,10 @@
     -fx-background-radius: 6;
 }
 
+.astra-animated-gradient-surface {
+    -fx-background-color: transparent;
+}
+
 .astra-output-header {
     -fx-padding: 2 0 8 0;
 }
@@ -1283,6 +1349,18 @@
 .astra-log-scroll {
     -fx-background: transparent;
     -fx-background-color: transparent;
+}
+
+.astra-log-scroll-frame {
+    -fx-background-color: transparent;
+}
+
+.astra-log-scroll-top-fade {
+    -fx-background-color: linear-gradient(from 0% 0% to 0% 100%,
+        #061720 0%,
+        rgba(6, 23, 32, 0.98) 38%,
+        rgba(6, 23, 32, 0.58) 70%,
+        rgba(6, 23, 32, 0.0) 100%);
 }
 
 .astra-log-copy-button,

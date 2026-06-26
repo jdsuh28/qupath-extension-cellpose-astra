@@ -5,6 +5,7 @@ import javafx.beans.property.StringProperty;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.TextArea;
@@ -13,7 +14,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import qupath.ext.biop.cellpose.CellposeSetup;
-import qupath.fx.dialogs.Dialogs;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -54,6 +54,22 @@ final class RuntimeInstaller {
     private static final String RELEASE_PROPERTIES_RESOURCE = "qupath/ext/astra/release/runtime.properties";
     private static final Duration COMMAND_TIMEOUT = Duration.ofMinutes(45);
 
+    private static final class InstallerGeometry {
+        private static final double ROOT_PADDING =
+                LauncherGeometryTokens.INTRA_PANEL_MARGIN;
+        private static final double HEADER_ROW_GAP =
+                LauncherGeometryTokens.LAYOUT_UNIT * 5.0 / 12.0;
+        private static final double ROOT_CONTENT_GAP =
+                HEADER_ROW_GAP;
+        private static final double WINDOW_WIDTH =
+                LauncherGeometryTokens.LAYOUT_UNIT * 65.0 / 2.0;
+        private static final double WINDOW_HEIGHT =
+                LauncherGeometryTokens.LAYOUT_UNIT * 35.0 / 2.0;
+
+        private InstallerGeometry() {
+        }
+    }
+
     private RuntimeInstaller() {
     }
 
@@ -64,12 +80,19 @@ final class RuntimeInstaller {
      */
     static void installOrRepairAsync(StringProperty runtimePythonPath) {
         Objects.requireNonNull(runtimePythonPath, "runtimePythonPath");
-        boolean proceed = Dialogs.showYesNoDialog(
+        boolean proceed = PipelineLauncher.createAstraSuccessConfirmationDialog(
+                null,
                 "ASTRA Runtime Setup",
-                "ASTRA will create or repair a local Python runtime, install Cellpose-ASTRA, " +
-                        "verify the installation, and register it with QuPath.\n\n" +
-                        "This can take several minutes and requires internet access the first time.\n\n" +
-                        "Continue?");
+                "Create or repair the ASTRA Cellpose runtime?",
+                """
+                ASTRA will create or repair a local Python runtime, install Cellpose-ASTRA,
+                verify the installation, and register it with QuPath.
+
+                This can take several minutes and requires internet access the first time.
+                """)
+                .showAndWait()
+                .filter(ButtonType.OK::equals)
+                .isPresent();
         if (!proceed) {
             return;
         }
@@ -554,7 +577,11 @@ final class RuntimeInstaller {
      * @param message dialog message.
      */
     private static void showInfo(String title, String message) {
-        Platform.runLater(() -> Dialogs.showPlainMessage(title, message));
+        Platform.runLater(() -> PipelineLauncher.showAstraMessage(
+                null,
+                title,
+                "ASTRA runtime is ready.",
+                message));
     }
 
     /**
@@ -564,7 +591,10 @@ final class RuntimeInstaller {
      * @param throwable failure to display.
      */
     private static void showError(String title, Throwable throwable) {
-        Platform.runLater(() -> Dialogs.showErrorMessage(title, throwable));
+        Platform.runLater(() -> PipelineLauncher.showAstraErrorMessage(
+                null,
+                title,
+                throwable == null ? "Unknown runtime installer failure." : throwable.toString()));
     }
 
     /**
@@ -627,12 +657,11 @@ final class RuntimeInstaller {
                 progress.requestCancel();
                 cancel.setDisable(true);
             });
-            HBox top = new HBox(10, indicator, step, cancel);
-            VBox root = new VBox(10, top, log);
-            root.setPadding(new Insets(12));
-            VBox.setVgrow(log, Priority.ALWAYS);
+            VBox root = createInstallProgressRoot(indicator, step, cancel, log);
             stage.setTitle("ASTRA Runtime Setup");
-            stage.setScene(new Scene(root, 780, 420));
+            Scene scene = new Scene(root, InstallerGeometry.WINDOW_WIDTH, InstallerGeometry.WINDOW_HEIGHT);
+            addAstraStylesheet(scene);
+            stage.setScene(scene);
             stage.show();
             return progress;
         }
@@ -721,6 +750,62 @@ final class RuntimeInstaller {
          */
         private long elapsedSeconds() {
             return Math.max(0L, (System.currentTimeMillis() - started) / 1000L);
+        }
+    }
+
+    static VBox createInstallProgressRootForTesting() {
+        ProgressIndicator indicator = new ProgressIndicator();
+        Label step = new Label("Starting ASTRA runtime setup...");
+        Button cancel = new Button("Cancel");
+        TextArea log = new TextArea("Runtime installer diagnostic log.\nWaiting for commands...");
+        log.setEditable(false);
+        log.setWrapText(false);
+        return createInstallProgressRoot(indicator, step, cancel, log);
+    }
+
+    static double installerRootPaddingForTesting() {
+        return InstallerGeometry.ROOT_PADDING;
+    }
+
+    static double installerHeaderRowGapForTesting() {
+        return InstallerGeometry.HEADER_ROW_GAP;
+    }
+
+    static double installerRootContentGapForTesting() {
+        return InstallerGeometry.ROOT_CONTENT_GAP;
+    }
+
+    static double installerWindowWidthForTesting() {
+        return InstallerGeometry.WINDOW_WIDTH;
+    }
+
+    static double installerWindowHeightForTesting() {
+        return InstallerGeometry.WINDOW_HEIGHT;
+    }
+
+    private static VBox createInstallProgressRoot(ProgressIndicator indicator,
+                                                  Label step,
+                                                  Button cancel,
+                                                  TextArea log) {
+        indicator.getStyleClass().add("astra-runtime-installer-indicator");
+        step.getStyleClass().add("astra-runtime-installer-step");
+        cancel.getStyleClass().add("astra-button");
+        cancel.getStyleClass().add("astra-button-secondary");
+        cancel.getStyleClass().add("astra-runtime-installer-cancel");
+        log.getStyleClass().add("astra-runtime-installer-log");
+        HBox top = new HBox(InstallerGeometry.HEADER_ROW_GAP, indicator, step, cancel);
+        top.getStyleClass().add("astra-runtime-installer-header");
+        VBox root = new VBox(InstallerGeometry.ROOT_CONTENT_GAP, top, log);
+        root.getStyleClass().add("astra-runtime-installer-root");
+        root.setPadding(new Insets(InstallerGeometry.ROOT_PADDING));
+        VBox.setVgrow(log, Priority.ALWAYS);
+        return root;
+    }
+
+    private static void addAstraStylesheet(Scene scene) {
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        if (resource != null) {
+            scene.getStylesheets().add(resource.toExternalForm());
         }
     }
 }
