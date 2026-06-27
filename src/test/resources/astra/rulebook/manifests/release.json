@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
   "sourcePath": "rulebook/manifests/release.json",
-  "astraTag": "v0.1.151",
+  "astraTag": "v0.1.153",
   "extension": {
     "repo": "jdsuh28/qupath-extension-cellpose-astra",
-    "sourceRef": "a85f9dec92b1bc7f9c25070def9003bc8ebfb681",
+    "sourceRef": "4903dfb36ba81b8e0a5170a8901cc68ad0f40438",
     "targetBranch": "main",
-    "releaseTag": "v0.12.0+astra.151"
+    "releaseTag": "v0.12.0+astra.153"
   },
   "catalog": {
     "repo": "jdsuh28/qupath-astra-catalog",
-    "baseRef": "affa2c5f4cfed6faedf0457c2ece0724a053c03b",
+    "baseRef": "0cac592dcdc2c71a97c0b95f72dbb3ef151e4c7b",
     "targetBranch": "main",
     "releaseTag": "${astra_tag}"
   },

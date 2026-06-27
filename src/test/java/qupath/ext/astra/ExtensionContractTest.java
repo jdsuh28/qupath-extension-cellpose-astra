@@ -1,11 +1,14 @@
 package qupath.ext.astra;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Type;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URLClassLoader;
@@ -16,8 +19,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -29,6 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ExtensionContractTest {
 
     private static final File ROOT = new File(".").getAbsoluteFile();
+    private static final Gson GSON = new Gson();
+    private static final Type MAP_TYPE = new TypeToken<Map<String, Object>>() {}.getType();
 
     private static final Set<String> ASTRA_PREFIXED_CLASS_ALLOWLIST = Set.of(
             "AstraCellpose2D.java",
@@ -368,8 +376,10 @@ class ExtensionContractTest {
      * deterministic user-local runtime path.
      */
     @Test
-    void runtimeInstallerUsesDeterministicRuntime() {
-        assertEquals("v4.1.1+astra.1", RuntimeInstaller.DEFAULT_CELLPOSE_REF);
+    void runtimeInstallerUsesDeterministicRuntime() throws Exception {
+        Map<String, Object> cellpose = releaseFixtureCellposeAstra();
+
+        assertEquals(cellpose.get("baseRef"), RuntimeInstaller.DEFAULT_CELLPOSE_REF);
         assertEquals("git+https://github.com/jdsuh28/cellpose-astra.git@" + RuntimeInstaller.pinnedCellposeRef(),
                 RuntimeInstaller.cellposePackageSpec());
         assertEquals("cellpose-astra", RuntimeInstaller.runtimeDirectory().getName());
@@ -380,30 +390,45 @@ class ExtensionContractTest {
      * Verifies the installer builds a release-pinned conda-prefix runtime.
      */
     @Test
-    void runtimeInstallerBuildsCondaPrefixCommand() {
+    void runtimeInstallerBuildsCondaPrefixCommand() throws Exception {
+        String requiredPython = RuntimeInstaller.pinnedPythonVersion();
         List<String> command = RuntimeInstaller.condaCreateCommand("conda", new File("/tmp/cellpose-astra"));
         List<String> pathCommand = RuntimeInstaller.condaCreateCommand("/opt/miniforge/bin/conda", new File("/tmp/cellpose-astra"));
         List<String> mambaCommand = RuntimeInstaller.condaCreateCommand("mamba", new File("/tmp/cellpose-astra"));
 
-        assertEquals(List.of("conda", "create", "--solver=libmamba", "-y", "-p", "/tmp/cellpose-astra", "python=3.10"), command);
-        assertEquals(List.of("/opt/miniforge/bin/conda", "create", "--solver=libmamba", "-y", "-p", "/tmp/cellpose-astra", "python=3.10"), pathCommand);
-        assertEquals(List.of("mamba", "create", "-y", "-p", "/tmp/cellpose-astra", "python=3.10"), mambaCommand);
+        assertEquals(List.of("conda", "create", "--solver=libmamba", "-y", "-p", "/tmp/cellpose-astra", "python=" + requiredPython), command);
+        assertEquals(List.of("/opt/miniforge/bin/conda", "create", "--solver=libmamba", "-y", "-p", "/tmp/cellpose-astra", "python=" + requiredPython), pathCommand);
+        assertEquals(List.of("mamba", "create", "-y", "-p", "/tmp/cellpose-astra", "python=" + requiredPython), mambaCommand);
         assertTrue(RuntimeInstaller.usesCondaExecutable("conda"));
         assertTrue(RuntimeInstaller.usesCondaExecutable("/opt/miniforge/bin/conda"));
         assertTrue(RuntimeInstaller.usesCondaExecutable("conda.exe"));
         assertFalse(RuntimeInstaller.usesCondaExecutable("mamba"));
         assertFalse(RuntimeInstaller.usesCondaExecutable("micromamba"));
-        assertEquals("3.10", RuntimeInstaller.pinnedPythonVersion());
-        assertEquals("1.26.4", RuntimeInstaller.runtimePins().get("numpy"));
-        assertEquals("2.2.2", RuntimeInstaller.runtimePins().get("torch"));
-        assertEquals("0.17.2", RuntimeInstaller.runtimePins().get("torchvision"));
-        assertEquals("4.10.0.84", RuntimeInstaller.runtimePins().get("opencv-python-headless"));
+        assertEquals(releaseFixtureCellposeAstra().get("pythonVersion"), RuntimeInstaller.pinnedPythonVersion());
+        assertEquals(releaseFixtureRuntimePins(), RuntimeInstaller.runtimePins());
         assertEquals(Map.of(RuntimeInstaller.CONDA_OVERRIDE_OSX, RuntimeInstaller.MACOS_CONDA_SOLVER_VERSION),
                 RuntimeInstaller.condaCreateEnvironmentOverrides("Mac OS X"));
         assertEquals(Map.of(RuntimeInstaller.CONDA_OVERRIDE_OSX, RuntimeInstaller.MACOS_CONDA_SOLVER_VERSION),
                 RuntimeInstaller.condaCreateEnvironmentOverrides("Darwin"));
         assertEquals(Map.of(), RuntimeInstaller.condaCreateEnvironmentOverrides("Linux"));
         assertEquals(Map.of(), RuntimeInstaller.condaCreateEnvironmentOverrides("Windows 11"));
+    }
+
+    @Test
+    void bundledRuntimePropertiesMirrorReleaseFixture() throws Exception {
+        Properties runtime = new Properties();
+        Path properties = ROOT.toPath().resolve("src/main/resources/qupath/ext/astra/release/runtime.properties");
+        try (InputStream stream = Files.newInputStream(properties)) {
+            runtime.load(stream);
+        }
+        Map<String, Object> cellpose = releaseFixtureCellposeAstra();
+
+        assertEquals(releaseFixture().get("astraTag"), runtime.getProperty("astra_tag"));
+        assertEquals(cellpose.get("repo"), runtime.getProperty("cellpose_astra_repo"));
+        assertEquals(cellpose.get("baseRef"), runtime.getProperty("cellpose_astra_ref"));
+        assertEquals(cellpose.get("pythonVersion"), runtime.getProperty("python_version"));
+        releaseFixtureRuntimePins().forEach((name, version) ->
+                assertEquals(version, runtime.getProperty(RuntimeInstaller.RUNTIME_PIN_PREFIX + name), name));
     }
 
     /**
@@ -543,10 +568,8 @@ class ExtensionContractTest {
         String text = Files.readString(constraints.toPath());
         List<String> command = RuntimeInstaller.pipInstallCellposeCommand(new File("/runtime/bin/python"), constraints);
 
-        assertTrue(text.contains("numpy==1.26.4"));
-        assertTrue(text.contains("torch==2.2.2"));
-        assertTrue(text.contains("torchvision==0.17.2"));
-        assertTrue(text.contains("opencv-python-headless==4.10.0.84"));
+        RuntimeInstaller.runtimePins().forEach((name, version) ->
+                assertTrue(text.contains(name + "==" + version), name));
         assertTrue(command.contains("-c"));
         assertTrue(command.contains(constraints.getAbsolutePath()));
         assertTrue(command.contains(RuntimeInstaller.cellposePackageSpec()));
@@ -627,8 +650,39 @@ class ExtensionContractTest {
         String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/RuntimeInstaller.java").toPath());
 
         assertTrue(source.contains("throw new CancellationException(\"ASTRA runtime installation cancelled by user"));
-        assertTrue(source.contains("progress.failed(t, logFile);"));
-        assertTrue(source.contains("progress.done(\"ASTRA runtime is ready:"));
+        assertTrue(source.contains("new RuntimeSetupFailure(classifyFailure(t), t, logFile)"));
+        assertTrue(source.contains("progress.failed(failure);"));
+        assertTrue(source.contains("progress.done(outcome);"));
+        assertTrue(source.contains("RuntimeFailureKind.CANCELLED"));
+    }
+
+    @Test
+    void runtimeInstallerRepairsOnlyManagedPrefixWithoutQuarantine() throws Exception {
+        String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/RuntimeInstaller.java").toPath());
+
+        assertTrue(source.contains("removeManagedRuntime(runtimeDirectory, progress, logFile);"));
+        assertTrue(source.contains("ASTRA refused to remove a non-managed runtime path"));
+        assertTrue(source.contains("ASTRA refused to remove a runtime outside the managed ~/.astra folder"));
+        assertTrue(source.contains("RUNTIME_FOLDER_NAME.equals(runtimeDirectory.getName())"));
+        assertFalse(source.toLowerCase(Locale.ROOT).contains("quarantine"));
+        assertFalse(source.toLowerCase(Locale.ROOT).contains("backup pile"));
+    }
+
+    @Test
+    void runtimeInstallerClassifiesUserFacingFailures() throws Exception {
+        String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/RuntimeInstaller.java").toPath());
+
+        assertTrue(source.contains("enum RuntimeFailureKind"));
+        assertTrue(source.contains("NETWORK_DOWNLOAD_FAILED"));
+        assertTrue(source.contains("CONDA_SOLVER_FAILED"));
+        assertTrue(source.contains("PIP_INSTALL_FAILED"));
+        assertTrue(source.contains("PYTHON_PACKAGE_VALIDATION_FAILED"));
+        assertTrue(source.contains("PERMISSION_DELETE_FAILED"));
+        assertTrue(source.contains("UNEXPECTED_ERROR"));
+        assertTrue(source.contains("classifyFailure(Throwable throwable)"));
+        assertTrue(source.contains("text.contains(\"runtime package mismatch\")"));
+        assertTrue(source.contains("text.contains(\"unsatisfiableerror\")"));
+        assertTrue(source.contains("text.contains(\"pip install\")"));
     }
 
     /**
@@ -1091,6 +1145,25 @@ class ExtensionContractTest {
             index += needle.length();
         }
         return count;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> releaseFixture() throws Exception {
+        Path path = ROOT.toPath().resolve("src/test/resources/astra/rulebook/manifests/release.json");
+        return GSON.fromJson(Files.readString(path), MAP_TYPE);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> releaseFixtureCellposeAstra() throws Exception {
+        return (Map<String, Object>) releaseFixture().get("cellposeAstra");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, String> releaseFixtureRuntimePins() throws Exception {
+        Map<String, Object> raw = (Map<String, Object>) releaseFixtureCellposeAstra().get("runtimePins");
+        Map<String, String> pins = new TreeMap<>();
+        raw.forEach((name, value) -> pins.put(name, String.valueOf(value)));
+        return pins;
     }
 
     @SuppressWarnings("unchecked")
