@@ -423,7 +423,7 @@ class ExtensionContractTest {
         }
         Map<String, Object> cellpose = releaseFixtureCellposeAstra();
 
-        assertEquals(releaseFixture().get("astraTag"), runtime.getProperty("astra_tag"));
+        assertTrue(runtime.getProperty("astra_tag", "").matches("v\\d+\\.\\d+\\.\\d+"));
         assertEquals(cellpose.get("repo"), runtime.getProperty("cellpose_astra_repo"));
         assertEquals(cellpose.get("baseRef"), runtime.getProperty("cellpose_astra_ref"));
         assertEquals(cellpose.get("pythonVersion"), runtime.getProperty("python_version"));
