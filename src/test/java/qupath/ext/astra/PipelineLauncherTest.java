@@ -200,6 +200,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("static Dialog<ButtonType> createAstraSuccessConfirmationDialog(Window owner"));
         assertTrue(source.contains("static void showAstraMessage(Window owner"));
         assertTrue(source.contains("static Dialog<ButtonType> createRunFailureDialog(Window owner"));
+        assertTrue(source.contains("static Dialog<ButtonType> createAstraPreviewMessageDialog(Window owner"));
         assertTrue(source.contains("private static Dialog<ButtonType> createAstraConfirmationDialog"));
         assertTrue(source.contains("private static Dialog<ButtonType> createAstraMessageDialog"));
         assertTrue(source.contains("VBox content = new VBox(SelectionGeometry.DIALOG_CONTENT_GAP, title, body);"));
@@ -223,7 +224,33 @@ class PipelineLauncherTest {
         assertTrue(source.contains("cancelButton.setOnAction(event -> {"));
         assertTrue(source.contains("dialog.setResult(ButtonType.CANCEL);"));
         assertTrue(source.contains("dialog.close();"));
+        assertTrue(source.indexOf("dialog.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);")
+                < source.indexOf("Node nativeCancelClose = dialog.getDialogPane().lookupButton(ButtonType.CANCEL);"));
+        assertTrue(source.indexOf("dialog.setResult(ButtonType.CANCEL);")
+                < source.indexOf("dialog.close();"));
         assertFalse(source.contains("cancelButton.setOnAction(event -> dialog.close());"));
+    }
+
+    @Test
+    void launcherDisplaysMetadataBackedVersionProvenance() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+
+        assertTrue(source.contains("RELEASE_PROPERTIES_RESOURCE = \"qupath/ext/astra/release/runtime.properties\""));
+        assertTrue(source.contains("Label provenance = new Label(launcherVersionSummary());"));
+        assertTrue(source.contains("provenance.getStyleClass().add(\"astra-header-provenance\")"));
+        assertTrue(source.contains("properties.getProperty(\"astra_tag\""));
+        assertTrue(source.contains("return launcherVersionSummary(base, extension);"));
+        assertTrue(source.contains("String baseDisplay = isUnknownVersion(extension)"));
+        assertTrue(source.contains("return \"dev/unknown\";"));
+        assertTrue(css.contains(".astra-header-provenance"));
+
+        assertEquals("ASTRA v0.1.153 | Extension 0.12.0+astra.153",
+                PipelineLauncher.launcherVersionSummary("v0.1.153", "0.12.0+astra.153"));
+        assertEquals("ASTRA dev/unknown | Extension dev/unknown",
+                PipelineLauncher.launcherVersionSummary("v0.1.28", "unknown"));
+        assertEquals("ASTRA dev/unknown | Extension dev/unknown",
+                PipelineLauncher.launcherVersionSummary("v0.1.28", "-1.-1.-1-UNKNOWN.VERSION"));
     }
 
     @Test
@@ -478,8 +505,18 @@ class PipelineLauncherTest {
         assertTrue(source.contains("LauncherGeometryTokens.LAYOUT_UNIT * 65.0 / 2.0"));
         assertTrue(source.contains("LauncherGeometryTokens.LAYOUT_UNIT * 35.0 / 2.0"));
         assertTrue(source.contains("static VBox createInstallProgressRootForTesting()"));
-        assertTrue(source.contains("createInstallProgressRoot(indicator, step, cancel, log)"));
+        assertTrue(source.contains("ProgressBar progressBar = new ProgressBar();"));
+        assertTrue(source.contains("TitledPane logPane = new TitledPane(\"Technical install log\", log);"));
+        assertTrue(source.contains("Label stepList = new Label(\"Steps: validate managed runtime -> repair if needed -> install pinned packages -> validate final runtime -> register with QuPath.\");"));
+        assertTrue(source.contains("stepList.setPadding(new Insets(InstallerGeometry.STATUS_CARD_PADDING));"));
+        assertTrue(source.contains("stepList.setMaxWidth(Double.MAX_VALUE);"));
+        assertTrue(source.contains("progressBar.setMaxWidth(Double.MAX_VALUE);"));
+        assertTrue(source.contains("Clipboard.getSystemClipboard().setContent(content);"));
+        assertTrue(source.contains("new Timeline(new KeyFrame(javafx.util.Duration.seconds(1.0)"));
+        assertTrue(source.contains("createInstallProgressRoot(phase, detail, elapsed, stepList, resultTitle, resultBody,"));
+        assertTrue(source.contains("progressBar.setMinHeight(InstallerGeometry.PROGRESS_BAR_HEIGHT);"));
         assertTrue(source.contains("addAstraStylesheet(scene);"));
+        assertFalse(source.contains("ProgressIndicator indicator = new ProgressIndicator();"));
         assertFalse(source.contains("new HBox(10"));
         assertFalse(source.contains("new VBox(10"));
         assertFalse(source.contains("new Insets(12"));
@@ -506,9 +543,15 @@ class PipelineLauncherTest {
         String preview = Files.readString(Path.of("src/test/java/qupath/ext/astra/LauncherPreviewApp.java"));
 
         assertTrue(preview.contains("\"runtime-installer-geometry\".equals(snapshotMode)"));
+        assertTrue(preview.contains("\"runtime-confirmation-dialog\".equals(snapshotMode)"));
+        assertTrue(preview.contains("\"runtime-result-dialog\".equals(snapshotMode)"));
+        assertTrue(preview.contains("\"runtime-failure-dialog\".equals(snapshotMode)"));
         assertTrue(preview.contains("Surface.RUNTIME_INSTALLER"));
         assertTrue(preview.contains("addRuntimeInstallerMeasurements(sceneRoot, measurements)"));
         assertTrue(preview.contains("RuntimeInstaller.createInstallProgressRootForTesting()"));
+        assertTrue(preview.contains("openRuntimeConfirmationDialog"));
+        assertTrue(preview.contains("openRuntimeResultDialog"));
+        assertTrue(preview.contains("openRuntimeFailureDialog"));
     }
 
     @Test
@@ -2660,6 +2703,18 @@ class PipelineLauncherTest {
         assertTrue(model.statusTitle().contains("Failed"));
         assertTrue(model.elapsedLabel().startsWith("elapsed "));
         assertTrue(model.statusDetail("Image 3/20 | Cells 125").contains("Image 3/20"));
+    }
+
+    @Test
+    void runLogWarningCountsRemainPlainTextUnlessActionable() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+        String timeline = Files.readString(Path.of("src/main/java/qupath/ext/astra/RunTimelineModel.java"));
+
+        assertTrue(timeline.contains("\" | warnings \" + warnings + \" | errors \" + errors"));
+        assertFalse(source.contains("new Button(\"Warnings"));
+        assertFalse(source.contains("new Button(\"Errors"));
+        assertFalse(source.contains("new Button(\"warnings"));
+        assertFalse(source.contains("new Button(\"errors"));
     }
 
     @Test

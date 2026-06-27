@@ -171,6 +171,12 @@
     -fx-line-spacing: 2;
 }
 
+.astra-header-provenance {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #b8d4d6;
+}
+
 .astra-workflow-chip {
     -fx-font-size: 12px;
     -fx-font-weight: bold;
@@ -1739,4 +1745,97 @@
     -fx-text-fill: #49656d;
     -fx-background-color: #f4f8f9;
     -fx-border-color: #b7cbd1;
+}
+
+.astra-runtime-installer-root {
+    -fx-background-color: #f4f7f8;
+    -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+.astra-runtime-installer-header {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #c8dce1;
+    -fx-border-radius: 7;
+    -fx-background-radius: 7;
+}
+
+.astra-runtime-installer-phase {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #172431;
+}
+
+.astra-runtime-installer-detail,
+.astra-runtime-installer-elapsed,
+.astra-runtime-installer-step-list {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #415866;
+}
+
+.astra-runtime-installer-step-list {
+    -fx-background-color: #e8f3f4;
+    -fx-border-color: #c8dce1;
+    -fx-border-radius: 7;
+    -fx-background-radius: 7;
+}
+
+.astra-runtime-installer-progress {
+    -fx-accent: #1f7a7a;
+}
+
+.astra-runtime-installer-progress .track {
+    -fx-background-color: #dbe8ec;
+    -fx-border-color: #b9cdd3;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+.astra-runtime-installer-progress .bar {
+    -fx-background-color: linear-gradient(to right, #0d4f55, #1f7a7a, #39c5bb);
+    -fx-background-radius: 6;
+}
+
+.astra-runtime-installer-status-card {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #c8dce1;
+    -fx-border-radius: 7;
+    -fx-background-radius: 7;
+}
+
+.astra-runtime-installer-result-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #172431;
+}
+
+.astra-runtime-installer-result-body {
+    -fx-font-size: 12px;
+    -fx-text-fill: #24323a;
+}
+
+.astra-runtime-installer-log-pane {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #c8dce1;
+    -fx-border-radius: 7;
+    -fx-background-radius: 7;
+}
+
+.astra-runtime-installer-log-pane > .title {
+    -fx-background-color: #e8f3f4;
+    -fx-border-color: #c8dce1;
+    -fx-background-radius: 7 7 0 0;
+}
+
+.astra-runtime-installer-log-pane > .title > .text {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-fill: #0d4f55;
+}
+
+.astra-runtime-installer-log {
+    -fx-font-family: "JetBrains Mono", "SF Mono", Consolas, monospace;
+    -fx-font-size: 11px;
+    -fx-text-fill: #172431;
+    -fx-control-inner-background: #fbfdfe;
 }

@@ -79,6 +79,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -98,6 +99,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
@@ -500,6 +502,7 @@ final class PipelineLauncher {
     private static final PseudoClass PRESSED_PSEUDO = PseudoClass.getPseudoClass("pressed");
     private static final String HEADER_MODE_PREFERENCE_KEY = "qupath.ext.astra.headerMode";
     private static final String HEADER_MOTION_PREFERENCE_KEY = "qupath.ext.astra.headerMotion";
+    private static final String RELEASE_PROPERTIES_RESOURCE = "qupath/ext/astra/release/runtime.properties";
     private static final StringProperty HEADER_MODE_PREFERENCE =
             PathPrefs.createPersistentPreference(HEADER_MODE_PREFERENCE_KEY, AnimatedGradientHeader.HeaderMode.DYNAMIC.name());
     private static final StringProperty HEADER_MOTION_PREFERENCE =
@@ -1318,7 +1321,55 @@ final class PipelineLauncher {
         if ("Implementation-Version".equals(name) && pkg != null && pkg.getImplementationVersion() != null) {
             return pkg.getImplementationVersion();
         }
-        return fallback;
+        Properties properties = releaseRuntimeProperties();
+        String value = properties.getProperty(name, "").trim();
+        if (value.isEmpty() && "astra.base.version".equals(name)) {
+            value = properties.getProperty("astra_tag", "").trim();
+        }
+        return value.isEmpty() ? fallback : value;
+    }
+
+    static String launcherVersionSummary() {
+        String base = runtimeProperty("astra.base.version", "unknown");
+        String extension = runtimeProperty("Implementation-Version", "unknown");
+        return launcherVersionSummary(base, extension);
+    }
+
+    static String launcherVersionSummary(String base, String extension) {
+        String extensionDisplay = displayVersionToken(extension);
+        String baseDisplay = isUnknownVersion(extension)
+                ? "dev/unknown"
+                : displayVersionToken(base);
+        return "ASTRA " + baseDisplay + " | Extension " + extensionDisplay;
+    }
+
+    private static String displayVersionToken(String value) {
+        if (isUnknownVersion(value)) {
+            return "dev/unknown";
+        }
+        return value.trim();
+    }
+
+    private static boolean isUnknownVersion(String value) {
+        if (value == null || value.isBlank()) {
+            return true;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return "unknown".equals(normalized)
+                || "dev/unknown".equals(normalized)
+                || normalized.contains("unknown.version");
+    }
+
+    private static Properties releaseRuntimeProperties() {
+        Properties properties = new Properties();
+        try (InputStream stream = PipelineLauncher.class.getClassLoader().getResourceAsStream(RELEASE_PROPERTIES_RESOURCE)) {
+            if (stream != null) {
+                properties.load(stream);
+            }
+        } catch (IOException ignored) {
+            return new Properties();
+        }
+        return properties;
     }
 
     static String sha256Hex(String value) {
@@ -1724,7 +1775,9 @@ final class PipelineLauncher {
         Label subtitle = new Label(descriptionFor(scriptName));
         subtitle.setWrapText(true);
         subtitle.getStyleClass().add("astra-header-subtitle");
-        titleBlock.getChildren().addAll(title, subtitle);
+        Label provenance = new Label(launcherVersionSummary());
+        provenance.getStyleClass().add("astra-header-provenance");
+        titleBlock.getChildren().addAll(title, subtitle, provenance);
         Region titleSpacer = new Region();
         HBox.setHgrow(titleSpacer, Priority.ALWAYS);
         VBox actionRail = new VBox(HeaderGeometry.ACTION_RAIL_GAP);
@@ -2070,6 +2123,19 @@ final class PipelineLauncher {
                 "Run failed.",
                 bodyText,
                 ButtonRole.SECONDARY);
+    }
+
+    static Dialog<ButtonType> createAstraPreviewMessageDialog(Window owner,
+                                                              String titleText,
+                                                              String headingText,
+                                                              String bodyText,
+                                                              boolean error) {
+        return createAstraMessageDialog(
+                owner,
+                titleText,
+                headingText,
+                bodyText,
+                error ? ButtonRole.DANGER : ButtonRole.SECONDARY);
     }
 
     private static Dialog<ButtonType> createAstraConfirmationDialog(Window owner,

@@ -242,6 +242,24 @@ public final class LauncherPreviewApp extends Application {
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
+        if ("runtime-confirmation-dialog".equals(snapshotMode)) {
+            schedule(1.5, LauncherPreviewApp::openRuntimeConfirmationDialog);
+            schedule(2.4, () -> snapshotTransientWindow("runtime-confirmation-dialog", title));
+            schedule(3.0, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("runtime-result-dialog".equals(snapshotMode)) {
+            schedule(1.5, LauncherPreviewApp::openRuntimeResultDialog);
+            schedule(2.4, () -> snapshotTransientWindow("runtime-result-dialog", title));
+            schedule(3.0, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("runtime-failure-dialog".equals(snapshotMode)) {
+            schedule(1.5, LauncherPreviewApp::openRuntimeFailureDialog);
+            schedule(2.4, () -> snapshotTransientWindow("runtime-failure-dialog", title));
+            schedule(3.0, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
         if ("asset-backed-combo-geometry".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openAssetBackedComboDiagnosticWindow);
             schedule(2.4, () -> snapshotSurfaceGeometry("asset-backed-combo-geometry",
@@ -1873,10 +1891,13 @@ public final class LauncherPreviewApp extends Application {
         double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
         Optional<Node> root = firstNode(sceneRoot, ".astra-runtime-installer-root");
         Optional<Node> header = firstNode(sceneRoot, ".astra-runtime-installer-header");
-        Optional<Node> indicator = firstNode(sceneRoot, ".astra-runtime-installer-indicator");
-        Optional<Node> step = firstNode(sceneRoot, ".astra-runtime-installer-step");
+        Optional<Node> stepList = firstNode(sceneRoot, ".astra-runtime-installer-step-list");
+        Optional<Node> progress = firstNode(sceneRoot, ".astra-runtime-installer-progress");
+        Optional<Node> status = firstNode(sceneRoot, ".astra-runtime-installer-status-card");
+        Optional<Node> logPane = firstNode(sceneRoot, ".astra-runtime-installer-log-pane");
+        Optional<Node> actions = firstNode(sceneRoot, ".astra-runtime-installer-actions");
+        Optional<Node> copy = firstNode(sceneRoot, ".astra-runtime-installer-copy");
         Optional<Node> cancel = firstNode(sceneRoot, ".astra-runtime-installer-cancel");
-        Optional<Node> log = firstNode(sceneRoot, ".astra-runtime-installer-log");
         if (root.isPresent()) {
             Bounds rootBounds = relativeBounds(sceneRoot, root.get(), rootMinX, rootMinY);
             addMeasurement(measurements, "runtime installer scene width",
@@ -1897,45 +1918,97 @@ public final class LauncherPreviewApp extends Application {
                         RuntimeInstaller.installerRootPaddingForTesting(),
                         headerBounds.getMinY() - rootBounds.getMinY(),
                         "RuntimeInstaller.InstallerGeometry.ROOT_PADDING");
-                log.ifPresent(logNode -> {
-                    Bounds logBounds = relativeBounds(sceneRoot, logNode, rootMinX, rootMinY);
-                    addMeasurement(measurements, "runtime header to log gap",
+                stepList.ifPresent(stepNode -> {
+                    Bounds stepBounds = relativeBounds(sceneRoot, stepNode, rootMinX, rootMinY);
+                    addMeasurement(measurements, "runtime header to step list gap",
                             RuntimeInstaller.installerRootContentGapForTesting(),
-                            logBounds.getMinY() - headerBounds.getMaxY(),
+                            stepBounds.getMinY() - headerBounds.getMaxY(),
                             "RuntimeInstaller.InstallerGeometry.ROOT_CONTENT_GAP");
                 });
             });
-            log.ifPresent(node -> {
-                Bounds logBounds = relativeBounds(sceneRoot, node, rootMinX, rootMinY);
-                addMeasurement(measurements, "runtime root left padding to log",
+            addVerticalGapMeasurement(sceneRoot, measurements, rootMinX, rootMinY,
+                    stepList, progress, "runtime step list to progress gap");
+            addVerticalGapMeasurement(sceneRoot, measurements, rootMinX, rootMinY,
+                    progress, status, "runtime progress to status gap");
+            addVerticalGapMeasurement(sceneRoot, measurements, rootMinX, rootMinY,
+                    status, logPane, "runtime status to log pane gap");
+            addVerticalGapMeasurement(sceneRoot, measurements, rootMinX, rootMinY,
+                    logPane, actions, "runtime log pane to actions gap");
+            progress.ifPresent(node -> {
+                Bounds progressBounds = relativeBounds(sceneRoot, node, rootMinX, rootMinY);
+                addMeasurement(measurements, "runtime progress lane height",
+                        RuntimeInstaller.installerProgressBarHeightForTesting(),
+                        progressBounds.getHeight(),
+                        "RuntimeInstaller.InstallerGeometry.PROGRESS_BAR_HEIGHT");
+            });
+            actions.ifPresent(node -> {
+                Bounds actionBounds = relativeBounds(sceneRoot, node, rootMinX, rootMinY);
+                addMeasurement(measurements, "runtime root bottom padding to actions",
                         RuntimeInstaller.installerRootPaddingForTesting(),
-                        logBounds.getMinX() - rootBounds.getMinX(),
-                        "RuntimeInstaller.InstallerGeometry.ROOT_PADDING");
-                addMeasurement(measurements, "runtime root right padding to log",
-                        RuntimeInstaller.installerRootPaddingForTesting(),
-                        rootBounds.getMaxX() - logBounds.getMaxX(),
-                        "RuntimeInstaller.InstallerGeometry.ROOT_PADDING");
-                addMeasurement(measurements, "runtime root bottom padding to log",
-                        RuntimeInstaller.installerRootPaddingForTesting(),
-                        rootBounds.getMaxY() - logBounds.getMaxY(),
+                        rootBounds.getMaxY() - actionBounds.getMaxY(),
                         "RuntimeInstaller.InstallerGeometry.ROOT_PADDING");
             });
+            for (Node node : List.of(header, stepList, progress, status, logPane, actions).stream().flatMap(Optional::stream).toList()) {
+                Bounds bounds = relativeBounds(sceneRoot, node, rootMinX, rootMinY);
+                String name = runtimeInstallerNodeName(node);
+                addMeasurement(measurements, "runtime root left padding to " + name,
+                        RuntimeInstaller.installerRootPaddingForTesting(),
+                        bounds.getMinX() - rootBounds.getMinX(),
+                        "RuntimeInstaller.InstallerGeometry.ROOT_PADDING");
+                addMeasurement(measurements, "runtime root right padding to " + name,
+                        RuntimeInstaller.installerRootPaddingForTesting(),
+                        rootBounds.getMaxX() - bounds.getMaxX(),
+                        "RuntimeInstaller.InstallerGeometry.ROOT_PADDING");
+            }
         }
-        if (indicator.isPresent() && step.isPresent()) {
-            Bounds indicatorBounds = relativeBounds(sceneRoot, indicator.get(), rootMinX, rootMinY);
-            addMeasurement(measurements, "runtime indicator to label gap",
-                    RuntimeInstaller.installerHeaderRowGapForTesting(),
-                    textOrNodeMinX(step.get()) - rootMinX - indicatorBounds.getMaxX(),
-                    "RuntimeInstaller.InstallerGeometry.HEADER_ROW_GAP");
-        }
-        if (step.isPresent() && cancel.isPresent()) {
-            Bounds stepBounds = relativeBounds(sceneRoot, step.get(), rootMinX, rootMinY);
+        if (copy.isPresent() && cancel.isPresent()) {
+            Bounds copyBounds = relativeBounds(sceneRoot, copy.get(), rootMinX, rootMinY);
             Bounds cancelBounds = relativeBounds(sceneRoot, cancel.get(), rootMinX, rootMinY);
-            addMeasurement(measurements, "runtime label to cancel gap",
+            addMeasurement(measurements, "runtime copy to cancel gap",
                     RuntimeInstaller.installerHeaderRowGapForTesting(),
-                    cancelBounds.getMinX() - stepBounds.getMaxX(),
+                    cancelBounds.getMinX() - copyBounds.getMaxX(),
                     "RuntimeInstaller.InstallerGeometry.HEADER_ROW_GAP");
         }
+    }
+
+    private static void addVerticalGapMeasurement(Node sceneRoot,
+                                                  List<GeometryMeasurement> measurements,
+                                                  double rootMinX,
+                                                  double rootMinY,
+                                                  Optional<Node> upper,
+                                                  Optional<Node> lower,
+                                                  String label) {
+        if (upper.isEmpty() || lower.isEmpty()) {
+            return;
+        }
+        Bounds upperBounds = relativeBounds(sceneRoot, upper.get(), rootMinX, rootMinY);
+        Bounds lowerBounds = relativeBounds(sceneRoot, lower.get(), rootMinX, rootMinY);
+        addMeasurement(measurements, label,
+                RuntimeInstaller.installerRootContentGapForTesting(),
+                lowerBounds.getMinY() - upperBounds.getMaxY(),
+                "RuntimeInstaller.InstallerGeometry.ROOT_CONTENT_GAP");
+    }
+
+    private static String runtimeInstallerNodeName(Node node) {
+        if (node.getStyleClass().contains("astra-runtime-installer-header")) {
+            return "header";
+        }
+        if (node.getStyleClass().contains("astra-runtime-installer-step-list")) {
+            return "step list";
+        }
+        if (node.getStyleClass().contains("astra-runtime-installer-progress")) {
+            return "progress";
+        }
+        if (node.getStyleClass().contains("astra-runtime-installer-status-card")) {
+            return "status";
+        }
+        if (node.getStyleClass().contains("astra-runtime-installer-log-pane")) {
+            return "log pane";
+        }
+        if (node.getStyleClass().contains("astra-runtime-installer-actions")) {
+            return "actions";
+        }
+        return "node";
     }
 
     private static void addAssetComboMeasurements(Node sceneRoot, List<GeometryMeasurement> measurements) {
@@ -4461,6 +4534,57 @@ public final class LauncherPreviewApp extends Application {
         }
         stage.setScene(scene);
         stage.show();
+    }
+
+    private static void openRuntimeConfirmationDialog() {
+        Dialog<ButtonType> dialog = PipelineLauncher.createAstraSuccessConfirmationDialog(
+                null,
+                "ASTRA Runtime Setup",
+                "Create or repair the ASTRA Cellpose runtime?",
+                """
+                ASTRA will validate the managed Cellpose runtime, repair it only if needed,
+                install release-pinned packages, and register the validated Python path.
+
+                Manual external Python environments are not modified.
+                """);
+        dialog.show();
+    }
+
+    private static void openRuntimeResultDialog() {
+        Dialog<ButtonType> dialog = PipelineLauncher.createAstraPreviewMessageDialog(
+                null,
+                "ASTRA Runtime Setup",
+                "Runtime ready",
+                """
+                The existing ASTRA-managed runtime passed validation.
+
+                ASTRA registered the managed runtime. You can run Cellpose workflows now.
+
+                Install log:
+                /Users/example/.astra/logs/install/cellpose-astra-install-preview.log
+                """,
+                false);
+        dialog.show();
+    }
+
+    private static void openRuntimeFailureDialog() {
+        Dialog<ButtonType> dialog = PipelineLauncher.createAstraPreviewMessageDialog(
+                null,
+                "ASTRA Runtime Setup",
+                "Runtime validation failed",
+                """
+                The managed runtime did not match ASTRA's pinned Python/package requirements.
+
+                Detected NumPy 2.x, but ASTRA requires NumPy 1.26.4 for the pinned Torch runtime.
+
+                Next action:
+                Run ASTRA Runtime Setup again to recreate the managed runtime.
+
+                Install log:
+                /Users/example/.astra/logs/install/cellpose-astra-install-preview.log
+                """,
+                true);
+        dialog.show();
     }
 
     private static void showAssetComboPopup() {

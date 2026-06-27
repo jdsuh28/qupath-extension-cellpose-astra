@@ -3,15 +3,22 @@ package qupath.ext.astra;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
+import javafx.animation.Animation;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.property.StringProperty;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
-import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.ProgressBar;
+import javafx.scene.control.TitledPane;
 import javafx.scene.control.TextArea;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -27,6 +34,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.URLConnection;
@@ -46,6 +54,7 @@ import java.util.Properties;
 import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
+import java.util.Comparator;
 
 /**
  * Installs and registers the ASTRA Python runtime used by Cellpose-SAM.
@@ -61,7 +70,7 @@ import java.util.concurrent.TimeUnit;
 final class RuntimeInstaller {
 
     static final String ASTRA_CELLPOSE_REPO = "https://github.com/jdsuh28/cellpose-astra.git";
-    static final String DEFAULT_CELLPOSE_REF = "v4.1.1+astra.1";
+    static final String DEFAULT_CELLPOSE_REF = "v4.1.1+astra.3";
     static final String DEFAULT_PYTHON_VERSION = "3.10";
     static final String ENVIRONMENT_NAME = "cellpose-astra";
     static final String CONDA_OVERRIDE_OSX = "CONDA_OVERRIDE_OSX";
@@ -108,6 +117,12 @@ final class RuntimeInstaller {
                 LauncherGeometryTokens.LAYOUT_UNIT * 5.0 / 12.0;
         private static final double ROOT_CONTENT_GAP =
                 HEADER_ROW_GAP;
+        private static final double STATUS_CARD_PADDING =
+                LauncherGeometryTokens.LAYOUT_UNIT * 7.0 / 12.0;
+        private static final double STATUS_CARD_GAP =
+                LauncherGeometryTokens.LAYOUT_UNIT / 3.0;
+        private static final double PROGRESS_BAR_HEIGHT =
+                LauncherGeometryTokens.LAYOUT_UNIT / 3.0;
         private static final double WINDOW_WIDTH =
                 LauncherGeometryTokens.LAYOUT_UNIT * 65.0 / 2.0;
         private static final double WINDOW_HEIGHT =
@@ -118,6 +133,107 @@ final class RuntimeInstaller {
     }
 
     private RuntimeInstaller() {
+    }
+
+    private enum RuntimeSetupKind {
+        ALREADY_READY(
+                "Runtime ready",
+                "The existing ASTRA-managed runtime passed validation.",
+                "ASTRA registered the existing managed runtime. You can run Cellpose workflows now."),
+        CREATED_RUNTIME(
+                "Runtime created",
+                "ASTRA created and validated a new managed runtime.",
+                "ASTRA registered the new managed runtime. You can run Cellpose workflows now."),
+        REPAIRED_RUNTIME(
+                "Runtime repaired",
+                "ASTRA rebuilt and validated the managed runtime.",
+                "ASTRA registered the repaired managed runtime. You can run Cellpose workflows now.");
+
+        private final String title;
+        private final String heading;
+        private final String nextAction;
+
+        RuntimeSetupKind(String title, String heading, String nextAction) {
+            this.title = title;
+            this.heading = heading;
+            this.nextAction = nextAction;
+        }
+    }
+
+    private enum RuntimeFailureKind {
+        CANCELLED(
+                "Runtime setup cancelled",
+                "ASTRA stopped the active runtime setup command.",
+                "Run ASTRA Runtime Setup again when you are ready."),
+        NETWORK_DOWNLOAD_FAILED(
+                "Download failed",
+                "ASTRA could not download or verify a required runtime installer.",
+                "Check the network connection, then run ASTRA Runtime Setup again."),
+        CONDA_SOLVER_FAILED(
+                "Conda runtime creation failed",
+                "ASTRA could not create the pinned Python runtime with conda.",
+                "Run ASTRA Runtime Setup again. If this repeats, send the install log."),
+        PIP_INSTALL_FAILED(
+                "Python package install failed",
+                "ASTRA could not install the release-pinned Cellpose-ASTRA Python stack.",
+                "Check the network connection, then run ASTRA Runtime Setup again. If this repeats, send the install log."),
+        PYTHON_PACKAGE_VALIDATION_FAILED(
+                "Runtime validation failed",
+                "The managed runtime did not match ASTRA's pinned Python/package requirements.",
+                "Run ASTRA Runtime Setup again to recreate the managed runtime."),
+        PERMISSION_DELETE_FAILED(
+                "Runtime repair needs file access",
+                "ASTRA could not remove the broken managed runtime directory.",
+                "Close tools using ~/.astra/cellpose-astra, check file permissions, then run repair again."),
+        UNEXPECTED_ERROR(
+                "Runtime setup failed",
+                "ASTRA hit an unexpected runtime setup error.",
+                "Run ASTRA Runtime Setup again. If this repeats, send the install log.");
+
+        private final String title;
+        private final String heading;
+        private final String nextAction;
+
+        RuntimeFailureKind(String title, String heading, String nextAction) {
+            this.title = title;
+            this.heading = heading;
+            this.nextAction = nextAction;
+        }
+    }
+
+    record RuntimeSetupOutcome(RuntimeSetupKind kind, File python, File logFile) {
+
+        String title() {
+            return kind.title;
+        }
+
+        String heading() {
+            return kind.heading;
+        }
+
+        String body() {
+            return kind.nextAction + "\n\nRuntime Python:\n" + python.getAbsolutePath()
+                    + "\n\nInstall log:\n" + logFile.getAbsolutePath();
+        }
+    }
+
+    record RuntimeSetupFailure(RuntimeFailureKind kind, Throwable throwable, File logFile) {
+
+        String title() {
+            return kind.title;
+        }
+
+        String heading() {
+            return kind.heading;
+        }
+
+        String body() {
+            String detail = throwable == null || throwable.getMessage() == null
+                    ? "No additional diagnostic message was reported."
+                    : throwable.getMessage();
+            return kind.nextAction + "\n\nWhat happened:\n" + detail
+                    + "\n\nInstall log:\n" + logFile.getAbsolutePath();
+        }
     }
 
     /**
@@ -161,19 +277,43 @@ final class RuntimeInstaller {
             progress.step("Preparing install log", logFile.getAbsolutePath());
             File runtimeDirectory = runtimeDirectory();
             File python = runtimePythonExecutable(runtimeDirectory);
+            boolean managedRuntimeExists = runtimeDirectory.exists();
 
-            if (!isValidRuntime(python)) {
-                Files.createDirectories(runtimeDirectory.getParentFile().toPath());
-                installRuntime(runtimeDirectory, python, progress, logFile);
+            progress.step("Checking managed runtime", python.getAbsolutePath());
+            if (isValidRuntime(python)) {
+                verifyRuntime(python, progress, logFile);
+                applyRuntimePath(runtimePythonPath, python);
+                RuntimeSetupOutcome outcome = new RuntimeSetupOutcome(RuntimeSetupKind.ALREADY_READY, python, logFile);
+                progress.done(outcome);
+                showOutcome("ASTRA Runtime Setup", outcome);
+                return;
             }
 
+            boolean repairing = managedRuntimeExists;
+            if (repairing) {
+                progress.step("Repairing managed runtime", runtimeDirectory.getAbsolutePath());
+                removeManagedRuntime(runtimeDirectory, progress, logFile);
+            } else {
+                progress.step("Creating managed runtime", runtimeDirectory.getAbsolutePath());
+            }
+
+            if (!runtimeDirectory.exists()) {
+                Files.createDirectories(runtimeDirectory.getParentFile().toPath());
+            }
+
+            installRuntime(runtimeDirectory, python, progress, logFile);
             verifyRuntime(python, progress, logFile);
             applyRuntimePath(runtimePythonPath, python);
-            progress.done("ASTRA runtime is ready:\n" + python.getAbsolutePath() + "\n\nInstall log:\n" + logFile.getAbsolutePath());
-            showInfo("ASTRA Runtime Setup", "ASTRA runtime is ready:\n" + python.getAbsolutePath());
+            RuntimeSetupOutcome outcome = new RuntimeSetupOutcome(
+                    repairing ? RuntimeSetupKind.REPAIRED_RUNTIME : RuntimeSetupKind.CREATED_RUNTIME,
+                    python,
+                    logFile);
+            progress.done(outcome);
+            showOutcome("ASTRA Runtime Setup", outcome);
         } catch (Throwable t) {
-            progress.failed(t, logFile);
-            showError("ASTRA Runtime Setup", t);
+            RuntimeSetupFailure failure = new RuntimeSetupFailure(classifyFailure(t), t, logFile);
+            progress.failed(failure);
+            showFailure("ASTRA Runtime Setup", failure);
         }
     }
 
@@ -198,6 +338,77 @@ final class RuntimeInstaller {
         runCommand(pipInstallCellposeCommand(python, constraints), null, progress, logFile);
         progress.step("Checking Python package consistency", python.getAbsolutePath());
         runCommand(pipCheckCommand(python), null, progress, logFile);
+    }
+
+    /**
+     * Removes the deterministic ASTRA-managed runtime prefix before repair.
+     *
+     * @param runtimeDirectory deterministic managed runtime directory.
+     * @param progress progress UI/log sink.
+     * @param logFile persistent install log.
+     * @throws IOException if the directory cannot be removed.
+     */
+    static void removeManagedRuntime(File runtimeDirectory, InstallProgress progress, File logFile) throws IOException {
+        if (runtimeDirectory == null || !runtimeDirectory.exists()) {
+            return;
+        }
+        if (!RUNTIME_FOLDER_NAME.equals(runtimeDirectory.getName())) {
+            throw new IOException("ASTRA refused to remove a non-managed runtime path: " + runtimeDirectory.getAbsolutePath());
+        }
+        File expectedParent = new File(System.getProperty("user.home"), ".astra").getCanonicalFile();
+        File actualParent = runtimeDirectory.getParentFile() == null ? null : runtimeDirectory.getParentFile().getCanonicalFile();
+        if (!expectedParent.equals(actualParent)) {
+            throw new IOException("ASTRA refused to remove a runtime outside the managed ~/.astra folder: " + runtimeDirectory.getAbsolutePath());
+        }
+
+        progressStep(progress, "Removing broken managed runtime", runtimeDirectory.getAbsolutePath());
+        appendLog(logFile, "Removing broken managed runtime: " + runtimeDirectory.getAbsolutePath() + System.lineSeparator());
+        try (var stream = Files.walk(runtimeDirectory.toPath())) {
+            List<Path> paths = stream
+                    .sorted(Comparator.reverseOrder())
+                    .toList();
+            for (Path path : paths) {
+                Files.deleteIfExists(path);
+            }
+        } catch (IOException e) {
+            throw new IOException("ASTRA could not remove the broken managed runtime directory: "
+                    + runtimeDirectory.getAbsolutePath() + ". Close any process using it and try repair again.", e);
+        }
+    }
+
+    /**
+     * Converts a setup exception into a concise user-facing failure category.
+     *
+     * @param throwable failure.
+     * @return failure category.
+     */
+    static RuntimeFailureKind classifyFailure(Throwable throwable) {
+        if (throwable instanceof CancellationException) {
+            return RuntimeFailureKind.CANCELLED;
+        }
+        String text = String.valueOf(throwable == null ? "" : throwable.toString()).toLowerCase(Locale.ROOT);
+        if (text.contains("could not remove") || text.contains("refused to remove")
+                || text.contains("accessdenied") || text.contains("permission")) {
+            return RuntimeFailureKind.PERMISSION_DELETE_FAILED;
+        }
+        if (text.contains("runtime package mismatch") || text.contains("runtime python version mismatch")
+                || text.contains("runtime numpy mismatch") || text.contains("torch/numpy bridge")
+                || text.contains("cellpose") && text.contains("validation")) {
+            return RuntimeFailureKind.PYTHON_PACKAGE_VALIDATION_FAILED;
+        }
+        if (text.contains("conda create") || text.contains("solving environment")
+                || text.contains("unsatisfiableerror") || text.contains("libmamba")
+                || text.contains("creating conda runtime")) {
+            return RuntimeFailureKind.CONDA_SOLVER_FAILED;
+        }
+        if (text.contains("pip install") || text.contains("installing cellpose-astra")) {
+            return RuntimeFailureKind.PIP_INSTALL_FAILED;
+        }
+        if (text.contains("download") || text.contains("checksum") || text.contains("http")
+                || text.contains("unknownhost") || text.contains("connection")) {
+            return RuntimeFailureKind.NETWORK_DOWNLOAD_FAILED;
+        }
+        return RuntimeFailureKind.UNEXPECTED_ERROR;
     }
 
     /**
@@ -1108,30 +1319,30 @@ final class RuntimeInstaller {
     }
 
     /**
-     * Shows an informational dialog on the JavaFX thread.
+     * Shows a concise successful runtime setup result on the JavaFX thread.
      *
      * @param title dialog title.
-     * @param message dialog message.
+     * @param outcome classified successful result.
      */
-    private static void showInfo(String title, String message) {
+    private static void showOutcome(String title, RuntimeSetupOutcome outcome) {
         Platform.runLater(() -> PipelineLauncher.showAstraMessage(
                 null,
                 title,
-                "ASTRA runtime is ready.",
-                message));
+                outcome.title(),
+                outcome.heading() + "\n\n" + outcome.body()));
     }
 
     /**
-     * Shows an error dialog on the JavaFX thread.
+     * Shows a classified runtime setup failure on the JavaFX thread.
      *
      * @param title dialog title.
-     * @param throwable failure to display.
+     * @param failure classified failure.
      */
-    private static void showError(String title, Throwable throwable) {
+    private static void showFailure(String title, RuntimeSetupFailure failure) {
         Platform.runLater(() -> PipelineLauncher.showAstraErrorMessage(
                 null,
                 title,
-                throwable == null ? "Unknown runtime installer failure." : throwable.toString()));
+                failure.title() + "\n\n" + failure.heading() + "\n\n" + failure.body()));
     }
 
     /**
@@ -1184,13 +1395,20 @@ final class RuntimeInstaller {
     }
 
     /**
-     * Minimal live progress dialog for runtime installation.
+     * ASTRA-owned runtime setup progress window.
      */
     private static final class InstallProgress {
         private final long started = System.currentTimeMillis();
         private final Stage stage;
-        private final Label step;
+        private final Label phase;
+        private final Label detail;
+        private final Label elapsed;
+        private final Label resultTitle;
+        private final Label resultBody;
+        private final ProgressBar progressBar;
         private final TextArea log;
+        private final Button cancel;
+        private final Timeline elapsedTimeline;
         private volatile boolean cancelRequested;
         private volatile Process currentProcess;
 
@@ -1198,13 +1416,35 @@ final class RuntimeInstaller {
          * Creates a progress sink.
          *
          * @param stage dialog stage.
-         * @param step current-step label.
+         * @param phase current phase label.
+         * @param detail current detail label.
+         * @param elapsed elapsed time label.
+         * @param resultTitle status-card title.
+         * @param resultBody status-card body.
+         * @param progressBar indeterminate setup progress lane.
+         * @param cancel cancel button.
          * @param log scrolling log view.
          */
-        private InstallProgress(Stage stage, Label step, TextArea log) {
+        private InstallProgress(Stage stage,
+                                Label phase,
+                                Label detail,
+                                Label elapsed,
+                                Label resultTitle,
+                                Label resultBody,
+                                ProgressBar progressBar,
+                                Button cancel,
+                                TextArea log) {
             this.stage = stage;
-            this.step = step;
+            this.phase = phase;
+            this.detail = detail;
+            this.elapsed = elapsed;
+            this.resultTitle = resultTitle;
+            this.resultBody = resultBody;
+            this.progressBar = progressBar;
+            this.cancel = cancel;
             this.log = log;
+            this.elapsedTimeline = new Timeline(new KeyFrame(javafx.util.Duration.seconds(1.0), event -> refreshElapsed()));
+            this.elapsedTimeline.setCycleCount(Animation.INDEFINITE);
         }
 
         /**
@@ -1214,23 +1454,41 @@ final class RuntimeInstaller {
          */
         static InstallProgress show() {
             Stage stage = new Stage();
-            Label step = new Label("Starting ASTRA runtime setup...");
+            Label phase = new Label("Preparing runtime setup");
+            Label detail = new Label("ASTRA is preparing the managed Cellpose runtime workflow.");
+            Label elapsed = new Label("Elapsed 0s");
+            Label stepList = new Label("Steps: validate managed runtime -> repair if needed -> install pinned packages -> validate final runtime -> register with QuPath.");
+            Label resultTitle = new Label("Runtime setup pending");
+            Label resultBody = new Label("Validation, repair, installation, and registration messages will appear here.");
+            ProgressBar progressBar = new ProgressBar();
+            progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+            progressBar.setMinHeight(InstallerGeometry.PROGRESS_BAR_HEIGHT);
+            progressBar.setPrefHeight(InstallerGeometry.PROGRESS_BAR_HEIGHT);
             TextArea log = new TextArea();
             log.setEditable(false);
             log.setWrapText(false);
-            ProgressIndicator indicator = new ProgressIndicator();
             Button cancel = new Button("Cancel");
-            InstallProgress progress = new InstallProgress(stage, step, log);
+            Button copyLog = new Button("Copy log");
+            TitledPane logPane = new TitledPane("Technical install log", log);
+            logPane.setExpanded(false);
+            InstallProgress progress = new InstallProgress(stage, phase, detail, elapsed, resultTitle, resultBody, progressBar, cancel, log);
             cancel.setOnAction(event -> {
                 progress.requestCancel();
                 cancel.setDisable(true);
             });
-            VBox root = createInstallProgressRoot(indicator, step, cancel, log);
+            copyLog.setOnAction(event -> {
+                ClipboardContent content = new ClipboardContent();
+                content.putString(log.getText());
+                Clipboard.getSystemClipboard().setContent(content);
+            });
+            VBox root = createInstallProgressRoot(phase, detail, elapsed, stepList, resultTitle, resultBody,
+                    progressBar, cancel, copyLog, logPane, log);
             stage.setTitle("ASTRA Runtime Setup");
             Scene scene = new Scene(root, InstallerGeometry.WINDOW_WIDTH, InstallerGeometry.WINDOW_HEIGHT);
             addAstraStylesheet(scene);
             stage.setScene(scene);
             stage.show();
+            progress.elapsedTimeline.play();
             return progress;
         }
 
@@ -1242,7 +1500,13 @@ final class RuntimeInstaller {
          */
         void step(String label, String detail) {
             line("\n== " + label + " ==\n" + detail);
-            Platform.runLater(() -> step.setText(label + " (" + elapsedSeconds() + "s)"));
+            Platform.runLater(() -> {
+                phase.setText(label);
+                this.detail.setText(detail);
+                resultTitle.setText("Working");
+                resultBody.setText("ASTRA is running: " + label);
+                refreshElapsed();
+            });
         }
 
         /**
@@ -1284,6 +1548,12 @@ final class RuntimeInstaller {
         void requestCancel() {
             cancelRequested = true;
             line("Cancellation requested. Stopping the active install command.");
+            Platform.runLater(() -> {
+                phase.setText("Cancelling runtime setup");
+                detail.setText("ASTRA is stopping the active command.");
+                resultTitle.setText(RuntimeFailureKind.CANCELLED.title);
+                resultBody.setText(RuntimeFailureKind.CANCELLED.nextAction);
+            });
             Process process = currentProcess;
             if (terminateProcessForCancellation(process, Duration.ofSeconds(2))) {
                 line("Active install command was asked to terminate.");
@@ -1293,22 +1563,39 @@ final class RuntimeInstaller {
         /**
          * Records successful completion.
          *
-         * @param message completion message.
+         * @param outcome completion result.
          */
-        void done(String message) {
-            line("\nSUCCESS\n" + message);
-            Platform.runLater(() -> step.setText("Runtime setup complete"));
+        void done(RuntimeSetupOutcome outcome) {
+            line("\nSUCCESS\n" + outcome.title() + "\n" + outcome.body());
+            Platform.runLater(() -> {
+                elapsedTimeline.stop();
+                refreshElapsed();
+                phase.setText(outcome.title());
+                detail.setText(outcome.heading());
+                resultTitle.setText(outcome.title());
+                resultBody.setText(outcome.heading() + "\n" + outcome.kind.nextAction);
+                progressBar.setProgress(1.0);
+                cancel.setDisable(true);
+            });
         }
 
         /**
          * Records failed completion.
          *
-         * @param throwable failure.
-         * @param logFile persistent log file.
+         * @param failure classified failure.
          */
-        void failed(Throwable throwable, File logFile) {
-            line("\nFAILED\n" + throwable.getMessage() + "\nInstall log: " + logFile.getAbsolutePath());
-            Platform.runLater(() -> step.setText("Runtime setup failed"));
+        void failed(RuntimeSetupFailure failure) {
+            line("\nFAILED\n" + failure.title() + "\n" + failure.body());
+            Platform.runLater(() -> {
+                elapsedTimeline.stop();
+                refreshElapsed();
+                phase.setText(failure.title());
+                detail.setText(failure.heading());
+                resultTitle.setText(failure.title());
+                resultBody.setText(failure.heading() + "\n" + failure.kind.nextAction);
+                progressBar.setProgress(0.0);
+                cancel.setDisable(true);
+            });
         }
 
         /**
@@ -1319,16 +1606,31 @@ final class RuntimeInstaller {
         private long elapsedSeconds() {
             return Math.max(0L, (System.currentTimeMillis() - started) / 1000L);
         }
+
+        private void refreshElapsed() {
+            elapsed.setText("Elapsed " + elapsedSeconds() + "s");
+        }
     }
 
     static VBox createInstallProgressRootForTesting() {
-        ProgressIndicator indicator = new ProgressIndicator();
-        Label step = new Label("Starting ASTRA runtime setup...");
+        Label phase = new Label("Preparing runtime setup");
+        Label detail = new Label("ASTRA is preparing the managed Cellpose runtime workflow.");
+        Label elapsed = new Label("Elapsed 0s");
+        Label stepList = new Label("Steps: validate managed runtime -> repair if needed -> install pinned packages -> validate final runtime -> register with QuPath.");
+        Label resultTitle = new Label("Runtime setup pending");
+        Label resultBody = new Label("Validation, repair, installation, and registration messages will appear here.");
+        ProgressBar progressBar = new ProgressBar();
+        progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+        progressBar.setMinHeight(InstallerGeometry.PROGRESS_BAR_HEIGHT);
+        progressBar.setPrefHeight(InstallerGeometry.PROGRESS_BAR_HEIGHT);
         Button cancel = new Button("Cancel");
+        Button copyLog = new Button("Copy log");
         TextArea log = new TextArea("Runtime installer diagnostic log.\nWaiting for commands...");
         log.setEditable(false);
         log.setWrapText(false);
-        return createInstallProgressRoot(indicator, step, cancel, log);
+        TitledPane logPane = new TitledPane("Technical install log", log);
+        return createInstallProgressRoot(phase, detail, elapsed, stepList, resultTitle, resultBody,
+                progressBar, cancel, copyLog, logPane, log);
     }
 
     static double installerRootPaddingForTesting() {
@@ -1351,22 +1653,62 @@ final class RuntimeInstaller {
         return InstallerGeometry.WINDOW_HEIGHT;
     }
 
-    private static VBox createInstallProgressRoot(ProgressIndicator indicator,
-                                                  Label step,
+    static double installerProgressBarHeightForTesting() {
+        return InstallerGeometry.PROGRESS_BAR_HEIGHT;
+    }
+
+    private static VBox createInstallProgressRoot(Label phase,
+                                                  Label detail,
+                                                  Label elapsed,
+                                                  Label stepList,
+                                                  Label resultTitle,
+                                                  Label resultBody,
+                                                  ProgressBar progressBar,
                                                   Button cancel,
+                                                  Button copyLog,
+                                                  TitledPane logPane,
                                                   TextArea log) {
-        indicator.getStyleClass().add("astra-runtime-installer-indicator");
-        step.getStyleClass().add("astra-runtime-installer-step");
+        phase.getStyleClass().add("astra-runtime-installer-phase");
+        detail.getStyleClass().add("astra-runtime-installer-detail");
+        detail.setWrapText(true);
+        elapsed.getStyleClass().add("astra-runtime-installer-elapsed");
+        stepList.getStyleClass().add("astra-runtime-installer-step-list");
+        stepList.setWrapText(true);
+        stepList.setPadding(new Insets(InstallerGeometry.STATUS_CARD_PADDING));
+        stepList.setMaxWidth(Double.MAX_VALUE);
+        resultTitle.getStyleClass().add("astra-runtime-installer-result-title");
+        resultBody.getStyleClass().add("astra-runtime-installer-result-body");
+        resultBody.setWrapText(true);
+        progressBar.getStyleClass().add("astra-runtime-installer-progress");
+        progressBar.setMaxWidth(Double.MAX_VALUE);
         cancel.getStyleClass().add("astra-button");
         cancel.getStyleClass().add("astra-button-secondary");
         cancel.getStyleClass().add("astra-runtime-installer-cancel");
+        copyLog.getStyleClass().add("astra-button");
+        copyLog.getStyleClass().add("astra-button-small");
+        copyLog.getStyleClass().add("astra-runtime-installer-copy");
         log.getStyleClass().add("astra-runtime-installer-log");
-        HBox top = new HBox(InstallerGeometry.HEADER_ROW_GAP, indicator, step, cancel);
-        top.getStyleClass().add("astra-runtime-installer-header");
-        VBox root = new VBox(InstallerGeometry.ROOT_CONTENT_GAP, top, log);
+        logPane.getStyleClass().add("astra-runtime-installer-log-pane");
+
+        VBox titleBlock = new VBox(InstallerGeometry.STATUS_CARD_GAP, phase, detail);
+        titleBlock.getStyleClass().add("astra-runtime-installer-title-block");
+        HBox header = new HBox(InstallerGeometry.HEADER_ROW_GAP, titleBlock, elapsed);
+        header.getStyleClass().add("astra-runtime-installer-header");
+        header.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(titleBlock, Priority.ALWAYS);
+
+        VBox statusCard = new VBox(InstallerGeometry.STATUS_CARD_GAP, resultTitle, resultBody);
+        statusCard.getStyleClass().add("astra-runtime-installer-status-card");
+        statusCard.setPadding(new Insets(InstallerGeometry.STATUS_CARD_PADDING));
+
+        HBox actions = new HBox(InstallerGeometry.HEADER_ROW_GAP, copyLog, cancel);
+        actions.getStyleClass().add("astra-runtime-installer-actions");
+        actions.setAlignment(Pos.CENTER_RIGHT);
+
+        VBox root = new VBox(InstallerGeometry.ROOT_CONTENT_GAP, header, stepList, progressBar, statusCard, logPane, actions);
         root.getStyleClass().add("astra-runtime-installer-root");
         root.setPadding(new Insets(InstallerGeometry.ROOT_PADDING));
-        VBox.setVgrow(log, Priority.ALWAYS);
+        VBox.setVgrow(logPane, Priority.ALWAYS);
         return root;
     }
 
