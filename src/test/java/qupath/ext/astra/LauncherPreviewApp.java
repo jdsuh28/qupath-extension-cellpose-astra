@@ -316,6 +316,13 @@ public final class LauncherPreviewApp extends Application {
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
+        if ("run-progress-geometry".equals(snapshotMode)) {
+            schedule(1.5, LauncherPreviewApp::openRunProgressDiagnosticWindow);
+            schedule(2.4, () -> snapshotSurfaceGeometry("run-progress-geometry",
+                    "ASTRA Run Progress Geometry", Surface.TYPOGRAPHY, false));
+            schedule(3.0, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
         if ("styled-log-geometry".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openStyledLogDiagnosticWindow);
             schedule(2.4, () -> snapshotSurfaceGeometry("styled-log-geometry",
@@ -572,25 +579,28 @@ public final class LauncherPreviewApp extends Application {
         schedule(14.0, () -> showFirstComboPopup(title));
         schedule(14.6, () -> collectTransientContractSurface("Combo popup", title));
         schedule(14.8, () -> hideTransientWindows(title));
-        schedule(15.1, () -> fireFirstHelpButton(title));
-        schedule(15.9, () -> collectWindowContractSurface("Help dialog", "ASTRA Parameter Help"));
-        schedule(16.3, LauncherPreviewApp::openRuntimeInstallerDiagnosticWindow);
-        schedule(17.0, () -> collectWindowContractSurface("Runtime setup panel",
+        schedule(15.4, () -> fireFirstHelpButton(title));
+        schedule(16.4, () -> collectWindowContractSurface("Help dialog", "ASTRA Parameter Help"));
+        schedule(16.8, LauncherPreviewApp::openRuntimeInstallerDiagnosticWindow);
+        schedule(17.5, () -> collectWindowContractSurface("Runtime setup panel",
                 "ASTRA Runtime Installer Diagnostic"));
-        schedule(17.2, LauncherPreviewApp::openRuntimeConfirmationDialog);
-        schedule(17.9, () -> collectTransientContractSurface("Runtime confirmation dialog", title));
-        schedule(18.1, LauncherPreviewApp::openRuntimeResultDialog);
-        schedule(18.8, () -> collectTransientContractSurface("Runtime result dialog", title));
-        schedule(19.0, LauncherPreviewApp::openListCodeEditorDiagnosticWindow);
-        schedule(19.7, () -> collectWindowContractSurface("List/code editor diagnostic",
+        schedule(17.7, LauncherPreviewApp::openRuntimeConfirmationDialog);
+        schedule(18.4, () -> collectTransientContractSurface("Runtime confirmation dialog", title));
+        schedule(18.6, LauncherPreviewApp::openRuntimeResultDialog);
+        schedule(19.3, () -> collectTransientContractSurface("Runtime result dialog", title));
+        schedule(19.5, LauncherPreviewApp::openListCodeEditorDiagnosticWindow);
+        schedule(20.2, () -> collectWindowContractSurface("List/code editor diagnostic",
                 "ASTRA List And Code Editor Diagnostic"));
-        schedule(19.9, LauncherPreviewApp::openMarkerKeyMapDiagnosticWindow);
-        schedule(20.6, () -> collectWindowContractSurface("Marker key map diagnostic",
+        schedule(20.4, LauncherPreviewApp::openRunProgressDiagnosticWindow);
+        schedule(21.1, () -> collectWindowContractSurface("Run progress diagnostic",
+                "ASTRA Run Progress Geometry"));
+        schedule(21.3, LauncherPreviewApp::openMarkerKeyMapDiagnosticWindow);
+        schedule(22.0, () -> collectWindowContractSurface("Marker key map diagnostic",
                 "ASTRA Marker Key Map Diagnostic"));
-        schedule(20.8, LauncherPreviewApp::openChannelMultiSelectDiagnosticWindow);
-        schedule(21.5, () -> collectWindowContractSurface("Channel multi-select diagnostic",
+        schedule(22.2, LauncherPreviewApp::openChannelMultiSelectDiagnosticWindow);
+        schedule(22.9, () -> collectWindowContractSurface("Channel multi-select diagnostic",
                 "ASTRA Channel Multi-Select Diagnostic"));
-        schedule(22.0, () -> {
+        schedule(23.4, () -> {
             writeTextContractSweep();
             closeAllWindows();
         });
@@ -4327,8 +4337,9 @@ public final class LauncherPreviewApp extends Application {
                 AnimatedGradientSurface.MODE_PROPERTY, ""));
         String speed = String.valueOf(node.getProperties().getOrDefault(
                 AnimatedGradientSurface.SPEED_PROPERTY, ""));
-        boolean accent = owner.contains("astra-parameter-anchor");
-        String expectedDirection = accent
+        boolean verticalSurface = owner.contains("astra-parameter-anchor")
+                || owner.contains("astra-log-scroll-gradient-fade");
+        String expectedDirection = verticalSurface
                 ? AnimatedGradientSurface.Direction.VERTICAL.name()
                 : AnimatedGradientSurface.Direction.HORIZONTAL.name();
         Bounds before = node.localToScene(node.getLayoutBounds());
@@ -4754,7 +4765,8 @@ public final class LauncherPreviewApp extends Application {
                 || insideStyleClass(node, "astra-badge")
                 || insideStyleClass(node, "astra-settings-card-badge")
                 || insideStyleClass(node, "astra-log-badge")
-                || insideStyleClass(node, "astra-warning-chip")) {
+                || insideStyleClass(node, "astra-warning-chip")
+                || insideStyleClass(node, "astra-header-options-label")) {
             return TextAlignmentContract.CENTER;
         }
         if (GuiText.Role.RAIL_TEXT.name().equals(role)
@@ -5547,6 +5559,27 @@ public final class LauncherPreviewApp extends Application {
                 + (inset * 2.0d);
         Stage stage = new Stage();
         stage.setTitle("ASTRA Button State Geometry");
+        Scene scene = new Scene(panel, width, height);
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        if (resource != null) {
+            scene.getStylesheets().add(resource.toExternalForm());
+        }
+        stage.setScene(scene);
+        stage.show();
+    }
+
+    private static void openRunProgressDiagnosticWindow() {
+        Parent panel = (Parent) PipelineLauncher.createRunProgressDiagnosticPanel();
+        double inset = staticField("NESTED_PANEL_INSET");
+        double width = nestedStaticField("HeaderGeometry", "MENU_RENDERED_POPUP_WIDTH")
+                + (inset * 2.0d);
+        double laneCount = panel.getChildrenUnmodifiable().size();
+        double gapCount = Math.max(0.0d, laneCount - 1.0d);
+        double height = (nestedStaticField("LauncherGeometry", "ACTION_PROGRESS_TOTAL_HEIGHT") * laneCount)
+                + (staticField("PARAMETER_ROW_GAP") * gapCount)
+                + (inset * 2.0d);
+        Stage stage = new Stage();
+        stage.setTitle("ASTRA Run Progress Geometry");
         Scene scene = new Scene(panel, width, height);
         var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
         if (resource != null) {

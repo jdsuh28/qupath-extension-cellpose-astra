@@ -1514,6 +1514,10 @@
         rgba(6, 23, 32, 0.0) 100%);
 }
 
+.astra-log-scroll-gradient-fade {
+    -fx-opacity: 0.18;
+}
+
 .astra-log-copy-button,
 .astra-log-disclosure-button {
     -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;

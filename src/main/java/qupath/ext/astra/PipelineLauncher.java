@@ -3363,6 +3363,7 @@ final class PipelineLauncher {
         HBox row = new HBox(HeaderGeometry.SEGMENT_ROW_GAP);
         row.setAlignment(Pos.CENTER_LEFT);
         Label label = GuiText.label(GuiText.Role.PANEL_TEXT, labelText);
+        label.setAlignment(Pos.CENTER);
         label.setMinWidth(HeaderGeometry.SEGMENT_LABEL_WIDTH);
         label.setPrefWidth(HeaderGeometry.SEGMENT_LABEL_WIDTH);
         label.setMaxWidth(HeaderGeometry.SEGMENT_LABEL_WIDTH);
@@ -3977,6 +3978,28 @@ final class PipelineLauncher {
         row.getChildren().addAll(run, cancel, header, small, help, dialog,
                 output, segment);
         root.getChildren().add(row);
+        return root;
+    }
+
+    static Node createRunProgressDiagnosticPanel() {
+        VBox root = new VBox(PARAMETER_ROW_GAP);
+        root.setPadding(new Insets(NESTED_PANEL_INSET));
+        addStyleClass(root, "astra-run-progress-diagnostic");
+
+        RunProgressLane idle = new RunProgressLane();
+        idle.setProgressState(RunProgressState.IDLE);
+
+        RunProgressLane runningDynamic = new RunProgressLane();
+        runningDynamic.setGradientMode(AnimatedGradientHeader.HeaderMode.DYNAMIC);
+        runningDynamic.setMotionSpeed(AnimatedGradientHeader.MotionSpeed.SMOOTH);
+        runningDynamic.running();
+
+        RunProgressLane runningStatic = new RunProgressLane();
+        runningStatic.setGradientMode(AnimatedGradientHeader.HeaderMode.STATIC);
+        runningStatic.setMotionSpeed(AnimatedGradientHeader.MotionSpeed.SMOOTH);
+        runningStatic.running();
+
+        root.getChildren().addAll(idle, runningDynamic, runningStatic);
         return root;
     }
 
@@ -5603,6 +5626,9 @@ final class PipelineLauncher {
             header.getChildren().addAll(progress, status, killSpacer, killButton);
 
             output = new StyledLogView();
+            applyOutputGradientPreferences();
+            HEADER_MODE_PREFERENCE.addListener((obs, oldValue, newValue) -> applyOutputGradientPreferences());
+            HEADER_MOTION_PREFERENCE.addListener((obs, oldValue, newValue) -> applyOutputGradientPreferences());
             VBox.setVgrow(output, Priority.ALWAYS);
             elapsedHeartbeat = new Timeline(new KeyFrame(Duration.seconds(1.0), event -> output.refreshTimelineElapsed()));
             elapsedHeartbeat.setCycleCount(Animation.INDEFINITE);
@@ -5613,6 +5639,11 @@ final class PipelineLauncher {
 
         private void attachRunProgressLane(RunProgressLane lane) {
             runProgressLane = lane;
+        }
+
+        private void applyOutputGradientPreferences() {
+            output.setGradientMode(headerModePreference());
+            output.setMotionSpeed(headerMotionPreference());
         }
 
         private Node node() {

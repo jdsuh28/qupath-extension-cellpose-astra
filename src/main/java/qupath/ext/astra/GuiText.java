@@ -265,7 +265,8 @@ final class GuiText {
                 || parent.getStyleClass().contains("astra-badge")
                 || parent.getStyleClass().contains("astra-settings-card-badge")
                 || parent.getStyleClass().contains("astra-log-badge")
-                || parent.getStyleClass().contains("astra-warning-chip");
+                || parent.getStyleClass().contains("astra-warning-chip")
+                || parent.getStyleClass().contains("astra-header-options-label");
     }
 
     private static void applyLeftRailOpticalCorrection(Text text) {

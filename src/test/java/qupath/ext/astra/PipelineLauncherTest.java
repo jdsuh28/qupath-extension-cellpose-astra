@@ -1585,6 +1585,8 @@ class PipelineLauncherTest {
                 + "                    ? selectedMode\n"
                 + "                    : AnimatedGradientHeader.HeaderMode.STATIC"));
         assertTrue(source.contains("headerSegmentRow(\"Run Log Pane\", show, hide)"));
+        assertTrue(source.contains("Label label = GuiText.label(GuiText.Role.PANEL_TEXT, labelText);"));
+        assertTrue(source.contains("label.setAlignment(Pos.CENTER);"));
         assertTrue(source.contains("label.setMinWidth(HeaderGeometry.SEGMENT_LABEL_WIDTH)"));
         assertTrue(source.contains("showHeaderActionMenu(button, menu)"));
         assertTrue(source.contains("preferredHeaderMenuX("));
@@ -1912,24 +1914,40 @@ class PipelineLauncherTest {
         assertTrue(surface.contains("void setDirection(Direction nextDirection)"));
         assertTrue(surface.contains("animation.setToY(direction == Direction.VERTICAL ? -stripLogicalLength : 0.0d);"));
         assertTrue(launcher.contains("gradientSurface.setDirection(AnimatedGradientSurface.Direction.VERTICAL);"));
+        assertTrue(launcher.contains("output.setGradientMode(headerModePreference());"));
+        assertTrue(launcher.contains("output.setMotionSpeed(headerMotionPreference());"));
+        assertTrue(launcher.contains("HEADER_MODE_PREFERENCE.addListener((obs, oldValue, newValue) -> applyOutputGradientPreferences())"));
 
         assertTrue(tokens.contains("ACTION_PROGRESS_SHIMMER_WIDTH_DIVISOR"));
         assertTrue(tokens.contains("ACTION_PROGRESS_SHIMMER_SPEED_DIVISOR"));
         assertTrue(launcher.contains("private final Region shimmer = new Region();"));
         assertTrue(launcher.contains("private final TranslateTransition shimmerAnimation = new TranslateTransition();"));
+        assertTrue(launcher.contains("static Node createRunProgressDiagnosticPanel()"));
+        assertTrue(launcher.contains("runningDynamic.running();"));
+        assertTrue(launcher.contains("runningStatic.setGradientMode(AnimatedGradientHeader.HeaderMode.STATIC);"));
         assertTrue(launcher.contains("addStyleClass(shimmer, \"astra-run-progress-shimmer\");"));
         assertTrue(launcher.contains("boolean running = state == RunProgressState.RUNNING;"));
         assertTrue(launcher.contains("shimmer.getProperties().put(\"astraProgressShimmerAllowed\", Boolean.toString(running));"));
         assertTrue(launcher.contains("selectedSpeed.cycleSeconds() / LauncherGeometry.ACTION_PROGRESS_SHIMMER_SPEED_DIVISOR"));
         assertTrue(css.contains(".astra-run-progress-shimmer"));
         assertTrue(css.contains(".astra-run-progress-running .astra-run-progress-shimmer"));
+        assertTrue(css.contains(".astra-log-scroll-gradient-fade"));
+        String logView = Files.readString(Path.of("src/main/java/qupath/ext/astra/StyledLogView.java"));
+        assertTrue(logView.contains("private final AnimatedGradientSurface logFadeGradient = new AnimatedGradientSurface();"));
+        assertTrue(logView.contains("logFadeGradient.setDirection(AnimatedGradientSurface.Direction.VERTICAL);"));
+        assertTrue(logView.contains("void setGradientMode(AnimatedGradientHeader.HeaderMode mode)"));
+        assertTrue(logView.contains("void setMotionSpeed(AnimatedGradientHeader.MotionSpeed speed)"));
 
         assertTrue(preview.contains("\"text-contract-sweep\""));
         assertTrue(preview.contains("\"typography-optical-sweep\""));
+        assertTrue(preview.contains("\"run-progress-geometry\""));
+        assertTrue(preview.contains("openRunProgressDiagnosticWindow"));
+        assertTrue(preview.contains("collectWindowContractSurface(\"Run progress diagnostic\""));
         assertTrue(preview.contains("scheduleTextContractSweep"));
         assertTrue(preview.contains("TextContractRow"));
         assertTrue(preview.contains("GradientSurfaceRow"));
         assertTrue(preview.contains("AnimatedGradientSurface.DIRECTION_PROPERTY"));
+        assertTrue(preview.contains("owner.contains(\"astra-log-scroll-gradient-fade\")"));
         assertTrue(preview.contains("renderedInkMaxX"));
         assertTrue(preview.contains("TextAlignmentContract"));
         assertTrue(preview.contains("rendered ink left edge - text visual left rail"));
@@ -2952,11 +2970,15 @@ class PipelineLauncherTest {
         assertTrue(view.contains("new PauseTransition(Duration.seconds(1.2))"));
         assertTrue(view.contains("styleCopyButton(copy, true)"));
         assertTrue(view.contains("addStyleClass(hiddenToggle, \"astra-log-disclosure-button\")"));
-        assertTrue(view.contains("StackPane scrollFrame = new StackPane(scroll, topFade);"));
+        assertTrue(view.contains("StackPane scrollFrame = new StackPane(scroll, logFadeGradient, topFade);"));
         assertTrue(view.contains("topFade.prefWidthProperty().bind(scrollFrame.widthProperty());"));
         assertTrue(view.contains("topFade.prefHeightProperty().bind(scrollFrame.heightProperty());"));
+        assertTrue(view.contains("logFadeGradient.prefWidthProperty().bind(scrollFrame.widthProperty());"));
+        assertTrue(view.contains("logFadeGradient.prefHeightProperty().bind(scrollFrame.heightProperty());"));
         assertTrue(view.contains("StackPane.setAlignment(topFade, Pos.TOP_CENTER);"));
+        assertTrue(view.contains("StackPane.setAlignment(logFadeGradient, Pos.TOP_CENTER);"));
         assertTrue(view.contains("addStyleClass(topFade, \"astra-log-scroll-top-fade\")"));
+        assertTrue(view.contains("addStyleClass(logFadeGradient, \"astra-log-scroll-gradient-fade\")"));
         assertTrue(view.contains("topFade.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE)"));
         assertTrue(view.contains("addStyleClass(tab, \"astra-log-source-tab\")"));
         assertTrue(view.contains("addStyleClass(currentGroupBody, \"astra-log-source-block\")"));

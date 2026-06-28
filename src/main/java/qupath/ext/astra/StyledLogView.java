@@ -57,6 +57,7 @@ final class StyledLogView extends VBox {
     private final StringBuilder plainText = new StringBuilder();
     private final StringBuilder rawText = new StringBuilder();
     private final ScrollPane scroll;
+    private final AnimatedGradientSurface logFadeGradient = new AnimatedGradientSurface();
     private final RunTimelineModel timeline = new RunTimelineModel();
     private final RunProgressTracker progressTracker = new RunProgressTracker();
     private final RunLogBlockAccumulator blockAccumulator = new RunLogBlockAccumulator();
@@ -130,16 +131,44 @@ final class StyledLogView extends VBox {
         topFade.setMinSize(0.0d, 0.0d);
         topFade.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         addStyleClass(topFade, "astra-log-scroll-top-fade");
-        StackPane scrollFrame = new StackPane(scroll, topFade);
+        logFadeGradient.setDirection(AnimatedGradientSurface.Direction.VERTICAL);
+        addStyleClass(logFadeGradient, "astra-log-scroll-gradient-fade");
+        StackPane scrollFrame = new StackPane(scroll, logFadeGradient, topFade);
+        logFadeGradient.resizeRelocate(0.0d, 0.0d, 1.0d, 1.0d);
         topFade.prefWidthProperty().bind(scrollFrame.widthProperty());
         topFade.prefHeightProperty().bind(scrollFrame.heightProperty());
+        logFadeGradient.prefWidthProperty().bind(scrollFrame.widthProperty());
+        logFadeGradient.prefHeightProperty().bind(scrollFrame.heightProperty());
+        scrollFrame.widthProperty().addListener((obs, oldValue, newValue) -> resizeLogFadeGradient());
+        scrollFrame.heightProperty().addListener((obs, oldValue, newValue) -> resizeLogFadeGradient());
         StackPane.setAlignment(topFade, Pos.TOP_CENTER);
+        StackPane.setAlignment(logFadeGradient, Pos.TOP_CENTER);
         addStyleClass(scrollFrame, "astra-log-scroll-frame");
         scroll.vvalueProperty().addListener((obs, oldValue, newValue) -> {
             autoScroll = newValue.doubleValue() >= 0.985d;
         });
         VBox.setVgrow(scrollFrame, Priority.ALWAYS);
         getChildren().addAll(statusContent, failureSummary, toolbar, scrollFrame);
+    }
+
+    void setGradientMode(AnimatedGradientHeader.HeaderMode mode) {
+        logFadeGradient.setHeaderMode(mode);
+    }
+
+    void setMotionSpeed(AnimatedGradientHeader.MotionSpeed speed) {
+        logFadeGradient.setMotionSpeed(speed);
+    }
+
+    private void resizeLogFadeGradient() {
+        Node parent = logFadeGradient.getParent();
+        if (!(parent instanceof Region region)) {
+            return;
+        }
+        logFadeGradient.resizeRelocate(
+                0.0d,
+                0.0d,
+                Math.max(1.0d, region.getWidth()),
+                Math.max(1.0d, region.getHeight()));
     }
 
     private static Insets logCardPadding() {
