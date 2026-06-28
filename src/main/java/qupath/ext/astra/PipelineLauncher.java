@@ -4,9 +4,12 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
 import javafx.animation.Animation;
+import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.animation.TranslateTransition;
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
 import javafx.beans.property.StringProperty;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
@@ -41,6 +44,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
@@ -61,6 +65,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.StrokeType;
 import javafx.scene.text.Text;
+import javafx.scene.text.TextBoundsType;
 import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -172,6 +177,10 @@ final class PipelineLauncher {
                 LauncherGeometryTokens.ACTION_PROGRESS_TEXT_TO_BAR_GAP;
         private static final double ACTION_PROGRESS_TOTAL_HEIGHT =
                 LauncherGeometryTokens.ACTION_PROGRESS_TOTAL_HEIGHT;
+        private static final double ACTION_PROGRESS_SHIMMER_WIDTH_DIVISOR =
+                LauncherGeometryTokens.ACTION_PROGRESS_SHIMMER_WIDTH_DIVISOR;
+        private static final double ACTION_PROGRESS_SHIMMER_SPEED_DIVISOR =
+                LauncherGeometryTokens.ACTION_PROGRESS_SHIMMER_SPEED_DIVISOR;
 
         private LauncherGeometry() {
         }
@@ -238,6 +247,8 @@ final class PipelineLauncher {
                     + PARAMETER_ROW_EDGE_TO_BAR_GAP;
     private static final double PARAMETER_BAR_TO_TEXT_GAP =
             ACCENT_INDENT - BAR_WIDTH;
+    private static final double TEXT_OPTICAL_INSET_CORRECTION =
+            LauncherGeometry.FLUSH;
     private static final double PARAMETER_LABEL_COLUMN_GAP =
             PARAMETER_BAR_TO_TEXT_GAP;
     private static final double PARAMETER_ROW_TEXT_RAIL =
@@ -644,12 +655,12 @@ final class PipelineLauncher {
         AtomicReference<Button> exportButtonRef = new AtomicReference<>();
         AtomicReference<Button> resetImageButtonRef = new AtomicReference<>();
         AtomicReference<Button> resetProjectButtonRef = new AtomicReference<>();
-        Button runButton = new Button("Run");
+        Button runButton = GuiText.button(GuiText.Role.CONTROL_TEXT, "Run");
         runButtonRef.set(runButton);
         runButton.setFocusTraversable(false);
         styleButton(runButton, ButtonRole.PRIMARY);
         applyMainActionButtonGeometry(runButton);
-        Button cancelButton = new Button("Cancel");
+        Button cancelButton = GuiText.button(GuiText.Role.CONTROL_TEXT, "Cancel");
         cancelButton.setFocusTraversable(false);
         styleButton(cancelButton, ButtonRole.SECONDARY);
         applyMainActionButtonGeometry(cancelButton);
@@ -1770,12 +1781,12 @@ final class PipelineLauncher {
         HBox titleRow = new HBox(HeaderGeometry.TITLE_ROW_GAP);
         titleRow.setAlignment(Pos.CENTER_LEFT);
         VBox titleBlock = new VBox(HeaderGeometry.TITLE_BLOCK_GAP);
-        Label title = new Label(scriptName);
+        Label title = GuiText.label(GuiText.Role.PANEL_TEXT, scriptName);
         title.getStyleClass().add("astra-header-title");
-        Label subtitle = new Label(descriptionFor(scriptName));
+        Label subtitle = GuiText.label(GuiText.Role.PANEL_TEXT, descriptionFor(scriptName));
         subtitle.setWrapText(true);
         subtitle.getStyleClass().add("astra-header-subtitle");
-        Label provenance = new Label(launcherVersionSummary());
+        Label provenance = GuiText.label(GuiText.Role.PANEL_TEXT, launcherVersionSummary());
         provenance.getStyleClass().add("astra-header-provenance");
         titleBlock.getChildren().addAll(title, subtitle, provenance);
         Region titleSpacer = new Region();
@@ -1783,7 +1794,7 @@ final class PipelineLauncher {
         VBox actionRail = new VBox(HeaderGeometry.ACTION_RAIL_GAP);
         actionRail.setAlignment(Pos.TOP_LEFT);
         addStyleClass(actionRail, "astra-header-action-rail");
-        Label actionRailTab = new Label("Actions");
+        Label actionRailTab = GuiText.label(GuiText.Role.PANEL_TEXT, "Actions");
         addStyleClass(actionRailTab, "astra-header-action-rail-tab");
         HBox actionCluster = new HBox(HeaderGeometry.ACTION_CLUSTER_GAP);
         actionCluster.setAlignment(Pos.CENTER_RIGHT);
@@ -1791,7 +1802,7 @@ final class PipelineLauncher {
         HeaderActionMenu settingsMenu = createHeaderMenuButton("Settings", "settings");
         HeaderActionMenu projectMenu = createHeaderMenuButton("Project", "project");
         HeaderActionMenu viewMenu = createHeaderMenuButton("View", "view");
-        Button reset = new Button("Reset settings");
+        Button reset = GuiText.button(GuiText.Role.CONTROL_TEXT, "Reset settings");
         reset.setFocusTraversable(false);
         styleButton(reset, ButtonRole.HEADER);
         reset.setOnAction(event -> {
@@ -1800,11 +1811,11 @@ final class PipelineLauncher {
             autosave.clear();
             feedback.info("Settings reset to the current script/image-aware defaults. No QuPath hierarchy data was changed.");
         });
-        Button saveProfile = new Button("Save settings profile");
+        Button saveProfile = GuiText.button(GuiText.Role.CONTROL_TEXT, "Save settings profile");
         saveProfile.setFocusTraversable(false);
         styleButton(saveProfile, ButtonRole.HEADER);
         saveProfile.setOnAction(event -> saveSettingsProfileWithDialog(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, autosave, feedback));
-        Button loadProfile = new Button("Load settings profile");
+        Button loadProfile = GuiText.button(GuiText.Role.CONTROL_TEXT, "Load settings profile");
         loadProfile.setFocusTraversable(false);
         styleButton(loadProfile, ButtonRole.HEADER);
         loadProfile.setOnAction(event -> loadSettingsProfileWithDialog(qupath, scriptName, schemaId, sourceScriptSha256, constants, profileState, autosave, feedback));
@@ -1815,7 +1826,7 @@ final class PipelineLauncher {
         );
         actionCluster.getChildren().add(settingsMenu.button());
         if (GuiPresentation.supportsAnalysisHeaderActions(scriptName)) {
-            Button resetImage = new Button("Reset Image");
+            Button resetImage = GuiText.button(GuiText.Role.CONTROL_TEXT, "Reset Image");
             resetImage.setFocusTraversable(false);
             styleButton(resetImage, ButtonRole.DANGER);
             resetImage.setTooltip(new Tooltip("Analysis action: delete only ASTRA objects and measurements recorded for the current image in the analysis ledger."));
@@ -1823,7 +1834,7 @@ final class PipelineLauncher {
             if (resetImageButtonSink != null) {
                 resetImageButtonSink.accept(resetImage);
             }
-            Button resetProject = new Button("Reset Project");
+            Button resetProject = GuiText.button(GuiText.Role.CONTROL_TEXT, "Reset Project");
             resetProject.setFocusTraversable(false);
             styleButton(resetProject, ButtonRole.DANGER);
             resetProject.setTooltip(new Tooltip("Analysis action: delete only ASTRA objects and measurements recorded for every project image in the analysis ledger."));
@@ -1837,7 +1848,7 @@ final class PipelineLauncher {
             );
         }
         if (GuiPresentation.supportsHeaderExport(scriptName)) {
-            Button export = new Button("Export");
+            Button export = GuiText.button(GuiText.Role.CONTROL_TEXT, "Export");
             export.setFocusTraversable(false);
             styleButton(export, ButtonRole.SUCCESS);
             export.setTooltip(new Tooltip("Analysis action: write result files only if the current hierarchy matches the last successful QUANTIFY."));
@@ -2032,7 +2043,7 @@ final class PipelineLauncher {
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         installAstraStyles(dialog.getDialogPane());
 
-        Label title = new Label("Profile name");
+        Label title = GuiText.label(GuiText.Role.DIALOG_TEXT, "Profile name");
         addStyleClass(title, "astra-dialog-section-title");
         TextField field = new TextField("default");
         field.setMaxWidth(Double.MAX_VALUE);
@@ -2152,11 +2163,11 @@ final class PipelineLauncher {
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         installAstraStyles(dialog.getDialogPane());
 
-        Label title = new Label(headingText);
+        Label title = GuiText.label(GuiText.Role.DIALOG_TEXT, headingText);
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
         addStyleClass(title, "astra-dialog-section-title");
-        Label body = new Label(bodyText == null ? "" : bodyText.strip());
+        Label body = GuiText.label(GuiText.Role.DIALOG_TEXT, bodyText == null ? "" : bodyText.strip());
         body.setWrapText(true);
         body.setMaxWidth(Double.MAX_VALUE);
         addStyleClass(body, "astra-dialog-muted");
@@ -2191,11 +2202,11 @@ final class PipelineLauncher {
         dialog.getDialogPane().getButtonTypes().add(ButtonType.OK);
         installAstraStyles(dialog.getDialogPane());
 
-        Label title = new Label(headingText);
+        Label title = GuiText.label(GuiText.Role.DIALOG_TEXT, headingText);
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
         addStyleClass(title, "astra-dialog-section-title");
-        Label body = new Label(bodyText == null ? "" : bodyText.strip());
+        Label body = GuiText.label(GuiText.Role.DIALOG_TEXT, bodyText == null ? "" : bodyText.strip());
         body.setWrapText(true);
         body.setMaxWidth(Double.MAX_VALUE);
         addStyleClass(body, "astra-dialog-muted");
@@ -2279,9 +2290,9 @@ final class PipelineLauncher {
         VBox box = new VBox(SECTION_CONTENT_GAP);
         box.setPadding(LauncherGeometry.intraPanelPadding());
         addStyleClass(box, "astra-section-shell");
-        Label title = new Label(titleText);
+        Label title = GuiText.label(GuiText.Role.PANEL_TEXT, titleText);
         title.getStyleClass().add("astra-section-title");
-        Label subtitle = new Label(subtitleText);
+        Label subtitle = GuiText.label(GuiText.Role.PANEL_TEXT, subtitleText);
         subtitle.getStyleClass().add("astra-section-subtitle");
         subtitle.setWrapText(true);
         VBox titleBlock = new VBox(LauncherGeometry.INTRA_PANEL_TIGHT_GAP, title, subtitle);
@@ -2307,10 +2318,10 @@ final class PipelineLauncher {
         phrase.setPromptText("Unlock phrase");
         phrase.setPrefColumnCount(18);
         addStyleClass(phrase, "astra-input");
-        Button unlock = new Button("Unlock advanced");
+        Button unlock = GuiText.button(GuiText.Role.CONTROL_TEXT, "Unlock advanced");
         unlock.setFocusTraversable(false);
         styleButton(unlock, ButtonRole.HEADER);
-        Label status = new Label("");
+        Label status = GuiText.label(GuiText.Role.PANEL_TEXT, "");
         addStyleClass(status, "astra-dialog-error");
         Runnable tryUnlock = () -> {
             String expected = GuiPresentation.advancedUnlockPhrase();
@@ -2337,14 +2348,14 @@ final class PipelineLauncher {
         HBox viewRow = new HBox(COMPACT_CONTROL_GAP);
         viewRow.setAlignment(Pos.TOP_RIGHT);
         addStyleClass(viewRow, "astra-settings-view-toggle");
-        Button dashboard = new Button("Dashboard");
-        Button allSettings = new Button("All Settings");
+        Button dashboard = GuiText.button(GuiText.Role.CONTROL_TEXT, "Dashboard");
+        Button allSettings = GuiText.button(GuiText.Role.CONTROL_TEXT, "All Settings");
         styleButton(dashboard, ButtonRole.SECONDARY);
         styleButton(allSettings, ButtonRole.SECONDARY);
         viewRow.getChildren().addAll(dashboard, allSettings);
         VBox root = sectionShell(titleText, subtitleText, viewRow);
         if (sections == null || sections.isEmpty()) {
-            Label empty = new Label("No settings are available for this view.");
+            Label empty = GuiText.label(GuiText.Role.PANEL_TEXT, "No settings are available for this view.");
             addStyleClass(empty, "astra-dialog-muted");
             root.getChildren().add(empty);
             return root;
@@ -2365,14 +2376,14 @@ final class PipelineLauncher {
             addStyleClass(top, "astra-focused-section-header");
             GuiPresentation.StandardGroup group = GuiPresentation.standardGroup(section.title());
             addStyleClass(top, "astra-focused-section-theme-" + cssToken(group.accentTheme()));
-            Button back = new Button("Back to Dashboard");
+            Button back = GuiText.button(GuiText.Role.CONTROL_TEXT, "Back to Dashboard");
             styleButton(back, ButtonRole.SECONDARY);
-            Label badge = new Label(group.importance());
+            Label badge = GuiText.label(GuiText.Role.PANEL_TEXT, group.importance());
             addStyleClass(badge, "astra-badge");
             addStyleClass(badge, "astra-badge-importance-" + cssToken(group.importance()));
-            Label title = new Label(section.title());
+            Label title = GuiText.label(GuiText.Role.PANEL_TEXT, section.title());
             addStyleClass(title, "astra-focused-section-title");
-            Label description = new Label(section.description());
+            Label description = GuiText.label(GuiText.Role.PANEL_TEXT, section.description());
             description.setWrapText(true);
             addStyleClass(description, "astra-focused-section-description");
             VBox focusedTitleBlock = new VBox(LauncherGeometry.INTRA_PANEL_TIGHT_GAP,
@@ -2459,11 +2470,11 @@ final class PipelineLauncher {
         FlowPane legend = new FlowPane(LEGEND_HORIZONTAL_GAP, LEGEND_VERTICAL_GAP);
         legend.setAlignment(Pos.CENTER_LEFT);
         addStyleClass(legend, "astra-importance-legend");
-        Label prefix = new Label("Setting priority");
+        Label prefix = GuiText.label(GuiText.Role.PANEL_TEXT, "Setting priority");
         addStyleClass(prefix, "astra-importance-legend-title");
         legend.getChildren().add(prefix);
         for (String level : levels) {
-            Label chip = new Label(level);
+            Label chip = GuiText.label(GuiText.Role.PANEL_TEXT, level);
             addStyleClass(chip, "astra-badge");
             addStyleClass(chip, "astra-badge-importance-" + cssToken(level));
             legend.getChildren().add(chip);
@@ -2490,7 +2501,7 @@ final class PipelineLauncher {
 
     private static Button createSettingsCard(SettingsSectionModel section, Runnable openAction) {
         GuiPresentation.StandardGroup group = GuiPresentation.standardGroup(section.title());
-        Button card = new Button();
+        Button card = GuiText.button(GuiText.Role.CONTROL_TEXT, "");
         card.setFocusTraversable(false);
         card.setMinWidth(LauncherGeometry.FLUSH);
         card.setMinHeight(DASHBOARD_CARD_HEIGHT);
@@ -2512,17 +2523,11 @@ final class PipelineLauncher {
         content.setAlignment(Pos.CENTER_LEFT);
         content.setMinWidth(LauncherGeometry.FLUSH);
         content.setMaxWidth(Double.MAX_VALUE);
-        Label title = new Label(section.title());
-        title.setMinWidth(LauncherGeometry.FLUSH);
-        title.setMaxWidth(Double.MAX_VALUE);
-        title.setWrapText(true);
-        title.getStyleClass().add("astra-settings-card-title");
-        Label description = new Label(section.description());
-        description.setMinWidth(LauncherGeometry.FLUSH);
-        description.setMaxWidth(Double.MAX_VALUE);
-        description.setWrapText(true);
-        description.getStyleClass().add("astra-settings-card-description");
-        Label badge = new Label(section.badge());
+        RailText title = railText(section.title(), Double.MAX_VALUE, "astra-settings-card-title");
+        title.wrappingWidthProperty().bind(content.widthProperty());
+        RailText description = railText(section.description(), Double.MAX_VALUE, "astra-settings-card-description");
+        description.wrappingWidthProperty().bind(content.widthProperty());
+        Label badge = GuiText.label(GuiText.Role.PANEL_TEXT, section.badge());
         badge.getStyleClass().add(section.advanced() ? "astra-badge-advanced" : "astra-badge");
         badge.getStyleClass().add("astra-badge-importance-" + cssToken(group.importance()));
         content.getChildren().addAll(badge, title, description);
@@ -2854,9 +2859,9 @@ final class PipelineLauncher {
         VBox box = new VBox(CARD_CONTENT_GAP);
         box.setPadding(LauncherGeometry.intraPanelPadding());
         addStyleClass(box, "astra-semantic-card");
-        Label title = new Label(titleText);
+        Label title = GuiText.label(GuiText.Role.PANEL_TEXT, titleText);
         addStyleClass(title, "astra-semantic-card-title");
-        Label subtitle = new Label(subtitleText);
+        Label subtitle = GuiText.label(GuiText.Role.PANEL_TEXT, subtitleText);
         subtitle.setWrapText(true);
         addStyleClass(subtitle, "astra-semantic-card-subtitle");
         box.getChildren().addAll(title, subtitle);
@@ -2868,7 +2873,7 @@ final class PipelineLauncher {
         VBox group = new VBox(PARAMETER_ROW_GAP);
         group.setPadding(new Insets(MODEL_SOURCE_CARD_INSET));
         addStyleClass(group, "astra-model-source-card");
-        Label label = new Label(title);
+        Label label = GuiText.label(GuiText.Role.PANEL_TEXT, title);
         addStyleClass(label, "astra-model-source-title");
         group.getChildren().add(label);
         if (savedModelId != null) {
@@ -2887,7 +2892,7 @@ final class PipelineLauncher {
             constant.addChangeListener(autosave::markManualEditAndSave);
         }
         if (savedModelDiscovery != null && !savedModelDiscovery.invalidModels().isEmpty()) {
-            Label invalid = new Label("Invalid saved model folders: " + savedModelDiscovery.invalidModels());
+            Label invalid = GuiText.label(GuiText.Role.PANEL_TEXT, "Invalid saved model folders: " + savedModelDiscovery.invalidModels());
             invalid.setWrapText(true);
             addStyleClass(invalid, "astra-dialog-error");
             group.getChildren().add(invalid);
@@ -2937,6 +2942,14 @@ final class PipelineLauncher {
                 super.updateItem(item, empty);
                 setText(empty ? null : discovery.labelFor(item));
                 styleComboCell(this);
+            }
+
+            @Override
+            protected void layoutChildren() {
+                super.layoutChildren();
+                if (GuiText.applyVisualBounds(this)) {
+                    super.layoutChildren();
+                }
             }
         };
     }
@@ -2990,12 +3003,21 @@ final class PipelineLauncher {
                 setText(empty ? null : item);
                 styleComboCell(this);
             }
+
+            @Override
+            protected void layoutChildren() {
+                super.layoutChildren();
+                if (GuiText.applyVisualBounds(this)) {
+                    super.layoutChildren();
+                }
+            }
         };
     }
 
     private static void styleComboCell(ListCell<?> cell) {
         cell.setStyle("");
         cell.setPadding(comboCellPadding());
+        GuiText.mark(cell, GuiText.Role.CONTROL_TEXT);
         addStyleClass(cell, "astra-combo-cell");
     }
 
@@ -3006,7 +3028,16 @@ final class PipelineLauncher {
                 super.updateItem(item, empty);
                 setText(empty ? null : item);
                 setStyle("");
+                GuiText.mark(this, GuiText.Role.CONTROL_TEXT);
                 addStyleClass(this, "astra-list-cell");
+            }
+
+            @Override
+            protected void layoutChildren() {
+                super.layoutChildren();
+                if (GuiText.applyVisualBounds(this)) {
+                    super.layoutChildren();
+                }
             }
         };
     }
@@ -3044,13 +3075,13 @@ final class PipelineLauncher {
         }
         for (int i = 0; i < stages.size(); i++) {
             String stage = stages.get(i);
-            Label chip = new Label(stage);
+            Label chip = GuiText.label(GuiText.Role.PANEL_TEXT, stage);
             boolean isActive = stage.equals(active);
             addStyleClass(chip, "astra-workflow-chip");
             addStyleClass(chip, isActive ? "astra-workflow-chip-active" : "astra-workflow-chip-idle");
             flow.getChildren().add(chip);
             if (i < stages.size() - 1) {
-                Label arrow = new Label(">");
+                Label arrow = GuiText.label(GuiText.Role.PANEL_TEXT, ">");
                 addStyleClass(arrow, "astra-workflow-arrow");
                 flow.getChildren().add(arrow);
             }
@@ -3059,15 +3090,15 @@ final class PipelineLauncher {
     }
 
     private static HeaderActionMenu createHeaderMenuButton(String title, String token) {
-        Button button = new Button(title);
+        Button button = GuiText.button(GuiText.Role.CONTROL_TEXT, title);
         button.setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
         button.setFocusTraversable(false);
         styleButton(button, ButtonRole.HEADER);
         addStyleClass(button, "astra-header-menu-button");
         addStyleClass(button, "astra-header-menu-button-" + cssToken(token));
-        Label label = new Label(title);
+        Label label = GuiText.label(GuiText.Role.PANEL_TEXT, title);
         addStyleClass(label, "astra-header-menu-label");
-        Label chevron = new Label(CHEVRON_DOWN);
+        Label chevron = GuiText.label(GuiText.Role.PANEL_TEXT, CHEVRON_DOWN);
         addStyleClass(chevron, "astra-chevron");
         addStyleClass(chevron, "astra-header-menu-chevron");
         HBox graphic = new HBox(HeaderGeometry.MENU_GRAPHIC_GAP, label, chevron);
@@ -3175,7 +3206,7 @@ final class PipelineLauncher {
 
     private static MenuItem createHeaderActionMenuItem(String label, ButtonRole role,
                                                        Runnable action, ButtonBase actionButton) {
-        MenuItem item = new MenuItem(label);
+        MenuItem item = GuiText.menuItem(GuiText.Role.CONTROL_TEXT, label);
         item.getStyleClass().add("astra-header-menu-item");
         item.getStyleClass().add(switch (role) {
             case DANGER -> "astra-header-menu-item-danger";
@@ -3331,7 +3362,7 @@ final class PipelineLauncher {
     private static HBox headerSegmentRow(String labelText, ToggleButton... buttons) {
         HBox row = new HBox(HeaderGeometry.SEGMENT_ROW_GAP);
         row.setAlignment(Pos.CENTER_LEFT);
-        Label label = new Label(labelText);
+        Label label = GuiText.label(GuiText.Role.PANEL_TEXT, labelText);
         label.setMinWidth(HeaderGeometry.SEGMENT_LABEL_WIDTH);
         label.setPrefWidth(HeaderGeometry.SEGMENT_LABEL_WIDTH);
         label.setMaxWidth(HeaderGeometry.SEGMENT_LABEL_WIDTH);
@@ -3343,7 +3374,7 @@ final class PipelineLauncher {
     }
 
     private static ToggleButton headerSegmentButton(String text) {
-        ToggleButton button = new ToggleButton(text);
+        ToggleButton button = GuiText.toggleButton(GuiText.Role.CONTROL_TEXT, text);
         button.setFocusTraversable(false);
         button.setMinWidth(HeaderGeometry.SEGMENT_BUTTON_WIDTH);
         button.setPrefWidth(HeaderGeometry.SEGMENT_BUTTON_WIDTH);
@@ -3376,7 +3407,7 @@ final class PipelineLauncher {
         row.setMinHeight(PARAMETER_ROW_HEIGHT);
         row.setPrefHeight(PARAMETER_ROW_HEIGHT);
         addStyleClass(row, "astra-labeled-row");
-        Label label = new Label(labelText);
+        Label label = GuiText.label(GuiText.Role.PANEL_TEXT, labelText);
         label.setMinWidth(labelWidth);
         addStyleClass(label, "astra-form-label");
         if (editor instanceof Region region) {
@@ -3391,7 +3422,7 @@ final class PipelineLauncher {
         VBox block = new VBox(FORM_BLOCK_GAP);
         block.setFillWidth(true);
         addStyleClass(block, "astra-variable-block");
-        Label label = new Label(labelText);
+        Label label = GuiText.label(GuiText.Role.PANEL_TEXT, labelText);
         addStyleClass(label, "astra-form-label");
         if (editor instanceof Region region) {
             region.setMaxWidth(Double.MAX_VALUE);
@@ -3403,7 +3434,7 @@ final class PipelineLauncher {
     private static VBox nestedField(String labelText, Node editor) {
         VBox box = new VBox(NESTED_FIELD_GAP);
         addStyleClass(box, "astra-nested-field");
-        Label label = new Label(labelText);
+        Label label = GuiText.label(GuiText.Role.PANEL_TEXT, labelText);
         addStyleClass(label, "astra-nested-label");
         if (editor instanceof Region region) {
             region.setMinHeight(PARAMETER_ROW_HEIGHT);
@@ -3532,14 +3563,9 @@ final class PipelineLauncher {
         ParameterAccentBar anchor = new ParameterAccentBar();
         addStyleClass(anchor, "astra-parameter-anchor");
         addStyleClass(anchor, "astra-parameter-anchor-" + parameterTypeToken(constant));
-        Label label = new Label(displayLabel(constant.name));
-        label.setWrapText(true);
-        label.setAlignment(Pos.CENTER_LEFT);
-        label.setMinSize(labelTextWidth, PARAMETER_FIRST_ROW_HEIGHT);
-        label.setPrefSize(labelTextWidth, PARAMETER_FIRST_ROW_HEIGHT);
-        label.setMaxWidth(labelTextWidth);
-        addStyleClass(label, "astra-parameter-label");
-        Button info = new Button("?");
+        RailText label = railText(displayLabel(constant.name), labelTextWidth,
+                "astra-parameter-label");
+        Button info = GuiText.button(GuiText.Role.CONTROL_TEXT, "?");
         info.setMinSize(PARAMETER_HELP_BUTTON_SIZE, PARAMETER_HELP_BUTTON_SIZE);
         info.setPrefSize(PARAMETER_HELP_BUTTON_SIZE, PARAMETER_HELP_BUTTON_SIZE);
         info.setMaxSize(PARAMETER_HELP_BUTTON_SIZE, PARAMETER_HELP_BUTTON_SIZE);
@@ -3574,6 +3600,29 @@ final class PipelineLauncher {
         return new RowNodes(labelBox, editor, tall);
     }
 
+    private static RailText railText(String text, double wrappingWidth, String... styleClasses) {
+        RailText railText = new RailText(text, wrappingWidth);
+        for (String styleClass : styleClasses) {
+            addStyleClass(railText, styleClass);
+        }
+        return railText;
+    }
+
+    private static Node dependentPanelRailText(String text, String styleClass) {
+        StackPane shell = new StackPane();
+        shell.setPadding(dependentTitlePadding());
+        shell.setAlignment(Pos.CENTER_LEFT);
+        shell.setMaxWidth(Double.MAX_VALUE);
+        addStyleClass(shell, styleClass + "-shell");
+        RailText railText = railText(text, Double.MAX_VALUE, styleClass);
+        Insets padding = dependentTitlePadding();
+        railText.wrappingWidthProperty().bind(Bindings.max(
+                LauncherGeometry.FLUSH,
+                shell.widthProperty().subtract(padding.getLeft() + padding.getRight())));
+        shell.getChildren().add(railText);
+        return shell;
+    }
+
     private static boolean isTallParameterEditor(Node editor) {
         return editor instanceof TextArea
                 || editor instanceof ScrollPane
@@ -3593,13 +3642,8 @@ final class PipelineLauncher {
         box.setMaxWidth(Double.MAX_VALUE);
         addStyleClass(box, "astra-dependent-panel");
         addStyleClass(box, "astra-dependent-panel-" + cssToken(panel.token()));
-        Label title = new Label(panel.title());
-        title.setPadding(dependentTitlePadding());
-        addStyleClass(title, "astra-dependent-panel-title");
-        Label reason = new Label(panel.reason());
-        reason.setWrapText(true);
-        reason.setPadding(dependentTitlePadding());
-        addStyleClass(reason, "astra-dependent-panel-reason");
+        Node title = dependentPanelRailText(panel.title(), "astra-dependent-panel-title");
+        Node reason = dependentPanelRailText(panel.reason(), "astra-dependent-panel-reason");
         GridPane inner = new GridPane();
         inner.setPadding(dependentRowsPadding());
         inner.setHgap(SECTION_CONTENT_GAP);
@@ -3637,7 +3681,7 @@ final class PipelineLauncher {
         addStyleClass(box, enabled
                 ? "astra-dependency-matrix-case-enabled"
                 : "astra-dependency-matrix-case-disabled");
-        Label title = new Label(panel.token() + " / " + (enabled ? "enabled" : "disabled"));
+        Label title = GuiText.label(GuiText.Role.PANEL_TEXT, panel.token() + " / " + (enabled ? "enabled" : "disabled"));
         addStyleClass(title, "astra-dialog-section-title");
         List<EditableConstant> constants = diagnosticDependentsFor(panel);
         Map<String, RowNodes> rows = new LinkedHashMap<>();
@@ -3807,43 +3851,59 @@ final class PipelineLauncher {
         root.setPadding(new Insets(NESTED_PANEL_INSET));
         addStyleClass(root, "astra-typography-diagnostic");
 
-        Label title = new Label("Typography optical QA");
+        Label title = GuiText.label(GuiText.Role.PANEL_TEXT, "Typography optical QA");
         addStyleClass(title, "astra-section-title");
-        Label note = new Label("Rendered text perception is reviewed visually; box rails and margins are covered by geometry diagnostics.");
+        Label note = GuiText.label(GuiText.Role.PANEL_TEXT, "Rendered text perception is reviewed visually; box rails and margins are covered by geometry diagnostics.");
         note.setWrapText(true);
         addStyleClass(note, "astra-dialog-muted");
 
         HBox parameterRow = new HBox(SECTION_CONTENT_GAP);
         parameterRow.setAlignment(Pos.CENTER_LEFT);
         addStyleClass(parameterRow, "astra-typography-row");
-        Label parameterLabel = new Label("Parameter Label");
+        Label parameterLabel = GuiText.label(GuiText.Role.PANEL_TEXT, "Nucleus Model Source");
         addStyleClass(parameterLabel, "astra-parameter-label");
-        Label dependentTitle = new Label("Dependent Group Title");
+        addStyleClass(parameterLabel, "astra-typography-current-label");
+        Label dependentTitle = GuiText.label(GuiText.Role.PANEL_TEXT, "Nucleus model-source controls");
         addStyleClass(dependentTitle, "astra-dependent-panel-title");
+        addStyleClass(dependentTitle, "astra-typography-current-dependent-title");
         parameterRow.getChildren().addAll(parameterLabel, dependentTitle);
+
+        HBox visualTextRow = new HBox(SECTION_CONTENT_GAP);
+        visualTextRow.setAlignment(Pos.CENTER_LEFT);
+        addStyleClass(visualTextRow, "astra-typography-row");
+        addStyleClass(visualTextRow, "astra-typography-rail-text-row");
+        RailText visualParameterLabel = railText("Nucleus Model Source",
+                PARAMETER_LABEL_COLUMN_WIDTH,
+                "astra-parameter-label",
+                "astra-typography-rail-text-parameter");
+        RailText visualDependentTitle = railText("Nucleus model-source controls",
+                PARAMETER_LABEL_COLUMN_WIDTH,
+                "astra-dependent-panel-title",
+                "astra-typography-rail-text-dependent-title");
+        visualTextRow.getChildren().addAll(visualParameterLabel, visualDependentTitle);
 
         HBox cardRow = new HBox(SECTION_CONTENT_GAP);
         cardRow.setAlignment(Pos.CENTER_LEFT);
         addStyleClass(cardRow, "astra-typography-row");
-        Label badge = new Label("Essential");
+        Label badge = GuiText.label(GuiText.Role.PANEL_TEXT, "Essential");
         addStyleClass(badge, "astra-badge");
         addStyleClass(badge, "astra-badge-importance-essential");
-        Label focusedTitle = new Label("Focused Section Title");
+        Label focusedTitle = GuiText.label(GuiText.Role.PANEL_TEXT, "Focused Section Title");
         addStyleClass(focusedTitle, "astra-focused-section-title");
-        Label subtitle = new Label("Focused section subtitle text");
+        Label subtitle = GuiText.label(GuiText.Role.PANEL_TEXT, "Focused section subtitle text");
         addStyleClass(subtitle, "astra-focused-section-description");
         cardRow.getChildren().addAll(badge, focusedTitle, subtitle);
 
         HBox controlsRow = new HBox(SECTION_CONTENT_GAP);
         controlsRow.setAlignment(Pos.CENTER_LEFT);
         addStyleClass(controlsRow, "astra-typography-row");
-        Button primary = new Button("Run");
+        Button primary = GuiText.button(GuiText.Role.CONTROL_TEXT, "Run");
         styleButton(primary, ButtonRole.PRIMARY);
-        Button secondary = new Button("Cancel");
+        Button secondary = GuiText.button(GuiText.Role.CONTROL_TEXT, "Cancel");
         styleButton(secondary, ButtonRole.SECONDARY);
-        Button small = new Button("Small Action");
+        Button small = GuiText.button(GuiText.Role.CONTROL_TEXT, "Small Action");
         styleButton(small, ButtonRole.SMALL);
-        Button help = new Button("?");
+        Button help = GuiText.button(GuiText.Role.CONTROL_TEXT, "?");
         styleButton(help, ButtonRole.HELP);
         controlsRow.getChildren().addAll(primary, secondary, small, help);
 
@@ -3854,13 +3914,17 @@ final class PipelineLauncher {
         combo.getItems().addAll("Balanced", "Strict", "Sensitive", "Custom");
         combo.setValue("Balanced");
         styleComboBox(combo);
-        Label logBadge = new Label("WARNING");
+        Label logBadge = GuiText.label(GuiText.Role.LOG_TEXT, "WARNING");
         addStyleClass(logBadge, "astra-log-severity-badge");
         addStyleClass(logBadge, "astra-log-severity-warning");
-        Label sourceTab = new Label("ASTRA");
+        Label sourceTab = GuiText.label(GuiText.Role.LOG_TEXT, "ASTRA");
         addStyleClass(sourceTab, "astra-log-source-tab");
         addStyleClass(sourceTab, "astra-log-source-astra");
-        comboRow.getChildren().addAll(combo, logBadge, sourceTab);
+        Label dialogSample = GuiText.label(GuiText.Role.DIALOG_TEXT, "Dialog text");
+        addStyleClass(dialogSample, "astra-help-section-title");
+        Label diagnosticSample = GuiText.label(GuiText.Role.DIAGNOSTIC_TEXT, "Diagnostic text");
+        addStyleClass(diagnosticSample, "astra-dialog-muted");
+        comboRow.getChildren().addAll(combo, logBadge, sourceTab, dialogSample, diagnosticSample);
 
         Region widthProbe = new Region();
         widthProbe.setMinSize(0, 0);
@@ -3869,7 +3933,7 @@ final class PipelineLauncher {
         widthProbe.setMaxWidth(Double.MAX_VALUE);
         addStyleClass(widthProbe, "astra-typography-width-probe");
 
-        root.getChildren().addAll(title, note, parameterRow, cardRow, controlsRow,
+        root.getChildren().addAll(title, note, parameterRow, visualTextRow, cardRow, controlsRow,
                 comboRow, widthProbe);
         return root;
     }
@@ -3883,29 +3947,29 @@ final class PipelineLauncher {
         row.setAlignment(Pos.CENTER_LEFT);
         addStyleClass(row, "astra-typography-row");
 
-        Button run = new Button("Run");
+        Button run = GuiText.button(GuiText.Role.CONTROL_TEXT, "Run");
         styleButton(run, ButtonRole.PRIMARY);
         applyMainActionButtonGeometry(run);
 
-        Button cancel = new Button("Cancel");
+        Button cancel = GuiText.button(GuiText.Role.CONTROL_TEXT, "Cancel");
         styleButton(cancel, ButtonRole.SECONDARY);
         applyMainActionButtonGeometry(cancel);
 
-        Button header = new Button("Header");
+        Button header = GuiText.button(GuiText.Role.CONTROL_TEXT, "Header");
         styleButton(header, ButtonRole.HEADER);
         addStyleClass(header, "astra-header-menu-button");
 
-        Button small = new Button("Small");
+        Button small = GuiText.button(GuiText.Role.CONTROL_TEXT, "Small");
         styleButton(small, ButtonRole.SMALL);
 
-        Button help = new Button("?");
+        Button help = GuiText.button(GuiText.Role.CONTROL_TEXT, "?");
         styleButton(help, ButtonRole.HELP);
 
-        Button dialog = new Button("Dialog");
+        Button dialog = GuiText.button(GuiText.Role.CONTROL_TEXT, "Dialog");
         styleButton(dialog, ButtonRole.SECONDARY);
         addStyleClass(dialog, "astra-dialog-button");
 
-        Button output = new Button("Copy All");
+        Button output = GuiText.button(GuiText.Role.CONTROL_TEXT, "Copy All");
         styleButton(output, ButtonRole.SMALL);
         addStyleClass(output, "astra-log-copy-button");
 
@@ -4092,9 +4156,9 @@ final class PipelineLauncher {
         content.setPadding(helpDialogPadding());
         addStyleClass(content, "astra-help-dialog-content");
 
-        Label title = new Label(displayLabel(constant.name));
+        Label title = GuiText.label(GuiText.Role.DIALOG_TEXT, displayLabel(constant.name));
         addStyleClass(title, "astra-help-title");
-        Label subtitle = new Label("ASTRA parameter reference");
+        Label subtitle = GuiText.label(GuiText.Role.DIALOG_TEXT, "ASTRA parameter reference");
         addStyleClass(subtitle, "astra-help-subtitle");
         VBox titleBlock = new VBox(HELP_DIALOG_TIGHT_GAP, title, subtitle);
 
@@ -4107,13 +4171,13 @@ final class PipelineLauncher {
         addHelpSummaryRow(summary, 1, "Current value", safeCurrentDisplayValue(constant));
         addHelpSummaryRow(summary, 2, "Default value", safeDefaultDisplayValue(constant));
 
-        Label quickTitle = new Label("Quick Help");
+        Label quickTitle = GuiText.label(GuiText.Role.DIALOG_TEXT, "Quick Help");
         addStyleClass(quickTitle, "astra-help-section-title");
-        Label quick = new Label(constant.helpText());
+        Label quick = GuiText.label(GuiText.Role.DIALOG_TEXT, constant.helpText());
         quick.setWrapText(true);
         addStyleClass(quick, "astra-help-body");
 
-        Button copyDetails = new Button("Copy Details");
+        Button copyDetails = GuiText.button(GuiText.Role.CONTROL_TEXT, "Copy Details");
         copyDetails.setFocusTraversable(false);
         styleButton(copyDetails, ButtonRole.SMALL);
         copyDetails.setOnAction(event -> {
@@ -4121,7 +4185,7 @@ final class PipelineLauncher {
             clip.putString(constant.detailsText());
             Clipboard.getSystemClipboard().setContent(clip);
         });
-        Label detailTitle = new Label("Details");
+        Label detailTitle = GuiText.label(GuiText.Role.DIALOG_TEXT, "Details");
         addStyleClass(detailTitle, "astra-help-section-title");
         Region detailSpacer = new Region();
         HBox.setHgrow(detailSpacer, Priority.ALWAYS);
@@ -4162,9 +4226,9 @@ final class PipelineLauncher {
             VBox card = new VBox(HELP_DETAIL_CARD_INTERNAL_GAP);
             card.setPadding(helpDetailCardPadding());
             addStyleClass(card, "astra-help-detail-card");
-            Label title = new Label(section.title());
+            Label title = GuiText.label(GuiText.Role.DIALOG_TEXT, section.title());
             addStyleClass(title, "astra-help-detail-card-title");
-            Label body = new Label(section.body().isBlank() ? "(not specified)" : section.body());
+            Label body = GuiText.label(GuiText.Role.DIALOG_TEXT, section.body().isBlank() ? "(not specified)" : section.body());
             body.setWrapText(true);
             addStyleClass(body, "astra-help-detail-card-body");
             card.getChildren().addAll(title, body);
@@ -4237,10 +4301,10 @@ final class PipelineLauncher {
     }
 
     private static void addHelpSummaryRow(GridPane grid, int row, String labelText, String valueText) {
-        Label label = new Label(labelText);
+        Label label = GuiText.label(GuiText.Role.DIALOG_TEXT, labelText);
         label.setMinWidth(HELP_SUMMARY_LABEL_WIDTH);
         addStyleClass(label, "astra-help-summary-label");
-        Label value = new Label(valueText == null || valueText.isBlank() ? "(blank)" : valueText);
+        Label value = GuiText.label(GuiText.Role.DIALOG_TEXT, valueText == null || valueText.isBlank() ? "(blank)" : valueText);
         value.setWrapText(true);
         addStyleClass(value, "astra-help-summary-value");
         GridPane.setHgrow(value, Priority.ALWAYS);
@@ -4276,7 +4340,7 @@ final class PipelineLauncher {
         int row = 0;
         for (EditableConstant constant : constants) {
             Node editor = constant.createEditor();
-            Label label = new Label(displayLabel(constant.name));
+            Label label = GuiText.label(GuiText.Role.PANEL_TEXT, displayLabel(constant.name));
             label.setMinWidth(UNGROUPED_LABEL_WIDTH);
             addStyleClass(label, "astra-form-label");
             grid.add(label, 0, row);
@@ -4293,13 +4357,13 @@ final class PipelineLauncher {
         panel.setPadding(new Insets(CHANNEL_PANEL_INSET));
         addStyleClass(panel, "astra-channel-panel");
 
-        Label title = new Label("Open image channels");
+        Label title = GuiText.label(GuiText.Role.PANEL_TEXT, "Open image channels");
         addStyleClass(title, "astra-channel-panel-title");
 
         FlowPane chips = new FlowPane(CHANNEL_CHIP_HORIZONTAL_INSET, CHANNEL_CHIP_HORIZONTAL_INSET);
         addStyleClass(chips, "astra-channel-panel-chips");
         if (channels.isEmpty()) {
-            Label empty = new Label("No image is open. Channel-dependent fields still use the script defaults.");
+            Label empty = GuiText.label(GuiText.Role.PANEL_TEXT, "No image is open. Channel-dependent fields still use the script defaults.");
             addStyleClass(empty, "astra-channel-panel-empty");
             panel.getChildren().addAll(title, empty);
             return panel;
@@ -4320,7 +4384,7 @@ final class PipelineLauncher {
             swatch.setStrokeType(StrokeType.INSIDE);
             addStyleClass(swatch, "astra-channel-chip-swatch");
             swatch.setStyle("-fx-fill: " + channelColor(channel) + "; -fx-stroke: #31404a; -fx-stroke-width: " + CHANNEL_SWATCH_STROKE_WIDTH + ";");
-            Label name = new Label(channel.getName());
+            Label name = GuiText.label(GuiText.Role.PANEL_TEXT, channel.getName());
             addStyleClass(name, "astra-channel-chip-name");
             chip.getChildren().addAll(swatch, name);
             chips.getChildren().add(chip);
@@ -4594,6 +4658,9 @@ final class PipelineLauncher {
                 && !node.getStyleClass().contains(styleClass)) {
             node.getStyleClass().add(styleClass);
         }
+        if ("astra-input".equals(styleClass) && node instanceof TextInputControl input) {
+            GuiText.adoptEditableText(input);
+        }
     }
 
     private static void removeStyleClass(Node node, String styleClass) {
@@ -4634,6 +4701,9 @@ final class PipelineLauncher {
             case SMALL -> "astra-button-small";
             case HELP -> "astra-button-help";
         });
+        if (button instanceof javafx.scene.control.Labeled labeled) {
+            GuiText.adoptControlText(labeled);
+        }
     }
 
     private static void applyMainActionButtonGeometry(ButtonBase button) {
@@ -5269,9 +5339,11 @@ final class PipelineLauncher {
                 .map(state -> state.styleClass)
                 .toList();
 
-        private final Label progressText = new Label();
+        private final Label progressText = GuiText.label(GuiText.Role.PANEL_TEXT, "");
         private final StackPane progressBar = new StackPane();
         private final AnimatedGradientSurface gradientSurface = new AnimatedGradientSurface();
+        private final Region shimmer = new Region();
+        private final TranslateTransition shimmerAnimation = new TranslateTransition();
         private RunProgressState state = RunProgressState.IDLE;
         private AnimatedGradientHeader.HeaderMode selectedMode =
                 AnimatedGradientHeader.HeaderMode.DYNAMIC;
@@ -5310,7 +5382,22 @@ final class PipelineLauncher {
             clip.setArcHeight(LauncherGeometry.ACTION_PROGRESS_RADIUS);
             progressBar.setClip(clip);
 
-            progressBar.getChildren().add(gradientSurface);
+            shimmer.setManaged(false);
+            shimmer.setMouseTransparent(true);
+            shimmer.setVisible(false);
+            shimmer.setMinHeight(LauncherGeometry.ACTION_PROGRESS_HEIGHT);
+            shimmer.setPrefHeight(LauncherGeometry.ACTION_PROGRESS_HEIGHT);
+            shimmer.setMaxHeight(LauncherGeometry.ACTION_PROGRESS_HEIGHT);
+            shimmer.prefWidthProperty().bind(
+                    progressBar.widthProperty().divide(LauncherGeometry.ACTION_PROGRESS_SHIMMER_WIDTH_DIVISOR));
+            addStyleClass(shimmer, "astra-run-progress-shimmer");
+
+            shimmerAnimation.setNode(shimmer);
+            shimmerAnimation.setInterpolator(Interpolator.LINEAR);
+            shimmerAnimation.setCycleCount(Animation.INDEFINITE);
+            sceneProperty().addListener((obs, oldScene, newScene) -> applyShimmerState());
+
+            progressBar.getChildren().addAll(gradientSurface, shimmer);
             getChildren().addAll(progressText, progressBar);
             resizeGradientSurface();
             setProgressState(RunProgressState.IDLE);
@@ -5322,6 +5409,12 @@ final class PipelineLauncher {
                     0.0d,
                     Math.max(1.0d, progressBar.getWidth()),
                     Math.max(1.0d, progressBar.getHeight()));
+            shimmer.resizeRelocate(
+                    -shimmer.getBoundsInLocal().getWidth(),
+                    LauncherGeometry.FLUSH,
+                    Math.max(LauncherGeometry.FLUSH, shimmer.prefWidth(-1.0d)),
+                    LauncherGeometry.ACTION_PROGRESS_HEIGHT);
+            configureShimmerAnimation();
         }
 
         private void setGradientMode(AnimatedGradientHeader.HeaderMode mode) {
@@ -5360,6 +5453,7 @@ final class PipelineLauncher {
             addStyleClass(this, state.styleClass);
             progressText.setText(progressTextFor(state));
             applyMotionState();
+            applyShimmerState();
         }
 
         private static String progressTextFor(RunProgressState state) {
@@ -5375,6 +5469,31 @@ final class PipelineLauncher {
         private void applyMotionState() {
             gradientSurface.setMotionSpeed(selectedSpeed);
             gradientSurface.setHeaderMode(selectedMode);
+            configureShimmerAnimation();
+        }
+
+        private void applyShimmerState() {
+            boolean running = state == RunProgressState.RUNNING;
+            shimmer.getProperties().put("astraProgressShimmerAllowed", Boolean.toString(running));
+            shimmer.getProperties().put("astraProgressState", state.name());
+            shimmer.setVisible(running);
+            if (running && selectedMode == AnimatedGradientHeader.HeaderMode.DYNAMIC && getScene() != null) {
+                shimmerAnimation.play();
+            } else {
+                shimmerAnimation.stop();
+                shimmer.setTranslateX(LauncherGeometry.FLUSH);
+            }
+        }
+
+        private void configureShimmerAnimation() {
+            double shimmerWidth = Math.max(LauncherGeometry.FLUSH, shimmer.prefWidth(-1.0d));
+            double runWidth = Math.max(LauncherGeometry.FLUSH, progressBar.getWidth());
+            shimmerAnimation.stop();
+            shimmerAnimation.setFromX(-shimmerWidth);
+            shimmerAnimation.setToX(runWidth + shimmerWidth);
+            shimmerAnimation.setDuration(Duration.seconds(
+                    selectedSpeed.cycleSeconds() / LauncherGeometry.ACTION_PROGRESS_SHIMMER_SPEED_DIVISOR));
+            applyShimmerState();
         }
     }
 
@@ -5384,6 +5503,7 @@ final class PipelineLauncher {
         private final Rectangle paintMask = new Rectangle();
 
         private ParameterAccentBar() {
+            gradientSurface.setDirection(AnimatedGradientSurface.Direction.VERTICAL);
             setMinWidth(PARAMETER_ANCHOR_WIDTH);
             setPrefWidth(PARAMETER_ANCHOR_WIDTH);
             setMaxWidth(PARAMETER_ANCHOR_WIDTH);
@@ -5425,6 +5545,19 @@ final class PipelineLauncher {
         }
     }
 
+    private static final class RailText extends Text {
+
+        private RailText(String text, double wrappingWidth) {
+            super(text == null ? "" : text);
+            setBoundsType(TextBoundsType.VISUAL);
+            if (Double.isFinite(wrappingWidth)) {
+                setWrappingWidth(wrappingWidth);
+            }
+            setTranslateX(TEXT_OPTICAL_INSET_CORRECTION);
+            GuiText.mark(this, GuiText.Role.RAIL_TEXT);
+        }
+    }
+
     private static final class RunFeedback {
 
         private final VBox box;
@@ -5457,9 +5590,9 @@ final class PipelineLauncher {
             progress.setVisible(false);
             progress.setManaged(false);
 
-            status = new Label("Ready to run " + scriptName + ".");
+            status = GuiText.label(GuiText.Role.PANEL_TEXT, "Ready to run " + scriptName + ".");
             status.getStyleClass().add("astra-output-status");
-            killButton = new Button("Kill Run");
+            killButton = GuiText.button(GuiText.Role.CONTROL_TEXT, "Kill Run");
             killButton.setDisable(true);
             killButton.setFocusTraversable(false);
             styleButton(killButton, ButtonRole.DANGER);
@@ -5660,7 +5793,7 @@ final class PipelineLauncher {
         private CollapsibleSection(String title, Node content, boolean expanded) {
             super(LauncherGeometry.FLUSH);
             this.content = content;
-            this.arrow = new Label(expanded ? CHEVRON_DOWN : CHEVRON_RIGHT);
+            this.arrow = GuiText.label(GuiText.Role.PANEL_TEXT, expanded ? CHEVRON_DOWN : CHEVRON_RIGHT);
             addStyleClass(this, "astra-collapsible-section");
 
             StackPane header = new StackPane();
@@ -5669,7 +5802,7 @@ final class PipelineLauncher {
             header.setFocusTraversable(false);
             addStyleClass(header, "astra-collapsible-header");
 
-            Label titleLabel = new Label(title);
+            Label titleLabel = GuiText.label(GuiText.Role.PANEL_TEXT, title);
             addStyleClass(titleLabel, "astra-collapsible-title");
             arrow.setMinWidth(COLLAPSIBLE_ARROW_WIDTH);
             addStyleClass(arrow, "astra-collapsible-arrow");
@@ -6081,8 +6214,8 @@ final class PipelineLauncher {
 
     private static final class MultiSelectListEditor extends VBox {
 
-        private final Button selector = new Button();
-        private final Label summary = new Label();
+        private final Button selector = GuiText.button(GuiText.Role.CONTROL_TEXT, "");
+        private final Label summary = GuiText.label(GuiText.Role.PANEL_TEXT, "");
         private final String titleText;
         private final String emptyMessage;
         private final Function<String, String> display;
@@ -6108,7 +6241,7 @@ final class PipelineLauncher {
             addStyleClass(summary, "astra-dialog-muted");
             addStyleClass(summary, "astra-multi-select-summary");
             if (!this.titleText.isBlank()) {
-                Label title = new Label(this.titleText);
+                Label title = GuiText.label(GuiText.Role.PANEL_TEXT, this.titleText);
                 addStyleClass(title, "astra-dialog-section-title");
                 addStyleClass(title, "astra-multi-select-title");
                 getChildren().add(title);
@@ -6209,10 +6342,19 @@ final class PipelineLauncher {
                     super.updateItem(item, empty);
                     setText(empty ? null : display.apply(item));
                     setStyle("");
+                    GuiText.mark(this, GuiText.Role.CONTROL_TEXT);
                     addStyleClass(this, "astra-list-cell");
                 }
+
+                @Override
+                protected void layoutChildren() {
+                    super.layoutChildren();
+                    if (GuiText.applyVisualBounds(this)) {
+                        super.layoutChildren();
+                    }
+                }
             });
-            Label dialogSummary = new Label();
+            Label dialogSummary = GuiText.label(GuiText.Role.PANEL_TEXT, "");
             dialogSummary.setWrapText(true);
             addStyleClass(dialogSummary, "astra-dialog-muted");
             AtomicBoolean syncing = new AtomicBoolean(false);
@@ -6269,7 +6411,7 @@ final class PipelineLauncher {
                     SelectionGeometry.DIALOG_ACTION_GAP,
                     selectAll,
                     clear);
-            Label hint = new Label("Use shift or command/control to select multiple rows, then Apply.");
+            Label hint = GuiText.label(GuiText.Role.PANEL_TEXT, "Use shift or command/control to select multiple rows, then Apply.");
             hint.setWrapText(true);
             addStyleClass(hint, "astra-dialog-muted");
             VBox content = new VBox(
@@ -6339,7 +6481,7 @@ final class PipelineLauncher {
             addStyleClass(rows, "astra-colocalization-check-rows");
             List<ColocalizationCheck> parsed = parseColocalizationChecks(rawValue);
             parsed.forEach(this::addRow);
-            Button add = new Button("Add check");
+            Button add = GuiText.button(GuiText.Role.CONTROL_TEXT, "Add check");
             add.setFocusTraversable(false);
             addStyleClass(add, "astra-colocalization-add-check");
             styleButton(add, ButtonRole.SMALL);
@@ -6409,7 +6551,7 @@ final class PipelineLauncher {
                     notifyListeners();
                 });
                 exclusionSelector.addChangeListener(() -> notifyListeners());
-                Button remove = new Button("Delete check");
+                Button remove = GuiText.button(GuiText.Role.CONTROL_TEXT, "Delete check");
                 remove.setTooltip(new Tooltip("Delete check"));
                 remove.setMinHeight(CHECK_REMOVE_BUTTON_HEIGHT);
                 remove.setPrefHeight(CHECK_REMOVE_BUTTON_HEIGHT);
@@ -6504,7 +6646,7 @@ final class PipelineLauncher {
             fields.clear();
             getChildren().clear();
             if (markerKeys.isEmpty()) {
-                Label empty = new Label(emptyMessage);
+                Label empty = GuiText.label(GuiText.Role.PANEL_TEXT, emptyMessage);
                 empty.setWrapText(true);
                 addStyleClass(empty, "astra-dialog-muted");
                 addStyleClass(empty, "astra-marker-key-empty");
@@ -6569,7 +6711,7 @@ final class PipelineLauncher {
 
         private final List<String> allNames;
         private final LinkedHashSet<String> selected = new LinkedHashSet<>();
-        private final Label summary = new Label();
+        private final Label summary = GuiText.label(GuiText.Role.PANEL_TEXT, "");
         private final List<Runnable> listeners = new ArrayList<>();
 
         private ProjectImageSelectionEditor(List<String> imageNames, String rawValue) {
@@ -6590,7 +6732,7 @@ final class PipelineLauncher {
                     SelectionGeometry.DIALOG_ACTION_GAP,
                     choose,
                     paste);
-            Label hint = new Label("Project-scale runs use this explicit selected-image list. Use Choose Images to pick one, several, or all project images.");
+            Label hint = GuiText.label(GuiText.Role.PANEL_TEXT, "Project-scale runs use this explicit selected-image list. Use Choose Images to pick one, several, or all project images.");
             hint.setWrapText(true);
             addStyleClass(hint, "astra-dialog-muted");
             getChildren().addAll(summary, actions, hint);
@@ -6598,7 +6740,7 @@ final class PipelineLauncher {
         }
 
         private static Button smallButton(String text) {
-            Button button = new Button(text);
+            Button button = GuiText.button(GuiText.Role.CONTROL_TEXT, text);
             button.setFocusTraversable(false);
             styleButton(button, ButtonRole.SMALL);
             return button;
@@ -6694,7 +6836,7 @@ final class PipelineLauncher {
         }
 
         private static VBox labeledSelector(String labelText, ListView<String> list) {
-            Label label = new Label(labelText);
+            Label label = GuiText.label(GuiText.Role.DIALOG_TEXT, labelText);
             addStyleClass(label, "astra-dialog-section-title");
             return new VBox(SelectionGeometry.LABEL_TO_LIST_GAP, label, list);
         }
@@ -6770,7 +6912,7 @@ final class PipelineLauncher {
             selector = new MultiSelectListEditor("", orderedModes, EditableConstant.csvValues(rawValue),
                     "No stages available.", StageModeEditor::displayMode);
             selector.addChangeListener(this::notifyListeners);
-            Label hint = new Label("Choose stages in ASTRA's fixed order. Reset and export are separate script actions.");
+            Label hint = GuiText.label(GuiText.Role.PANEL_TEXT, "Choose stages in ASTRA's fixed order. Reset and export are separate script actions.");
             hint.setWrapText(true);
             addStyleClass(hint, "astra-dialog-muted");
             getChildren().addAll(selector, hint);
@@ -6815,11 +6957,11 @@ final class PipelineLauncher {
             field.setPrefColumnCount(48);
             addStyleClass(field, "astra-input");
             addStyleClass(field, "astra-list-editor-field");
-            Label hint = new Label("Enter plain values separated by commas. ASTRA will write the required Groovy list syntax.");
+            Label hint = GuiText.label(GuiText.Role.PANEL_TEXT, "Enter plain values separated by commas. ASTRA will write the required Groovy list syntax.");
             hint.setWrapText(true);
             addStyleClass(hint, "astra-dialog-muted");
             addStyleClass(hint, "astra-list-editor-hint");
-            Button restore = new Button("Restore example");
+            Button restore = GuiText.button(GuiText.Role.CONTROL_TEXT, "Restore example");
             restore.setFocusTraversable(false);
             styleButton(restore, ButtonRole.SMALL);
             addStyleClass(restore, "astra-list-editor-restore");
@@ -6852,11 +6994,11 @@ final class PipelineLauncher {
             area.setWrapText(false);
             addStyleClass(area, "astra-code-area");
             addStyleClass(area, "astra-code-editor-area");
-            Label hint = new Label("Structured advanced value. Keep keys, brackets, commas, and quotes intact. Use Restore example if the structure is damaged.");
+            Label hint = GuiText.label(GuiText.Role.PANEL_TEXT, "Structured advanced value. Keep keys, brackets, commas, and quotes intact. Use Restore example if the structure is damaged.");
             hint.setWrapText(true);
             addStyleClass(hint, "astra-dialog-muted");
             addStyleClass(hint, "astra-code-editor-hint");
-            Button restore = new Button("Restore example");
+            Button restore = GuiText.button(GuiText.Role.CONTROL_TEXT, "Restore example");
             restore.setFocusTraversable(false);
             styleButton(restore, ButtonRole.SMALL);
             addStyleClass(restore, "astra-code-editor-restore");
@@ -7263,6 +7405,14 @@ final class PipelineLauncher {
                     setText(empty ? null : GuiPresentation.displayOption(name, item));
                     styleComboCell(this);
                 }
+
+                @Override
+                protected void layoutChildren() {
+                    super.layoutChildren();
+                    if (GuiText.applyVisualBounds(this)) {
+                        super.layoutChildren();
+                    }
+                }
             });
             comboBox.setButtonCell(new ListCell<>() {
                 @Override
@@ -7270,6 +7420,14 @@ final class PipelineLauncher {
                     super.updateItem(item, empty);
                     setText(empty ? null : GuiPresentation.displayOption(name, item));
                     styleComboCell(this);
+                }
+
+                @Override
+                protected void layoutChildren() {
+                    super.layoutChildren();
+                    if (GuiText.applyVisualBounds(this)) {
+                        super.layoutChildren();
+                    }
                 }
             });
         }

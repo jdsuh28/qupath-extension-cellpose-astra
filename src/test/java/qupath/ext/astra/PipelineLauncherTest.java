@@ -237,7 +237,7 @@ class PipelineLauncherTest {
         String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
 
         assertTrue(source.contains("RELEASE_PROPERTIES_RESOURCE = \"qupath/ext/astra/release/runtime.properties\""));
-        assertTrue(source.contains("Label provenance = new Label(launcherVersionSummary());"));
+        assertTrue(source.contains("Label provenance = GuiText.label(GuiText.Role.PANEL_TEXT, launcherVersionSummary());"));
         assertTrue(source.contains("provenance.getStyleClass().add(\"astra-header-provenance\")"));
         assertTrue(source.contains("properties.getProperty(\"astra_tag\""));
         assertTrue(source.contains("return launcherVersionSummary(base, extension);"));
@@ -298,7 +298,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("addStyleClass(card, \"astra-help-detail-card\")"));
         assertTrue(source.contains("addStyleClass(content, \"astra-help-dialog-content\")"));
         assertTrue(source.contains("addStyleClass(title, \"astra-help-title\")"));
-        assertTrue(source.contains("Button copyDetails = new Button(\"Copy Details\")"));
+        assertTrue(source.contains("Button copyDetails = GuiText.button(GuiText.Role.CONTROL_TEXT, \"Copy Details\")"));
         assertTrue(source.contains("addStyleClass(summary, \"astra-help-summary-grid\")"));
         assertTrue(source.contains("addStyleClass(detailShell, \"astra-help-details-shell\")"));
         assertTrue(source.contains("addStyleClass(detailAccent, \"astra-help-details-accent\")"));
@@ -507,7 +507,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("static VBox createInstallProgressRootForTesting()"));
         assertTrue(source.contains("ProgressBar progressBar = new ProgressBar();"));
         assertTrue(source.contains("TitledPane logPane = new TitledPane(\"Technical install log\", log);"));
-        assertTrue(source.contains("Label stepList = new Label(\"Steps: validate managed runtime -> repair if needed -> install pinned packages -> validate final runtime -> register with QuPath.\");"));
+        assertTrue(source.contains("Label stepList = GuiText.label(GuiText.Role.DIALOG_TEXT, \"Steps: validate managed runtime -> repair if needed -> install pinned packages -> validate final runtime -> register with QuPath.\");"));
         assertTrue(source.contains("stepList.setPadding(new Insets(InstallerGeometry.STATUS_CARD_PADDING));"));
         assertTrue(source.contains("stepList.setMaxWidth(Double.MAX_VALUE);"));
         assertTrue(source.contains("progressBar.setMaxWidth(Double.MAX_VALUE);"));
@@ -1570,7 +1570,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("RunProgressLane runProgressLane = new RunProgressLane();"));
         assertTrue(source.contains("feedback.attachRunProgressLane(runProgressLane);"));
         assertTrue(source.contains("createMainActionBar(runProgressLane, cancelButton, runButton)"));
-        assertTrue(source.contains("private final Label progressText = new Label();"));
+        assertTrue(source.contains("private final Label progressText = GuiText.label(GuiText.Role.PANEL_TEXT, \"\");"));
         assertTrue(source.contains("setPrefHeight(LauncherGeometry.ACTION_PROGRESS_TOTAL_HEIGHT);"));
         assertTrue(source.contains("progressTextFor(state)"));
         assertTrue(source.contains("Ready for the next ASTRA run."));
@@ -1602,8 +1602,8 @@ class PipelineLauncherTest {
         assertTrue(source.contains("AnimatedGradientHeader.MotionSpeed.SMOOTH.name()"));
         assertTrue(source.contains("createSettingsNavigator(\"Settings Dashboard\""));
         assertTrue(source.contains("createSettingsNavigator(\"Advanced Settings\""));
-        assertTrue(source.contains("Button dashboard = new Button(\"Dashboard\")"));
-        assertTrue(source.contains("Button allSettings = new Button(\"All Settings\")"));
+        assertTrue(source.contains("Button dashboard = GuiText.button(GuiText.Role.CONTROL_TEXT, \"Dashboard\")"));
+        assertTrue(source.contains("Button allSettings = GuiText.button(GuiText.Role.CONTROL_TEXT, \"All Settings\")"));
         assertTrue(source.contains("addStyleClass(viewRow, \"astra-settings-view-toggle\")"));
         assertTrue(source.contains("addStyleClass(header, \"astra-section-heading-row\")"));
         assertTrue(source.contains("addStyleClass(host, \"astra-settings-host\")"));
@@ -1676,12 +1676,12 @@ class PipelineLauncherTest {
         assertTrue(source.contains("selectedButtonText(selectedValues)"));
         assertTrue(source.contains("double labelColumnWidth = dependent ? DEPENDENT_LABEL_COLUMN_WIDTH : PARAMETER_LABEL_COLUMN_WIDTH;"));
         assertTrue(source.contains("double labelColumnGap = dependent ? DEPENDENT_LABEL_COLUMN_GAP : PARAMETER_LABEL_COLUMN_GAP;"));
-        assertTrue(source.contains("Label label = new Label(displayLabel(constant.name));"));
-        assertTrue(source.contains("label.setWrapText(true);"));
-        assertTrue(source.contains("label.setAlignment(Pos.CENTER_LEFT);"));
-        assertTrue(source.contains("label.setMinSize(labelTextWidth, PARAMETER_FIRST_ROW_HEIGHT);"));
-        assertTrue(source.contains("label.setPrefSize(labelTextWidth, PARAMETER_FIRST_ROW_HEIGHT);"));
-        assertTrue(source.contains("label.setMaxWidth(labelTextWidth);"));
+        assertTrue(source.contains("private static final double TEXT_OPTICAL_INSET_CORRECTION =\n"
+                + "            LauncherGeometry.FLUSH;"));
+        assertTrue(source.contains("RailText label = railText(displayLabel(constant.name), labelTextWidth,"));
+        assertTrue(source.contains("private static final class RailText extends Text"));
+        assertTrue(source.contains("setBoundsType(TextBoundsType.VISUAL);"));
+        assertTrue(source.contains("setTranslateX(TEXT_OPTICAL_INSET_CORRECTION);"));
         assertTrue(css.contains(".astra-parameter-label {\n"
                 + "    -fx-font-size: 12px;\n"
                 + "    -fx-font-weight: bold;\n"
@@ -1714,8 +1714,10 @@ class PipelineLauncherTest {
         assertTrue(source.contains("info.setMinSize(PARAMETER_HELP_BUTTON_SIZE, PARAMETER_HELP_BUTTON_SIZE);"));
         assertTrue(source.contains("box.setPadding(dependentPanelPadding());"));
         assertTrue(source.contains("box.setMaxWidth(Double.MAX_VALUE);"));
-        assertTrue(source.contains("title.setPadding(dependentTitlePadding());"));
-        assertTrue(source.contains("reason.setPadding(dependentTitlePadding());"));
+        assertTrue(source.contains("Node title = dependentPanelRailText(panel.title(), \"astra-dependent-panel-title\");"));
+        assertTrue(source.contains("Node reason = dependentPanelRailText(panel.reason(), \"astra-dependent-panel-reason\");"));
+        assertTrue(source.contains("shell.setPadding(dependentTitlePadding());"));
+        assertTrue(source.contains("railText.wrappingWidthProperty().bind(Bindings.max("));
         assertTrue(source.contains("inner.setPadding(dependentRowsPadding());"));
         assertTrue(source.contains("inner.setHgap(SECTION_CONTENT_GAP);"));
         assertTrue(source.contains("GridPane.setHgrow(panel, Priority.ALWAYS);"));
@@ -1776,6 +1778,163 @@ class PipelineLauncherTest {
         assertEquals("Threshold Source Images", GuiPresentation.displayLabel("THRESHOLD_SELECTED_IMAGE_NAMES"));
         assertEquals(List.of("DETECT_CELLS", "QUANTIFY"),
                 GuiPresentation.visibleRunModeOptions("Colocalization", List.of("RESET", "DETECT_CELLS", "QUANTIFY", "EXPORT")));
+    }
+
+    @Test
+    void guiTextDefinesEveryTypographyRoleWithoutRedundantAstraPrefix() throws Exception {
+        String guiText = Files.readString(Path.of("src/main/java/qupath/ext/astra/GuiText.java"));
+        String launcher = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+        String runtime = Files.readString(Path.of("src/main/java/qupath/ext/astra/RuntimeInstaller.java"));
+        String logView = Files.readString(Path.of("src/main/java/qupath/ext/astra/StyledLogView.java"));
+        String preview = Files.readString(Path.of("src/test/java/qupath/ext/astra/LauncherPreviewApp.java"));
+
+        assertTrue(guiText.contains("enum Role"));
+        for (String role : List.of("RAIL_TEXT", "PANEL_TEXT", "CONTROL_TEXT", "DIALOG_TEXT", "LOG_TEXT", "DIAGNOSTIC_TEXT")) {
+            assertTrue(guiText.contains(role), "GuiText role missing: " + role);
+        }
+        assertEquals("Text", GuiText.Role.RAIL_TEXT.rendererContract());
+        assertEquals("-fx-fill", GuiText.Role.RAIL_TEXT.requiredColorProperty());
+        assertTrue(GuiText.Role.RAIL_TEXT.alignmentContract().contains("zero-delta"));
+        assertEquals("Label", GuiText.Role.PANEL_TEXT.rendererContract());
+        assertEquals("Labeled control or MenuItem", GuiText.Role.CONTROL_TEXT.rendererContract());
+        assertEquals("Label", GuiText.Role.DIALOG_TEXT.rendererContract());
+        assertEquals("Label", GuiText.Role.LOG_TEXT.rendererContract());
+        assertEquals("Label, Button, or MenuItem", GuiText.Role.DIAGNOSTIC_TEXT.rendererContract());
+        assertTrue(guiText.contains("static final String ROLE_PROPERTY = \"astraTextRole\";"));
+        assertTrue(guiText.contains("static Label label(Role role, String text)"));
+        assertTrue(guiText.contains("static Button button(Role role, String text)"));
+        assertTrue(guiText.contains("static ToggleButton toggleButton(Role role, String text)"));
+        assertTrue(guiText.contains("static MenuItem menuItem(Role role, String text)"));
+        assertTrue(guiText.contains("static Text railText(String text)"));
+        assertTrue(guiText.contains("private static final class VisualLabel extends Label"));
+        assertTrue(guiText.contains("private static final class VisualButton extends Button"));
+        assertTrue(guiText.contains("private static final class VisualToggleButton extends ToggleButton"));
+        assertTrue(guiText.contains("CustomMenuItem item = new CustomMenuItem(content);"));
+        assertTrue(guiText.contains("if (applyVisualBounds(this))"));
+        assertTrue(guiText.contains("applyLeftRailOpticalCorrection(this);"));
+        assertTrue(guiText.contains("private static boolean usesLeftRailCorrection"));
+        assertTrue(guiText.contains("return !isCenteredTextSurface(parent);"));
+        assertTrue(guiText.contains("text.setBoundsType(TextBoundsType.VISUAL);"));
+        assertTrue(guiText.contains("railText.setBoundsType(TextBoundsType.VISUAL);"));
+        assertTrue(guiText.contains("mark((javafx.scene.Node)railText, Role.RAIL_TEXT);"));
+        assertFalse(guiText.contains("VISUAL_TEXT_PROPERTY"));
+        assertFalse(guiText.contains("AstraGuiText"));
+
+        assertTrue(launcher.contains("GuiText.Role.PANEL_TEXT"));
+        assertTrue(launcher.contains("GuiText.Role.CONTROL_TEXT"));
+        assertTrue(launcher.contains("GuiText.Role.DIALOG_TEXT"));
+        assertTrue(launcher.contains("GuiText.mark(cell, GuiText.Role.CONTROL_TEXT);"));
+        assertTrue(launcher.contains("GuiText.mark(this, GuiText.Role.CONTROL_TEXT);"));
+        assertTrue(runtime.contains("GuiText.Role.DIALOG_TEXT"));
+        assertTrue(logView.contains("GuiText.Role.LOG_TEXT"));
+        assertTrue(preview.contains("GuiText.Role.DIAGNOSTIC_TEXT"));
+    }
+
+    @Test
+    void guiTextFactoryOwnsLauncherTextConstructors() throws Exception {
+        Pattern rawTextConstructor = Pattern.compile("\\bnew\\s+(Label|Button|ToggleButton|MenuItem|Text)\\s*\\(");
+        List<Path> sourceFiles = new ArrayList<>();
+        try (var paths = Files.walk(Path.of("src/main/java/qupath/ext/astra"))) {
+            paths.filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .forEach(sourceFiles::add);
+        }
+        sourceFiles.add(Path.of("src/test/java/qupath/ext/astra/LauncherPreviewApp.java"));
+
+        List<String> violations = new ArrayList<>();
+        for (Path sourceFile : sourceFiles) {
+            if (sourceFile.endsWith(Path.of("GuiText.java"))) {
+                continue;
+            }
+            String source = Files.readString(sourceFile);
+            var matcher = rawTextConstructor.matcher(source);
+            while (matcher.find()) {
+                violations.add(sourceFile + " uses raw text constructor: " + matcher.group());
+            }
+        }
+        assertEquals(List.of(), violations);
+    }
+
+    @Test
+    void railTextStylesAndDiagnosticsCoverRenderedInkContract() throws Exception {
+        String launcher = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+        String preview = Files.readString(Path.of("src/test/java/qupath/ext/astra/LauncherPreviewApp.java"));
+
+        assertTrue(launcher.contains("private static final double TEXT_OPTICAL_INSET_CORRECTION =\n"
+                + "            LauncherGeometry.FLUSH;"));
+        assertTrue(launcher.contains("private static final class RailText extends Text"));
+        assertTrue(launcher.contains("setBoundsType(TextBoundsType.VISUAL);"));
+        assertTrue(launcher.contains("setTranslateX(TEXT_OPTICAL_INSET_CORRECTION);"));
+        assertTrue(launcher.contains("GuiText.mark(this, GuiText.Role.RAIL_TEXT);"));
+        assertTrue(launcher.contains("RailText label = railText(displayLabel(constant.name), labelTextWidth,"));
+        assertTrue(launcher.contains("Node title = dependentPanelRailText(panel.title(), \"astra-dependent-panel-title\");"));
+        assertTrue(launcher.contains("Node reason = dependentPanelRailText(panel.reason(), \"astra-dependent-panel-reason\");"));
+
+        for (String selector : List.of(".astra-parameter-label", ".astra-dependent-panel-title", ".astra-dependent-panel-reason")) {
+            String block = cssBlock(css, selector);
+            assertTrue(block.contains("-fx-fill:"), selector + " must style JavaFX Text fill");
+            assertTrue(block.contains("-fx-text-fill:"), selector + " must style JavaFX Label/Labeled text fill");
+        }
+
+        assertTrue(preview.contains("\"typography-optical-review\""));
+        assertTrue(preview.contains("\"images-scope\""));
+        assertTrue(preview.contains("\"segmentation\""));
+        assertTrue(preview.contains("\"rail-diagnostic\""));
+        assertTrue(preview.contains("addTypographyRoleMeasurements"));
+        assertTrue(preview.contains("typography role present: "));
+        assertTrue(preview.contains("GuiText.ROLE_PROPERTY"));
+        assertTrue(launcher.contains("Label dialogSample = GuiText.label(GuiText.Role.DIALOG_TEXT, \"Dialog text\");"));
+        assertTrue(launcher.contains("Label diagnosticSample = GuiText.label(GuiText.Role.DIAGNOSTIC_TEXT, \"Diagnostic text\");"));
+        assertTrue(launcher.contains("Label logBadge = GuiText.label(GuiText.Role.LOG_TEXT, \"WARNING\");"));
+        assertTrue(preview.contains("textOrNodeMinX"));
+        assertTrue(preview.contains("renderedInkMinX"));
+        assertTrue(preview.contains("SnapshotParameters"));
+        assertTrue(preview.contains("parameters.setFill(javafx.scene.paint.Color.TRANSPARENT);"));
+        assertTrue(preview.contains("alpha > 0"));
+        assertTrue(preview.contains("prefix + \" ink offset delta\""));
+    }
+
+    @Test
+    void textContractSweepAndGradientMotionDiagnosticsAreDeclared() throws Exception {
+        String launcher = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+        String surface = Files.readString(Path.of("src/main/java/qupath/ext/astra/AnimatedGradientSurface.java"));
+        String preview = Files.readString(Path.of("src/test/java/qupath/ext/astra/LauncherPreviewApp.java"));
+        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+        String tokens = Files.readString(Path.of("src/main/java/qupath/ext/astra/LauncherGeometryTokens.java"));
+
+        assertTrue(surface.contains("enum Direction"));
+        assertTrue(surface.contains("HORIZONTAL"));
+        assertTrue(surface.contains("VERTICAL"));
+        assertTrue(surface.contains("DIRECTION_PROPERTY"));
+        assertTrue(surface.contains("MODE_PROPERTY"));
+        assertTrue(surface.contains("SPEED_PROPERTY"));
+        assertTrue(surface.contains("void setDirection(Direction nextDirection)"));
+        assertTrue(surface.contains("animation.setToY(direction == Direction.VERTICAL ? -stripLogicalLength : 0.0d);"));
+        assertTrue(launcher.contains("gradientSurface.setDirection(AnimatedGradientSurface.Direction.VERTICAL);"));
+
+        assertTrue(tokens.contains("ACTION_PROGRESS_SHIMMER_WIDTH_DIVISOR"));
+        assertTrue(tokens.contains("ACTION_PROGRESS_SHIMMER_SPEED_DIVISOR"));
+        assertTrue(launcher.contains("private final Region shimmer = new Region();"));
+        assertTrue(launcher.contains("private final TranslateTransition shimmerAnimation = new TranslateTransition();"));
+        assertTrue(launcher.contains("addStyleClass(shimmer, \"astra-run-progress-shimmer\");"));
+        assertTrue(launcher.contains("boolean running = state == RunProgressState.RUNNING;"));
+        assertTrue(launcher.contains("shimmer.getProperties().put(\"astraProgressShimmerAllowed\", Boolean.toString(running));"));
+        assertTrue(launcher.contains("selectedSpeed.cycleSeconds() / LauncherGeometry.ACTION_PROGRESS_SHIMMER_SPEED_DIVISOR"));
+        assertTrue(css.contains(".astra-run-progress-shimmer"));
+        assertTrue(css.contains(".astra-run-progress-running .astra-run-progress-shimmer"));
+
+        assertTrue(preview.contains("\"text-contract-sweep\""));
+        assertTrue(preview.contains("\"typography-optical-sweep\""));
+        assertTrue(preview.contains("scheduleTextContractSweep"));
+        assertTrue(preview.contains("TextContractRow"));
+        assertTrue(preview.contains("GradientSurfaceRow"));
+        assertTrue(preview.contains("AnimatedGradientSurface.DIRECTION_PROPERTY"));
+        assertTrue(preview.contains("renderedInkMaxX"));
+        assertTrue(preview.contains("TextAlignmentContract"));
+        assertTrue(preview.contains("rendered ink left edge - text visual left rail"));
+        assertTrue(preview.contains("rendered ink center - text visual center rail"));
+        assertTrue(preview.contains("opticalDelta("));
     }
 
     @Test
@@ -2023,7 +2182,7 @@ class PipelineLauncherTest {
     void colocalizationCheckRowUsesReadableDeleteControl() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
-        assertTrue(source.contains("Button remove = new Button(\"Delete check\")"));
+        assertTrue(source.contains("Button remove = GuiText.button(GuiText.Role.CONTROL_TEXT, \"Delete check\")"));
         assertTrue(source.contains("new Tooltip(\"Delete check\")"));
         assertFalse(source.contains("new Button(\"🗑\")"));
         assertFalse(source.contains("new Button(\"...\")"));
@@ -2194,11 +2353,11 @@ class PipelineLauncherTest {
         assertTrue(source.contains("installColocalizationRunModeEditor(scriptName, constants)"));
         assertTrue(source.contains("Choose stages in ASTRA's fixed order. Reset and export are separate script actions."));
         assertTrue(source.contains("notifyListenersAfterModalClose(listeners);"));
-        assertTrue(source.contains("new Button(\"Reset Image\")"));
-        assertTrue(source.contains("new Button(\"Reset Project\")"));
+        assertTrue(source.contains("GuiText.button(GuiText.Role.CONTROL_TEXT, \"Reset Image\")"));
+        assertTrue(source.contains("GuiText.button(GuiText.Role.CONTROL_TEXT, \"Reset Project\")"));
         assertFalse(source.contains("new Button(\"Reset Image...\")"));
         assertFalse(source.contains("new Button(\"Reset Project...\")"));
-        assertTrue(source.contains("new Button(\"Export\")"));
+        assertTrue(source.contains("GuiText.button(GuiText.Role.CONTROL_TEXT, \"Export\")"));
         assertTrue(source.contains("styleButton(resetImage, ButtonRole.DANGER)"));
         assertTrue(source.contains("styleButton(resetProject, ButtonRole.DANGER)"));
         assertTrue(source.contains("styleButton(export, ButtonRole.SUCCESS)"));

@@ -60,8 +60,8 @@ final class StyledLogView extends VBox {
     private final RunTimelineModel timeline = new RunTimelineModel();
     private final RunProgressTracker progressTracker = new RunProgressTracker();
     private final RunLogBlockAccumulator blockAccumulator = new RunLogBlockAccumulator();
-    private final Label statusTitle = new Label("Ready");
-    private final Label statusDetail = new Label("Waiting for an ASTRA run.");
+    private final Label statusTitle = GuiText.label(GuiText.Role.LOG_TEXT, "Ready");
+    private final Label statusDetail = GuiText.label(GuiText.Role.LOG_TEXT, "Waiting for an ASTRA run.");
     private final VBox failureSummary = new VBox(LOG_TIGHT_GAP);
     private final HBox timelineRail = new HBox(LOG_TIGHT_GAP + LauncherGeometryTokens.SURFACE_BORDER_WIDTH);
     private RunLogSource currentSource;
@@ -80,7 +80,7 @@ final class StyledLogView extends VBox {
         setPadding(new Insets(LOG_ROW_GAP));
         addStyleClass(this, "astra-log-view");
 
-        Button copy = new Button("Copy All");
+        Button copy = GuiText.button(GuiText.Role.CONTROL_TEXT, "Copy All");
         copy.setFocusTraversable(false);
         styleCopyButton(copy, false);
         copy.setOnAction(event -> {
@@ -301,7 +301,7 @@ final class StyledLogView extends VBox {
         VBox wrapper = new VBox(LauncherGeometryTokens.FLUSH);
         wrapper.setFillWidth(true);
 
-        Label tab = new Label(source.displayName());
+        Label tab = GuiText.label(GuiText.Role.LOG_TEXT, source.displayName());
         addStyleClass(tab, "astra-log-source-tab");
         addStyleClass(tab, "astra-log-source-" + cssToken(source.name()));
         VBox.setMargin(tab, new Insets(
@@ -376,7 +376,7 @@ final class StyledLogView extends VBox {
         hiddenBody.setVisible(false);
         hiddenBody.setManaged(false);
         addStyleClass(hiddenBody, "astra-log-hidden-body");
-        Button hiddenToggle = new Button("Show Cellpose details");
+        Button hiddenToggle = GuiText.button(GuiText.Role.CONTROL_TEXT, "Show Cellpose details");
         hiddenToggle.setFocusTraversable(false);
         addStyleClass(hiddenToggle, "astra-button");
         addStyleClass(hiddenToggle, "astra-log-disclosure-button");
@@ -406,7 +406,7 @@ final class StyledLogView extends VBox {
         addStyleClass(accent, "astra-log-line-accent");
         addStyleClass(accent, "astra-log-severity-" + cssToken(entry.severity().name()));
 
-        Label text = new Label(RunLogPresenter.shortDisplayText(entry.text()));
+        Label text = GuiText.label(GuiText.Role.LOG_TEXT, RunLogPresenter.shortDisplayText(entry.text()));
         text.setWrapText(true);
         text.setMaxWidth(Double.MAX_VALUE);
         addStyleClass(text, "astra-log-line-text");
@@ -417,7 +417,7 @@ final class StyledLogView extends VBox {
         HBox.setHgrow(text, Priority.ALWAYS);
 
         if (showsSeverityBadge(entry.severity())) {
-            Label badge = new Label(entry.severity().displayName());
+            Label badge = GuiText.label(GuiText.Role.LOG_TEXT, entry.severity().displayName());
             badge.setMinWidth(LOG_BADGE_MIN_WIDTH);
             badge.setAlignment(Pos.CENTER);
             addStyleClass(badge, "astra-log-severity-badge");
@@ -434,7 +434,7 @@ final class StyledLogView extends VBox {
         card.setPadding(logCardPadding());
         addStyleClass(card, "astra-log-message-card");
         addStyleClass(card, "astra-log-severity-" + cssToken(entry.severity().name()));
-        Label title = new Label(RunLogPresenter.shortDisplayText(entry.text()));
+        Label title = GuiText.label(GuiText.Role.LOG_TEXT, RunLogPresenter.shortDisplayText(entry.text()));
         title.setWrapText(true);
         addStyleClass(title, "astra-log-card-title");
         card.getChildren().add(title);
@@ -453,10 +453,10 @@ final class StyledLogView extends VBox {
         RunLogMetrics.keyValue(entry).ifPresent(kv -> {
             HBox row = new HBox(LOG_ROW_GAP);
             row.setAlignment(Pos.BASELINE_LEFT);
-            Label key = new Label(kv.key());
+            Label key = GuiText.label(GuiText.Role.LOG_TEXT, kv.key());
             key.setMinWidth(LOG_KEY_VALUE_WIDTH);
             addStyleClass(key, "astra-log-key");
-            Label value = new Label(RunLogPresenter.shortDisplayText(kv.value()));
+            Label value = GuiText.label(GuiText.Role.LOG_TEXT, RunLogPresenter.shortDisplayText(kv.value()));
             value.setWrapText(true);
             addStyleClass(value, "astra-log-value");
             HBox.setHgrow(value, Priority.ALWAYS);
@@ -475,12 +475,12 @@ final class StyledLogView extends VBox {
         card.setPadding(logEmphasisCardPadding());
         addStyleClass(card, "astra-log-message-card");
         addStyleClass(card, "astra-log-severity-" + cssToken(block.severity().name()));
-        Label title = new Label(RunLogPresenter.shortDisplayText(block.title()));
+        Label title = GuiText.label(GuiText.Role.LOG_TEXT, RunLogPresenter.shortDisplayText(block.title()));
         title.setWrapText(true);
         addStyleClass(title, "astra-log-card-title");
         card.getChildren().add(title);
         if (!block.subtitle().isBlank()) {
-            Label subtitle = new Label(RunLogPresenter.shortDisplayText(block.subtitle()));
+            Label subtitle = GuiText.label(GuiText.Role.LOG_TEXT, RunLogPresenter.shortDisplayText(block.subtitle()));
             subtitle.setWrapText(true);
             addStyleClass(subtitle, "astra-log-card-subtitle");
             card.getChildren().add(subtitle);
@@ -498,10 +498,10 @@ final class StyledLogView extends VBox {
     private HBox createKeyValueRow(RunLogKeyValue kv) {
         HBox row = new HBox(LOG_ROW_GAP);
         row.setAlignment(Pos.BASELINE_LEFT);
-        Label key = new Label(kv.key());
+        Label key = GuiText.label(GuiText.Role.LOG_TEXT, kv.key());
         key.setMinWidth(LOG_COMMAND_KEY_WIDTH);
         addStyleClass(key, "astra-log-key");
-        Label value = new Label(RunLogPresenter.shortDisplayText(kv.value()));
+        Label value = GuiText.label(GuiText.Role.LOG_TEXT, RunLogPresenter.shortDisplayText(kv.value()));
         value.setWrapText(true);
         addStyleClass(value, "astra-log-value");
         HBox.setHgrow(value, Priority.ALWAYS);
@@ -513,9 +513,9 @@ final class StyledLogView extends VBox {
         VBox card = new VBox(LOG_TIGHT_GAP);
         card.setPadding(logCardPadding());
         addStyleClass(card, "astra-log-command-card");
-        Label title = new Label("Command");
+        Label title = GuiText.label(GuiText.Role.LOG_TEXT, "Command");
         addStyleClass(title, "astra-log-command-title");
-        Label command = new Label(RunLogPresenter.shortDisplayText(entry.text()));
+        Label command = GuiText.label(GuiText.Role.LOG_TEXT, RunLogPresenter.shortDisplayText(entry.text()));
         command.setWrapText(true);
         addStyleClass(command, "astra-log-command-text");
         card.getChildren().addAll(title, command);
@@ -531,7 +531,7 @@ final class StyledLogView extends VBox {
         }
         badges.forEach((key, value) -> {
             if (key != null && !key.isBlank() && value != null && !value.isBlank()) {
-                Label badge = new Label(key + " " + RunLogPresenter.shortDisplayText(value));
+                Label badge = GuiText.label(GuiText.Role.LOG_TEXT, key + " " + RunLogPresenter.shortDisplayText(value));
                 addStyleClass(badge, "astra-log-metric-badge");
                 row.getChildren().add(badge);
             }
@@ -560,12 +560,12 @@ final class StyledLogView extends VBox {
         dot.setMaxSize(LOG_DOT_SIZE, LOG_DOT_SIZE);
         addStyleClass(dot, "astra-log-timeline-dot");
         addStyleClass(dot, "astra-log-timeline-" + cssToken(step.state().name()));
-        Label label = new Label(step.label());
+        Label label = GuiText.label(GuiText.Role.LOG_TEXT, step.label());
         addStyleClass(label, "astra-log-timeline-label");
         addStyleClass(label, "astra-log-timeline-" + cssToken(step.state().name()));
         node.getChildren().addAll(dot, label);
         if (!step.durationLabel().isBlank() && step.state() != RunTimelineState.PENDING) {
-            Label duration = new Label(step.durationLabel());
+            Label duration = GuiText.label(GuiText.Role.LOG_TEXT, step.durationLabel());
             addStyleClass(duration, "astra-log-timeline-duration");
             node.getChildren().add(duration);
         }
@@ -589,10 +589,10 @@ final class StyledLogView extends VBox {
             return;
         }
         failureSummary.getChildren().clear();
-        Label title = new Label(advice.family());
+        Label title = GuiText.label(GuiText.Role.LOG_TEXT, advice.family());
         title.setWrapText(true);
         addStyleClass(title, "astra-log-failure-title");
-        Label message = new Label(RunLogPresenter.shortDisplayText(advice.message()));
+        Label message = GuiText.label(GuiText.Role.LOG_TEXT, RunLogPresenter.shortDisplayText(advice.message()));
         message.setWrapText(true);
         addStyleClass(message, "astra-log-failure-message");
         failureSummary.getChildren().addAll(title, message);
@@ -607,10 +607,10 @@ final class StyledLogView extends VBox {
     private HBox createAdviceRow(String labelText, String valueText) {
         HBox row = new HBox(LOG_ROW_GAP);
         row.setAlignment(Pos.BASELINE_LEFT);
-        Label label = new Label(labelText);
+        Label label = GuiText.label(GuiText.Role.LOG_TEXT, labelText);
         label.setMinWidth(LOG_ADVICE_LABEL_WIDTH);
         addStyleClass(label, "astra-log-advice-label");
-        Label value = new Label(RunLogPresenter.shortDisplayText(valueText));
+        Label value = GuiText.label(GuiText.Role.LOG_TEXT, RunLogPresenter.shortDisplayText(valueText));
         value.setWrapText(true);
         addStyleClass(value, "astra-log-advice-value");
         HBox.setHgrow(value, Priority.ALWAYS);

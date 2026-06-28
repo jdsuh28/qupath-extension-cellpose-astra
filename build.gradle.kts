@@ -64,7 +64,7 @@ tasks.register<JavaExec>("previewLauncher") {
     dependsOn("testClasses")
     val quPathAppPath = providers.gradleProperty("astraQuPathAppPath")
         .orElse("/Applications/QuPath-0.6.0-x64.app/Contents/app")
-    classpath = sourceSets["test"].runtimeClasspath + files(provider {
+    classpath = sourceSets["test"].output + sourceSets["main"].output + files(provider {
         quPathAppClasspath(quPathAppPath.get())
     })
     mainClass.set("qupath.ext.astra.LauncherPreviewApp")
