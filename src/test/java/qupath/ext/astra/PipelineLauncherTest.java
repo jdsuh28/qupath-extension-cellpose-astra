@@ -455,26 +455,40 @@ class PipelineLauncherTest {
     }
 
     @Test
-    void residualGuiMarginAuditClassifiesKnownResidualSurfaces() throws Exception {
-        Path auditPath = Path.of("docs/gui-residual-margin-audit.csv");
-        if (!Files.exists(auditPath)) {
-            return;
-        }
-        String residualAudit = Files.readString(auditPath);
+    void transientSurfaceAuditClassifiesAstraOwnedAndNativeSurfaces() throws Exception {
+        Path auditPath = Path.of("docs/gui-transient-surface-audit.csv");
+        assertTrue(Files.exists(auditPath), "Transient surface audit must be tracked.");
+        String audit = Files.readString(auditPath);
 
-        assertTrue(residualAudit.contains("settings profile load FileChooser"));
-        assertTrue(residualAudit.contains("run-complete dialog"));
-        assertTrue(residualAudit.contains("runtime setup confirmation"));
-        assertTrue(residualAudit.contains("bottom run progress lane"));
-        assertTrue(residualAudit.contains("header action tooltips"));
-        assertTrue(residualAudit.contains("parameter help tooltips"));
-        assertTrue(residualAudit.contains("dependent reason tooltips"));
-        assertTrue(residualAudit.contains("tooltip popup preview geometry"));
-        assertTrue(residualAudit.contains("RuntimeInstaller progress window"));
-        assertTrue(residualAudit.contains("RuntimeInstaller progress preview geometry"));
-        assertTrue(residualAudit.contains("AnimatedGradientHeader visual geometry"));
-        assertTrue(residualAudit.contains("ASTRA launcher CSS layout literals"));
-        assertFalse(residualAudit.contains(",violation,"));
+        for (String surface : List.of(
+                "header Settings menu",
+                "header Project menu",
+                "header View menu",
+                "combo popup",
+                "asset-backed combo popup",
+                "tooltip popup",
+                "parameter help dialog",
+                "selected image chooser",
+                "multi-select chooser",
+                "settings profile save-name dialog",
+                "reset confirmation dialog",
+                "provisional vascular confirmation dialog",
+                "run failure dialog",
+                "runtime setup confirmation dialog",
+                "runtime setup running panel",
+                "runtime setup success/result dialog",
+                "runtime setup validation failure dialog",
+                "runtime setup repair/delete failure dialog",
+                "runtime setup cancelled dialog")) {
+            assertTrue(audit.contains(surface + ",ASTRA-owned,styled"), surface);
+        }
+
+        assertTrue(audit.contains("settings profile load FileChooser,OS-native,native/out-of-scope"));
+        assertTrue(audit.contains("vendored Cellpose setup warning,vendored BIOP,not ASTRA launcher-owned"));
+        assertTrue(audit.contains("vendored Cellpose training chart,vendored BIOP,not ASTRA launcher-owned"));
+        assertFalse(audit.contains(",violation,"));
+        assertFalse(audit.contains(",requires replacement"));
+        assertFalse(audit.contains(",unstyled"));
     }
 
     @Test
@@ -534,6 +548,7 @@ class PipelineLauncherTest {
         assertTrue(css.contains("Mirrors LauncherGeometryTokens tooltip inset formulas"));
         assertTrue(css.contains("-fx-padding: 4px 8px 4px 8px;"));
         assertTrue(preview.contains("\"tooltip-geometry\".equals(snapshotMode)"));
+        assertTrue(preview.contains("\"help-dialog-geometry\".equals(snapshotMode)"));
         assertTrue(preview.contains("Surface.TOOLTIP"));
         assertTrue(preview.contains("addTooltipMeasurements(sceneRoot, measurements)"));
     }
@@ -546,12 +561,16 @@ class PipelineLauncherTest {
         assertTrue(preview.contains("\"runtime-confirmation-dialog\".equals(snapshotMode)"));
         assertTrue(preview.contains("\"runtime-result-dialog\".equals(snapshotMode)"));
         assertTrue(preview.contains("\"runtime-failure-dialog\".equals(snapshotMode)"));
+        assertTrue(preview.contains("\"runtime-repair-failure-dialog\".equals(snapshotMode)"));
+        assertTrue(preview.contains("\"runtime-cancelled-dialog\".equals(snapshotMode)"));
         assertTrue(preview.contains("Surface.RUNTIME_INSTALLER"));
         assertTrue(preview.contains("addRuntimeInstallerMeasurements(sceneRoot, measurements)"));
         assertTrue(preview.contains("RuntimeInstaller.createInstallProgressRootForTesting()"));
         assertTrue(preview.contains("openRuntimeConfirmationDialog"));
         assertTrue(preview.contains("openRuntimeResultDialog"));
         assertTrue(preview.contains("openRuntimeFailureDialog"));
+        assertTrue(preview.contains("openRuntimeRepairFailureDialog"));
+        assertTrue(preview.contains("openRuntimeCancelledDialog"));
     }
 
     @Test
@@ -2593,6 +2612,10 @@ class PipelineLauncherTest {
         assertFalse(source.contains("new HBox(12.0, availableBox, moveButtons, chosenBox)"));
         assertFalse(source.contains("new VBox(10.0, filter, chooser)"));
         assertFalse(source.contains("return new VBox(5.0, label, list)"));
+
+        String preview = Files.readString(Path.of("src/test/java/qupath/ext/astra/LauncherPreviewApp.java"));
+        assertTrue(preview.contains("\"selected-images-dialog-geometry\".equals(snapshotMode)"));
+        assertTrue(preview.contains("snapshotSurfaceGeometry(\"selected-images-dialog-geometry\""));
     }
 
     @Test

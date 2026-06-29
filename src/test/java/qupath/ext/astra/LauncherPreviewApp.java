@@ -170,6 +170,14 @@ public final class LauncherPreviewApp extends Application {
             schedule(4.4, LauncherPreviewApp::closeAllWindows);
             return;
         }
+        if ("help-dialog-geometry".equals(snapshotMode)) {
+            schedule(1.5, () -> fireButton(title, "Run Setup"));
+            schedule(2.6, () -> fireFirstHelpButton(title));
+            schedule(4.6, () -> snapshotSurfaceGeometry("help-dialog-geometry",
+                    "ASTRA Parameter Help", Surface.DIALOG, false));
+            schedule(5.4, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
         if ("margin-diagnostic".equals(snapshotMode)) {
             schedule(1.5, () -> snapshotMarginDiagnostic("margin-diagnostic", title));
             schedule(2.1, LauncherPreviewApp::closeAllWindows);
@@ -296,6 +304,20 @@ public final class LauncherPreviewApp extends Application {
         if ("runtime-failure-dialog".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openRuntimeFailureDialog);
             schedule(2.4, () -> snapshotSurfaceGeometry("runtime-failure-dialog", title,
+                    Surface.DIALOG, true));
+            schedule(3.0, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("runtime-repair-failure-dialog".equals(snapshotMode)) {
+            schedule(1.5, LauncherPreviewApp::openRuntimeRepairFailureDialog);
+            schedule(2.4, () -> snapshotSurfaceGeometry("runtime-repair-failure-dialog", title,
+                    Surface.DIALOG, true));
+            schedule(3.0, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("runtime-cancelled-dialog".equals(snapshotMode)) {
+            schedule(1.5, LauncherPreviewApp::openRuntimeCancelledDialog);
+            schedule(2.4, () -> snapshotSurfaceGeometry("runtime-cancelled-dialog", title,
                     Surface.DIALOG, true));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
@@ -439,7 +461,8 @@ public final class LauncherPreviewApp extends Application {
             scheduleTextContractSweep(title);
             return;
         }
-        if ("dialogs-geometry".equals(snapshotMode)) {
+        if ("dialogs-geometry".equals(snapshotMode)
+                || "selected-images-dialog-geometry".equals(snapshotMode)) {
             schedule(1.5, () -> fireButton(title, "Images & Scope"));
             schedule(2.2, () -> selectFirstComboValue(title, "PROJECT_IMAGE_SELECTION"));
             schedule(2.9, () -> Platform.runLater(() -> fireButton(title, "Choose Images...")));
@@ -978,6 +1001,8 @@ public final class LauncherPreviewApp extends Application {
                                                 boolean transientWindow) {
         Optional<Node> rootOptional = surface == Surface.TOOLTIP
                 ? activeTooltipRoot()
+                : surface == Surface.DIALOG && "ASTRA Parameter Help".equals(launcherTitle)
+                        ? findHelpDialogRoot()
                 : transientWindow
                         ? findTransientWindowRoot(launcherTitle)
                         : findWindowRoot(launcherTitle);
@@ -1027,6 +1052,16 @@ public final class LauncherPreviewApp extends Application {
                 .reduce((first, second) -> second)
                 .map(Window::getScene)
                 .map(Scene::getRoot);
+    }
+
+    private static Optional<Node> findHelpDialogRoot() {
+        return Window.getWindows().stream()
+                .filter(Window::isShowing)
+                .filter(window -> window.getScene() != null)
+                .map(Window::getScene)
+                .<Node>map(Scene::getRoot)
+                .filter(root -> firstNode(root, ".astra-help-dialog-content").isPresent())
+                .findFirst();
     }
 
     private static Optional<Node> activeTooltipRoot() {
@@ -1329,6 +1364,10 @@ public final class LauncherPreviewApp extends Application {
                         ".dialog-pane", new Color(0, 95, 115));
                 addBounds(bounds, sceneRoot, rootMinX, rootMinY, "dialog content",
                         ".content", new Color(42, 157, 143));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "help dialog content",
+                        ".astra-help-dialog-content", new Color(88, 129, 87));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "help details shell",
+                        ".astra-help-details-shell", new Color(42, 157, 143));
                 addBounds(bounds, sceneRoot, rootMinX, rootMinY, "list view",
                         ".astra-list-view", new Color(255, 159, 28));
                 addBounds(bounds, sceneRoot, rootMinX, rootMinY, "dialog input",
@@ -3209,6 +3248,11 @@ public final class LauncherPreviewApp extends Application {
     private static void addDialogMeasurements(Node sceneRoot, List<GeometryMeasurement> measurements) {
         double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
         double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
+        Optional<Node> helpContent = firstNode(sceneRoot, ".astra-help-dialog-content");
+        if (helpContent.isPresent()) {
+            addHelpDialogMeasurements(sceneRoot, measurements, rootMinX, rootMinY, helpContent.get());
+            return;
+        }
         Optional<Node> ownedContent = firstNode(sceneRoot, ".astra-dialog-owned-content");
         if (ownedContent.isPresent()) {
             Node content = ownedContent.get();
@@ -3589,9 +3633,10 @@ public final class LauncherPreviewApp extends Application {
                                     0.0,
                                     centerY(anchorBounds) - centerY(rowBounds),
                                     "accent center y - first-row shell center y");
-                        });
                     });
-        }
+        });
+    }
+
         Map<String, Double> rails = railPositions(sceneRoot);
         addMeasurement(measurements, "independent box edge to bar",
                 staticField("ACCENT_INDENT"),
@@ -3784,6 +3829,89 @@ public final class LauncherPreviewApp extends Application {
             }
         }
         return measurements;
+    }
+
+    private static void addHelpDialogMeasurements(Node sceneRoot,
+                                                  List<GeometryMeasurement> measurements,
+                                                  double rootMinX,
+                                                  double rootMinY,
+                                                  Node helpContent) {
+        Bounds contentBounds = relativeBounds(sceneRoot, helpContent, rootMinX, rootMinY);
+        List<Node> children = managedChildren(helpContent);
+        if (!children.isEmpty()) {
+            double childMinX = children.stream()
+                    .mapToDouble(child -> relativeBounds(sceneRoot, child, rootMinX, rootMinY).getMinX())
+                    .min()
+                    .orElse(contentBounds.getMinX());
+            double childMaxX = children.stream()
+                    .mapToDouble(child -> relativeBounds(sceneRoot, child, rootMinX, rootMinY).getMaxX())
+                    .max()
+                    .orElse(contentBounds.getMaxX());
+            addMeasurement(measurements, "help dialog content left inset",
+                    staticField("HELP_DIALOG_INSET"),
+                    childMinX - contentBounds.getMinX(),
+                    "HELP_DIALOG_INSET");
+            addMeasurement(measurements, "help dialog content right inset",
+                    staticField("HELP_DIALOG_INSET"),
+                    contentBounds.getMaxX() - childMaxX,
+                    "HELP_DIALOG_INSET");
+        }
+        if (children.size() >= 2) {
+            Bounds first = relativeBounds(sceneRoot, children.get(0), rootMinX, rootMinY);
+            Bounds second = relativeBounds(sceneRoot, children.get(1), rootMinX, rootMinY);
+            addMeasurement(measurements, "help dialog first section gap",
+                    staticField("HELP_DIALOG_SECTION_GAP"),
+                    second.getMinY() - first.getMaxY(),
+                    "HELP_DIALOG_SECTION_GAP");
+        }
+        Optional<Node> helpSummary = firstNode(sceneRoot, ".astra-help-summary-grid");
+        Optional<Node> helpQuickTitle = firstNode(sceneRoot, ".astra-help-section-title");
+        Optional<Node> helpBody = firstNode(sceneRoot, ".astra-help-body");
+        Optional<Node> helpDetailsShell = firstNode(sceneRoot, ".astra-help-details-shell");
+        Optional<Node> helpDetailsAccent = firstNode(sceneRoot, ".astra-help-details-accent");
+        if (helpSummary.isPresent() && helpQuickTitle.isPresent()) {
+            Bounds summary = relativeBounds(sceneRoot, helpSummary.get(), rootMinX, rootMinY);
+            Bounds quickTitle = relativeBounds(sceneRoot, helpQuickTitle.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "help summary to next section title",
+                    staticField("HELP_DIALOG_SECTION_GAP"),
+                    quickTitle.getMinY() - summary.getMaxY(),
+                    "HELP_DIALOG_SECTION_GAP");
+        }
+        if (helpQuickTitle.isPresent() && helpBody.isPresent()) {
+            Bounds quickTitle = relativeBounds(sceneRoot, helpQuickTitle.get(), rootMinX, rootMinY);
+            Bounds body = relativeBounds(sceneRoot, helpBody.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "help section title to body",
+                    staticField("HELP_DIALOG_SECTION_GAP"),
+                    body.getMinY() - quickTitle.getMaxY(),
+                    "HELP_DIALOG_SECTION_GAP");
+        }
+        if (helpDetailsAccent.isPresent()) {
+            Bounds accent = relativeBounds(sceneRoot, helpDetailsAccent.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "help details accent width",
+                    staticField("HELP_DETAIL_ACCENT_WIDTH"),
+                    accent.getWidth(),
+                    "HELP_DETAIL_ACCENT_WIDTH");
+        }
+        if (helpDetailsShell.isPresent()) {
+            firstManagedNode(helpDetailsShell.get(), ".astra-help-details-cards").ifPresent(cards -> {
+                Bounds shell = relativeBounds(sceneRoot, helpDetailsShell.get(), rootMinX, rootMinY);
+                Bounds cardBounds = relativeBounds(sceneRoot, cards, rootMinX, rootMinY);
+                double borderWidth = LauncherGeometryTokens.SURFACE_BORDER_WIDTH;
+                addMeasurement(measurements, "help details cards right inset",
+                        staticField("HELP_DIALOG_INSET") - (borderWidth * 2.0),
+                        shell.getMaxX() - cardBounds.getMaxX(),
+                        "HELP_DIALOG_INSET - (SURFACE_BORDER_WIDTH * 2)");
+            });
+            List<Node> cards = managedNodes(helpDetailsShell.get(), ".astra-help-detail-card");
+            if (cards.size() >= 2) {
+                Bounds first = relativeBounds(sceneRoot, cards.get(0), rootMinX, rootMinY);
+                Bounds second = relativeBounds(sceneRoot, cards.get(1), rootMinX, rootMinY);
+                addMeasurement(measurements, "help detail card vertical gap",
+                        staticField("HELP_DETAIL_CARD_GAP"),
+                        second.getMinY() - first.getMaxY(),
+                        "HELP_DETAIL_CARD_GAP");
+            }
+        }
     }
 
     private static void addMeasurement(List<GeometryMeasurement> measurements,
@@ -5484,6 +5612,42 @@ public final class LauncherPreviewApp extends Application {
                 /Users/example/.astra/logs/install/cellpose-astra-install-preview.log
                 """,
                 true);
+        dialog.show();
+    }
+
+    private static void openRuntimeRepairFailureDialog() {
+        Dialog<ButtonType> dialog = PipelineLauncher.createAstraPreviewMessageDialog(
+                null,
+                "ASTRA Runtime Setup",
+                "Runtime repair needs file access",
+                """
+                ASTRA could not remove the broken managed runtime directory.
+
+                Next action:
+                Close tools using ~/.astra/cellpose-astra, check file permissions, then run repair again.
+
+                Install log:
+                /Users/example/.astra/logs/install/cellpose-astra-install-preview.log
+                """,
+                true);
+        dialog.show();
+    }
+
+    private static void openRuntimeCancelledDialog() {
+        Dialog<ButtonType> dialog = PipelineLauncher.createAstraPreviewMessageDialog(
+                null,
+                "ASTRA Runtime Setup",
+                "Runtime setup cancelled",
+                """
+                ASTRA stopped the active runtime setup command.
+
+                Next action:
+                Run ASTRA Runtime Setup again when you are ready.
+
+                Install log:
+                /Users/example/.astra/logs/install/cellpose-astra-install-preview.log
+                """,
+                false);
         dialog.show();
     }
 
