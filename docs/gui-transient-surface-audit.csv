@@ -1,0 +1,24 @@
+surface,owner,status,parity_class,evidence,notes
+launcher main dialog,ASTRA-owned,styled,launcher shell,PipelineLauncher.configureAndRun + astra-launcher-dialog-pane,Native cancel close path hidden but preserved for X/Cancel behavior.
+header Settings menu,ASTRA-owned,styled,header action menu,preview: header-menus-geometry/settings-menu-geometry; header-menu-placement-geometry,Uses shared createHeaderMenuButton and adaptive placement.
+header Project menu,ASTRA-owned,styled,header action menu,preview: header-menus-geometry/project-menu-geometry; header-menu-placement-geometry,Uses shared createHeaderMenuButton and adaptive placement.
+header View menu,ASTRA-owned,styled,header action menu,preview: header-menus-geometry/view-menu-geometry; header-menu-placement-geometry,Run Log Pane choices remain stable Show/Hide actions.
+combo popup,ASTRA-owned,styled,popup/dropdown,preview: combo-popup-geometry,Styled through ASTRA combo/list popup CSS.
+asset-backed combo popup,ASTRA-owned,styled,popup/dropdown,preview: asset-backed-combo-geometry,Uses same combo popup grammar as enum dropdowns.
+tooltip popup,ASTRA-owned,styled,popup/dropdown,preview: tooltip-geometry,ASTRA-owned reliable tooltip wrapper and CSS token padding are covered.
+parameter help dialog,ASTRA-owned,styled,reference dialog,preview: help-dialog and help-dialog-geometry,Uses ASTRA help shell with summary card and detail cards.
+selected image chooser,ASTRA-owned,styled,selection dialog,preview: selected-images-dialog-geometry,Uses ASTRA dual-list selection shell.
+multi-select chooser,ASTRA-owned,styled,selection dialog,preview: multi-select-dialog-geometry,Uses same selection-dialog/list-cell style family.
+settings profile save-name dialog,ASTRA-owned,styled,settings dialog,preview: settings-profile-dialog-geometry,Replaces TextInputDialog with ASTRA-owned dialog.
+settings profile load FileChooser,OS-native,native/out-of-scope,native file chooser,source: PipelineLauncher.loadSettingsProfileWithDialog,Intentional OS-native exception because file choosers are platform-owned.
+reset confirmation dialog,ASTRA-owned,styled,confirmation dialog,preview: reset-alert-geometry,Uses shared createAstraConfirmationDialog shell.
+provisional vascular confirmation dialog,ASTRA-owned,styled,confirmation dialog,preview: provisional-alert-geometry,Uses shared createAstraConfirmationDialog shell.
+run failure dialog,ASTRA-owned,styled,message dialog,preview: run-failure-dialog-geometry,Uses shared createAstraMessageDialog shell.
+runtime setup confirmation dialog,ASTRA-owned,styled,runtime dialog,preview: runtime-confirmation-dialog,Uses shared ASTRA confirmation shell.
+runtime setup running panel,ASTRA-owned,styled,runtime panel,preview: runtime-installer-geometry,Uses InstallerGeometry tokens, elapsed Timeline, progress lane, status card, cancel, and technical log.
+runtime setup success/result dialog,ASTRA-owned,styled,runtime dialog,preview: runtime-result-dialog,Uses shared ASTRA message shell and concise outcome text.
+runtime setup validation failure dialog,ASTRA-owned,styled,runtime dialog,preview: runtime-failure-dialog,Uses shared ASTRA message shell and classified failure text.
+runtime setup repair/delete failure dialog,ASTRA-owned,styled,runtime dialog,preview: runtime-repair-failure-dialog,Uses shared ASTRA message shell and classified repair guidance.
+runtime setup cancelled dialog,ASTRA-owned,styled,runtime dialog,preview: runtime-cancelled-dialog,Uses shared ASTRA message shell and classified cancellation guidance.
+vendored Cellpose setup warning,vendored BIOP,not ASTRA launcher-owned,vendored surface,source: qupath.ext.biop.cellpose.CellposeSetup,Not counted as ASTRA-owned launcher surface; future vendoring cleanup may wrap or remove it separately.
+vendored Cellpose training chart,vendored BIOP,not ASTRA launcher-owned,vendored surface,source: qupath.ext.biop.cellpose.Cellpose2D,Not counted as ASTRA-owned launcher surface; unrelated to ASTRA launcher popup contract.

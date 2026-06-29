@@ -196,7 +196,8 @@ class ExtensionContractTest {
         assertTrue(surface.contains("GRADIENT_SPAN_MULTIPLIER = 3.0d"));
         assertTrue(surface.contains("TEXTURE_MAX_PIXEL_HEIGHT = 128"));
         assertTrue(surface.contains("DITHER_AMPLITUDE = 1.2d / 255.0d"));
-        assertTrue(surface.contains("animation.setToX(-stripLogicalWidth)"));
+        assertTrue(surface.contains("animation.setToX(direction == Direction.HORIZONTAL ? -stripLogicalLength : 0.0d)"));
+        assertTrue(surface.contains("animation.setToY(direction == Direction.VERTICAL ? -stripLogicalLength : 0.0d)"));
         assertTrue(surface.contains("setManaged(false)"));
         assertTrue(surface.contains("setMouseTransparent(true)"));
         assertTrue(header.contains("private final AnimatedGradientSurface gradientSurface"));
@@ -673,16 +674,27 @@ class ExtensionContractTest {
         String source = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/RuntimeInstaller.java").toPath());
 
         assertTrue(source.contains("enum RuntimeFailureKind"));
+        assertTrue(source.contains("CANCELLED"));
         assertTrue(source.contains("NETWORK_DOWNLOAD_FAILED"));
         assertTrue(source.contains("CONDA_SOLVER_FAILED"));
         assertTrue(source.contains("PIP_INSTALL_FAILED"));
         assertTrue(source.contains("PYTHON_PACKAGE_VALIDATION_FAILED"));
         assertTrue(source.contains("PERMISSION_DELETE_FAILED"));
         assertTrue(source.contains("UNEXPECTED_ERROR"));
+        assertTrue(source.contains("enum RuntimeSetupKind"));
+        assertTrue(source.contains("ALREADY_READY"));
+        assertTrue(source.contains("CREATED_RUNTIME"));
+        assertTrue(source.contains("REPAIRED_RUNTIME"));
         assertTrue(source.contains("classifyFailure(Throwable throwable)"));
+        assertTrue(source.contains("throwable instanceof CancellationException"));
         assertTrue(source.contains("text.contains(\"runtime package mismatch\")"));
         assertTrue(source.contains("text.contains(\"unsatisfiableerror\")"));
         assertTrue(source.contains("text.contains(\"pip install\")"));
+        assertTrue(source.contains("text.contains(\"download\")"));
+        assertTrue(source.contains("text.contains(\"could not remove\")"));
+        assertTrue(source.contains("String body()"));
+        assertTrue(source.contains("What happened:"));
+        assertTrue(source.contains("Install log:"));
     }
 
     /**

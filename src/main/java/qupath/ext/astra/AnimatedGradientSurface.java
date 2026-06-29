@@ -19,6 +19,15 @@ import javafx.util.Duration;
  */
 final class AnimatedGradientSurface extends Pane {
 
+    static final String DIRECTION_PROPERTY = "astraGradientDirection";
+    static final String MODE_PROPERTY = "astraGradientMode";
+    static final String SPEED_PROPERTY = "astraGradientSpeed";
+
+    enum Direction {
+        HORIZONTAL,
+        VERTICAL
+    }
+
     private static final double DEFAULT_CYCLE_SECONDS = 16.0d;
     private static final double TEXTURE_SCALE = 3.0d;
     private static final double GRADIENT_SPAN_MULTIPLIER = 3.0d;
@@ -51,12 +60,14 @@ final class AnimatedGradientSurface extends Pane {
             AnimatedGradientHeader.HeaderMode.DYNAMIC;
     private AnimatedGradientHeader.MotionSpeed motionSpeed =
             AnimatedGradientHeader.MotionSpeed.SMOOTH;
-    private double stripLogicalWidth;
+    private Direction direction = Direction.HORIZONTAL;
+    private double stripLogicalLength;
 
     AnimatedGradientSurface() {
         getStyleClass().add("astra-animated-gradient-surface");
         setManaged(false);
         setMouseTransparent(true);
+        publishStateProperties();
         configureImageView(leadingStrip);
         configureImageView(trailingStrip);
         getChildren().addAll(leadingStrip, trailingStrip);
@@ -80,11 +91,13 @@ final class AnimatedGradientSurface extends Pane {
         headerMode = nextMode == null
                 ? AnimatedGradientHeader.HeaderMode.DYNAMIC
                 : nextMode;
+        publishStateProperties();
         if (headerMode == AnimatedGradientHeader.HeaderMode.DYNAMIC && getScene() != null) {
             startAnimation();
         } else {
             animation.stop();
             setTranslateX(0.0d);
+            setTranslateY(0.0d);
         }
     }
 
@@ -92,7 +105,19 @@ final class AnimatedGradientSurface extends Pane {
         motionSpeed = nextSpeed == null
                 ? AnimatedGradientHeader.MotionSpeed.SMOOTH
                 : nextSpeed;
+        publishStateProperties();
         startAnimationIfNeeded();
+    }
+
+    void setDirection(Direction nextDirection) {
+        Direction resolved = nextDirection == null ? Direction.HORIZONTAL : nextDirection;
+        if (direction == resolved) {
+            publishStateProperties();
+            return;
+        }
+        direction = resolved;
+        publishStateProperties();
+        rebuildGradientStrip();
     }
 
     private static void configureImageView(ImageView imageView) {
@@ -107,25 +132,36 @@ final class AnimatedGradientSurface extends Pane {
         double width = Math.max(1.0d, getWidth());
         double height = Math.max(1.0d, getHeight());
 
-        stripLogicalWidth = Math.max(width + 1.0d, width * GRADIENT_SPAN_MULTIPLIER);
-        WritableImage texture = createGradientTexture(stripLogicalWidth, height);
+        double axisLength = direction == Direction.VERTICAL ? height : width;
+        double crossLength = direction == Direction.VERTICAL ? width : height;
+        stripLogicalLength = Math.max(axisLength + 1.0d, axisLength * GRADIENT_SPAN_MULTIPLIER);
+        WritableImage texture = direction == Direction.VERTICAL
+                ? createGradientTexture(crossLength, stripLogicalLength, direction)
+                : createGradientTexture(stripLogicalLength, crossLength, direction);
 
-        configureStrip(leadingStrip, texture, 0.0d, height);
-        configureStrip(trailingStrip, texture, stripLogicalWidth, height);
+        configureStrip(leadingStrip, texture, 0.0d, width, height);
+        configureStrip(trailingStrip, texture, stripLogicalLength, width, height);
 
         animation.stop();
         setTranslateX(0.0d);
+        setTranslateY(0.0d);
         animation.setFromX(0.0d);
-        animation.setToX(-stripLogicalWidth);
+        animation.setFromY(0.0d);
+        animation.setToX(direction == Direction.HORIZONTAL ? -stripLogicalLength : 0.0d);
+        animation.setToY(direction == Direction.VERTICAL ? -stripLogicalLength : 0.0d);
         startAnimationIfNeeded();
     }
 
-    private void configureStrip(ImageView imageView, WritableImage texture, double layoutX, double height) {
+    private void configureStrip(ImageView imageView,
+                                WritableImage texture,
+                                double layoutAxisOffset,
+                                double width,
+                                double height) {
         imageView.setImage(texture);
-        imageView.setLayoutX(layoutX);
-        imageView.setLayoutY(0.0d);
-        imageView.setFitWidth(stripLogicalWidth);
-        imageView.setFitHeight(height);
+        imageView.setLayoutX(direction == Direction.HORIZONTAL ? layoutAxisOffset : 0.0d);
+        imageView.setLayoutY(direction == Direction.VERTICAL ? layoutAxisOffset : 0.0d);
+        imageView.setFitWidth(direction == Direction.HORIZONTAL ? stripLogicalLength : width);
+        imageView.setFitHeight(direction == Direction.VERTICAL ? stripLogicalLength : height);
     }
 
     private void startAnimationIfNeeded() {
@@ -137,33 +173,44 @@ final class AnimatedGradientSurface extends Pane {
     private void startAnimation() {
         animation.stop();
         setTranslateX(0.0d);
+        setTranslateY(0.0d);
         animation.setDuration(Duration.seconds(motionSpeed.cycleSeconds()));
         animation.playFromStart();
     }
 
-    private static WritableImage createGradientTexture(double logicalWidth, double logicalHeight) {
+    private void publishStateProperties() {
+        getProperties().put(DIRECTION_PROPERTY, direction.name());
+        getProperties().put(MODE_PROPERTY, headerMode.name());
+        getProperties().put(SPEED_PROPERTY, motionSpeed.name());
+    }
+
+    private static WritableImage createGradientTexture(double logicalWidth,
+                                                       double logicalHeight,
+                                                       Direction direction) {
         int pixelWidth = Math.max(2, (int) Math.ceil(logicalWidth * TEXTURE_SCALE));
         int pixelHeight = Math.max(2, Math.min(TEXTURE_MAX_PIXEL_HEIGHT,
                 (int) Math.ceil(logicalHeight * TEXTURE_SCALE)));
         WritableImage texture = new WritableImage(pixelWidth, pixelHeight);
 
-        double[] red = new double[pixelWidth];
-        double[] green = new double[pixelWidth];
-        double[] blue = new double[pixelWidth];
-        for (int x = 0; x < pixelWidth; x++) {
-            double position = x / (double) Math.max(1, pixelWidth - 1);
+        int axisPixels = direction == Direction.VERTICAL ? pixelHeight : pixelWidth;
+        double[] red = new double[axisPixels];
+        double[] green = new double[axisPixels];
+        double[] blue = new double[axisPixels];
+        for (int axis = 0; axis < axisPixels; axis++) {
+            double position = axis / (double) Math.max(1, axisPixels - 1);
             Color base = colorAt(position);
-            red[x] = overlay(base.getRed(), OVERLAY_COLOR.getRed());
-            green[x] = overlay(base.getGreen(), OVERLAY_COLOR.getGreen());
-            blue[x] = overlay(base.getBlue(), OVERLAY_COLOR.getBlue());
+            red[axis] = overlay(base.getRed(), OVERLAY_COLOR.getRed());
+            green[axis] = overlay(base.getGreen(), OVERLAY_COLOR.getGreen());
+            blue[axis] = overlay(base.getBlue(), OVERLAY_COLOR.getBlue());
         }
 
         int[] row = new int[pixelWidth];
         var writer = texture.getPixelWriter();
         for (int y = 0; y < pixelHeight; y++) {
             for (int x = 0; x < pixelWidth; x++) {
+                int axis = direction == Direction.VERTICAL ? y : x;
                 double dither = dither(x, y);
-                row[x] = argb(red[x] + dither, green[x] + dither, blue[x] + dither);
+                row[x] = argb(red[axis] + dither, green[axis] + dither, blue[axis] + dither);
             }
             writer.setPixels(0, y, pixelWidth, 1, ARGB_FORMAT, row, 0, pixelWidth);
         }

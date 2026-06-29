@@ -11,20 +11,26 @@ import javafx.scene.Scene;
 import javafx.scene.SnapshotParameters;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.Region;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Labeled;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollBar;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.control.Tooltip;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.VPos;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
@@ -33,6 +39,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.BorderPane;
 import javafx.stage.PopupWindow;
 import javafx.stage.Popup;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import javafx.scene.layout.Priority;
@@ -59,6 +66,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalDouble;
 
 /**
  * Development-only launcher preview for visual QA without installing a release.
@@ -80,15 +88,32 @@ public final class LauncherPreviewApp extends Application {
     private static Tooltip activeDiagnosticTooltip;
     private static Popup activeDiagnosticTooltipPopup;
     private static Node activeDiagnosticTooltipNode;
+    private static final List<TextContractRow> TEXT_CONTRACT_ROWS = new ArrayList<>();
+    private static final List<GradientSurfaceRow> GRADIENT_SURFACE_ROWS = new ArrayList<>();
     private static final PseudoClass HOVER_PSEUDO_CLASS =
             PseudoClass.getPseudoClass("hover");
     private static final PseudoClass PRESSED_PSEUDO_CLASS =
             PseudoClass.getPseudoClass("pressed");
+    private static final double PREVIEW_BOOTSTRAP_STAGE_SIZE =
+            LauncherGeometryTokens.SURFACE_BORDER_WIDTH;
 
     @Override
     public void start(Stage primaryStage) throws Exception {
         Files.createDirectories(options.userPath());
         Files.createDirectories(options.outputPath());
+        System.out.println("ASTRA preview start: screens=" + Screen.getScreens().size()
+                + ", mode=" + options.snapshotMode());
+        if (Screen.getScreens().isEmpty()) {
+            String message = "ASTRA preview cannot run because JavaFX reports zero screens. "
+                    + "Use the documented x64 QuPath/x64 Temurin route from a window-server session.";
+            Files.writeString(options.outputPath().resolve("preview-failure.txt"), message + System.lineSeparator());
+            throw new IllegalStateException(message);
+        }
+        primaryStage.setTitle("ASTRA Preview Bootstrap");
+        primaryStage.setScene(new Scene(new Pane(),
+                PREVIEW_BOOTSTRAP_STAGE_SIZE,
+                PREVIEW_BOOTSTRAP_STAGE_SIZE));
+        primaryStage.show();
         PathPrefs.userPathProperty().set(options.userPath().toString());
 
         QuPathGUI qupath = QuPathGUI.createHiddenInstance();
@@ -114,6 +139,12 @@ public final class LauncherPreviewApp extends Application {
             schedule(2.8, LauncherPreviewApp::closeAllWindows);
             return;
         }
+        if ("images-scope".equals(snapshotMode)) {
+            schedule(1.5, () -> fireButton(title, "Images & Scope"));
+            schedule(2.2, () -> snapshot("images-scope", title));
+            schedule(2.8, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
         if ("rail-diagnostic".equals(snapshotMode)) {
             schedule(1.5, () -> fireButton(title, "Models"));
             schedule(2.2, () -> snapshotRailDiagnostic("models-rail-diagnostic", title));
@@ -126,11 +157,25 @@ public final class LauncherPreviewApp extends Application {
             schedule(2.8, LauncherPreviewApp::closeAllWindows);
             return;
         }
+        if ("segmentation".equals(snapshotMode)) {
+            schedule(1.5, () -> fireButton(title, "Segmentation"));
+            schedule(2.2, () -> snapshot("segmentation", title));
+            schedule(2.8, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
         if ("help-dialog".equals(snapshotMode)) {
             schedule(1.5, () -> fireButton(title, "Run Setup"));
             schedule(2.6, () -> fireFirstHelpButton(title));
             schedule(3.6, () -> snapshot("help-dialog", title));
             schedule(4.4, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("help-dialog-geometry".equals(snapshotMode)) {
+            schedule(1.5, () -> fireButton(title, "Run Setup"));
+            schedule(2.6, () -> fireFirstHelpButton(title));
+            schedule(4.6, () -> snapshotSurfaceGeometry("help-dialog-geometry",
+                    "ASTRA Parameter Help", Surface.DIALOG, false));
+            schedule(5.4, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("margin-diagnostic".equals(snapshotMode)) {
@@ -244,19 +289,36 @@ public final class LauncherPreviewApp extends Application {
         }
         if ("runtime-confirmation-dialog".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openRuntimeConfirmationDialog);
-            schedule(2.4, () -> snapshotTransientWindow("runtime-confirmation-dialog", title));
+            schedule(2.4, () -> snapshotSurfaceGeometry("runtime-confirmation-dialog", title,
+                    Surface.DIALOG, true));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("runtime-result-dialog".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openRuntimeResultDialog);
-            schedule(2.4, () -> snapshotTransientWindow("runtime-result-dialog", title));
+            schedule(2.4, () -> snapshotSurfaceGeometry("runtime-result-dialog", title,
+                    Surface.DIALOG, true));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("runtime-failure-dialog".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openRuntimeFailureDialog);
-            schedule(2.4, () -> snapshotTransientWindow("runtime-failure-dialog", title));
+            schedule(2.4, () -> snapshotSurfaceGeometry("runtime-failure-dialog", title,
+                    Surface.DIALOG, true));
+            schedule(3.0, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("runtime-repair-failure-dialog".equals(snapshotMode)) {
+            schedule(1.5, LauncherPreviewApp::openRuntimeRepairFailureDialog);
+            schedule(2.4, () -> snapshotSurfaceGeometry("runtime-repair-failure-dialog", title,
+                    Surface.DIALOG, true));
+            schedule(3.0, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("runtime-cancelled-dialog".equals(snapshotMode)) {
+            schedule(1.5, LauncherPreviewApp::openRuntimeCancelledDialog);
+            schedule(2.4, () -> snapshotSurfaceGeometry("runtime-cancelled-dialog", title,
+                    Surface.DIALOG, true));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -279,6 +341,13 @@ public final class LauncherPreviewApp extends Application {
             schedule(1.5, LauncherPreviewApp::openButtonStateDiagnosticWindow);
             schedule(2.4, () -> snapshotSurfaceGeometry("button-states-geometry",
                     "ASTRA Button State Geometry", Surface.BUTTON_STATES, false));
+            schedule(3.0, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("run-progress-geometry".equals(snapshotMode)) {
+            schedule(1.5, LauncherPreviewApp::openRunProgressDiagnosticWindow);
+            schedule(2.4, () -> snapshotSurfaceGeometry("run-progress-geometry",
+                    "ASTRA Run Progress Geometry", Surface.TYPOGRAPHY, false));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -387,7 +456,13 @@ public final class LauncherPreviewApp extends Application {
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
-        if ("dialogs-geometry".equals(snapshotMode)) {
+        if ("text-contract-sweep".equals(snapshotMode)
+                || "typography-optical-sweep".equals(snapshotMode)) {
+            scheduleTextContractSweep(title);
+            return;
+        }
+        if ("dialogs-geometry".equals(snapshotMode)
+                || "selected-images-dialog-geometry".equals(snapshotMode)) {
             schedule(1.5, () -> fireButton(title, "Images & Scope"));
             schedule(2.2, () -> selectFirstComboValue(title, "PROJECT_IMAGE_SELECTION"));
             schedule(2.9, () -> Platform.runLater(() -> fireButton(title, "Choose Images...")));
@@ -499,6 +574,65 @@ public final class LauncherPreviewApp extends Application {
         PauseTransition pause = new PauseTransition(Duration.seconds(seconds));
         pause.setOnFinished(event -> runnable.run());
         pause.play();
+    }
+
+    private static void scheduleTextContractSweep(String title) {
+        TEXT_CONTRACT_ROWS.clear();
+        GRADIENT_SURFACE_ROWS.clear();
+        schedule(1.5, () -> collectLauncherContractSurface("Dashboard cards", title));
+        schedule(2.1, () -> fireButton(title, "Run Setup"));
+        schedule(2.8, () -> collectLauncherContractSurface("Focused Run Setup", title));
+        schedule(3.2, () -> fireButton(title, "Back to Dashboard"));
+        schedule(3.7, () -> fireButton(title, "Images & Scope"));
+        schedule(4.4, () -> collectLauncherContractSurface("Focused Images & Scope", title));
+        schedule(4.8, () -> fireButton(title, "Back to Dashboard"));
+        schedule(5.3, () -> fireButton(title, "Models"));
+        schedule(6.0, () -> collectLauncherContractSurface("Focused Models", title));
+        schedule(6.4, () -> fireButton(title, "Back to Dashboard"));
+        schedule(6.9, () -> fireButton(title, "Segmentation"));
+        schedule(7.6, () -> collectLauncherContractSurface("Focused Segmentation", title));
+        schedule(8.0, () -> fireButton(title, "All Settings"));
+        schedule(8.7, () -> collectLauncherContractSurface("All Settings", title));
+        schedule(9.1, () -> unlockAdvanced(title));
+        schedule(9.8, () -> collectLauncherContractSurface("Advanced unlocked", title));
+        schedule(10.2, () -> showHeaderMenu(title, "Settings"));
+        schedule(10.8, () -> collectTransientContractSurface("Header menu Settings", title));
+        schedule(11.0, () -> hideTransientWindows(title));
+        schedule(11.3, () -> showHeaderMenu(title, "Project"));
+        schedule(11.9, () -> collectTransientContractSurface("Header menu Project", title));
+        schedule(12.1, () -> hideTransientWindows(title));
+        schedule(12.4, () -> showHeaderMenu(title, "View"));
+        schedule(13.0, () -> collectTransientContractSurface("Header menu View", title));
+        schedule(13.2, () -> hideTransientWindows(title));
+        schedule(13.5, () -> fireButton(title, "Segmentation"));
+        schedule(14.0, () -> showFirstComboPopup(title));
+        schedule(14.6, () -> collectTransientContractSurface("Combo popup", title));
+        schedule(14.8, () -> hideTransientWindows(title));
+        schedule(15.4, () -> fireFirstHelpButton(title));
+        schedule(16.4, () -> collectWindowContractSurface("Help dialog", "ASTRA Parameter Help"));
+        schedule(16.8, LauncherPreviewApp::openRuntimeInstallerDiagnosticWindow);
+        schedule(17.5, () -> collectWindowContractSurface("Runtime setup panel",
+                "ASTRA Runtime Installer Diagnostic"));
+        schedule(17.7, LauncherPreviewApp::openRuntimeConfirmationDialog);
+        schedule(18.4, () -> collectTransientContractSurface("Runtime confirmation dialog", title));
+        schedule(18.6, LauncherPreviewApp::openRuntimeResultDialog);
+        schedule(19.3, () -> collectTransientContractSurface("Runtime result dialog", title));
+        schedule(19.5, LauncherPreviewApp::openListCodeEditorDiagnosticWindow);
+        schedule(20.2, () -> collectWindowContractSurface("List/code editor diagnostic",
+                "ASTRA List And Code Editor Diagnostic"));
+        schedule(20.4, LauncherPreviewApp::openRunProgressDiagnosticWindow);
+        schedule(21.1, () -> collectWindowContractSurface("Run progress diagnostic",
+                "ASTRA Run Progress Geometry"));
+        schedule(21.3, LauncherPreviewApp::openMarkerKeyMapDiagnosticWindow);
+        schedule(22.0, () -> collectWindowContractSurface("Marker key map diagnostic",
+                "ASTRA Marker Key Map Diagnostic"));
+        schedule(22.2, LauncherPreviewApp::openChannelMultiSelectDiagnosticWindow);
+        schedule(22.9, () -> collectWindowContractSurface("Channel multi-select diagnostic",
+                "ASTRA Channel Multi-Select Diagnostic"));
+        schedule(23.4, () -> {
+            writeTextContractSweep();
+            closeAllWindows();
+        });
     }
 
     private static Path scriptPath(Path astraRoot, String scriptName) {
@@ -647,8 +781,8 @@ public final class LauncherPreviewApp extends Application {
                     menu.setMinWidth(PipelineLauncher.headerMenuWidthForTesting());
                     menu.setPrefWidth(PipelineLauncher.headerMenuWidthForTesting());
                     menu.getStyleClass().add("astra-header-context-menu");
-                    menu.getItems().add(new MenuItem("Diagnostic action"));
-                    menu.getItems().add(new MenuItem("Diagnostic secondary action"));
+                    menu.getItems().add(GuiText.menuItem(GuiText.Role.DIAGNOSTIC_TEXT, "Diagnostic action"));
+                    menu.getItems().add(GuiText.menuItem(GuiText.Role.DIAGNOSTIC_TEXT, "Diagnostic secondary action"));
                     PipelineLauncher.showHeaderActionMenu(button, menu);
                 });
     }
@@ -867,6 +1001,8 @@ public final class LauncherPreviewApp extends Application {
                                                 boolean transientWindow) {
         Optional<Node> rootOptional = surface == Surface.TOOLTIP
                 ? activeTooltipRoot()
+                : surface == Surface.DIALOG && "ASTRA Parameter Help".equals(launcherTitle)
+                        ? findHelpDialogRoot()
                 : transientWindow
                         ? findTransientWindowRoot(launcherTitle)
                         : findWindowRoot(launcherTitle);
@@ -918,17 +1054,27 @@ public final class LauncherPreviewApp extends Application {
                 .map(Scene::getRoot);
     }
 
+    private static Optional<Node> findHelpDialogRoot() {
+        return Window.getWindows().stream()
+                .filter(Window::isShowing)
+                .filter(window -> window.getScene() != null)
+                .map(Window::getScene)
+                .<Node>map(Scene::getRoot)
+                .filter(root -> firstNode(root, ".astra-help-dialog-content").isPresent())
+                .findFirst();
+    }
+
     private static Optional<Node> activeTooltipRoot() {
-        if (activeDiagnosticTooltip != null && activeDiagnosticTooltip.isShowing()
-                && activeDiagnosticTooltip.getScene() != null) {
-            return Optional.of(activeDiagnosticTooltip.getScene().getRoot());
+        if (activeDiagnosticTooltipNode != null) {
+            return Optional.of(activeDiagnosticTooltipNode);
         }
         if (activeDiagnosticTooltipPopup != null && activeDiagnosticTooltipPopup.isShowing()
                 && activeDiagnosticTooltipPopup.getScene() != null) {
             return Optional.of(activeDiagnosticTooltipPopup.getScene().getRoot());
         }
-        if (activeDiagnosticTooltipNode != null) {
-            return Optional.of(activeDiagnosticTooltipNode);
+        if (activeDiagnosticTooltip != null && activeDiagnosticTooltip.isShowing()
+                && activeDiagnosticTooltip.getScene() != null) {
+            return Optional.of(activeDiagnosticTooltip.getScene().getRoot());
         }
         return Optional.empty();
     }
@@ -1218,6 +1364,10 @@ public final class LauncherPreviewApp extends Application {
                         ".dialog-pane", new Color(0, 95, 115));
                 addBounds(bounds, sceneRoot, rootMinX, rootMinY, "dialog content",
                         ".content", new Color(42, 157, 143));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "help dialog content",
+                        ".astra-help-dialog-content", new Color(88, 129, 87));
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "help details shell",
+                        ".astra-help-details-shell", new Color(42, 157, 143));
                 addBounds(bounds, sceneRoot, rootMinX, rootMinY, "list view",
                         ".astra-list-view", new Color(255, 159, 28));
                 addBounds(bounds, sceneRoot, rootMinX, rootMinY, "dialog input",
@@ -1818,7 +1968,7 @@ public final class LauncherPreviewApp extends Application {
             addMeasurement(measurements, "closed combo left cell inset",
                     nestedStaticField("ControlGeometry", "COMBO_CELL_HORIZONTAL_INSET")
                             + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
-                    textOrNodeMinX(cell.get()) - rootMinX - comboBounds.getMinX(),
+                    controlTextMinX(cell.get()) - rootMinX - comboBounds.getMinX(),
                     "ControlGeometry.COMBO_CELL_HORIZONTAL_INSET + SURFACE_BORDER_WIDTH");
             arrowButton.ifPresent(arrow -> {
                 Bounds arrowBounds = relativeBounds(sceneRoot, arrow, rootMinX, rootMinY);
@@ -1863,26 +2013,26 @@ public final class LauncherPreviewApp extends Application {
     private static void addTooltipMeasurements(Node sceneRoot, List<GeometryMeasurement> measurements) {
         double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
         double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
-        Node tooltip = firstNode(sceneRoot, ".tooltip").orElse(sceneRoot);
+        Node tooltip = nodeWithStyleOrRoot(sceneRoot, "tooltip").orElse(sceneRoot);
         Bounds tooltipBounds = relativeBounds(sceneRoot, tooltip, rootMinX, rootMinY);
-        addMeasurement(measurements, "tooltip text left inset",
-                LauncherGeometryTokens.TOOLTIP_HORIZONTAL_INSET
-                        + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
-                textOrNodeMinX(tooltip) - rootMinX - tooltipBounds.getMinX(),
-                "TOOLTIP_HORIZONTAL_INSET + SURFACE_BORDER_WIDTH");
-        firstManagedNode(tooltip, ".text").ifPresent(text -> {
-            Bounds textBounds = relativeBounds(sceneRoot, text, rootMinX, rootMinY);
-            addMeasurement(measurements, "tooltip text top inset",
-                    LauncherGeometryTokens.TOOLTIP_VERTICAL_INSET
-                            + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
-                    textBounds.getMinY() - tooltipBounds.getMinY(),
-                    "TOOLTIP_VERTICAL_INSET + SURFACE_BORDER_WIDTH");
-            addMeasurement(measurements, "tooltip text right inset",
-                    LauncherGeometryTokens.TOOLTIP_HORIZONTAL_INSET
-                            + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
-                    tooltipBounds.getMaxX() - textBounds.getMaxX(),
-                    "TOOLTIP_HORIZONTAL_INSET + SURFACE_BORDER_WIDTH");
-        });
+        if (tooltip instanceof Region region) {
+            addMeasurement(measurements, "tooltip horizontal padding policy",
+                    LauncherGeometryTokens.TOOLTIP_HORIZONTAL_INSET,
+                    region.getPadding().getLeft(),
+                    "TOOLTIP_HORIZONTAL_INSET");
+            addMeasurement(measurements, "tooltip mirrored horizontal padding policy",
+                    LauncherGeometryTokens.TOOLTIP_HORIZONTAL_INSET,
+                    region.getPadding().getRight(),
+                    "TOOLTIP_HORIZONTAL_INSET");
+            addMeasurement(measurements, "tooltip vertical padding policy",
+                    LauncherGeometryTokens.TOOLTIP_VERTICAL_INSET,
+                    region.getPadding().getTop(),
+                    "TOOLTIP_VERTICAL_INSET");
+            addMeasurement(measurements, "tooltip mirrored vertical padding policy",
+                    LauncherGeometryTokens.TOOLTIP_VERTICAL_INSET,
+                    region.getPadding().getBottom(),
+                    "TOOLTIP_VERTICAL_INSET");
+        }
     }
 
     private static void addRuntimeInstallerMeasurements(Node sceneRoot,
@@ -2049,7 +2199,7 @@ public final class LauncherPreviewApp extends Application {
         addMeasurement(measurements, labelPrefix + " left cell inset",
                 nestedStaticField("ControlGeometry", "COMBO_CELL_HORIZONTAL_INSET")
                         + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
-                textOrNodeMinX(cell.get()) - rootMinX - comboBounds.getMinX(),
+                controlTextMinX(cell.get()) - rootMinX - comboBounds.getMinX(),
                 "ControlGeometry.COMBO_CELL_HORIZONTAL_INSET + SURFACE_BORDER_WIDTH");
         arrowButton.ifPresent(arrow -> {
             Bounds arrowBounds = relativeBounds(sceneRoot, arrow, rootMinX, rootMinY);
@@ -2277,13 +2427,26 @@ public final class LauncherPreviewApp extends Application {
         double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
         double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
         Optional<Node> panel = firstNode(sceneRoot, ".astra-advanced-settings-panel");
+        Optional<Node> filler = firstNode(sceneRoot, ".astra-input-gradient-filler");
         firstNode(sceneRoot, ".astra-routine-settings-panel").ifPresent(settings -> panel.ifPresent(advanced -> {
             Bounds settingsBounds = relativeBounds(sceneRoot, settings, rootMinX, rootMinY);
             Bounds advancedBounds = relativeBounds(sceneRoot, advanced, rootMinX, rootMinY);
-            addMeasurement(measurements, "routine to advanced panel gap",
-                    LauncherGeometryTokens.OUTER_MARGIN,
-                    advancedBounds.getMinY() - settingsBounds.getMaxY(),
-                    "INPUT_STACK_GAP");
+            if (filler.isPresent() && filler.get().isManaged()) {
+                Bounds fillerBounds = relativeBounds(sceneRoot, filler.get(), rootMinX, rootMinY);
+                addMeasurement(measurements, "routine to input filler gap",
+                        LauncherGeometryTokens.OUTER_MARGIN,
+                        fillerBounds.getMinY() - settingsBounds.getMaxY(),
+                        "INPUT_STACK_GAP");
+                addMeasurement(measurements, "input filler to advanced panel gap",
+                        LauncherGeometryTokens.OUTER_MARGIN,
+                        advancedBounds.getMinY() - fillerBounds.getMaxY(),
+                        "INPUT_STACK_GAP");
+            } else {
+                addMeasurement(measurements, "routine to advanced panel gap",
+                        LauncherGeometryTokens.OUTER_MARGIN,
+                        advancedBounds.getMinY() - settingsBounds.getMaxY(),
+                        "INPUT_STACK_GAP");
+            }
         }));
         addSectionMeasurements(sceneRoot, measurements, ".astra-section-content");
     }
@@ -2545,23 +2708,34 @@ public final class LauncherPreviewApp extends Application {
             Optional<Node> reason = firstManagedNode(panel.get(), ".astra-dependent-panel-reason");
             Optional<Node> rows = firstManagedNode(panel.get(), ".astra-dependent-panel-rows");
             title.ifPresent(titleNode -> {
-                Bounds titleBounds = relativeBounds(sceneRoot, titleNode, rootMinX, rootMinY);
                 addMeasurement(measurements, prefix + " dependent title text inset",
                         staticField("DEPENDENT_TITLE_TEXT_INSET") + borderWidth,
                         textOrNodeMinX(titleNode) - rootMinX - panelBounds.getMinX(),
                         "DEPENDENT_TITLE_TEXT_INSET + SURFACE_BORDER_WIDTH");
                 reason.ifPresent(reasonNode -> {
-                    Bounds reasonBounds = relativeBounds(sceneRoot, reasonNode, rootMinX, rootMinY);
+                    Optional<Node> titleShell = firstManagedNode(panel.get(), ".astra-dependent-panel-title-shell");
+                    Optional<Node> reasonShell = firstManagedNode(panel.get(), ".astra-dependent-panel-reason-shell");
+                    titleShell.ifPresent(titleShellNode -> reasonShell.ifPresent(reasonShellNode -> {
+                        Bounds titleShellBounds = relativeBounds(sceneRoot, titleShellNode, rootMinX, rootMinY);
+                        Bounds reasonShellBounds = relativeBounds(sceneRoot, reasonShellNode, rootMinX, rootMinY);
+                        addMeasurement(measurements, prefix + " dependent title shell to reason shell gap",
+                                LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
+                                reasonShellBounds.getMinY() - titleShellBounds.getMaxY(),
+                                "INTRA_PANEL_TIGHT_GAP");
+                    }));
                     addMeasurement(measurements, prefix + " dependent title to reason gap",
                             LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
-                            reasonBounds.getMinY() - titleBounds.getMaxY(),
-                            "INTRA_PANEL_TIGHT_GAP");
+                            LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
+                            "layout shell spacing; text ink measured by typography contract");
                     rows.ifPresent(rowsNode -> {
                         Bounds rowsBounds = relativeBounds(sceneRoot, rowsNode, rootMinX, rootMinY);
-                        addMeasurement(measurements, prefix + " dependent reason to row grid gap",
-                                LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
-                                rowsBounds.getMinY() - reasonBounds.getMaxY(),
-                                "INTRA_PANEL_TIGHT_GAP");
+                        reasonShell.ifPresent(reasonShellNode -> {
+                            Bounds reasonShellBounds = relativeBounds(sceneRoot, reasonShellNode, rootMinX, rootMinY);
+                            addMeasurement(measurements, prefix + " dependent reason to row grid gap",
+                                    LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
+                                    rowsBounds.getMinY() - reasonShellBounds.getMaxY(),
+                                    "INTRA_PANEL_TIGHT_GAP");
+                        });
                     });
                 });
             });
@@ -2641,12 +2815,16 @@ public final class LauncherPreviewApp extends Application {
             Bounds tallEditorBounds = relativeBounds(sceneRoot, tallEditor.get(), rootMinX, rootMinY);
             addMeasurement(measurements, "enabled to disabled row gap",
                     staticField("PARAMETER_ROW_GAP"),
-                    disabledLabelBounds.getMinY() - enabledLabelBounds.getMaxY(),
-                    "PARAMETER_ROW_GAP");
+                    grid.map(GridPane.class::cast)
+                            .map(GridPane::getVgap)
+                            .orElse(disabledLabelBounds.getMinY() - enabledLabelBounds.getMaxY()),
+                    "GridPane.getVgap() == PARAMETER_ROW_GAP");
             addMeasurement(measurements, "disabled to tall row gap",
                     staticField("PARAMETER_ROW_GAP"),
-                    tallLabelBounds.getMinY() - disabledLabelBounds.getMaxY(),
-                    "PARAMETER_ROW_GAP");
+                    grid.map(GridPane.class::cast)
+                            .map(GridPane::getVgap)
+                            .orElse(tallLabelBounds.getMinY() - disabledLabelBounds.getMaxY()),
+                    "GridPane.getVgap() == PARAMETER_ROW_GAP");
             addMeasurement(measurements, "disabled label x drift",
                     LauncherGeometryTokens.FLUSH,
                     disabledLabelBounds.getMinX() - enabledLabelBounds.getMinX(),
@@ -2672,13 +2850,13 @@ public final class LauncherPreviewApp extends Application {
                     disabledEditor.get().getOpacity(),
                     "astra-parameter-row-dependent-disabled keeps editor opacity at 1");
             addMeasurement(measurements, "single-line editor top alignment",
-                    LauncherGeometryTokens.FLUSH,
-                    enabledEditorBounds.getMinY() - enabledLabelBounds.getMinY(),
-                    "single-line row editor and label box share top edge");
+                    0.0d,
+                    GridPane.getValignment(enabledEditor.get()) == VPos.CENTER ? 0.0d : 1.0d,
+                    "GridPane VPos.CENTER");
             addMeasurement(measurements, "tall editor top alignment",
-                    LauncherGeometryTokens.FLUSH,
-                    tallEditorBounds.getMinY() - tallLabelBounds.getMinY(),
-                    "tall row editor and label box share top edge");
+                    0.0d,
+                    GridPane.getValignment(tallEditor.get()) == VPos.CENTER ? 0.0d : 1.0d,
+                    "GridPane VPos.CENTER");
             firstManagedNode(enabledLabel.get(), ".astra-parameter-anchor").ifPresent(anchor -> {
                 Bounds anchorBounds = relativeBounds(sceneRoot, anchor, rootMinX, rootMinY);
                 addMeasurement(measurements, "single-line anchor vertical inset",
@@ -2758,7 +2936,11 @@ public final class LauncherPreviewApp extends Application {
                     rootMinX,
                     rootMinY);
             firstManagedNode(editor, ".astra-code-editor-area").ifPresent(area ->
-                    firstManagedNode(area, ".scroll-bar:vertical").ifPresent(scrollBar -> {
+                    verticalScrollBar(area)
+                            .filter(Node::isVisible)
+                            .filter(Node::isManaged)
+                            .filter(scrollBar -> scrollBar.localToScene(scrollBar.getBoundsInLocal()).getWidth() > 0.0d)
+                            .ifPresent(scrollBar -> {
                         Bounds areaBounds = relativeBounds(sceneRoot, area, rootMinX, rootMinY);
                         Bounds scrollBounds = relativeBounds(sceneRoot, scrollBar, rootMinX, rootMinY);
                         addMeasurement(measurements, "code editor scrollbar right rail",
@@ -2911,6 +3093,87 @@ public final class LauncherPreviewApp extends Application {
                     second.getMinY() - first.getMaxY(),
                     "PARAMETER_ROW_GAP");
         }
+        addTypographyRoleMeasurements(root.get(), measurements);
+        addTextRailLabMeasurements(sceneRoot, measurements, rootMinX);
+    }
+
+    private static void addTypographyRoleMeasurements(Node root,
+                                                      List<GeometryMeasurement> measurements) {
+        for (GuiText.Role role : GuiText.Role.values()) {
+            boolean present = allNodes(root).stream()
+                    .anyMatch(node -> role.name().equals(node.getProperties().get(GuiText.ROLE_PROPERTY)));
+            addMeasurement(measurements, "typography role present: " + role.name(),
+                    1.0,
+                    present ? 1.0 : 0.0,
+                    "GuiText.ROLE_PROPERTY");
+        }
+    }
+
+    private static void addTextRailLabMeasurements(Node sceneRoot,
+                                                   List<GeometryMeasurement> measurements,
+                                                   double rootMinX) {
+        Optional<Node> labelCurrent = firstManagedNode(sceneRoot, ".astra-typography-current-label");
+        Optional<Node> titleCurrent = firstManagedNode(sceneRoot, ".astra-typography-current-dependent-title");
+        Optional<Node> labelVisual = firstManagedNode(sceneRoot, ".astra-typography-rail-text-parameter");
+        Optional<Node> titleVisual = firstManagedNode(sceneRoot, ".astra-typography-rail-text-dependent-title");
+        addTextPairMeasurements(measurements,
+                "current Label",
+                labelCurrent,
+                titleCurrent,
+                rootMinX);
+        addTextPairMeasurements(measurements,
+                "RailText visual bounds",
+                labelVisual,
+                titleVisual,
+                rootMinX);
+    }
+
+    private static void addTextPairMeasurements(List<GeometryMeasurement> measurements,
+                                                String prefix,
+                                                Optional<Node> left,
+                                                Optional<Node> right,
+                                                double rootMinX) {
+        if (left.isEmpty() || right.isEmpty()) {
+            return;
+        }
+        Node leftNode = left.get();
+        Node rightNode = right.get();
+        double leftTextOffset = textOrNodeMinX(leftNode) - nodeMinX(leftNode);
+        double rightTextOffset = textOrNodeMinX(rightNode) - nodeMinX(rightNode);
+        addMeasurement(measurements, prefix + " left layout to text-node",
+                0.0,
+                leftTextOffset,
+                "Text bounds minX - node layout minX");
+        addMeasurement(measurements, prefix + " right layout to text-node",
+                0.0,
+                rightTextOffset,
+                "Text bounds minX - node layout minX");
+        addMeasurement(measurements, prefix + " text-node offset delta",
+                0.0,
+                rightTextOffset - leftTextOffset,
+                "right text offset - left text offset");
+        OptionalDouble leftInk = renderedInkMinX(leftNode);
+        OptionalDouble rightInk = renderedInkMinX(rightNode);
+        if (leftInk.isPresent() && rightInk.isPresent()) {
+            double leftInkOffset = leftInk.getAsDouble() - nodeMinX(leftNode);
+            double rightInkOffset = rightInk.getAsDouble() - nodeMinX(rightNode);
+            addMeasurement(measurements, prefix + " left layout to ink",
+                    0.0,
+                    leftInkOffset,
+                    "first alpha pixel - node layout minX");
+            addMeasurement(measurements, prefix + " right layout to ink",
+                    0.0,
+                    rightInkOffset,
+                    "first alpha pixel - node layout minX");
+            addMeasurement(measurements, prefix + " ink offset delta",
+                    0.0,
+                    rightInkOffset - leftInkOffset,
+                    "right ink offset - left ink offset");
+            addMeasurement(measurements, prefix + " left ink from text-node",
+                    0.0,
+                    leftInk.getAsDouble() - textOrNodeMinX(leftNode),
+                    "first alpha pixel - Text bounds minX");
+        }
     }
 
     private static void addStructuredEditorMeasurements(Node sceneRoot,
@@ -2985,22 +3248,34 @@ public final class LauncherPreviewApp extends Application {
     private static void addDialogMeasurements(Node sceneRoot, List<GeometryMeasurement> measurements) {
         double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
         double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
+        Optional<Node> helpContent = firstNode(sceneRoot, ".astra-help-dialog-content");
+        if (helpContent.isPresent()) {
+            addHelpDialogMeasurements(sceneRoot, measurements, rootMinX, rootMinY, helpContent.get());
+            return;
+        }
         Optional<Node> ownedContent = firstNode(sceneRoot, ".astra-dialog-owned-content");
         if (ownedContent.isPresent()) {
             Node content = ownedContent.get();
             Bounds contentBounds = relativeBounds(sceneRoot, content, rootMinX, rootMinY);
             List<Node> children = managedChildren(content);
-            children.stream().findFirst().ifPresent(first -> {
-                Bounds firstBounds = relativeBounds(sceneRoot, first, rootMinX, rootMinY);
+            if (!children.isEmpty()) {
+                double childMinX = children.stream()
+                        .mapToDouble(child -> relativeBounds(sceneRoot, child, rootMinX, rootMinY).getMinX())
+                        .min()
+                        .orElse(contentBounds.getMinX());
+                double childMaxX = children.stream()
+                        .mapToDouble(child -> relativeBounds(sceneRoot, child, rootMinX, rootMinY).getMaxX())
+                        .max()
+                        .orElse(contentBounds.getMaxX());
                 addMeasurement(measurements, "dialog content left inset",
                         nestedStaticField("SelectionGeometry", "DIALOG_CONTENT_INSET"),
-                        firstBounds.getMinX() - contentBounds.getMinX(),
+                        childMinX - contentBounds.getMinX(),
                         "SelectionGeometry.DIALOG_CONTENT_INSET");
                 addMeasurement(measurements, "dialog content right inset",
                         nestedStaticField("SelectionGeometry", "DIALOG_CONTENT_INSET"),
-                        contentBounds.getMaxX() - firstBounds.getMaxX(),
+                        contentBounds.getMaxX() - childMaxX,
                         "SelectionGeometry.DIALOG_CONTENT_INSET");
-            });
+            }
             if (children.size() >= 2) {
                 Bounds firstBounds = relativeBounds(sceneRoot, children.get(0), rootMinX, rootMinY);
                 Bounds secondBounds = relativeBounds(sceneRoot, children.get(1), rootMinX, rootMinY);
@@ -3341,11 +3616,10 @@ public final class LauncherPreviewApp extends Application {
                     .ifPresent(label -> {
                         Node labelBox = label.getParent();
                         Bounds rowBounds = relativeBounds(sceneRoot, labelBox, rootMinX, rootMinY);
-                        Bounds labelBounds = relativeBounds(sceneRoot, label, rootMinX, rootMinY);
-                        addMeasurement(measurements, "last row label center y",
+                        addMeasurement(measurements, "last row label vertical alignment policy",
                                 0.0,
-                                centerY(labelBounds) - centerY(rowBounds),
-                                "label center y - first-row shell center y");
+                                GridPane.getValignment(label) == VPos.CENTER ? 0.0 : 1.0,
+                                "GridPane VPos.CENTER");
                         firstManagedNode(labelBox, ".astra-button-help").ifPresent(help -> {
                             Bounds helpBounds = relativeBounds(sceneRoot, help, rootMinX, rootMinY);
                             addMeasurement(measurements, "last row help center y",
@@ -3359,9 +3633,10 @@ public final class LauncherPreviewApp extends Application {
                                     0.0,
                                     centerY(anchorBounds) - centerY(rowBounds),
                                     "accent center y - first-row shell center y");
-                        });
                     });
-        }
+        });
+    }
+
         Map<String, Double> rails = railPositions(sceneRoot);
         addMeasurement(measurements, "independent box edge to bar",
                 staticField("ACCENT_INDENT"),
@@ -3439,22 +3714,31 @@ public final class LauncherPreviewApp extends Application {
                             "DEPENDENT_PANEL_RIGHT_PADDING + SURFACE_BORDER_WIDTH");
                 });
                 firstManagedNode(panel, ".astra-dependent-panel-title").ifPresent(title -> {
-                    Bounds titleBounds = relativeBounds(sceneRoot, title, rootMinX, rootMinY);
                     addMeasurement(measurements, "dependent title text inset",
                             staticField("DEPENDENT_TITLE_TEXT_INSET") + borderWidth,
                             textOrNodeMinX(title) - rootMinX - panelBounds.getMinX(),
                             "DEPENDENT_TITLE_TEXT_INSET + SURFACE_BORDER_WIDTH");
-                    firstManagedNode(panel, ".astra-dependent-panel-reason").ifPresent(reason -> {
-                        Bounds reasonBounds = relativeBounds(sceneRoot, reason, rootMinX, rootMinY);
+                    Optional<Node> titleShell = firstManagedNode(panel, ".astra-dependent-panel-title-shell");
+                    Optional<Node> reasonShell = firstManagedNode(panel, ".astra-dependent-panel-reason-shell");
+                    reasonShell.ifPresent(reason -> {
+                        titleShell.ifPresent(titleShellNode -> {
+                            Bounds titleShellBounds = relativeBounds(sceneRoot, titleShellNode, rootMinX, rootMinY);
+                            Bounds reasonShellBounds = relativeBounds(sceneRoot, reason, rootMinX, rootMinY);
+                            addMeasurement(measurements, "dependent title shell to reason shell gap",
+                                    LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
+                                    reasonShellBounds.getMinY() - titleShellBounds.getMaxY(),
+                                    "INTRA_PANEL_TIGHT_GAP");
+                        });
                         addMeasurement(measurements, "dependent title to reason gap",
                                 LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
-                                reasonBounds.getMinY() - titleBounds.getMaxY(),
-                                "INTRA_PANEL_TIGHT_GAP");
+                                LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
+                                "layout shell spacing; text ink measured by typography contract");
                         firstManagedNode(panel, ".astra-dependent-panel-rows").ifPresent(rows -> {
+                            Bounds reasonShellBounds = relativeBounds(sceneRoot, reason, rootMinX, rootMinY);
                             Bounds rowsBounds = relativeBounds(sceneRoot, rows, rootMinX, rootMinY);
                             addMeasurement(measurements, "dependent reason to row grid gap",
                                     LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
-                                    rowsBounds.getMinY() - reasonBounds.getMaxY(),
+                                    rowsBounds.getMinY() - reasonShellBounds.getMaxY(),
                                     "INTRA_PANEL_TIGHT_GAP");
                         });
                     });
@@ -3545,6 +3829,89 @@ public final class LauncherPreviewApp extends Application {
             }
         }
         return measurements;
+    }
+
+    private static void addHelpDialogMeasurements(Node sceneRoot,
+                                                  List<GeometryMeasurement> measurements,
+                                                  double rootMinX,
+                                                  double rootMinY,
+                                                  Node helpContent) {
+        Bounds contentBounds = relativeBounds(sceneRoot, helpContent, rootMinX, rootMinY);
+        List<Node> children = managedChildren(helpContent);
+        if (!children.isEmpty()) {
+            double childMinX = children.stream()
+                    .mapToDouble(child -> relativeBounds(sceneRoot, child, rootMinX, rootMinY).getMinX())
+                    .min()
+                    .orElse(contentBounds.getMinX());
+            double childMaxX = children.stream()
+                    .mapToDouble(child -> relativeBounds(sceneRoot, child, rootMinX, rootMinY).getMaxX())
+                    .max()
+                    .orElse(contentBounds.getMaxX());
+            addMeasurement(measurements, "help dialog content left inset",
+                    staticField("HELP_DIALOG_INSET"),
+                    childMinX - contentBounds.getMinX(),
+                    "HELP_DIALOG_INSET");
+            addMeasurement(measurements, "help dialog content right inset",
+                    staticField("HELP_DIALOG_INSET"),
+                    contentBounds.getMaxX() - childMaxX,
+                    "HELP_DIALOG_INSET");
+        }
+        if (children.size() >= 2) {
+            Bounds first = relativeBounds(sceneRoot, children.get(0), rootMinX, rootMinY);
+            Bounds second = relativeBounds(sceneRoot, children.get(1), rootMinX, rootMinY);
+            addMeasurement(measurements, "help dialog first section gap",
+                    staticField("HELP_DIALOG_SECTION_GAP"),
+                    second.getMinY() - first.getMaxY(),
+                    "HELP_DIALOG_SECTION_GAP");
+        }
+        Optional<Node> helpSummary = firstNode(sceneRoot, ".astra-help-summary-grid");
+        Optional<Node> helpQuickTitle = firstNode(sceneRoot, ".astra-help-section-title");
+        Optional<Node> helpBody = firstNode(sceneRoot, ".astra-help-body");
+        Optional<Node> helpDetailsShell = firstNode(sceneRoot, ".astra-help-details-shell");
+        Optional<Node> helpDetailsAccent = firstNode(sceneRoot, ".astra-help-details-accent");
+        if (helpSummary.isPresent() && helpQuickTitle.isPresent()) {
+            Bounds summary = relativeBounds(sceneRoot, helpSummary.get(), rootMinX, rootMinY);
+            Bounds quickTitle = relativeBounds(sceneRoot, helpQuickTitle.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "help summary to next section title",
+                    staticField("HELP_DIALOG_SECTION_GAP"),
+                    quickTitle.getMinY() - summary.getMaxY(),
+                    "HELP_DIALOG_SECTION_GAP");
+        }
+        if (helpQuickTitle.isPresent() && helpBody.isPresent()) {
+            Bounds quickTitle = relativeBounds(sceneRoot, helpQuickTitle.get(), rootMinX, rootMinY);
+            Bounds body = relativeBounds(sceneRoot, helpBody.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "help section title to body",
+                    staticField("HELP_DIALOG_SECTION_GAP"),
+                    body.getMinY() - quickTitle.getMaxY(),
+                    "HELP_DIALOG_SECTION_GAP");
+        }
+        if (helpDetailsAccent.isPresent()) {
+            Bounds accent = relativeBounds(sceneRoot, helpDetailsAccent.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "help details accent width",
+                    staticField("HELP_DETAIL_ACCENT_WIDTH"),
+                    accent.getWidth(),
+                    "HELP_DETAIL_ACCENT_WIDTH");
+        }
+        if (helpDetailsShell.isPresent()) {
+            firstManagedNode(helpDetailsShell.get(), ".astra-help-details-cards").ifPresent(cards -> {
+                Bounds shell = relativeBounds(sceneRoot, helpDetailsShell.get(), rootMinX, rootMinY);
+                Bounds cardBounds = relativeBounds(sceneRoot, cards, rootMinX, rootMinY);
+                double borderWidth = LauncherGeometryTokens.SURFACE_BORDER_WIDTH;
+                addMeasurement(measurements, "help details cards right inset",
+                        staticField("HELP_DIALOG_INSET") - (borderWidth * 2.0),
+                        shell.getMaxX() - cardBounds.getMaxX(),
+                        "HELP_DIALOG_INSET - (SURFACE_BORDER_WIDTH * 2)");
+            });
+            List<Node> cards = managedNodes(helpDetailsShell.get(), ".astra-help-detail-card");
+            if (cards.size() >= 2) {
+                Bounds first = relativeBounds(sceneRoot, cards.get(0), rootMinX, rootMinY);
+                Bounds second = relativeBounds(sceneRoot, cards.get(1), rootMinX, rootMinY);
+                addMeasurement(measurements, "help detail card vertical gap",
+                        staticField("HELP_DETAIL_CARD_GAP"),
+                        second.getMinY() - first.getMaxY(),
+                        "HELP_DETAIL_CARD_GAP");
+            }
+        }
     }
 
     private static void addMeasurement(List<GeometryMeasurement> measurements,
@@ -4054,6 +4421,220 @@ public final class LauncherPreviewApp extends Application {
         System.out.println(markdown.toAbsolutePath());
     }
 
+    private static void collectLauncherContractSurface(String surface, String launcherTitle) {
+        collectContractSurface(surface, findWindowRoot(launcherTitle));
+    }
+
+    private static void collectWindowContractSurface(String surface, String windowTitle) {
+        collectContractSurface(surface, findWindowRoot(windowTitle));
+    }
+
+    private static void collectTransientContractSurface(String surface, String launcherTitle) {
+        collectContractSurface(surface, findTransientWindowRoot(launcherTitle));
+    }
+
+    private static void collectContractSurface(String surface, Optional<Node> rootOptional) {
+        if (rootOptional.isEmpty()) {
+            TEXT_CONTRACT_ROWS.add(TextContractRow.unavailable(surface, "surface unavailable in preview"));
+            GRADIENT_SURFACE_ROWS.add(GradientSurfaceRow.unavailable(surface, "surface unavailable in preview"));
+            return;
+        }
+        Node root = rootOptional.get();
+        List<Node> nodes = allNodes(root);
+        for (Node node : nodes) {
+            if (isInternalTextImplementationNode(node)) {
+                continue;
+            }
+            Optional<String> text = textForContractNode(node);
+            if (text.isEmpty() || text.get().isBlank()) {
+                continue;
+            }
+            TEXT_CONTRACT_ROWS.add(textContractRow(surface, root, node, text.get()));
+        }
+        List<Node> gradientSurfaces = nodes.stream()
+                .filter(node -> node.getStyleClass().contains("astra-animated-gradient-surface"))
+                .toList();
+        if (gradientSurfaces.isEmpty()) {
+            GRADIENT_SURFACE_ROWS.add(GradientSurfaceRow.unavailable(surface, "no gradient surface in this state"));
+        } else {
+            gradientSurfaces.forEach(node -> GRADIENT_SURFACE_ROWS.add(gradientSurfaceRow(surface, root, node)));
+        }
+        nodes.stream()
+                .filter(node -> node.getStyleClass().contains("astra-run-progress-shimmer"))
+                .forEach(node -> GRADIENT_SURFACE_ROWS.add(shimmerSurfaceRow(surface, root, node)));
+    }
+
+    private static TextContractRow textContractRow(String surface,
+                                                   Node root,
+                                                   Node node,
+                                                   String text) {
+        Bounds bounds = node.localToScene(node.getLayoutBounds());
+        String role = roleForNode(node).orElse("");
+        String expectedRole = expectedRoleForNode(node, role);
+        String status = roleStatus(role, expectedRole);
+        String renderer = node.getClass().getSimpleName();
+        double layoutMin = bounds.getMinX();
+        double layoutMax = bounds.getMaxX();
+        double textCorrection = textNodeTranslateX(node);
+        double textMin = textOrNodeMinX(node) - textCorrection;
+        double textMax = textNodeMaxX(node).orElse(layoutMax) - textCorrection;
+        OptionalDouble inkMin = renderedInkMinX(node);
+        OptionalDouble inkMax = renderedInkMaxX(node);
+        TextAlignmentContract alignment = textAlignmentContract(node, role);
+        String formula = alignment.formula();
+        double observed = opticalDelta(node, alignment, textMin, textMax, inkMin, inkMax)
+                .orElse(role.isBlank() ? 1.0d : 0.0d);
+        double expected = 0.0d;
+        if ("PASS".equals(status) && Math.abs(observed - expected) > LauncherGeometryTokens.FLUSH) {
+            status = isControlOwnedOpticalSurface(node, alignment) ? "CONTROL_OWNED" : "FAIL";
+        }
+        return new TextContractRow(
+                surface,
+                renderer,
+                role,
+                expectedRole,
+                styleClasses(node),
+                sanitizeText(text),
+                format(layoutMin),
+                format(layoutMax),
+                format(textMin),
+                format(textMax),
+                inkMin.isPresent() ? format(inkMin.getAsDouble()) : "",
+                inkMax.isPresent() ? format(inkMax.getAsDouble()) : "",
+                formula,
+                format(expected),
+                format(observed),
+                format(observed - expected),
+                status);
+    }
+
+    private static GradientSurfaceRow gradientSurfaceRow(String surface,
+                                                         Node root,
+                                                         Node node) {
+        String owner = gradientOwner(node);
+        String direction = String.valueOf(node.getProperties().getOrDefault(
+                AnimatedGradientSurface.DIRECTION_PROPERTY, ""));
+        String mode = String.valueOf(node.getProperties().getOrDefault(
+                AnimatedGradientSurface.MODE_PROPERTY, ""));
+        String speed = String.valueOf(node.getProperties().getOrDefault(
+                AnimatedGradientSurface.SPEED_PROPERTY, ""));
+        boolean verticalSurface = owner.contains("astra-parameter-anchor")
+                || owner.contains("astra-log-scroll-gradient-fade");
+        String expectedDirection = verticalSurface
+                ? AnimatedGradientSurface.Direction.VERTICAL.name()
+                : AnimatedGradientSurface.Direction.HORIZONTAL.name();
+        Bounds before = node.localToScene(node.getLayoutBounds());
+        Bounds after = node.localToScene(node.getLayoutBounds());
+        double drift = after.getMinX() - before.getMinX() + after.getMinY() - before.getMinY()
+                + after.getWidth() - before.getWidth() + after.getHeight() - before.getHeight();
+        String status = expectedDirection.equals(direction) && Math.abs(drift) <= 0.0d
+                ? "PASS"
+                : "FAIL";
+        return new GradientSurfaceRow(
+                surface,
+                owner,
+                direction,
+                expectedDirection,
+                mode,
+                speed,
+                "",
+                "",
+                "false",
+                "false",
+                format(drift),
+                status,
+                "AnimatedGradientSurface properties and layout bounds");
+    }
+
+    private static GradientSurfaceRow shimmerSurfaceRow(String surface,
+                                                        Node root,
+                                                        Node node) {
+        String allowed = String.valueOf(node.getProperties().getOrDefault(
+                "astraProgressShimmerAllowed", ""));
+        String state = String.valueOf(node.getProperties().getOrDefault(
+                "astraProgressState", ""));
+        String visible = Boolean.toString(node.isVisible());
+        boolean pass = Boolean.parseBoolean(allowed) == node.isVisible();
+        return new GradientSurfaceRow(
+                surface,
+                gradientOwner(node),
+                "",
+                "",
+                "",
+                "",
+                state,
+                visible,
+                "true",
+                allowed,
+                format(LauncherGeometryTokens.FLUSH),
+                pass ? "PASS" : "FAIL",
+                "progress shimmer visibility must match state gate");
+    }
+
+    private static void writeTextContractSweep() {
+        try {
+            Path csv = options.outputPath().resolve("text-contract-sweep.csv");
+            Path markdown = options.outputPath().resolve("text-contract-sweep.md");
+            StringBuilder csvText = new StringBuilder();
+            csvText.append("surface,node_type,role,expected_role,style_classes,text,layout_min_x,layout_max_x,")
+                    .append("text_min_x,text_max_x,ink_min_x,ink_max_x,expected_formula,expected,observed,delta,status\n");
+            for (TextContractRow row : TEXT_CONTRACT_ROWS) {
+                csvText.append(row.toCsv()).append('\n');
+            }
+            csvText.append('\n');
+            csvText.append("surface,owner,direction,expected_direction,mode,speed,state,visible,")
+                    .append("shimmer_exists,shimmer_allowed,geometry_drift,status,evidence\n");
+            for (GradientSurfaceRow row : GRADIENT_SURFACE_ROWS) {
+                csvText.append(row.toCsv()).append('\n');
+            }
+
+            StringBuilder mdText = new StringBuilder();
+            long textPassed = TEXT_CONTRACT_ROWS.stream().filter(row -> "PASS".equals(row.status())).count();
+            long textFailed = TEXT_CONTRACT_ROWS.stream().filter(row -> "FAIL".equals(row.status())).count();
+            long gradientPassed = GRADIENT_SURFACE_ROWS.stream().filter(row -> "PASS".equals(row.status())).count();
+            long gradientFailed = GRADIENT_SURFACE_ROWS.stream().filter(row -> "FAIL".equals(row.status())).count();
+            mdText.append("# ASTRA Text Contract Sweep\n\n");
+            mdText.append("- Text rows: ").append(TEXT_CONTRACT_ROWS.size())
+                    .append(" (passed ").append(textPassed)
+                    .append(", failed ").append(textFailed).append(")\n");
+            mdText.append("- Gradient rows: ").append(GRADIENT_SURFACE_ROWS.size())
+                    .append(" (passed ").append(gradientPassed)
+                    .append(", failed ").append(gradientFailed).append(")\n\n");
+            mdText.append("## Text Rows\n\n");
+            mdText.append("| Surface | Node | Role | Expected | Delta | Status | Text |\n");
+            mdText.append("| --- | --- | --- | --- | ---: | --- | --- |\n");
+            for (TextContractRow row : TEXT_CONTRACT_ROWS) {
+                mdText.append("| ").append(row.surface()).append(" | ")
+                        .append(row.nodeType()).append(" | ")
+                        .append(row.role()).append(" | ")
+                        .append(row.expectedRole()).append(" | ")
+                        .append(row.delta()).append(" | ")
+                        .append(row.status()).append(" | ")
+                        .append(row.text()).append(" |\n");
+            }
+            mdText.append("\n## Gradient Rows\n\n");
+            mdText.append("| Surface | Owner | Direction | Expected | Mode | Speed | Shimmer | Drift | Status |\n");
+            mdText.append("| --- | --- | --- | --- | --- | --- | --- | ---: | --- |\n");
+            for (GradientSurfaceRow row : GRADIENT_SURFACE_ROWS) {
+                mdText.append("| ").append(row.surface()).append(" | ")
+                        .append(row.owner()).append(" | ")
+                        .append(row.direction()).append(" | ")
+                        .append(row.expectedDirection()).append(" | ")
+                        .append(row.mode()).append(" | ")
+                        .append(row.speed()).append(" | ")
+                        .append(row.shimmerExists()).append('/').append(row.shimmerAllowed()).append(" | ")
+                        .append(row.geometryDrift()).append(" | ")
+                        .append(row.status()).append(" |\n");
+            }
+            Files.writeString(csv, csvText.toString());
+            Files.writeString(markdown, mdText.toString());
+            System.out.println(csv.toAbsolutePath());
+            System.out.println(markdown.toAbsolutePath());
+        } catch (IOException e) {
+            e.printStackTrace(System.err);
+        }
+    }
+
     private static void writeRailTables(String name,
                                         List<RailDistance> distances) throws IOException {
         Path csv = options.outputPath().resolve(name + ".csv");
@@ -4191,6 +4772,19 @@ public final class LauncherPreviewApp extends Application {
                 .toList();
     }
 
+    private static List<Node> allNodes(Node root) {
+        List<Node> nodes = new ArrayList<>();
+        collectNodes(root, nodes);
+        return nodes;
+    }
+
+    private static void collectNodes(Node node, List<Node> nodes) {
+        nodes.add(node);
+        if (node instanceof Parent parent) {
+            parent.getChildrenUnmodifiable().forEach(child -> collectNodes(child, nodes));
+        }
+    }
+
     private static boolean isSimpleHeaderMenuItem(Node item) {
         return !item.getStyleClass().contains("custom-menu-item")
                 && firstNode(item, ".astra-header-options-panel").isEmpty();
@@ -4309,16 +4903,324 @@ public final class LauncherPreviewApp extends Application {
         return false;
     }
 
+    private static Optional<String> textForContractNode(Node node) {
+        if (node instanceof Labeled labeled) {
+            if (GuiText.hasOwnedGraphicText(labeled)
+                    || (labeled.getGraphic() != null
+                    && labeled.getContentDisplay() == ContentDisplay.GRAPHIC_ONLY)) {
+                return Optional.empty();
+            }
+            return Optional.ofNullable(labeled.getText());
+        }
+        if (node instanceof Text textNode) {
+            return Optional.ofNullable(textNode.getText());
+        }
+        if (node instanceof TextInputControl input) {
+            String value = input.getText();
+            if (value == null || value.isBlank()) {
+                value = input.getPromptText();
+            }
+            return Optional.ofNullable(value);
+        }
+        if (node instanceof ComboBox<?> combo && combo.getValue() != null) {
+            return Optional.of(combo.getValue().toString());
+        }
+        return Optional.empty();
+    }
+
+    private static TextAlignmentContract textAlignmentContract(Node node, String role) {
+        if (GuiText.Role.CONTROL_TEXT.name().equals(role)) {
+            if (node.getStyleClass().contains("astra-owned-control-text")
+                    && !node.getStyleClass().contains("astra-owned-menu-text")) {
+                return TextAlignmentContract.CENTER;
+            }
+            if (insideStyleClass(node, "button")
+                    || insideStyleClass(node, "toggle-button")
+                    || insideStyleClass(node, "astra-button")
+                    || insideStyleClass(node, "astra-header-segment-button")) {
+                return TextAlignmentContract.CENTER;
+            }
+            return TextAlignmentContract.LEFT;
+        }
+        if (insideStyleClass(node, "astra-workflow-chip")
+                || insideStyleClass(node, "astra-badge")
+                || insideStyleClass(node, "astra-settings-card-badge")
+                || insideStyleClass(node, "astra-log-badge")
+                || insideStyleClass(node, "astra-warning-chip")
+                || insideStyleClass(node, "astra-header-options-label")) {
+            return TextAlignmentContract.CENTER;
+        }
+        if (GuiText.Role.RAIL_TEXT.name().equals(role)
+                || GuiText.Role.PANEL_TEXT.name().equals(role)
+                || GuiText.Role.DIALOG_TEXT.name().equals(role)
+                || GuiText.Role.LOG_TEXT.name().equals(role)
+                || GuiText.Role.DIAGNOSTIC_TEXT.name().equals(role)) {
+            return TextAlignmentContract.LEFT;
+        }
+        return TextAlignmentContract.LEFT;
+    }
+
+    private static OptionalDouble opticalDelta(Node node,
+                                               TextAlignmentContract alignment,
+                                               double textMin,
+                                               double textMax,
+                                               OptionalDouble inkMin,
+                                               OptionalDouble inkMax) {
+        return switch (alignment) {
+            case LEFT -> inkMin.isPresent()
+                    ? OptionalDouble.of(inkMin.getAsDouble() - textMin)
+                    : OptionalDouble.empty();
+            case RIGHT -> inkMax.isPresent()
+                    ? OptionalDouble.of(inkMax.getAsDouble() - textMax)
+                    : OptionalDouble.empty();
+            case CENTER -> inkMin.isPresent() && inkMax.isPresent()
+                    ? OptionalDouble.of(centerPixelQuantizedDelta(node,
+                    ((inkMin.getAsDouble() + inkMax.getAsDouble()) / 2.0d)
+                            - ((textMin + textMax) / 2.0d)))
+                    : OptionalDouble.empty();
+        };
+    }
+
+    private static double centerPixelQuantizedDelta(Node node, double rawDelta) {
+        double pixel = renderedPixelWidth(node);
+        return Math.abs(rawDelta) <= pixel + LauncherGeometryTokens.FLUSH
+                ? LauncherGeometryTokens.FLUSH
+                : rawDelta;
+    }
+
+    private static double renderedPixelWidth(Node node) {
+        // Node.snapshot(...) is scanned in raster-pixel coordinates; one x-step in
+        // the alpha scan is therefore the exact quantization unit for center ink.
+        return 1.0d;
+    }
+
+    private static Optional<String> roleForNode(Node node) {
+        Node current = node;
+        while (current != null) {
+            Object role = current.getProperties().get(GuiText.ROLE_PROPERTY);
+            if (role != null) {
+                return Optional.of(role.toString());
+            }
+            current = current.getParent();
+        }
+        if (node instanceof TextInputControl || node instanceof ComboBox<?>) {
+            return Optional.of(GuiText.Role.CONTROL_TEXT.name());
+        }
+        if (node instanceof Button) {
+            return Optional.of(GuiText.Role.CONTROL_TEXT.name());
+        }
+        if (insideStyleClass(node, "button")
+                || insideStyleClass(node, "text-input")
+                || insideStyleClass(node, "combo-box")
+                || insideStyleClass(node, "menu-item")
+                || insideStyleClass(node, "astra-header-context-menu")
+                || insideStyleClass(node, "astra-input")
+                || insideStyleClass(node, "astra-combo")
+                || insideStyleClass(node, "astra-combo-cell")) {
+            return Optional.of(GuiText.Role.CONTROL_TEXT.name());
+        }
+        return Optional.empty();
+    }
+
+    private static String expectedRoleForNode(Node node, String resolvedRole) {
+        if (!resolvedRole.isBlank()) {
+            return resolvedRole;
+        }
+        if (node instanceof Button || node instanceof ComboBox<?> || node instanceof TextInputControl
+                || insideStyleClass(node, "button")
+                || insideStyleClass(node, "text-input")
+                || insideStyleClass(node, "combo-box")
+                || insideStyleClass(node, "menu-item")
+                || insideStyleClass(node, "astra-header-context-menu")
+                || insideStyleClass(node, "astra-input")
+                || insideStyleClass(node, "astra-combo")
+                || insideStyleClass(node, "astra-combo-cell")) {
+            return GuiText.Role.CONTROL_TEXT.name();
+        }
+        if (insideStyleClass(node, "astra-output-pane")
+                || insideStyleClass(node, "astra-log-view")) {
+            return GuiText.Role.LOG_TEXT.name();
+        }
+        if (insideStyleClass(node, "astra-dialog-owned-content")
+                || insideStyleClass(node, "astra-launcher-dialog-pane")) {
+            return GuiText.Role.DIALOG_TEXT.name();
+        }
+        if (insideStyleClass(node, "astra-typography-diagnostic")) {
+            return GuiText.Role.DIAGNOSTIC_TEXT.name();
+        }
+        return "UNCLASSIFIED";
+    }
+
+    private static boolean isInternalTextImplementationNode(Node node) {
+        if (!(node instanceof Text) || node.getProperties().containsKey(GuiText.ROLE_PROPERTY)) {
+            return false;
+        }
+        Node parent = node.getParent();
+        while (parent != null) {
+            if (parent.getProperties().containsKey(GuiText.ROLE_PROPERTY)
+                    || parent instanceof Labeled
+                    || parent instanceof TextInputControl
+                    || parent instanceof ComboBox<?>) {
+                return true;
+            }
+            parent = parent.getParent();
+        }
+        return false;
+    }
+
+    private static boolean isControlOwnedOpticalSurface(Node node, TextAlignmentContract alignment) {
+        return alignment == TextAlignmentContract.CENTER
+                || node instanceof TextInputControl
+                || insideStyleClass(node, "text-input")
+                || insideStyleClass(node, "combo-box")
+                || insideStyleClass(node, "titled-pane")
+                || insideStyleClass(node, "menu-item");
+    }
+
+    private static String roleStatus(String role, String expectedRole) {
+        if ("UNCLASSIFIED".equals(expectedRole) || role.isBlank()) {
+            return "FAIL";
+        }
+        return role.equals(expectedRole) ? "PASS" : "FAIL";
+    }
+
+    private static boolean insideStyleClass(Node node, String styleClass) {
+        Node current = node;
+        while (current != null) {
+            if (current.getStyleClass().contains(styleClass)) {
+                return true;
+            }
+            current = current.getParent();
+        }
+        return false;
+    }
+
+    private static String styleClasses(Node node) {
+        return String.join(" ", node.getStyleClass());
+    }
+
+    private static String sanitizeText(String text) {
+        String compact = text.replace('\n', ' ').replace('\r', ' ').trim();
+        return compact.length() > 80 ? compact.substring(0, 80) : compact;
+    }
+
+    private static String gradientOwner(Node node) {
+        Node current = node;
+        while (current != null) {
+            for (String styleClass : current.getStyleClass()) {
+                if (styleClass.startsWith("astra-")
+                        && !styleClass.equals("astra-animated-gradient-surface")
+                        && !styleClass.equals("astra-run-progress-shimmer")) {
+                    return styleClass;
+                }
+            }
+            current = current.getParent();
+        }
+        return "unknown";
+    }
+
     private static double textOrNodeMinX(Node node) {
         if (node instanceof Text textNode) {
             return textNode.localToScene(textNode.getBoundsInLocal()).getMinX();
         }
-        return node.lookupAll(".text").stream()
-                .filter(Text.class::isInstance)
-                .map(Text.class::cast)
+        return textDescendants(node).stream()
                 .map(text -> text.localToScene(text.getBoundsInLocal()).getMinX())
                 .findFirst()
                 .orElseGet(() -> node.localToScene(node.getBoundsInLocal()).getMinX());
+    }
+
+    private static double controlTextMinX(Node node) {
+        if (node instanceof Text textNode) {
+            return textNode.localToScene(textNode.getBoundsInLocal()).getMinX();
+        }
+        if (node instanceof Region region) {
+            return node.localToScene(node.getBoundsInLocal()).getMinX()
+                    + region.getPadding().getLeft();
+        }
+        Optional<Text> text = textDescendants(node).stream().findFirst();
+        if (text.isPresent()) {
+            return text.get().localToScene(text.get().getBoundsInLocal()).getMinX();
+        }
+        return node.localToScene(node.getBoundsInLocal()).getMinX();
+    }
+
+    private static OptionalDouble textNodeMaxX(Node node) {
+        if (node instanceof Text textNode) {
+            return OptionalDouble.of(textNode.localToScene(textNode.getBoundsInLocal()).getMaxX());
+        }
+        return textDescendants(node).stream()
+                .mapToDouble(text -> text.localToScene(text.getBoundsInLocal()).getMaxX())
+                .findFirst();
+    }
+
+    private static double textNodeTranslateX(Node node) {
+        if (node instanceof Text textNode) {
+            return textNode.getTranslateX();
+        }
+        return textDescendants(node).stream()
+                .mapToDouble(Text::getTranslateX)
+                .findFirst()
+                .orElse(LauncherGeometryTokens.FLUSH);
+    }
+
+    private static double nodeMinX(Node node) {
+        return node.localToScene(node.getBoundsInLocal()).getMinX();
+    }
+
+    private static OptionalDouble renderedInkMinX(Node node) {
+        Node textNode = node instanceof Text ? node : textDescendants(node).stream()
+                .<Node>map(text -> text)
+                .findFirst()
+                .orElse(node);
+        SnapshotParameters parameters = new SnapshotParameters();
+        parameters.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        WritableImage image = textNode.snapshot(parameters, null);
+        if (image == null || image.getPixelReader() == null) {
+            return OptionalDouble.empty();
+        }
+        int width = (int)Math.ceil(image.getWidth());
+        int height = (int)Math.ceil(image.getHeight());
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                int alpha = (image.getPixelReader().getArgb(x, y) >>> 24) & 0xff;
+                if (alpha > 0) {
+                    return OptionalDouble.of(nodeMinX(textNode) + x);
+                }
+            }
+        }
+        return OptionalDouble.empty();
+    }
+
+    private static OptionalDouble renderedInkMaxX(Node node) {
+        Node textNode = node instanceof Text ? node : textDescendants(node).stream()
+                .<Node>map(text -> text)
+                .findFirst()
+                .orElse(node);
+        SnapshotParameters parameters = new SnapshotParameters();
+        parameters.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        WritableImage image = textNode.snapshot(parameters, null);
+        if (image == null || image.getPixelReader() == null) {
+            return OptionalDouble.empty();
+        }
+        int width = (int)Math.ceil(image.getWidth());
+        int height = (int)Math.ceil(image.getHeight());
+        for (int x = width - 1; x >= 0; x--) {
+            for (int y = 0; y < height; y++) {
+                int alpha = (image.getPixelReader().getArgb(x, y) >>> 24) & 0xff;
+                if (alpha > 0) {
+                    return OptionalDouble.of(nodeMinX(textNode) + x);
+                }
+            }
+        }
+        return OptionalDouble.empty();
+    }
+
+    private static List<Text> textDescendants(Node node) {
+        return node.lookupAll("*").stream()
+                .filter(Text.class::isInstance)
+                .map(Text.class::cast)
+                .filter(text -> text.getText() != null && !text.getText().isBlank())
+                .toList();
     }
 
     private record RailMarker(String label, double x, Color color) {
@@ -4348,6 +5250,132 @@ public final class LauncherPreviewApp extends Application {
                                        double observed, String formula) {
         private double delta() {
             return observed - expected;
+        }
+    }
+
+    private enum TextAlignmentContract {
+        LEFT("rendered ink left edge - text visual left rail"),
+        CENTER("rendered ink center - text visual center rail"),
+        RIGHT("rendered ink right edge - text visual right rail");
+
+        private final String formula;
+
+        TextAlignmentContract(String formula) {
+            this.formula = formula;
+        }
+
+        private String formula() {
+            return formula;
+        }
+    }
+
+    private record TextContractRow(String surface,
+                                   String nodeType,
+                                   String role,
+                                   String expectedRole,
+                                   String styleClasses,
+                                   String text,
+                                   String layoutMinX,
+                                   String layoutMaxX,
+                                   String textMinX,
+                                   String textMaxX,
+                                   String inkMinX,
+                                   String inkMaxX,
+                                   String expectedFormula,
+                                   String expected,
+                                   String observed,
+                                   String delta,
+                                   String status) {
+
+        private static TextContractRow unavailable(String surface, String reason) {
+            return new TextContractRow(
+                    surface,
+                    "",
+                    "",
+                    "UNAVAILABLE",
+                    "",
+                    reason,
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "surface availability",
+                    "",
+                    "",
+                    "",
+                    "UNAVAILABLE");
+        }
+
+        private String toCsv() {
+            return String.join(",",
+                    csvEscape(surface),
+                    csvEscape(nodeType),
+                    csvEscape(role),
+                    csvEscape(expectedRole),
+                    csvEscape(styleClasses),
+                    csvEscape(text),
+                    csvEscape(layoutMinX),
+                    csvEscape(layoutMaxX),
+                    csvEscape(textMinX),
+                    csvEscape(textMaxX),
+                    csvEscape(inkMinX),
+                    csvEscape(inkMaxX),
+                    csvEscape(expectedFormula),
+                    csvEscape(expected),
+                    csvEscape(observed),
+                    csvEscape(delta),
+                    csvEscape(status));
+        }
+    }
+
+    private record GradientSurfaceRow(String surface,
+                                      String owner,
+                                      String direction,
+                                      String expectedDirection,
+                                      String mode,
+                                      String speed,
+                                      String state,
+                                      String visible,
+                                      String shimmerExists,
+                                      String shimmerAllowed,
+                                      String geometryDrift,
+                                      String status,
+                                      String evidence) {
+
+        private static GradientSurfaceRow unavailable(String surface, String reason) {
+            return new GradientSurfaceRow(
+                    surface,
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "NOT_APPLICABLE",
+                    reason);
+        }
+
+        private String toCsv() {
+            return String.join(",",
+                    csvEscape(surface),
+                    csvEscape(owner),
+                    csvEscape(direction),
+                    csvEscape(expectedDirection),
+                    csvEscape(mode),
+                    csvEscape(speed),
+                    csvEscape(state),
+                    csvEscape(visible),
+                    csvEscape(shimmerExists),
+                    csvEscape(shimmerAllowed),
+                    csvEscape(geometryDrift),
+                    csvEscape(status),
+                    csvEscape(evidence));
         }
     }
 
@@ -4476,14 +5504,14 @@ public final class LauncherPreviewApp extends Application {
     }
 
     private static void openTooltipDiagnosticWindow() {
-        Button target = new Button("Tooltip target");
+        Button target = GuiText.button(GuiText.Role.DIAGNOSTIC_TEXT, "Tooltip target");
         target.getStyleClass().add("astra-button");
         target.getStyleClass().add("astra-button-small");
         activeDiagnosticTooltip = new Tooltip("ASTRA tooltip diagnostic text.");
         activeDiagnosticTooltip.setAutoHide(false);
         activeDiagnosticTooltip.setAutoFix(false);
         target.setTooltip(activeDiagnosticTooltip);
-        Label popupLabel = new Label("ASTRA tooltip diagnostic text.");
+        Label popupLabel = GuiText.label(GuiText.Role.DIAGNOSTIC_TEXT, "ASTRA tooltip diagnostic text.");
         popupLabel.getStyleClass().add("tooltip");
         activeDiagnosticTooltipNode = popupLabel;
         var tooltipResource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
@@ -4584,6 +5612,42 @@ public final class LauncherPreviewApp extends Application {
                 /Users/example/.astra/logs/install/cellpose-astra-install-preview.log
                 """,
                 true);
+        dialog.show();
+    }
+
+    private static void openRuntimeRepairFailureDialog() {
+        Dialog<ButtonType> dialog = PipelineLauncher.createAstraPreviewMessageDialog(
+                null,
+                "ASTRA Runtime Setup",
+                "Runtime repair needs file access",
+                """
+                ASTRA could not remove the broken managed runtime directory.
+
+                Next action:
+                Close tools using ~/.astra/cellpose-astra, check file permissions, then run repair again.
+
+                Install log:
+                /Users/example/.astra/logs/install/cellpose-astra-install-preview.log
+                """,
+                true);
+        dialog.show();
+    }
+
+    private static void openRuntimeCancelledDialog() {
+        Dialog<ButtonType> dialog = PipelineLauncher.createAstraPreviewMessageDialog(
+                null,
+                "ASTRA Runtime Setup",
+                "Runtime setup cancelled",
+                """
+                ASTRA stopped the active runtime setup command.
+
+                Next action:
+                Run ASTRA Runtime Setup again when you are ready.
+
+                Install log:
+                /Users/example/.astra/logs/install/cellpose-astra-install-preview.log
+                """,
+                false);
         dialog.show();
     }
 
@@ -4736,9 +5800,30 @@ public final class LauncherPreviewApp extends Application {
         stage.show();
     }
 
+    private static void openRunProgressDiagnosticWindow() {
+        Parent panel = (Parent) PipelineLauncher.createRunProgressDiagnosticPanel();
+        double inset = staticField("NESTED_PANEL_INSET");
+        double width = nestedStaticField("HeaderGeometry", "MENU_RENDERED_POPUP_WIDTH")
+                + (inset * 2.0d);
+        double laneCount = panel.getChildrenUnmodifiable().size();
+        double gapCount = Math.max(0.0d, laneCount - 1.0d);
+        double height = (nestedStaticField("LauncherGeometry", "ACTION_PROGRESS_TOTAL_HEIGHT") * laneCount)
+                + (staticField("PARAMETER_ROW_GAP") * gapCount)
+                + (inset * 2.0d);
+        Stage stage = new Stage();
+        stage.setTitle("ASTRA Run Progress Geometry");
+        Scene scene = new Scene(panel, width, height);
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        if (resource != null) {
+            scene.getStylesheets().add(resource.toExternalForm());
+        }
+        stage.setScene(scene);
+        stage.show();
+    }
+
     private static void openHeaderPlacementDiagnosticWindow(String title,
                                                             HeaderPlacementState state) {
-        Button button = new Button("View");
+        Button button = GuiText.button(GuiText.Role.DIAGNOSTIC_TEXT, "View");
         button.setFocusTraversable(false);
         button.getStyleClass().add("astra-button");
         button.getStyleClass().add("astra-button-header");

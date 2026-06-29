@@ -1454,12 +1454,12 @@ final class RuntimeInstaller {
          */
         static InstallProgress show() {
             Stage stage = new Stage();
-            Label phase = new Label("Preparing runtime setup");
-            Label detail = new Label("ASTRA is preparing the managed Cellpose runtime workflow.");
-            Label elapsed = new Label("Elapsed 0s");
-            Label stepList = new Label("Steps: validate managed runtime -> repair if needed -> install pinned packages -> validate final runtime -> register with QuPath.");
-            Label resultTitle = new Label("Runtime setup pending");
-            Label resultBody = new Label("Validation, repair, installation, and registration messages will appear here.");
+            Label phase = GuiText.label(GuiText.Role.DIALOG_TEXT, "Preparing runtime setup");
+            Label detail = GuiText.label(GuiText.Role.DIALOG_TEXT, "ASTRA is preparing the managed Cellpose runtime workflow.");
+            Label elapsed = GuiText.label(GuiText.Role.DIALOG_TEXT, "Elapsed 0s");
+            Label stepList = GuiText.label(GuiText.Role.DIALOG_TEXT, "Steps: validate managed runtime -> repair if needed -> install pinned packages -> validate final runtime -> register with QuPath.");
+            Label resultTitle = GuiText.label(GuiText.Role.DIALOG_TEXT, "Runtime setup pending");
+            Label resultBody = GuiText.label(GuiText.Role.DIALOG_TEXT, "Validation, repair, installation, and registration messages will appear here.");
             ProgressBar progressBar = new ProgressBar();
             progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
             progressBar.setMinHeight(InstallerGeometry.PROGRESS_BAR_HEIGHT);
@@ -1467,9 +1467,12 @@ final class RuntimeInstaller {
             TextArea log = new TextArea();
             log.setEditable(false);
             log.setWrapText(false);
-            Button cancel = new Button("Cancel");
-            Button copyLog = new Button("Copy log");
+            Button cancel = GuiText.button(GuiText.Role.CONTROL_TEXT, "Cancel");
+            Button copyLog = GuiText.button(GuiText.Role.CONTROL_TEXT, "Copy log");
             TitledPane logPane = new TitledPane("Technical install log", log);
+            GuiText.mark(logPane, GuiText.Role.DIALOG_TEXT);
+            GuiText.adoptDialogText(logPane);
+            GuiText.adoptEditableText(log);
             logPane.setExpanded(false);
             InstallProgress progress = new InstallProgress(stage, phase, detail, elapsed, resultTitle, resultBody, progressBar, cancel, log);
             cancel.setOnAction(event -> {
@@ -1613,22 +1616,25 @@ final class RuntimeInstaller {
     }
 
     static VBox createInstallProgressRootForTesting() {
-        Label phase = new Label("Preparing runtime setup");
-        Label detail = new Label("ASTRA is preparing the managed Cellpose runtime workflow.");
-        Label elapsed = new Label("Elapsed 0s");
-        Label stepList = new Label("Steps: validate managed runtime -> repair if needed -> install pinned packages -> validate final runtime -> register with QuPath.");
-        Label resultTitle = new Label("Runtime setup pending");
-        Label resultBody = new Label("Validation, repair, installation, and registration messages will appear here.");
+        Label phase = GuiText.label(GuiText.Role.DIALOG_TEXT, "Preparing runtime setup");
+        Label detail = GuiText.label(GuiText.Role.DIALOG_TEXT, "ASTRA is preparing the managed Cellpose runtime workflow.");
+        Label elapsed = GuiText.label(GuiText.Role.DIALOG_TEXT, "Elapsed 0s");
+        Label stepList = GuiText.label(GuiText.Role.DIALOG_TEXT, "Steps: validate managed runtime -> repair if needed -> install pinned packages -> validate final runtime -> register with QuPath.");
+        Label resultTitle = GuiText.label(GuiText.Role.DIALOG_TEXT, "Runtime setup pending");
+        Label resultBody = GuiText.label(GuiText.Role.DIALOG_TEXT, "Validation, repair, installation, and registration messages will appear here.");
         ProgressBar progressBar = new ProgressBar();
         progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
         progressBar.setMinHeight(InstallerGeometry.PROGRESS_BAR_HEIGHT);
         progressBar.setPrefHeight(InstallerGeometry.PROGRESS_BAR_HEIGHT);
-        Button cancel = new Button("Cancel");
-        Button copyLog = new Button("Copy log");
+        Button cancel = GuiText.button(GuiText.Role.CONTROL_TEXT, "Cancel");
+        Button copyLog = GuiText.button(GuiText.Role.CONTROL_TEXT, "Copy log");
         TextArea log = new TextArea("Runtime installer diagnostic log.\nWaiting for commands...");
         log.setEditable(false);
         log.setWrapText(false);
         TitledPane logPane = new TitledPane("Technical install log", log);
+        GuiText.mark(logPane, GuiText.Role.DIALOG_TEXT);
+        GuiText.adoptDialogText(logPane);
+        GuiText.adoptEditableText(log);
         return createInstallProgressRoot(phase, detail, elapsed, stepList, resultTitle, resultBody,
                 progressBar, cancel, copyLog, logPane, log);
     }
@@ -1689,6 +1695,8 @@ final class RuntimeInstaller {
         copyLog.getStyleClass().add("astra-runtime-installer-copy");
         log.getStyleClass().add("astra-runtime-installer-log");
         logPane.getStyleClass().add("astra-runtime-installer-log-pane");
+        GuiText.adoptDialogText(logPane);
+        GuiText.adoptEditableText(log);
 
         VBox titleBlock = new VBox(InstallerGeometry.STATUS_CARD_GAP, phase, detail);
         titleBlock.getStyleClass().add("astra-runtime-installer-title-block");

@@ -24,6 +24,10 @@ final class LauncherGeometryTokens {
             ACTION_PROGRESS_TEXT_HEIGHT
                     + ACTION_PROGRESS_TEXT_TO_BAR_GAP
                     + ACTION_PROGRESS_HEIGHT;
+    static final double ACTION_PROGRESS_SHIMMER_WIDTH_DIVISOR =
+            LAYOUT_UNIT / INTRA_PANEL_SUBTLE_GAP;
+    static final double ACTION_PROGRESS_SHIMMER_SPEED_DIVISOR =
+            LAYOUT_UNIT / INTRA_PANEL_TIGHT_GAP;
 
     private LauncherGeometryTokens() {
     }
