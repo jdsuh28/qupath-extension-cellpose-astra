@@ -2,9 +2,11 @@ package qupath.ext.astra;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import qupath.ext.biop.cmd.VirtualEnvironmentRunner;
 
 import java.io.File;
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -240,16 +242,16 @@ class PipelineLauncherTest {
         assertTrue(source.contains("Label provenance = GuiText.label(GuiText.Role.PANEL_TEXT, launcherVersionSummary());"));
         assertTrue(source.contains("provenance.getStyleClass().add(\"astra-header-provenance\")"));
         assertTrue(source.contains("properties.getProperty(\"astra_tag\""));
-        assertTrue(source.contains("return launcherVersionSummary(base, extension);"));
-        assertTrue(source.contains("String baseDisplay = isUnknownVersion(extension)"));
+        assertTrue(source.contains("return launcherVersionSummary(extension);"));
+        assertTrue(source.contains("return \"ASTRA Extension \" + displayVersionToken(extension);"));
         assertTrue(source.contains("return \"dev/unknown\";"));
         assertTrue(css.contains(".astra-header-provenance"));
 
-        assertEquals("ASTRA v0.1.153 | Extension 0.12.0+astra.153",
+        assertEquals("ASTRA Extension 0.12.0+astra.153",
                 PipelineLauncher.launcherVersionSummary("v0.1.153", "0.12.0+astra.153"));
-        assertEquals("ASTRA dev/unknown | Extension dev/unknown",
+        assertEquals("ASTRA Extension dev/unknown",
                 PipelineLauncher.launcherVersionSummary("v0.1.28", "unknown"));
-        assertEquals("ASTRA dev/unknown | Extension dev/unknown",
+        assertEquals("ASTRA Extension dev/unknown",
                 PipelineLauncher.launcherVersionSummary("v0.1.28", "-1.-1.-1-UNKNOWN.VERSION"));
     }
 
@@ -375,6 +377,10 @@ class PipelineLauncherTest {
         assertTrue(css.contains(".astra-log-failure-title"));
         assertTrue(css.contains(".scroll-pane .scroll-bar .thumb"));
         assertTrue(css.contains(".combo-box-popup .list-view"));
+        assertTrue(css.contains(".combo-box-popup .list-cell:filled:selected"));
+        assertTrue(css.contains(".combo-box-popup .list-cell:filled:selected .text"));
+        assertTrue(css.contains("-fx-background-color: #1f7a7a;"));
+        assertTrue(css.contains("-fx-fill: #ffffff;"));
         assertTrue(css.contains(".context-menu"));
         assertTrue(css.contains(".tooltip"));
         assertTrue(css.contains(".astra-header-menu-button"));
@@ -385,6 +391,7 @@ class PipelineLauncherTest {
         assertTrue(css.contains(".astra-combo-cell"));
         assertTrue(css.contains(".astra-list-cell"));
         assertTrue(css.contains(".astra-help-dialog-content"));
+        assertTrue(css.contains(".button.astra-button-help.astra-help-control"));
         assertTrue(css.contains(".astra-help-details-shell"));
         assertTrue(css.contains(".astra-help-details-accent"));
         assertTrue(css.contains(".astra-semantic-card"));
@@ -428,6 +435,18 @@ class PipelineLauncherTest {
         assertFalse(source.contains("title + \" v\""));
         assertTrue(source.contains("private static final String CHEVRON_DOWN"));
         assertTrue(source.contains("addStyleClass(chevron, \"astra-header-menu-chevron\")"));
+        assertTrue(source.contains("GuiText.helpButton(\"?\")"));
+        assertTrue(source.contains("button.setMinWidth(LauncherGeometry.MAIN_ACTION_BUTTON_WIDTH);"));
+        assertTrue(source.contains("button.setPrefWidth(LauncherGeometry.MAIN_ACTION_BUTTON_WIDTH);"));
+        assertTrue(source.contains("button.setMinWidth(LauncherGeometry.OUTPUT_ACTION_BUTTON_WIDTH);"));
+        assertTrue(source.contains("button.setPrefWidth(LauncherGeometry.OUTPUT_ACTION_BUTTON_WIDTH);"));
+        assertTrue(source.contains("CustomMenuItem item = new CustomMenuItem(row, true);"));
+        assertTrue(source.contains("addStyleClass(row, \"astra-header-menu-action-button\")"));
+        assertTrue(css.contains(".astra-header-menu-action-button"));
+        String guiText = Files.readString(Path.of("src/main/java/qupath/ext/astra/GuiText.java"));
+        assertTrue(guiText.contains("static Button helpButton(String text)"));
+        assertTrue(guiText.contains("button.getStyleClass().add(\"astra-help-control\")"));
+        assertFalse(guiText.contains("setId(\"astra-help-control\")"));
         assertTrue(css.contains("-fx-background-insets: 0;"));
         assertTrue(css.contains(".astra-button:hover"));
         assertTrue(css.contains("-fx-effect: null;"));
@@ -1662,12 +1681,17 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private final VBox rows = new VBox(PARAMETER_ROW_GAP);"));
         assertTrue(source.contains("labelBox.setAlignment(Pos.CENTER_LEFT);"));
         assertTrue(source.contains("GridPane.setValignment(info, VPos.CENTER);"));
-        assertTrue(source.contains("The accent midpoint belongs on the first-row rail midpoint"));
+        assertTrue(source.contains("The accent spans the full tall stack"));
         assertTrue(source.contains("labelBox.setMaxHeight(tall ? Double.MAX_VALUE : PARAMETER_ROW_HEIGHT);"));
         assertTrue(source.contains("labelBox.add(anchor, 0, 0, 1, 2);"));
+        assertTrue(source.contains("labelBox.add(label, 1, 0, 1, 2);"));
+        assertTrue(source.contains("labelBox.add(info, 2, 0, 1, 2);"));
         assertTrue(source.contains("GridPane.setFillHeight(anchor, true);"));
         assertTrue(source.contains("GridPane.setFillHeight(nodes.label, nodes.tall());"));
-        assertTrue(source.contains("GridPane.setValignment(nodes.label, nodes.tall() ? VPos.TOP : VPos.CENTER);"));
+        assertTrue(source.contains("GridPane.setValignment(nodes.label, VPos.CENTER);"));
+        assertTrue(source.contains("textField.setAlignment(Pos.CENTER_LEFT);"));
+        assertTrue(source.contains("textField.setMinHeight(LauncherGeometry.CONTROL_FIELD_HEIGHT);"));
+        assertTrue(source.contains("textField.setPrefHeight(LauncherGeometry.CONTROL_FIELD_HEIGHT);"));
         assertTrue(source.contains("private static boolean isTallParameterEditor(Node editor)"));
         assertTrue(source.contains("|| editor instanceof StageModeEditor"));
         assertTrue(source.contains("HBox row = labeledRow(displayLabel(constant.name), editor,\n"
@@ -1930,12 +1954,20 @@ class PipelineLauncherTest {
         assertTrue(surface.contains("DIRECTION_PROPERTY"));
         assertTrue(surface.contains("MODE_PROPERTY"));
         assertTrue(surface.contains("SPEED_PROPERTY"));
+        assertTrue(surface.contains("private static boolean sharedClockRunning;"));
+        assertTrue(surface.contains("sceneProperty().addListener((obs, oldScene, newScene) -> updateSharedClockState())"));
+        assertTrue(surface.contains("private static void updateSharedClockState()"));
+        assertTrue(surface.contains("boolean anyAttached = SURFACES.stream().anyMatch(surface -> surface.getScene() != null);"));
+        assertTrue(surface.contains("if (anyAttached && !sharedClockRunning)"));
+        assertTrue(surface.contains("} else if (!anyAttached && sharedClockRunning)"));
+        assertFalse(surface.contains("SURFACES.add(this);\n        SHARED_CLOCK.start();"));
         assertTrue(surface.contains("void setDirection(Direction nextDirection)"));
-        assertTrue(surface.contains("animation.setToY(direction == Direction.VERTICAL ? -stripLogicalLength : 0.0d);"));
+        assertTrue(surface.contains("leadingStrip.setLayoutY(phase - stripLogicalLength);"));
+        assertTrue(surface.contains("trailingStrip.setLayoutY(phase);"));
         assertTrue(launcher.contains("gradientSurface.setDirection(AnimatedGradientSurface.Direction.VERTICAL);"));
-        assertTrue(launcher.contains("output.setGradientMode(headerModePreference());"));
-        assertTrue(launcher.contains("output.setMotionSpeed(headerMotionPreference());"));
-        assertTrue(launcher.contains("HEADER_MODE_PREFERENCE.addListener((obs, oldValue, newValue) -> applyOutputGradientPreferences())"));
+        assertFalse(launcher.contains("output.setGradientMode(headerModePreference());"));
+        assertFalse(launcher.contains("output.setMotionSpeed(headerMotionPreference());"));
+        assertFalse(launcher.contains("applyOutputGradientPreferences"));
 
         assertTrue(tokens.contains("ACTION_PROGRESS_SHIMMER_WIDTH_DIVISOR"));
         assertTrue(tokens.contains("ACTION_PROGRESS_SHIMMER_SPEED_DIVISOR"));
@@ -1950,12 +1982,12 @@ class PipelineLauncherTest {
         assertTrue(launcher.contains("selectedSpeed.cycleSeconds() / LauncherGeometry.ACTION_PROGRESS_SHIMMER_SPEED_DIVISOR"));
         assertTrue(css.contains(".astra-run-progress-shimmer"));
         assertTrue(css.contains(".astra-run-progress-running .astra-run-progress-shimmer"));
-        assertTrue(css.contains(".astra-log-scroll-gradient-fade"));
         String logView = Files.readString(Path.of("src/main/java/qupath/ext/astra/StyledLogView.java"));
-        assertTrue(logView.contains("private final AnimatedGradientSurface logFadeGradient = new AnimatedGradientSurface();"));
-        assertTrue(logView.contains("logFadeGradient.setDirection(AnimatedGradientSurface.Direction.VERTICAL);"));
-        assertTrue(logView.contains("void setGradientMode(AnimatedGradientHeader.HeaderMode mode)"));
-        assertTrue(logView.contains("void setMotionSpeed(AnimatedGradientHeader.MotionSpeed speed)"));
+        assertFalse(logView.contains("logFadeGradient"));
+        assertFalse(logView.contains("AnimatedGradientSurface"));
+        assertTrue(logView.contains("private static final double LOG_FADE_VISIBLE_FRACTION ="));
+        assertFalse(logView.contains("void setGradientMode(AnimatedGradientHeader.HeaderMode mode)"));
+        assertFalse(logView.contains("void setMotionSpeed(AnimatedGradientHeader.MotionSpeed speed)"));
 
         assertTrue(preview.contains("\"text-contract-sweep\""));
         assertTrue(preview.contains("\"typography-optical-sweep\""));
@@ -1966,7 +1998,8 @@ class PipelineLauncherTest {
         assertTrue(preview.contains("TextContractRow"));
         assertTrue(preview.contains("GradientSurfaceRow"));
         assertTrue(preview.contains("AnimatedGradientSurface.DIRECTION_PROPERTY"));
-        assertTrue(preview.contains("owner.contains(\"astra-log-scroll-gradient-fade\")"));
+        assertFalse(preview.contains("owner.contains(\"astra-log-scroll-gradient-fade\")"));
+        assertFalse(preview.contains("owner.contains(\"astra-log-scroll-top-fade\")"));
         assertTrue(preview.contains("renderedInkMaxX"));
         assertTrue(preview.contains("TextAlignmentContract"));
         assertTrue(preview.contains("rendered ink left edge - text visual left rail"));
@@ -2989,19 +3022,26 @@ class PipelineLauncherTest {
         assertTrue(source.contains("RunLogParser.formatCleanText"));
         assertTrue(source.contains("output.appendText(text, RunLogSource.QUPATH"));
         assertTrue(source.contains("feedback.appendScriptText(text, error);"));
-        assertTrue(view.contains("copy.setText(\"Copied\")"));
+        assertTrue(view.contains("copyButton.setText(\"Copied\")"));
         assertTrue(view.contains("new PauseTransition(Duration.seconds(1.2))"));
-        assertTrue(view.contains("styleCopyButton(copy, true)"));
+        assertTrue(view.contains("styleCopyButton(copyButton, true)"));
+        assertTrue(view.contains("Button copyButton()"));
+        assertTrue(source.contains("Button copyButton = output.copyButton();"));
+        assertTrue(source.contains("HBox actionRail = new HBox(OUTPUT_HEADER_GAP, copyButton, killButton);"));
+        assertTrue(source.contains("applyOutputActionButtonGeometry(killButton);"));
+        assertTrue(source.contains("applyOutputActionButtonGeometry(copyButton);"));
+        assertTrue(source.contains("private static final double OUTPUT_ACTION_BUTTON_WIDTH ="));
+        assertTrue(source.contains("addStyleClass(killButton, \"astra-output-action-button\")"));
+        assertTrue(source.contains("addStyleClass(copyButton, \"astra-output-action-button\")"));
+        assertTrue(source.contains("header.getChildren().addAll(progress, status, killSpacer, actionRail);"));
         assertTrue(view.contains("addStyleClass(hiddenToggle, \"astra-log-disclosure-button\")"));
-        assertTrue(view.contains("StackPane scrollFrame = new StackPane(scroll, logFadeGradient, topFade);"));
+        assertTrue(view.contains("StackPane scrollFrame = new StackPane(scroll, topFade);"));
         assertTrue(view.contains("topFade.prefWidthProperty().bind(scrollFrame.widthProperty());"));
-        assertTrue(view.contains("topFade.prefHeightProperty().bind(scrollFrame.heightProperty());"));
-        assertTrue(view.contains("logFadeGradient.prefWidthProperty().bind(scrollFrame.widthProperty());"));
-        assertTrue(view.contains("logFadeGradient.prefHeightProperty().bind(scrollFrame.heightProperty());"));
+        assertTrue(view.contains("topFade.prefHeightProperty().bind(scrollFrame.heightProperty().multiply(LOG_FADE_VISIBLE_FRACTION));"));
+        assertTrue(view.contains("topFade.maxHeightProperty().bind(topFade.prefHeightProperty());"));
         assertTrue(view.contains("StackPane.setAlignment(topFade, Pos.TOP_CENTER);"));
-        assertTrue(view.contains("StackPane.setAlignment(logFadeGradient, Pos.TOP_CENTER);"));
         assertTrue(view.contains("addStyleClass(topFade, \"astra-log-scroll-top-fade\")"));
-        assertTrue(view.contains("addStyleClass(logFadeGradient, \"astra-log-scroll-gradient-fade\")"));
+        assertTrue(view.contains("addStyleClass(scrollFrame, \"astra-log-scroll-frame\")"));
         assertTrue(view.contains("topFade.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE)"));
         assertTrue(view.contains("addStyleClass(tab, \"astra-log-source-tab\")"));
         assertTrue(view.contains("addStyleClass(currentGroupBody, \"astra-log-source-block\")"));
@@ -3055,6 +3095,48 @@ class PipelineLauncherTest {
         assertTrue(launcher.contains("Cellpose subprocess stdout/stderr is captured when it is emitted through QuPath logging."));
         assertTrue(runner.contains("redirectErrorStream(true)"));
         assertTrue(runner.contains("logger.info(\"{}: {}\", name, line);"));
+    }
+
+    @Test
+    void directPythonRuntimeBypassesShellArgumentRewriting() throws Exception {
+        String runner = Files.readString(Path.of("src/main/java/qupath/ext/biop/cmd/VirtualEnvironmentRunner.java"));
+        String astraRuntime = Files.readString(Path.of("src/main/java/qupath/ext/astra/AstraCellpose2D.java"));
+
+        assertTrue(astraRuntime.contains("VirtualEnvironmentRunner.EnvType.EXE"));
+        assertTrue(runner.contains("if (envType == EnvType.EXE)"));
+        assertTrue(runner.contains("shell.addAll(command);"));
+        int directExeBranch = runner.indexOf("if (envType == EnvType.EXE)");
+        int bashShell = runner.indexOf("shell.addAll(Arrays.asList(\"bash\", \"-c\"));", directExeBranch);
+        int directLaunch = runner.indexOf("shell.addAll(command);", directExeBranch);
+        assertTrue(directExeBranch >= 0);
+        assertTrue(directLaunch > directExeBranch);
+        assertTrue(bashShell > directLaunch);
+    }
+
+    @Test
+    void directPythonRuntimePreservesShellSensitiveArguments(@TempDir Path tempDir) throws Exception {
+        Path executable = tempDir.resolve("argv-recorder.sh");
+        Files.writeString(executable, """
+                #!/bin/sh
+                for arg in "$@"; do
+                  printf 'ARG:%s\\n' "$arg"
+                done
+                """, StandardCharsets.UTF_8);
+        assertTrue(executable.toFile().setExecutable(true));
+
+        String shellSensitiveDir = tempDir.resolve("batch&input;literal").toString();
+        VirtualEnvironmentRunner runner = new VirtualEnvironmentRunner(
+                executable.toString(),
+                VirtualEnvironmentRunner.EnvType.EXE,
+                "argument-recorder");
+        runner.setArguments(List.of("--dir", shellSensitiveDir, "--pretrained_model", "cpsam"));
+        runner.runCommand(true);
+
+        assertEquals(0, runner.getProcess().exitValue());
+        String processLog = String.join("\n", runner.getProcessLog());
+        assertTrue(processLog.contains("ARG:--dir"));
+        assertTrue(processLog.contains("ARG:" + shellSensitiveDir));
+        assertTrue(processLog.contains("ARG:--pretrained_model"));
     }
 
     private static List<PipelineLauncher.EditableConstant> extractModes(String modes) {

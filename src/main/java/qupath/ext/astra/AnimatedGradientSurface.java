@@ -1,10 +1,11 @@
 package qupath.ext.astra;
 
 import java.nio.IntBuffer;
+import java.util.Collections;
+import java.util.Set;
+import java.util.WeakHashMap;
 
-import javafx.animation.Animation;
-import javafx.animation.Interpolator;
-import javafx.animation.TranslateTransition;
+import javafx.animation.AnimationTimer;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.PixelFormat;
 import javafx.scene.image.WritableImage;
@@ -12,7 +13,6 @@ import javafx.scene.image.WritablePixelFormat;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.Stop;
-import javafx.util.Duration;
 
 /**
  * Shared animated ASTRA gradient paint used by header and run-progress surfaces.
@@ -28,7 +28,6 @@ final class AnimatedGradientSurface extends Pane {
         VERTICAL
     }
 
-    private static final double DEFAULT_CYCLE_SECONDS = 16.0d;
     private static final double TEXTURE_SCALE = 3.0d;
     private static final double GRADIENT_SPAN_MULTIPLIER = 3.0d;
     private static final int TEXTURE_MAX_PIXEL_HEIGHT = 128;
@@ -51,11 +50,22 @@ final class AnimatedGradientSurface extends Pane {
             new Stop(0.92d, Color.web("#092937")),
             new Stop(1.00d, Color.web("#071d29"))
     };
+    private static final Set<AnimatedGradientSurface> SURFACES =
+            Collections.newSetFromMap(new WeakHashMap<>());
+    private static boolean sharedClockRunning;
+    private static final AnimationTimer SHARED_CLOCK = new AnimationTimer() {
+        @Override
+        public void handle(long now) {
+            for (AnimatedGradientSurface surface : SURFACES) {
+                if (surface.getScene() != null) {
+                    surface.applyAnimationFrame(now);
+                }
+            }
+        }
+    };
 
     private final ImageView leadingStrip = new ImageView();
     private final ImageView trailingStrip = new ImageView();
-    private final TranslateTransition animation =
-            new TranslateTransition(Duration.seconds(DEFAULT_CYCLE_SECONDS), this);
     private AnimatedGradientHeader.HeaderMode headerMode =
             AnimatedGradientHeader.HeaderMode.DYNAMIC;
     private AnimatedGradientHeader.MotionSpeed motionSpeed =
@@ -64,6 +74,7 @@ final class AnimatedGradientSurface extends Pane {
     private double stripLogicalLength;
 
     AnimatedGradientSurface() {
+        SURFACES.add(this);
         getStyleClass().add("astra-animated-gradient-surface");
         setManaged(false);
         setMouseTransparent(true);
@@ -72,18 +83,9 @@ final class AnimatedGradientSurface extends Pane {
         configureImageView(trailingStrip);
         getChildren().addAll(leadingStrip, trailingStrip);
 
-        animation.setInterpolator(Interpolator.LINEAR);
-        animation.setCycleCount(Animation.INDEFINITE);
-
         widthProperty().addListener((obs, oldValue, newValue) -> rebuildGradientStrip());
         heightProperty().addListener((obs, oldValue, newValue) -> rebuildGradientStrip());
-        sceneProperty().addListener((obs, oldScene, newScene) -> {
-            if (newScene == null) {
-                animation.stop();
-            } else {
-                startAnimationIfNeeded();
-            }
-        });
+        sceneProperty().addListener((obs, oldScene, newScene) -> updateSharedClockState());
         rebuildGradientStrip();
     }
 
@@ -92,13 +94,7 @@ final class AnimatedGradientSurface extends Pane {
                 ? AnimatedGradientHeader.HeaderMode.DYNAMIC
                 : nextMode;
         publishStateProperties();
-        if (headerMode == AnimatedGradientHeader.HeaderMode.DYNAMIC && getScene() != null) {
-            startAnimation();
-        } else {
-            animation.stop();
-            setTranslateX(0.0d);
-            setTranslateY(0.0d);
-        }
+        applyAnimationFrame(System.nanoTime());
     }
 
     void setMotionSpeed(AnimatedGradientHeader.MotionSpeed nextSpeed) {
@@ -106,7 +102,7 @@ final class AnimatedGradientSurface extends Pane {
                 ? AnimatedGradientHeader.MotionSpeed.SMOOTH
                 : nextSpeed;
         publishStateProperties();
-        startAnimationIfNeeded();
+        applyAnimationFrame(System.nanoTime());
     }
 
     void setDirection(Direction nextDirection) {
@@ -139,49 +135,56 @@ final class AnimatedGradientSurface extends Pane {
                 ? createGradientTexture(crossLength, stripLogicalLength, direction)
                 : createGradientTexture(stripLogicalLength, crossLength, direction);
 
-        configureStrip(leadingStrip, texture, 0.0d, width, height);
-        configureStrip(trailingStrip, texture, stripLogicalLength, width, height);
-
-        animation.stop();
-        setTranslateX(0.0d);
-        setTranslateY(0.0d);
-        animation.setFromX(0.0d);
-        animation.setFromY(0.0d);
-        animation.setToX(direction == Direction.HORIZONTAL ? -stripLogicalLength : 0.0d);
-        animation.setToY(direction == Direction.VERTICAL ? -stripLogicalLength : 0.0d);
-        startAnimationIfNeeded();
+        configureStrip(leadingStrip, texture, width, height);
+        configureStrip(trailingStrip, texture, width, height);
+        applyAnimationFrame(System.nanoTime());
     }
 
     private void configureStrip(ImageView imageView,
                                 WritableImage texture,
-                                double layoutAxisOffset,
                                 double width,
                                 double height) {
         imageView.setImage(texture);
-        imageView.setLayoutX(direction == Direction.HORIZONTAL ? layoutAxisOffset : 0.0d);
-        imageView.setLayoutY(direction == Direction.VERTICAL ? layoutAxisOffset : 0.0d);
         imageView.setFitWidth(direction == Direction.HORIZONTAL ? stripLogicalLength : width);
         imageView.setFitHeight(direction == Direction.VERTICAL ? stripLogicalLength : height);
     }
 
-    private void startAnimationIfNeeded() {
-        if (getScene() != null && headerMode == AnimatedGradientHeader.HeaderMode.DYNAMIC) {
-            startAnimation();
+    private void applyAnimationFrame(long now) {
+        if (stripLogicalLength <= 0.0d) {
+            return;
         }
-    }
-
-    private void startAnimation() {
-        animation.stop();
-        setTranslateX(0.0d);
-        setTranslateY(0.0d);
-        animation.setDuration(Duration.seconds(motionSpeed.cycleSeconds()));
-        animation.playFromStart();
+        double phase = headerMode == AnimatedGradientHeader.HeaderMode.DYNAMIC
+                ? ((now / 1_000_000_000.0d) % motionSpeed.cycleSeconds())
+                        / motionSpeed.cycleSeconds() * stripLogicalLength
+                : 0.0d;
+        if (direction == Direction.VERTICAL) {
+            leadingStrip.setLayoutX(0.0d);
+            trailingStrip.setLayoutX(0.0d);
+            leadingStrip.setLayoutY(phase - stripLogicalLength);
+            trailingStrip.setLayoutY(phase);
+        } else {
+            leadingStrip.setLayoutX(-phase);
+            trailingStrip.setLayoutX(stripLogicalLength - phase);
+            leadingStrip.setLayoutY(0.0d);
+            trailingStrip.setLayoutY(0.0d);
+        }
     }
 
     private void publishStateProperties() {
         getProperties().put(DIRECTION_PROPERTY, direction.name());
         getProperties().put(MODE_PROPERTY, headerMode.name());
         getProperties().put(SPEED_PROPERTY, motionSpeed.name());
+    }
+
+    private static void updateSharedClockState() {
+        boolean anyAttached = SURFACES.stream().anyMatch(surface -> surface.getScene() != null);
+        if (anyAttached && !sharedClockRunning) {
+            SHARED_CLOCK.start();
+            sharedClockRunning = true;
+        } else if (!anyAttached && sharedClockRunning) {
+            SHARED_CLOCK.stop();
+            sharedClockRunning = false;
+        }
     }
 
     private static WritableImage createGradientTexture(double logicalWidth,

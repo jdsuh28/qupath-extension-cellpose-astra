@@ -155,30 +155,34 @@ public class VirtualEnvironmentRunner {
         // or making a big string for NIX systems
         List<String> shell = new ArrayList<>();
 
-        switch (Platform.getCurrent()) {
+        if (envType == EnvType.EXE) {
+            shell.addAll(command);
+        } else {
+            switch (Platform.getCurrent()) {
 
-            case UNIX:
-            case OSX:
-                shell.addAll(Arrays.asList("bash", "-c"));
+                case UNIX:
+                case OSX:
+                    shell.addAll(Arrays.asList("bash", "-c"));
 
-                // If there are spaces, then we should encapsulate the command with quotes
-                command = command.stream().map(s -> {
-                            if (s.trim().contains(" "))
-                                return "\"" + s.trim() + "\"";
-                            return s;
-                        }).collect(Collectors.toList());
+                    // If there are spaces, then we should encapsulate the command with quotes
+                    command = command.stream().map(s -> {
+                                if (s.trim().contains(" "))
+                                    return "\"" + s.trim() + "\"";
+                                return s;
+                            }).collect(Collectors.toList());
 
-                // The last part needs to be sent as a single string, otherwise it does not run
-                String cmdString = command.toString().replace(",","");
+                    // The last part needs to be sent as a single string, otherwise it does not run
+                    String cmdString = command.toString().replace(",","");
 
-                shell.add(cmdString.substring(1, cmdString.length()-1));
-                break;
+                    shell.add(cmdString.substring(1, cmdString.length()-1));
+                    break;
 
-            case WINDOWS:
-            default:
-                shell.addAll(Arrays.asList("cmd.exe", "/C"));
-                shell.addAll(command);
-                break;
+                case WINDOWS:
+                default:
+                    shell.addAll(Arrays.asList("cmd.exe", "/C"));
+                    shell.addAll(command);
+                    break;
+            }
         }
 
 

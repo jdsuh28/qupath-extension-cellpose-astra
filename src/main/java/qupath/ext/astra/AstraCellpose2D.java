@@ -96,6 +96,9 @@ public class AstraCellpose2D extends Cellpose2D {
     private static final String ASTRA_CELLPOSE_MODULE = "cellpose.astra";
 
     private static final String VALIDATION_METRICS_HELPER_RESOURCE = "qupath/ext/astra/qc/run-cellpose-qc.py";
+    private static final List<String> CELLPOSE_INPUT_EXTENSIONS = List.of(
+            ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".flex", ".dax", ".nd2", ".nrrd"
+    );
 
     private File validationDirectory;
     private File resultsDirectory;
@@ -743,6 +746,7 @@ public class AstraCellpose2D extends Cellpose2D {
             }
 
             IJ.save(imp, tempFile.getAbsolutePath());
+            requireReadableInputImage(tempFile, "ASTRA batch inference tile export");
             return new TileFile(request, tempFile, parent);
         } finally {
             imp.close();
@@ -1140,6 +1144,7 @@ public class AstraCellpose2D extends Cellpose2D {
     }
 
     private void runCellposeInDirectory(File inputDirectory, String executionModelReference, List<TileFile> allTiles) throws IOException, InterruptedException {
+        requireCellposeInputDirectory(inputDirectory, "Cellpose --dir input");
         VirtualEnvironmentRunner veRunner = createRuntimeRunner();
 
         List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", ASTRA_CELLPOSE_MODULE));
@@ -1169,6 +1174,58 @@ public class AstraCellpose2D extends Cellpose2D {
         veRunner.setArguments(cellposeArguments);
         veRunner.runCommand(false);
         processCellposeOutputFiles(veRunner, inputDirectory, allTiles);
+    }
+
+    private static void requireCellposeInputDirectory(File directory, String label) throws IOException {
+        Objects.requireNonNull(directory, "directory");
+        if (!directory.exists()) {
+            throw new IOException(label + " does not exist before launching Cellpose: " + directory.getAbsolutePath());
+        }
+        if (!directory.isDirectory()) {
+            throw new IOException(label + " is not a directory before launching Cellpose: " + directory.getAbsolutePath());
+        }
+        File[] files = directory.listFiles();
+        if (files == null) {
+            throw new IOException(label + " could not be listed before launching Cellpose: " + directory.getAbsolutePath());
+        }
+        long inputCount = Arrays.stream(files)
+                .filter(AstraCellpose2D::isCellposeInputImage)
+                .count();
+        if (inputCount == 0) {
+            throw new IOException(
+                    label + " contains no Cellpose-readable input images before launching Cellpose: "
+                            + directory.getAbsolutePath()
+                            + " (entries=" + files.length + "). ASTRA tile staging failed before the Python runtime was invoked."
+            );
+        }
+    }
+
+    private static void requireReadableInputImage(File file, String label) throws IOException {
+        Objects.requireNonNull(file, "file");
+        if (!file.isFile() || file.length() <= 0L || !isCellposeInputImage(file)) {
+            throw new IOException(
+                    label + " did not produce a readable Cellpose input image: "
+                            + file.getAbsolutePath()
+                            + " (exists=" + file.exists()
+                            + ", file=" + file.isFile()
+                            + ", bytes=" + (file.exists() ? file.length() : 0L)
+                            + ")"
+            );
+        }
+    }
+
+    private static boolean isCellposeInputImage(File file) {
+        if (file == null || !file.isFile()) {
+            return false;
+        }
+        String name = file.getName().toLowerCase();
+        return CELLPOSE_INPUT_EXTENSIONS.stream().anyMatch(name::endsWith)
+                && !name.endsWith("_cp_masks.tif")
+                && !name.endsWith("_cp_masks.tiff")
+                && !name.endsWith("_masks.tif")
+                && !name.endsWith("_masks.tiff")
+                && !name.contains("_flows")
+                && !name.contains("_cellprob");
     }
 
     private void processCellposeOutputFiles(VirtualEnvironmentRunner veRunner, File inputDirectory, List<TileFile> allTiles) throws CancellationException, InterruptedException, IOException {

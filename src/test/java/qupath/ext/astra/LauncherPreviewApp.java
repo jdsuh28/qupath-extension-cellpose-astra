@@ -95,25 +95,25 @@ public final class LauncherPreviewApp extends Application {
     private static final PseudoClass PRESSED_PSEUDO_CLASS =
             PseudoClass.getPseudoClass("pressed");
     private static final double PREVIEW_BOOTSTRAP_STAGE_SIZE =
-            LauncherGeometryTokens.SURFACE_BORDER_WIDTH;
+            LauncherGeometryTokens.LAYOUT_UNIT;
 
     @Override
     public void start(Stage primaryStage) throws Exception {
         Files.createDirectories(options.userPath());
         Files.createDirectories(options.outputPath());
-        System.out.println("ASTRA preview start: screens=" + Screen.getScreens().size()
-                + ", mode=" + options.snapshotMode());
-        if (Screen.getScreens().isEmpty()) {
-            String message = "ASTRA preview cannot run because JavaFX reports zero screens. "
-                    + "Use the documented x64 QuPath/x64 Temurin route from a window-server session.";
-            Files.writeString(options.outputPath().resolve("preview-failure.txt"), message + System.lineSeparator());
-            throw new IllegalStateException(message);
-        }
         primaryStage.setTitle("ASTRA Preview Bootstrap");
         primaryStage.setScene(new Scene(new Pane(),
                 PREVIEW_BOOTSTRAP_STAGE_SIZE,
                 PREVIEW_BOOTSTRAP_STAGE_SIZE));
         primaryStage.show();
+        System.out.println("ASTRA preview start: screens=" + Screen.getScreens().size()
+                + ", mode=" + options.snapshotMode());
+        if (Screen.getScreens().isEmpty()) {
+            String message = "ASTRA preview cannot run because JavaFX reports zero screens after showing the bootstrap stage. "
+                    + "Use the documented x64 QuPath/x64 Temurin route from a window-server session.";
+            Files.writeString(options.outputPath().resolve("preview-failure.txt"), message + System.lineSeparator());
+            throw new IllegalStateException(message);
+        }
         PathPrefs.userPathProperty().set(options.userPath().toString());
 
         QuPathGUI qupath = QuPathGUI.createHiddenInstance();
@@ -1682,6 +1682,8 @@ public final class LauncherPreviewApp extends Application {
             Bounds frameBounds = relativeBounds(sceneRoot, frame, rootMinX, rootMinY);
             firstManagedNode(logView.get(), ".astra-log-scroll-top-fade").ifPresent(fade -> {
                 Bounds fadeBounds = relativeBounds(sceneRoot, fade, rootMinX, rootMinY);
+                double expectedFadeHeight = snapUpToOutputPixel(sceneRoot,
+                        frameBounds.getHeight() * styledLogField("LOG_FADE_VISIBLE_FRACTION"));
                 addMeasurement(measurements, "log fade left edge",
                         0.0,
                         fadeBounds.getMinX() - frameBounds.getMinX(),
@@ -1694,10 +1696,14 @@ public final class LauncherPreviewApp extends Application {
                         0.0,
                         fadeBounds.getMinY() - frameBounds.getMinY(),
                         "fade min y - scroll frame min y");
+                addMeasurement(measurements, "log fade height",
+                        expectedFadeHeight,
+                        fadeBounds.getHeight(),
+                        "ceil((scroll frame height * StyledLogView.LOG_FADE_VISIBLE_FRACTION) * outputScale) / outputScale");
                 addMeasurement(measurements, "log fade bottom edge",
-                        0.0,
+                        frameBounds.getHeight() - expectedFadeHeight,
                         frameBounds.getMaxY() - fadeBounds.getMaxY(),
-                        "scroll frame max y - fade max y");
+                        "scroll frame remaining height below top fade");
             });
         });
         firstManagedNode(logView.get(), ".astra-log-status-card").ifPresent(card -> {
@@ -2218,10 +2224,12 @@ public final class LauncherPreviewApp extends Application {
         double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
         double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
         Optional<Node> output = firstNode(sceneRoot, ".astra-output-pane");
+        Optional<Node> logView = firstNode(sceneRoot, ".astra-log-view");
         Optional<Node> statusCard = firstNode(sceneRoot, ".astra-log-status-card");
         Optional<Node> statusTitle = firstNode(sceneRoot, ".astra-log-status-title");
         Optional<Node> copy = firstNode(sceneRoot, ".astra-log-copy-button");
         Optional<Node> logScroll = firstNode(sceneRoot, ".astra-log-scroll");
+        Optional<Node> logScrollFrame = firstNode(sceneRoot, ".astra-log-scroll-frame");
         Optional<Node> killButton = firstNode(sceneRoot, ".astra-output-kill-button");
         if (output.isPresent()) {
             Bounds outputBounds = relativeBounds(sceneRoot, output.get(), rootMinX, rootMinY);
@@ -2233,6 +2241,22 @@ public final class LauncherPreviewApp extends Application {
                         outputBounds.getMaxX() - buttonBounds.getMaxX(),
                         "OUTPUT_PANE_INSET + SURFACE_BORDER_WIDTH");
             });
+            if (killButton.isPresent() && logView.isPresent()) {
+                Bounds buttonBounds = relativeBounds(sceneRoot, killButton.get(), rootMinX, rootMinY);
+                Bounds logViewBounds = relativeBounds(sceneRoot, logView.get(), rootMinX, rootMinY);
+                addMeasurement(measurements, "output header action rail to log view rail",
+                        0.0d,
+                        buttonBounds.getMaxX() - logViewBounds.getMaxX(),
+                        "kill max x - astra-log-view max x");
+            }
+            if (logView.isPresent() && logScrollFrame.isPresent()) {
+                Bounds logViewBounds = relativeBounds(sceneRoot, logView.get(), rootMinX, rootMinY);
+                Bounds frameBounds = relativeBounds(sceneRoot, logScrollFrame.get(), rootMinX, rootMinY);
+                addMeasurement(measurements, "log view rail to log viewport rail",
+                        styledLogField("LOG_ROW_GAP") + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
+                        logViewBounds.getMaxX() - frameBounds.getMaxX(),
+                        "astra-log-view max x - log scroll frame max x equals StyledLogView.LOG_ROW_GAP + SURFACE_BORDER_WIDTH");
+            }
             statusCard.ifPresent(card -> {
                 Bounds cardBounds = relativeBounds(sceneRoot, card, rootMinX, rootMinY);
                 addMeasurement(measurements, "output pane left inset to status card",
@@ -2252,11 +2276,27 @@ public final class LauncherPreviewApp extends Application {
                 Bounds copyBounds = relativeBounds(sceneRoot, button, rootMinX, rootMinY);
                 addMeasurement(measurements, "copy button right rail",
                         staticField("OUTPUT_PANE_INSET")
-                                + styledLogField("LOG_ROW_GAP")
-                                + (LauncherGeometryTokens.SURFACE_BORDER_WIDTH * 2.0),
+                                + LauncherGeometryTokens.SURFACE_BORDER_WIDTH
+                                + staticField("OUTPUT_HEADER_GAP")
+                                + LauncherGeometryTokens.OUTPUT_ACTION_BUTTON_WIDTH,
                         outputBounds.getMaxX() - copyBounds.getMaxX(),
-                        "OUTPUT_PANE_INSET + StyledLogView.LOG_ROW_GAP + (SURFACE_BORDER_WIDTH * 2)");
-        });
+                        "OUTPUT_PANE_INSET + SURFACE_BORDER_WIDTH + OUTPUT_HEADER_GAP + OUTPUT_ACTION_BUTTON_WIDTH");
+                killButton.ifPresent(kill -> {
+                    Bounds killBounds = relativeBounds(sceneRoot, kill, rootMinX, rootMinY);
+                    addMeasurement(measurements, "output action button width equality",
+                            killBounds.getWidth(),
+                            copyBounds.getWidth(),
+                            "copy button width equals kill button width");
+                    addMeasurement(measurements, "output action button height equality",
+                            killBounds.getHeight(),
+                            copyBounds.getHeight(),
+                            "copy button height equals kill button height");
+                    addMeasurement(measurements, "output action button top alignment",
+                            0.0,
+                            copyBounds.getMinY() - killBounds.getMinY(),
+                            "copy button top - kill button top");
+                });
+            });
     }
 
         if (statusCard.isPresent() && statusTitle.isPresent()) {
@@ -4518,8 +4558,7 @@ public final class LauncherPreviewApp extends Application {
                 AnimatedGradientSurface.MODE_PROPERTY, ""));
         String speed = String.valueOf(node.getProperties().getOrDefault(
                 AnimatedGradientSurface.SPEED_PROPERTY, ""));
-        boolean verticalSurface = owner.contains("astra-parameter-anchor")
-                || owner.contains("astra-log-scroll-gradient-fade");
+        boolean verticalSurface = owner.contains("astra-parameter-anchor");
         String expectedDirection = verticalSurface
                 ? AnimatedGradientSurface.Direction.VERTICAL.name()
                 : AnimatedGradientSurface.Direction.HORIZONTAL.name();
@@ -4722,6 +4761,12 @@ public final class LauncherPreviewApp extends Application {
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("Unable to read StyledLogView geometry field " + name, e);
         }
+    }
+
+    private static double snapUpToOutputPixel(Node node, double value) {
+        Window window = node == null || node.getScene() == null ? null : node.getScene().getWindow();
+        double scale = window == null || window.getOutputScaleY() <= 0.0d ? 1.0d : window.getOutputScaleY();
+        return Math.ceil(value * scale) / scale;
     }
 
     private static double staticField(Class<?> type, String name) throws ReflectiveOperationException {

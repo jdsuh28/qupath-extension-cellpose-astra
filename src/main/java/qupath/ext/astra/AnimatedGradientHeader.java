@@ -19,9 +19,9 @@ final class AnimatedGradientHeader extends StackPane {
     }
 
     enum MotionSpeed {
-        SLOW("Slow", 24.0d),
-        SMOOTH("Smooth", 16.0d),
-        LIVELY("Lively", 10.0d);
+        SLOW("Slow", LauncherGeometryTokens.GRADIENT_SLOW_CYCLE_SECONDS),
+        SMOOTH("Smooth", LauncherGeometryTokens.GRADIENT_SMOOTH_CYCLE_SECONDS),
+        LIVELY("Lively", LauncherGeometryTokens.GRADIENT_LIVELY_CYCLE_SECONDS);
 
         private final String label;
         private final double cycleSeconds;
