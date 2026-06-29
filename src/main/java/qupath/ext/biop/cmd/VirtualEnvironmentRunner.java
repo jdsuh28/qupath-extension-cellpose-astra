@@ -233,7 +233,9 @@ public class VirtualEnvironmentRunner {
         if(waitUntilDone) {
             try {
                 this.process.waitFor();
+                t.join();
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 logger.error(e.getMessage());
             }
         }
