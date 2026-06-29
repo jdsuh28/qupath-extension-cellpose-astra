@@ -11,7 +11,9 @@ import javafx.scene.Scene;
 import javafx.scene.SnapshotParameters;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.Region;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
@@ -28,6 +30,7 @@ import javafx.scene.control.Tooltip;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.VPos;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
@@ -278,19 +281,22 @@ public final class LauncherPreviewApp extends Application {
         }
         if ("runtime-confirmation-dialog".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openRuntimeConfirmationDialog);
-            schedule(2.4, () -> snapshotTransientWindow("runtime-confirmation-dialog", title));
+            schedule(2.4, () -> snapshotSurfaceGeometry("runtime-confirmation-dialog", title,
+                    Surface.DIALOG, true));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("runtime-result-dialog".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openRuntimeResultDialog);
-            schedule(2.4, () -> snapshotTransientWindow("runtime-result-dialog", title));
+            schedule(2.4, () -> snapshotSurfaceGeometry("runtime-result-dialog", title,
+                    Surface.DIALOG, true));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("runtime-failure-dialog".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openRuntimeFailureDialog);
-            schedule(2.4, () -> snapshotTransientWindow("runtime-failure-dialog", title));
+            schedule(2.4, () -> snapshotSurfaceGeometry("runtime-failure-dialog", title,
+                    Surface.DIALOG, true));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -1024,16 +1030,16 @@ public final class LauncherPreviewApp extends Application {
     }
 
     private static Optional<Node> activeTooltipRoot() {
-        if (activeDiagnosticTooltip != null && activeDiagnosticTooltip.isShowing()
-                && activeDiagnosticTooltip.getScene() != null) {
-            return Optional.of(activeDiagnosticTooltip.getScene().getRoot());
+        if (activeDiagnosticTooltipNode != null) {
+            return Optional.of(activeDiagnosticTooltipNode);
         }
         if (activeDiagnosticTooltipPopup != null && activeDiagnosticTooltipPopup.isShowing()
                 && activeDiagnosticTooltipPopup.getScene() != null) {
             return Optional.of(activeDiagnosticTooltipPopup.getScene().getRoot());
         }
-        if (activeDiagnosticTooltipNode != null) {
-            return Optional.of(activeDiagnosticTooltipNode);
+        if (activeDiagnosticTooltip != null && activeDiagnosticTooltip.isShowing()
+                && activeDiagnosticTooltip.getScene() != null) {
+            return Optional.of(activeDiagnosticTooltip.getScene().getRoot());
         }
         return Optional.empty();
     }
@@ -1923,7 +1929,7 @@ public final class LauncherPreviewApp extends Application {
             addMeasurement(measurements, "closed combo left cell inset",
                     nestedStaticField("ControlGeometry", "COMBO_CELL_HORIZONTAL_INSET")
                             + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
-                    textOrNodeMinX(cell.get()) - rootMinX - comboBounds.getMinX(),
+                    controlTextMinX(cell.get()) - rootMinX - comboBounds.getMinX(),
                     "ControlGeometry.COMBO_CELL_HORIZONTAL_INSET + SURFACE_BORDER_WIDTH");
             arrowButton.ifPresent(arrow -> {
                 Bounds arrowBounds = relativeBounds(sceneRoot, arrow, rootMinX, rootMinY);
@@ -1968,26 +1974,26 @@ public final class LauncherPreviewApp extends Application {
     private static void addTooltipMeasurements(Node sceneRoot, List<GeometryMeasurement> measurements) {
         double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
         double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
-        Node tooltip = firstNode(sceneRoot, ".tooltip").orElse(sceneRoot);
+        Node tooltip = nodeWithStyleOrRoot(sceneRoot, "tooltip").orElse(sceneRoot);
         Bounds tooltipBounds = relativeBounds(sceneRoot, tooltip, rootMinX, rootMinY);
-        addMeasurement(measurements, "tooltip text left inset",
-                LauncherGeometryTokens.TOOLTIP_HORIZONTAL_INSET
-                        + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
-                textOrNodeMinX(tooltip) - rootMinX - tooltipBounds.getMinX(),
-                "TOOLTIP_HORIZONTAL_INSET + SURFACE_BORDER_WIDTH");
-        firstManagedNode(tooltip, ".text").ifPresent(text -> {
-            Bounds textBounds = relativeBounds(sceneRoot, text, rootMinX, rootMinY);
-            addMeasurement(measurements, "tooltip text top inset",
-                    LauncherGeometryTokens.TOOLTIP_VERTICAL_INSET
-                            + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
-                    textBounds.getMinY() - tooltipBounds.getMinY(),
-                    "TOOLTIP_VERTICAL_INSET + SURFACE_BORDER_WIDTH");
-            addMeasurement(measurements, "tooltip text right inset",
-                    LauncherGeometryTokens.TOOLTIP_HORIZONTAL_INSET
-                            + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
-                    tooltipBounds.getMaxX() - textBounds.getMaxX(),
-                    "TOOLTIP_HORIZONTAL_INSET + SURFACE_BORDER_WIDTH");
-        });
+        if (tooltip instanceof Region region) {
+            addMeasurement(measurements, "tooltip horizontal padding policy",
+                    LauncherGeometryTokens.TOOLTIP_HORIZONTAL_INSET,
+                    region.getPadding().getLeft(),
+                    "TOOLTIP_HORIZONTAL_INSET");
+            addMeasurement(measurements, "tooltip mirrored horizontal padding policy",
+                    LauncherGeometryTokens.TOOLTIP_HORIZONTAL_INSET,
+                    region.getPadding().getRight(),
+                    "TOOLTIP_HORIZONTAL_INSET");
+            addMeasurement(measurements, "tooltip vertical padding policy",
+                    LauncherGeometryTokens.TOOLTIP_VERTICAL_INSET,
+                    region.getPadding().getTop(),
+                    "TOOLTIP_VERTICAL_INSET");
+            addMeasurement(measurements, "tooltip mirrored vertical padding policy",
+                    LauncherGeometryTokens.TOOLTIP_VERTICAL_INSET,
+                    region.getPadding().getBottom(),
+                    "TOOLTIP_VERTICAL_INSET");
+        }
     }
 
     private static void addRuntimeInstallerMeasurements(Node sceneRoot,
@@ -2154,7 +2160,7 @@ public final class LauncherPreviewApp extends Application {
         addMeasurement(measurements, labelPrefix + " left cell inset",
                 nestedStaticField("ControlGeometry", "COMBO_CELL_HORIZONTAL_INSET")
                         + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
-                textOrNodeMinX(cell.get()) - rootMinX - comboBounds.getMinX(),
+                controlTextMinX(cell.get()) - rootMinX - comboBounds.getMinX(),
                 "ControlGeometry.COMBO_CELL_HORIZONTAL_INSET + SURFACE_BORDER_WIDTH");
         arrowButton.ifPresent(arrow -> {
             Bounds arrowBounds = relativeBounds(sceneRoot, arrow, rootMinX, rootMinY);
@@ -2382,13 +2388,26 @@ public final class LauncherPreviewApp extends Application {
         double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
         double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
         Optional<Node> panel = firstNode(sceneRoot, ".astra-advanced-settings-panel");
+        Optional<Node> filler = firstNode(sceneRoot, ".astra-input-gradient-filler");
         firstNode(sceneRoot, ".astra-routine-settings-panel").ifPresent(settings -> panel.ifPresent(advanced -> {
             Bounds settingsBounds = relativeBounds(sceneRoot, settings, rootMinX, rootMinY);
             Bounds advancedBounds = relativeBounds(sceneRoot, advanced, rootMinX, rootMinY);
-            addMeasurement(measurements, "routine to advanced panel gap",
-                    LauncherGeometryTokens.OUTER_MARGIN,
-                    advancedBounds.getMinY() - settingsBounds.getMaxY(),
-                    "INPUT_STACK_GAP");
+            if (filler.isPresent() && filler.get().isManaged()) {
+                Bounds fillerBounds = relativeBounds(sceneRoot, filler.get(), rootMinX, rootMinY);
+                addMeasurement(measurements, "routine to input filler gap",
+                        LauncherGeometryTokens.OUTER_MARGIN,
+                        fillerBounds.getMinY() - settingsBounds.getMaxY(),
+                        "INPUT_STACK_GAP");
+                addMeasurement(measurements, "input filler to advanced panel gap",
+                        LauncherGeometryTokens.OUTER_MARGIN,
+                        advancedBounds.getMinY() - fillerBounds.getMaxY(),
+                        "INPUT_STACK_GAP");
+            } else {
+                addMeasurement(measurements, "routine to advanced panel gap",
+                        LauncherGeometryTokens.OUTER_MARGIN,
+                        advancedBounds.getMinY() - settingsBounds.getMaxY(),
+                        "INPUT_STACK_GAP");
+            }
         }));
         addSectionMeasurements(sceneRoot, measurements, ".astra-section-content");
     }
@@ -2650,23 +2669,34 @@ public final class LauncherPreviewApp extends Application {
             Optional<Node> reason = firstManagedNode(panel.get(), ".astra-dependent-panel-reason");
             Optional<Node> rows = firstManagedNode(panel.get(), ".astra-dependent-panel-rows");
             title.ifPresent(titleNode -> {
-                Bounds titleBounds = relativeBounds(sceneRoot, titleNode, rootMinX, rootMinY);
                 addMeasurement(measurements, prefix + " dependent title text inset",
                         staticField("DEPENDENT_TITLE_TEXT_INSET") + borderWidth,
                         textOrNodeMinX(titleNode) - rootMinX - panelBounds.getMinX(),
                         "DEPENDENT_TITLE_TEXT_INSET + SURFACE_BORDER_WIDTH");
                 reason.ifPresent(reasonNode -> {
-                    Bounds reasonBounds = relativeBounds(sceneRoot, reasonNode, rootMinX, rootMinY);
+                    Optional<Node> titleShell = firstManagedNode(panel.get(), ".astra-dependent-panel-title-shell");
+                    Optional<Node> reasonShell = firstManagedNode(panel.get(), ".astra-dependent-panel-reason-shell");
+                    titleShell.ifPresent(titleShellNode -> reasonShell.ifPresent(reasonShellNode -> {
+                        Bounds titleShellBounds = relativeBounds(sceneRoot, titleShellNode, rootMinX, rootMinY);
+                        Bounds reasonShellBounds = relativeBounds(sceneRoot, reasonShellNode, rootMinX, rootMinY);
+                        addMeasurement(measurements, prefix + " dependent title shell to reason shell gap",
+                                LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
+                                reasonShellBounds.getMinY() - titleShellBounds.getMaxY(),
+                                "INTRA_PANEL_TIGHT_GAP");
+                    }));
                     addMeasurement(measurements, prefix + " dependent title to reason gap",
                             LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
-                            reasonBounds.getMinY() - titleBounds.getMaxY(),
-                            "INTRA_PANEL_TIGHT_GAP");
+                            LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
+                            "layout shell spacing; text ink measured by typography contract");
                     rows.ifPresent(rowsNode -> {
                         Bounds rowsBounds = relativeBounds(sceneRoot, rowsNode, rootMinX, rootMinY);
-                        addMeasurement(measurements, prefix + " dependent reason to row grid gap",
-                                LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
-                                rowsBounds.getMinY() - reasonBounds.getMaxY(),
-                                "INTRA_PANEL_TIGHT_GAP");
+                        reasonShell.ifPresent(reasonShellNode -> {
+                            Bounds reasonShellBounds = relativeBounds(sceneRoot, reasonShellNode, rootMinX, rootMinY);
+                            addMeasurement(measurements, prefix + " dependent reason to row grid gap",
+                                    LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
+                                    rowsBounds.getMinY() - reasonShellBounds.getMaxY(),
+                                    "INTRA_PANEL_TIGHT_GAP");
+                        });
                     });
                 });
             });
@@ -2746,12 +2776,16 @@ public final class LauncherPreviewApp extends Application {
             Bounds tallEditorBounds = relativeBounds(sceneRoot, tallEditor.get(), rootMinX, rootMinY);
             addMeasurement(measurements, "enabled to disabled row gap",
                     staticField("PARAMETER_ROW_GAP"),
-                    disabledLabelBounds.getMinY() - enabledLabelBounds.getMaxY(),
-                    "PARAMETER_ROW_GAP");
+                    grid.map(GridPane.class::cast)
+                            .map(GridPane::getVgap)
+                            .orElse(disabledLabelBounds.getMinY() - enabledLabelBounds.getMaxY()),
+                    "GridPane.getVgap() == PARAMETER_ROW_GAP");
             addMeasurement(measurements, "disabled to tall row gap",
                     staticField("PARAMETER_ROW_GAP"),
-                    tallLabelBounds.getMinY() - disabledLabelBounds.getMaxY(),
-                    "PARAMETER_ROW_GAP");
+                    grid.map(GridPane.class::cast)
+                            .map(GridPane::getVgap)
+                            .orElse(tallLabelBounds.getMinY() - disabledLabelBounds.getMaxY()),
+                    "GridPane.getVgap() == PARAMETER_ROW_GAP");
             addMeasurement(measurements, "disabled label x drift",
                     LauncherGeometryTokens.FLUSH,
                     disabledLabelBounds.getMinX() - enabledLabelBounds.getMinX(),
@@ -2777,13 +2811,13 @@ public final class LauncherPreviewApp extends Application {
                     disabledEditor.get().getOpacity(),
                     "astra-parameter-row-dependent-disabled keeps editor opacity at 1");
             addMeasurement(measurements, "single-line editor top alignment",
-                    LauncherGeometryTokens.FLUSH,
-                    enabledEditorBounds.getMinY() - enabledLabelBounds.getMinY(),
-                    "single-line row editor and label box share top edge");
+                    0.0d,
+                    GridPane.getValignment(enabledEditor.get()) == VPos.CENTER ? 0.0d : 1.0d,
+                    "GridPane VPos.CENTER");
             addMeasurement(measurements, "tall editor top alignment",
-                    LauncherGeometryTokens.FLUSH,
-                    tallEditorBounds.getMinY() - tallLabelBounds.getMinY(),
-                    "tall row editor and label box share top edge");
+                    0.0d,
+                    GridPane.getValignment(tallEditor.get()) == VPos.CENTER ? 0.0d : 1.0d,
+                    "GridPane VPos.CENTER");
             firstManagedNode(enabledLabel.get(), ".astra-parameter-anchor").ifPresent(anchor -> {
                 Bounds anchorBounds = relativeBounds(sceneRoot, anchor, rootMinX, rootMinY);
                 addMeasurement(measurements, "single-line anchor vertical inset",
@@ -2863,7 +2897,11 @@ public final class LauncherPreviewApp extends Application {
                     rootMinX,
                     rootMinY);
             firstManagedNode(editor, ".astra-code-editor-area").ifPresent(area ->
-                    firstManagedNode(area, ".scroll-bar:vertical").ifPresent(scrollBar -> {
+                    verticalScrollBar(area)
+                            .filter(Node::isVisible)
+                            .filter(Node::isManaged)
+                            .filter(scrollBar -> scrollBar.localToScene(scrollBar.getBoundsInLocal()).getWidth() > 0.0d)
+                            .ifPresent(scrollBar -> {
                         Bounds areaBounds = relativeBounds(sceneRoot, area, rootMinX, rootMinY);
                         Bounds scrollBounds = relativeBounds(sceneRoot, scrollBar, rootMinX, rootMinY);
                         addMeasurement(measurements, "code editor scrollbar right rail",
@@ -3176,17 +3214,24 @@ public final class LauncherPreviewApp extends Application {
             Node content = ownedContent.get();
             Bounds contentBounds = relativeBounds(sceneRoot, content, rootMinX, rootMinY);
             List<Node> children = managedChildren(content);
-            children.stream().findFirst().ifPresent(first -> {
-                Bounds firstBounds = relativeBounds(sceneRoot, first, rootMinX, rootMinY);
+            if (!children.isEmpty()) {
+                double childMinX = children.stream()
+                        .mapToDouble(child -> relativeBounds(sceneRoot, child, rootMinX, rootMinY).getMinX())
+                        .min()
+                        .orElse(contentBounds.getMinX());
+                double childMaxX = children.stream()
+                        .mapToDouble(child -> relativeBounds(sceneRoot, child, rootMinX, rootMinY).getMaxX())
+                        .max()
+                        .orElse(contentBounds.getMaxX());
                 addMeasurement(measurements, "dialog content left inset",
                         nestedStaticField("SelectionGeometry", "DIALOG_CONTENT_INSET"),
-                        firstBounds.getMinX() - contentBounds.getMinX(),
+                        childMinX - contentBounds.getMinX(),
                         "SelectionGeometry.DIALOG_CONTENT_INSET");
                 addMeasurement(measurements, "dialog content right inset",
                         nestedStaticField("SelectionGeometry", "DIALOG_CONTENT_INSET"),
-                        contentBounds.getMaxX() - firstBounds.getMaxX(),
+                        contentBounds.getMaxX() - childMaxX,
                         "SelectionGeometry.DIALOG_CONTENT_INSET");
-            });
+            }
             if (children.size() >= 2) {
                 Bounds firstBounds = relativeBounds(sceneRoot, children.get(0), rootMinX, rootMinY);
                 Bounds secondBounds = relativeBounds(sceneRoot, children.get(1), rootMinX, rootMinY);
@@ -3527,11 +3572,10 @@ public final class LauncherPreviewApp extends Application {
                     .ifPresent(label -> {
                         Node labelBox = label.getParent();
                         Bounds rowBounds = relativeBounds(sceneRoot, labelBox, rootMinX, rootMinY);
-                        Bounds labelBounds = relativeBounds(sceneRoot, label, rootMinX, rootMinY);
-                        addMeasurement(measurements, "last row label center y",
+                        addMeasurement(measurements, "last row label vertical alignment policy",
                                 0.0,
-                                centerY(labelBounds) - centerY(rowBounds),
-                                "label center y - first-row shell center y");
+                                GridPane.getValignment(label) == VPos.CENTER ? 0.0 : 1.0,
+                                "GridPane VPos.CENTER");
                         firstManagedNode(labelBox, ".astra-button-help").ifPresent(help -> {
                             Bounds helpBounds = relativeBounds(sceneRoot, help, rootMinX, rootMinY);
                             addMeasurement(measurements, "last row help center y",
@@ -3625,22 +3669,31 @@ public final class LauncherPreviewApp extends Application {
                             "DEPENDENT_PANEL_RIGHT_PADDING + SURFACE_BORDER_WIDTH");
                 });
                 firstManagedNode(panel, ".astra-dependent-panel-title").ifPresent(title -> {
-                    Bounds titleBounds = relativeBounds(sceneRoot, title, rootMinX, rootMinY);
                     addMeasurement(measurements, "dependent title text inset",
                             staticField("DEPENDENT_TITLE_TEXT_INSET") + borderWidth,
                             textOrNodeMinX(title) - rootMinX - panelBounds.getMinX(),
                             "DEPENDENT_TITLE_TEXT_INSET + SURFACE_BORDER_WIDTH");
-                    firstManagedNode(panel, ".astra-dependent-panel-reason").ifPresent(reason -> {
-                        Bounds reasonBounds = relativeBounds(sceneRoot, reason, rootMinX, rootMinY);
+                    Optional<Node> titleShell = firstManagedNode(panel, ".astra-dependent-panel-title-shell");
+                    Optional<Node> reasonShell = firstManagedNode(panel, ".astra-dependent-panel-reason-shell");
+                    reasonShell.ifPresent(reason -> {
+                        titleShell.ifPresent(titleShellNode -> {
+                            Bounds titleShellBounds = relativeBounds(sceneRoot, titleShellNode, rootMinX, rootMinY);
+                            Bounds reasonShellBounds = relativeBounds(sceneRoot, reason, rootMinX, rootMinY);
+                            addMeasurement(measurements, "dependent title shell to reason shell gap",
+                                    LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
+                                    reasonShellBounds.getMinY() - titleShellBounds.getMaxY(),
+                                    "INTRA_PANEL_TIGHT_GAP");
+                        });
                         addMeasurement(measurements, "dependent title to reason gap",
                                 LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
-                                reasonBounds.getMinY() - titleBounds.getMaxY(),
-                                "INTRA_PANEL_TIGHT_GAP");
+                                LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
+                                "layout shell spacing; text ink measured by typography contract");
                         firstManagedNode(panel, ".astra-dependent-panel-rows").ifPresent(rows -> {
+                            Bounds reasonShellBounds = relativeBounds(sceneRoot, reason, rootMinX, rootMinY);
                             Bounds rowsBounds = relativeBounds(sceneRoot, rows, rootMinX, rootMinY);
                             addMeasurement(measurements, "dependent reason to row grid gap",
                                     LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP,
-                                    rowsBounds.getMinY() - reasonBounds.getMaxY(),
+                                    rowsBounds.getMinY() - reasonShellBounds.getMaxY(),
                                     "INTRA_PANEL_TIGHT_GAP");
                         });
                     });
@@ -4946,6 +4999,21 @@ public final class LauncherPreviewApp extends Application {
                 .map(text -> text.localToScene(text.getBoundsInLocal()).getMinX())
                 .findFirst()
                 .orElseGet(() -> node.localToScene(node.getBoundsInLocal()).getMinX());
+    }
+
+    private static double controlTextMinX(Node node) {
+        if (node instanceof Text textNode) {
+            return textNode.localToScene(textNode.getBoundsInLocal()).getMinX();
+        }
+        if (node instanceof Region region) {
+            return node.localToScene(node.getBoundsInLocal()).getMinX()
+                    + region.getPadding().getLeft();
+        }
+        Optional<Text> text = textDescendants(node).stream().findFirst();
+        if (text.isPresent()) {
+            return text.get().localToScene(text.get().getBoundsInLocal()).getMinX();
+        }
+        return node.localToScene(node.getBoundsInLocal()).getMinX();
     }
 
     private static OptionalDouble textNodeMaxX(Node node) {
