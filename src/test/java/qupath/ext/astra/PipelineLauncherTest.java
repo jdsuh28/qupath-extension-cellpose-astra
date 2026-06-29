@@ -3027,12 +3027,13 @@ class PipelineLauncherTest {
         assertTrue(view.contains("styleCopyButton(copyButton, true)"));
         assertTrue(view.contains("Button copyButton()"));
         assertTrue(source.contains("Button copyButton = output.copyButton();"));
+        assertTrue(source.contains("HBox actionRail = new HBox(OUTPUT_HEADER_GAP, copyButton, killButton);"));
         assertTrue(source.contains("applyOutputActionButtonGeometry(killButton);"));
         assertTrue(source.contains("applyOutputActionButtonGeometry(copyButton);"));
         assertTrue(source.contains("private static final double OUTPUT_ACTION_BUTTON_WIDTH ="));
         assertTrue(source.contains("addStyleClass(killButton, \"astra-output-action-button\")"));
         assertTrue(source.contains("addStyleClass(copyButton, \"astra-output-action-button\")"));
-        assertTrue(source.contains("header.getChildren().addAll(progress, status, killSpacer, copyButton, killButton);"));
+        assertTrue(source.contains("header.getChildren().addAll(progress, status, killSpacer, actionRail);"));
         assertTrue(view.contains("addStyleClass(hiddenToggle, \"astra-log-disclosure-button\")"));
         assertTrue(view.contains("StackPane scrollFrame = new StackPane(scroll, topFade);"));
         assertTrue(view.contains("topFade.prefWidthProperty().bind(scrollFrame.widthProperty());"));

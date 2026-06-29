@@ -2224,6 +2224,7 @@ public final class LauncherPreviewApp extends Application {
         double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
         double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
         Optional<Node> output = firstNode(sceneRoot, ".astra-output-pane");
+        Optional<Node> logView = firstNode(sceneRoot, ".astra-log-view");
         Optional<Node> statusCard = firstNode(sceneRoot, ".astra-log-status-card");
         Optional<Node> statusTitle = firstNode(sceneRoot, ".astra-log-status-title");
         Optional<Node> copy = firstNode(sceneRoot, ".astra-log-copy-button");
@@ -2240,13 +2241,21 @@ public final class LauncherPreviewApp extends Application {
                         outputBounds.getMaxX() - buttonBounds.getMaxX(),
                         "OUTPUT_PANE_INSET + SURFACE_BORDER_WIDTH");
             });
-            if (killButton.isPresent() && logScrollFrame.isPresent()) {
+            if (killButton.isPresent() && logView.isPresent()) {
                 Bounds buttonBounds = relativeBounds(sceneRoot, killButton.get(), rootMinX, rootMinY);
+                Bounds logViewBounds = relativeBounds(sceneRoot, logView.get(), rootMinX, rootMinY);
+                addMeasurement(measurements, "output header action rail to log view rail",
+                        0.0d,
+                        buttonBounds.getMaxX() - logViewBounds.getMaxX(),
+                        "kill max x - astra-log-view max x");
+            }
+            if (logView.isPresent() && logScrollFrame.isPresent()) {
+                Bounds logViewBounds = relativeBounds(sceneRoot, logView.get(), rootMinX, rootMinY);
                 Bounds frameBounds = relativeBounds(sceneRoot, logScrollFrame.get(), rootMinX, rootMinY);
-                addMeasurement(measurements, "kill run to log viewport right rail gap",
-                        styledLogField("LOG_ROW_GAP"),
-                        buttonBounds.getMaxX() - frameBounds.getMaxX(),
-                        "kill max x - log scroll frame max x equals StyledLogView.LOG_ROW_GAP");
+                addMeasurement(measurements, "log view rail to log viewport rail",
+                        styledLogField("LOG_ROW_GAP") + LauncherGeometryTokens.SURFACE_BORDER_WIDTH,
+                        logViewBounds.getMaxX() - frameBounds.getMaxX(),
+                        "astra-log-view max x - log scroll frame max x equals StyledLogView.LOG_ROW_GAP + SURFACE_BORDER_WIDTH");
             }
             statusCard.ifPresent(card -> {
                 Bounds cardBounds = relativeBounds(sceneRoot, card, rootMinX, rootMinY);

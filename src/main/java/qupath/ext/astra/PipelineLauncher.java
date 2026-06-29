@@ -5666,9 +5666,11 @@ final class PipelineLauncher {
             applyOutputActionButtonGeometry(copyButton);
             addStyleClass(copyButton, "astra-output-action-button");
             addStyleClass(copyButton, "astra-output-copy-button");
+            HBox actionRail = new HBox(OUTPUT_HEADER_GAP, copyButton, killButton);
+            actionRail.setAlignment(Pos.CENTER_RIGHT);
             Region killSpacer = new Region();
             HBox.setHgrow(killSpacer, Priority.ALWAYS);
-            header.getChildren().addAll(progress, status, killSpacer, copyButton, killButton);
+            header.getChildren().addAll(progress, status, killSpacer, actionRail);
 
             VBox.setVgrow(output, Priority.ALWAYS);
             elapsedHeartbeat = new Timeline(new KeyFrame(Duration.seconds(1.0), event -> output.refreshTimelineElapsed()));
