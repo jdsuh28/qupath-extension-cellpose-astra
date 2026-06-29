@@ -94,6 +94,13 @@ final class GuiText {
         return button;
     }
 
+    static Button helpButton(String text) {
+        Button button = new Button(text == null ? "" : text);
+        button.getStyleClass().add("astra-help-control");
+        mark((javafx.scene.Node)button, Role.CONTROL_TEXT);
+        return button;
+    }
+
     static ToggleButton toggleButton(Role role, String text) {
         ToggleButton button = new VisualToggleButton(text);
         mark((javafx.scene.Node)button, role);

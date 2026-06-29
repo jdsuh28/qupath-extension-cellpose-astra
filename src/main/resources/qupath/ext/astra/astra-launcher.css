@@ -140,7 +140,10 @@
     -fx-font-size: 11px;
 }
 
-.astra-button-help {
+.astra-button-help,
+.button.astra-button-help,
+.button.astra-help-control,
+.button.astra-button-help.astra-help-control {
     -fx-background-color: #1f7a7a;
     -fx-text-fill: white;
     -fx-border-color: #1f7a7a;
@@ -150,9 +153,15 @@
     -fx-padding: 0;
 }
 
-.astra-button-help .astra-owned-control-text {
+.astra-button-help .astra-owned-control-text,
+.astra-button-help .text,
+.button.astra-button-help .text,
+.button.astra-help-control .text,
+.button.astra-button-help.astra-help-control .text {
     -fx-fill: white;
+    -fx-text-fill: white;
     -fx-font-size: 11px;
+    -fx-font-weight: bold;
 }
 
 .astra-settings-card {
@@ -371,6 +380,11 @@
 
 .astra-header-menu-item-default .astra-owned-menu-text {
     -fx-fill: #172431;
+}
+
+.astra-header-menu-action-button {
+    -fx-alignment: center-left;
+    -fx-text-alignment: left;
 }
 
 .astra-header-options-panel {
@@ -1065,6 +1079,7 @@
     -fx-font-size: 12px;
     -fx-text-fill: #172431;
     -fx-background-color: #ffffff;
+    -fx-background-insets: 0;
 }
 
 .combo-box-popup .list-cell:filled:hover,
@@ -1073,9 +1088,18 @@
     -fx-text-fill: #0d4f55;
 }
 
-.combo-box-popup .list-cell:filled:selected {
+.combo-box-popup .list-cell:filled:selected,
+.combo-box-popup .list-cell:filled:selected:hover,
+.combo-box-popup .list-cell:filled:selected:focused {
     -fx-background-color: #1f7a7a;
     -fx-text-fill: #ffffff;
+    -fx-background-insets: 0;
+}
+
+.combo-box-popup .list-cell:filled:selected .text,
+.combo-box-popup .list-cell:filled:selected:hover .text,
+.combo-box-popup .list-cell:filled:selected:focused .text {
+    -fx-fill: #ffffff;
 }
 
 .combo-box-popup .list-cell:disabled {
@@ -1091,16 +1115,10 @@
     -fx-padding: 5;
 }
 
-.context-menu.astra-header-context-menu {
-    -fx-min-width: 390px;
-    -fx-pref-width: 390px;
-}
-
 .astra-header-context-menu .menu-item,
 .astra-header-context-menu .custom-menu-item {
-    -fx-min-width: 374px;
-    -fx-pref-width: 374px;
-    -fx-padding: 5 7;
+    -fx-background-radius: 5;
+    -fx-padding: 6 8;
 }
 
 .astra-header-context-menu .astra-header-options-menu-item {
@@ -1127,6 +1145,7 @@
 .menu-item:focused,
 .custom-menu-item:focused {
     -fx-background-color: #e6f4f5;
+    -fx-background-insets: 0;
 }
 
 .menu-item:focused .label,
@@ -1508,14 +1527,16 @@
 
 .astra-log-scroll-top-fade {
     -fx-background-color: linear-gradient(from 0% 0% to 0% 100%,
-        #061720 0%,
-        rgba(6, 23, 32, 0.98) 38%,
-        rgba(6, 23, 32, 0.58) 70%,
+        rgba(6, 23, 32, 0.92) 0%,
+        rgba(11, 44, 58, 0.34) 38%,
         rgba(6, 23, 32, 0.0) 100%);
 }
 
-.astra-log-scroll-gradient-fade {
-    -fx-opacity: 0.18;
+.astra-output-action-button {
+    -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -fx-font-size: 10.5px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
 }
 
 .astra-log-copy-button,

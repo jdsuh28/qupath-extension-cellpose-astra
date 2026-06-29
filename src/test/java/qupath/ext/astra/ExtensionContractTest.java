@@ -180,24 +180,27 @@ class ExtensionContractTest {
 
         assertTrue(surface.contains("WritableImage"));
         assertTrue(surface.contains("ImageView"));
-        assertTrue(surface.contains("TranslateTransition"));
+        assertTrue(surface.contains("AnimationTimer"));
         assertTrue(surface.contains("getPixelWriter()"));
-        assertTrue(surface.contains("DEFAULT_CYCLE_SECONDS = 16.0d"));
+        assertTrue(surface.contains("SHARED_CLOCK"));
         assertTrue(header.contains("enum HeaderMode"));
         assertTrue(header.contains("STATIC"));
         assertTrue(header.contains("DYNAMIC"));
         assertTrue(header.contains("enum MotionSpeed"));
-        assertTrue(header.contains("SLOW(\"Slow\", 24.0d)"));
-        assertTrue(header.contains("SMOOTH(\"Smooth\", 16.0d)"));
-        assertTrue(header.contains("LIVELY(\"Lively\", 10.0d)"));
+        assertTrue(header.contains("SLOW(\"Slow\", LauncherGeometryTokens.GRADIENT_SLOW_CYCLE_SECONDS)"));
+        assertTrue(header.contains("SMOOTH(\"Smooth\", LauncherGeometryTokens.GRADIENT_SMOOTH_CYCLE_SECONDS)"));
+        assertTrue(header.contains("LIVELY(\"Lively\", LauncherGeometryTokens.GRADIENT_LIVELY_CYCLE_SECONDS)"));
         assertTrue(header.contains("void setHeaderMode(HeaderMode nextMode)"));
         assertTrue(header.contains("void setMotionSpeed(MotionSpeed nextSpeed)"));
         assertTrue(surface.contains("TEXTURE_SCALE = 3.0d"));
         assertTrue(surface.contains("GRADIENT_SPAN_MULTIPLIER = 3.0d"));
         assertTrue(surface.contains("TEXTURE_MAX_PIXEL_HEIGHT = 128"));
         assertTrue(surface.contains("DITHER_AMPLITUDE = 1.2d / 255.0d"));
-        assertTrue(surface.contains("animation.setToX(direction == Direction.HORIZONTAL ? -stripLogicalLength : 0.0d)"));
-        assertTrue(surface.contains("animation.setToY(direction == Direction.VERTICAL ? -stripLogicalLength : 0.0d)"));
+        assertTrue(surface.contains("surface.applyAnimationFrame(now)"));
+        assertTrue(surface.contains("leadingStrip.setLayoutX"));
+        assertTrue(surface.contains("trailingStrip.setLayoutX"));
+        assertTrue(surface.contains("leadingStrip.setLayoutY"));
+        assertTrue(surface.contains("trailingStrip.setLayoutY"));
         assertTrue(surface.contains("setManaged(false)"));
         assertTrue(surface.contains("setMouseTransparent(true)"));
         assertTrue(header.contains("private final AnimatedGradientSurface gradientSurface"));
@@ -215,7 +218,6 @@ class ExtensionContractTest {
         assertFalse(header.contains("graphics.scale("));
         assertFalse(surface.contains("Canvas"));
         assertFalse(surface.contains("GraphicsContext"));
-        assertFalse(surface.contains("AnimationTimer"));
         assertFalse(surface.contains("MediaView"));
         assertFalse(surface.contains("RENDER_SCALE = 8.0d"));
         assertFalse(surface.contains("new LinearGradient"));
@@ -820,6 +822,31 @@ class ExtensionContractTest {
         assertTrue(runtimeSource.contains("requireSuccessfulProcessExit(veRunner, \"Cellpose process\")"));
         assertTrue(runtimeSource.contains("exited with value"));
         assertTrue(runtimeSource.contains("Process log:"));
+    }
+
+    /**
+     * Verifies ASTRA validates staged batch input images before invoking the
+     * Python CLI with --dir, so an empty or failed tile-staging directory is
+     * reported as an ASTRA staging error instead of a downstream Cellpose
+     * "no files in --dir folder" traceback.
+     *
+     * @throws Exception if source cannot be read.
+     */
+    @Test
+    void batchInferenceValidatesDirInputsBeforePythonLaunch() throws Exception {
+        String runtimeSource = Files.readString(new File(ROOT, "src/main/java/qupath/ext/astra/AstraCellpose2D.java").toPath());
+
+        assertTrue(runtimeSource.contains("requireReadableInputImage(tempFile, \"ASTRA batch inference tile export\")"));
+        assertTrue(runtimeSource.contains("requireCellposeInputDirectory(inputDirectory, \"Cellpose --dir input\")"));
+        assertTrue(runtimeSource.contains("contains no Cellpose-readable input images before launching Cellpose"));
+        assertTrue(runtimeSource.contains("ASTRA tile staging failed before the Python runtime was invoked."));
+        int method = runtimeSource.indexOf("private void runCellposeInDirectory(");
+        assertTrue(method >= 0);
+        int guard = runtimeSource.indexOf("requireCellposeInputDirectory(inputDirectory, \"Cellpose --dir input\")", method);
+        int runner = runtimeSource.indexOf("VirtualEnvironmentRunner veRunner = createRuntimeRunner();", method);
+        assertTrue(guard >= 0);
+        assertTrue(runner >= 0);
+        assertTrue(guard < runner);
     }
 
     private static final class FakeProcess extends Process {

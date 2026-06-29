@@ -28,6 +28,22 @@ final class LauncherGeometryTokens {
             LAYOUT_UNIT / INTRA_PANEL_SUBTLE_GAP;
     static final double ACTION_PROGRESS_SHIMMER_SPEED_DIVISOR =
             LAYOUT_UNIT / INTRA_PANEL_TIGHT_GAP;
+    static final double GRADIENT_SLOW_CYCLE_SECONDS =
+            LAYOUT_UNIT;
+    static final double GRADIENT_SMOOTH_CYCLE_SECONDS =
+            LAYOUT_UNIT * 2.0 / 3.0;
+    static final double GRADIENT_LIVELY_CYCLE_SECONDS =
+            LAYOUT_UNIT / 6.0;
+    static final double MAIN_ACTION_BUTTON_WIDTH =
+            LAYOUT_UNIT * 4.0;
+    static final double OUTPUT_ACTION_BUTTON_WIDTH =
+            MAIN_ACTION_BUTTON_WIDTH - INTRA_PANEL_MARGIN;
+    static final double CONTROL_FIELD_HEIGHT =
+            LAYOUT_UNIT + INTRA_PANEL_SUBTLE_GAP;
+    static final double CONTROL_FIELD_MIN_WIDTH =
+            LAYOUT_UNIT * 7.0;
+    static final double LOG_FADE_VISIBLE_FRACTION =
+            INTRA_PANEL_SUBTLE_GAP / LAYOUT_UNIT;
 
     private LauncherGeometryTokens() {
     }

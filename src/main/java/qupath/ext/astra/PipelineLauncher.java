@@ -181,6 +181,14 @@ final class PipelineLauncher {
                 LauncherGeometryTokens.ACTION_PROGRESS_SHIMMER_WIDTH_DIVISOR;
         private static final double ACTION_PROGRESS_SHIMMER_SPEED_DIVISOR =
                 LauncherGeometryTokens.ACTION_PROGRESS_SHIMMER_SPEED_DIVISOR;
+        private static final double MAIN_ACTION_BUTTON_WIDTH =
+                LauncherGeometryTokens.MAIN_ACTION_BUTTON_WIDTH;
+        private static final double OUTPUT_ACTION_BUTTON_WIDTH =
+                LauncherGeometryTokens.OUTPUT_ACTION_BUTTON_WIDTH;
+        private static final double CONTROL_FIELD_HEIGHT =
+                LauncherGeometryTokens.CONTROL_FIELD_HEIGHT;
+        private static final double CONTROL_FIELD_MIN_WIDTH =
+                LauncherGeometryTokens.CONTROL_FIELD_MIN_WIDTH;
 
         private LauncherGeometry() {
         }
@@ -1341,17 +1349,16 @@ final class PipelineLauncher {
     }
 
     static String launcherVersionSummary() {
-        String base = runtimeProperty("astra.base.version", "unknown");
         String extension = runtimeProperty("Implementation-Version", "unknown");
-        return launcherVersionSummary(base, extension);
+        return launcherVersionSummary(extension);
     }
 
     static String launcherVersionSummary(String base, String extension) {
-        String extensionDisplay = displayVersionToken(extension);
-        String baseDisplay = isUnknownVersion(extension)
-                ? "dev/unknown"
-                : displayVersionToken(base);
-        return "ASTRA " + baseDisplay + " | Extension " + extensionDisplay;
+        return launcherVersionSummary(extension);
+    }
+
+    static String launcherVersionSummary(String extension) {
+        return "ASTRA Extension " + displayVersionToken(extension);
     }
 
     private static String displayVersionToken(String value) {
@@ -2317,6 +2324,7 @@ final class PipelineLauncher {
         TextField phrase = new TextField();
         phrase.setPromptText("Unlock phrase");
         phrase.setPrefColumnCount(18);
+        phrase.setMinWidth(LauncherGeometry.CONTROL_FIELD_MIN_WIDTH);
         addStyleClass(phrase, "astra-input");
         Button unlock = GuiText.button(GuiText.Role.CONTROL_TEXT, "Unlock advanced");
         unlock.setFocusTraversable(false);
@@ -3206,7 +3214,14 @@ final class PipelineLauncher {
 
     private static MenuItem createHeaderActionMenuItem(String label, ButtonRole role,
                                                        Runnable action, ButtonBase actionButton) {
-        MenuItem item = GuiText.menuItem(GuiText.Role.CONTROL_TEXT, label);
+        Button row = GuiText.button(GuiText.Role.CONTROL_TEXT, label);
+        row.setFocusTraversable(false);
+        row.setMaxWidth(Double.MAX_VALUE);
+        row.setMinWidth(HeaderGeometry.MENU_ITEM_WIDTH);
+        row.setPrefWidth(HeaderGeometry.MENU_ITEM_WIDTH);
+        styleButton(row, role);
+        addStyleClass(row, "astra-header-menu-action-button");
+        CustomMenuItem item = new CustomMenuItem(row, true);
         item.getStyleClass().add("astra-header-menu-item");
         item.getStyleClass().add(switch (role) {
             case DANGER -> "astra-header-menu-item-danger";
@@ -3215,8 +3230,9 @@ final class PipelineLauncher {
         });
         if (actionButton != null) {
             item.disableProperty().bind(actionButton.disableProperty());
+            row.disableProperty().bind(actionButton.disableProperty());
         }
-        item.setOnAction(event -> {
+        row.setOnAction(event -> {
             if (action != null) {
                 action.run();
             }
@@ -3517,7 +3533,7 @@ final class PipelineLauncher {
                                         boolean dependent) {
         RowNodes nodes = createParameterRowNodes(constant, visualRow, autosave, dependent);
         grid.add(nodes.label, 0, row);
-        GridPane.setValignment(nodes.label, nodes.tall() ? VPos.TOP : VPos.CENTER);
+        GridPane.setValignment(nodes.label, VPos.CENTER);
         GridPane.setFillHeight(nodes.label, nodes.tall());
         GridPane.setHgrow(nodes.editor, Priority.ALWAYS);
         grid.add(nodes.editor, 1, row);
@@ -3566,7 +3582,7 @@ final class PipelineLauncher {
         addStyleClass(anchor, "astra-parameter-anchor-" + parameterTypeToken(constant));
         RailText label = railText(displayLabel(constant.name), labelTextWidth,
                 "astra-parameter-label");
-        Button info = GuiText.button(GuiText.Role.CONTROL_TEXT, "?");
+        Button info = GuiText.helpButton("?");
         info.setMinSize(PARAMETER_HELP_BUTTON_SIZE, PARAMETER_HELP_BUTTON_SIZE);
         info.setPrefSize(PARAMETER_HELP_BUTTON_SIZE, PARAMETER_HELP_BUTTON_SIZE);
         info.setMaxSize(PARAMETER_HELP_BUTTON_SIZE, PARAMETER_HELP_BUTTON_SIZE);
@@ -3577,15 +3593,15 @@ final class PipelineLauncher {
         installReliableTooltip(info, tooltip);
         info.setOnAction(event -> showParameterHelpDialog(constant));
         labelBox.add(anchor, 0, 0, 1, 2);
-        labelBox.add(label, 1, 0);
-        labelBox.add(info, 2, 0);
+        labelBox.add(label, 1, 0, 1, 2);
+        labelBox.add(info, 2, 0, 1, 2);
         GridPane.setHalignment(anchor, HPos.LEFT);
         GridPane.setFillHeight(anchor, true);
 
         Node editor = constant.createEditor();
         boolean tall = isTallParameterEditor(editor);
-        // The accent midpoint belongs on the first-row rail midpoint, even
-        // when the editor below makes the full parameter row taller.
+        // The accent spans the full tall stack, while label/help controls
+        // center within it; the editor keeps its top rail so helper rows flow.
         labelBox.setAlignment(Pos.CENTER_LEFT);
         GridPane.setValignment(anchor, VPos.CENTER);
         GridPane.setValignment(label, VPos.CENTER);
@@ -4683,6 +4699,11 @@ final class PipelineLauncher {
         }
         if ("astra-input".equals(styleClass) && node instanceof TextInputControl input) {
             GuiText.adoptEditableText(input);
+            if (input instanceof TextField textField) {
+                textField.setAlignment(Pos.CENTER_LEFT);
+                textField.setMinHeight(LauncherGeometry.CONTROL_FIELD_HEIGHT);
+                textField.setPrefHeight(LauncherGeometry.CONTROL_FIELD_HEIGHT);
+            }
         }
     }
 
@@ -4724,7 +4745,14 @@ final class PipelineLauncher {
             case SMALL -> "astra-button-small";
             case HELP -> "astra-button-help";
         });
-        if (button instanceof javafx.scene.control.Labeled labeled) {
+        if (role == ButtonRole.HELP && button instanceof javafx.scene.control.Labeled labeled) {
+            labeled.setGraphic(null);
+            labeled.setContentDisplay(ContentDisplay.TEXT_ONLY);
+            labeled.setAlignment(Pos.CENTER);
+            addStyleClass(button, "astra-help-control");
+            return;
+        }
+        if (role != ButtonRole.HELP && button instanceof javafx.scene.control.Labeled labeled) {
             GuiText.adoptControlText(labeled);
         }
     }
@@ -4732,6 +4760,15 @@ final class PipelineLauncher {
     private static void applyMainActionButtonGeometry(ButtonBase button) {
         button.setMinHeight(PARAMETER_ROW_HEIGHT);
         button.setPrefHeight(PARAMETER_ROW_HEIGHT);
+        button.setMinWidth(LauncherGeometry.MAIN_ACTION_BUTTON_WIDTH);
+        button.setPrefWidth(LauncherGeometry.MAIN_ACTION_BUTTON_WIDTH);
+    }
+
+    private static void applyOutputActionButtonGeometry(ButtonBase button) {
+        button.setMinHeight(PARAMETER_ROW_HEIGHT);
+        button.setPrefHeight(PARAMETER_ROW_HEIGHT);
+        button.setMinWidth(LauncherGeometry.OUTPUT_ACTION_BUTTON_WIDTH);
+        button.setPrefWidth(LauncherGeometry.OUTPUT_ACTION_BUTTON_WIDTH);
     }
 
     private static void styleCheckBox(CheckBox box) {
@@ -5613,22 +5650,26 @@ final class PipelineLauncher {
             progress.setVisible(false);
             progress.setManaged(false);
 
+            output = new StyledLogView();
             status = GuiText.label(GuiText.Role.PANEL_TEXT, "Ready to run " + scriptName + ".");
             status.getStyleClass().add("astra-output-status");
             killButton = GuiText.button(GuiText.Role.CONTROL_TEXT, "Kill Run");
             killButton.setDisable(true);
             killButton.setFocusTraversable(false);
             styleButton(killButton, ButtonRole.DANGER);
+            applyOutputActionButtonGeometry(killButton);
+            addStyleClass(killButton, "astra-output-action-button");
             addStyleClass(killButton, "astra-output-kill-button");
             killButton.setOnAction(event -> requestCancellation());
+            Button copyButton = output.copyButton();
+            styleButton(copyButton, ButtonRole.SECONDARY);
+            applyOutputActionButtonGeometry(copyButton);
+            addStyleClass(copyButton, "astra-output-action-button");
+            addStyleClass(copyButton, "astra-output-copy-button");
             Region killSpacer = new Region();
             HBox.setHgrow(killSpacer, Priority.ALWAYS);
-            header.getChildren().addAll(progress, status, killSpacer, killButton);
+            header.getChildren().addAll(progress, status, killSpacer, copyButton, killButton);
 
-            output = new StyledLogView();
-            applyOutputGradientPreferences();
-            HEADER_MODE_PREFERENCE.addListener((obs, oldValue, newValue) -> applyOutputGradientPreferences());
-            HEADER_MOTION_PREFERENCE.addListener((obs, oldValue, newValue) -> applyOutputGradientPreferences());
             VBox.setVgrow(output, Priority.ALWAYS);
             elapsedHeartbeat = new Timeline(new KeyFrame(Duration.seconds(1.0), event -> output.refreshTimelineElapsed()));
             elapsedHeartbeat.setCycleCount(Animation.INDEFINITE);
@@ -5639,11 +5680,6 @@ final class PipelineLauncher {
 
         private void attachRunProgressLane(RunProgressLane lane) {
             runProgressLane = lane;
-        }
-
-        private void applyOutputGradientPreferences() {
-            output.setGradientMode(headerModePreference());
-            output.setMotionSpeed(headerMotionPreference());
         }
 
         private Node node() {
