@@ -456,7 +456,7 @@ class PipelineLauncherTest {
 
     @Test
     void transientSurfaceAuditClassifiesAstraOwnedAndNativeSurfaces() throws Exception {
-        Path auditPath = Path.of("docs/gui-transient-surface-audit.csv");
+        Path auditPath = Path.of("src/test/resources/qupath/ext/astra/gui-transient-surface-audit.csv");
         assertTrue(Files.exists(auditPath), "Transient surface audit must be tracked.");
         String audit = Files.readString(auditPath);
 
