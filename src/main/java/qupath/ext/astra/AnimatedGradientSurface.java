@@ -22,6 +22,7 @@ final class AnimatedGradientSurface extends Pane {
     static final String DIRECTION_PROPERTY = "astraGradientDirection";
     static final String MODE_PROPERTY = "astraGradientMode";
     static final String SPEED_PROPERTY = "astraGradientSpeed";
+    static final String REPAINT_ELIGIBLE_PROPERTY = "astraGradientRepaintEligible";
 
     enum Direction {
         HORIZONTAL,
@@ -30,6 +31,7 @@ final class AnimatedGradientSurface extends Pane {
 
     private static final double TEXTURE_SCALE = 3.0d;
     private static final double GRADIENT_SPAN_MULTIPLIER = 3.0d;
+    private static final double SEAM_OVERLAP_LOGICAL_LENGTH = 1.0d / TEXTURE_SCALE;
     private static final int TEXTURE_MAX_PIXEL_HEIGHT = 128;
     private static final double DITHER_AMPLITUDE = 1.2d / 255.0d;
     private static final double OVERLAY_ALPHA = 0.18d;
@@ -57,7 +59,7 @@ final class AnimatedGradientSurface extends Pane {
         @Override
         public void handle(long now) {
             for (AnimatedGradientSurface surface : SURFACES) {
-                if (surface.getScene() != null) {
+                if (surface.isRepaintEligible()) {
                     surface.applyAnimationFrame(now);
                 }
             }
@@ -86,6 +88,8 @@ final class AnimatedGradientSurface extends Pane {
         widthProperty().addListener((obs, oldValue, newValue) -> rebuildGradientStrip());
         heightProperty().addListener((obs, oldValue, newValue) -> rebuildGradientStrip());
         sceneProperty().addListener((obs, oldScene, newScene) -> updateSharedClockState());
+        visibleProperty().addListener((obs, oldValue, newValue) -> updateSharedClockState());
+        parentProperty().addListener((obs, oldValue, newValue) -> updateSharedClockState());
         rebuildGradientStrip();
     }
 
@@ -95,6 +99,7 @@ final class AnimatedGradientSurface extends Pane {
                 : nextMode;
         publishStateProperties();
         applyAnimationFrame(System.nanoTime());
+        updateSharedClockState();
     }
 
     void setMotionSpeed(AnimatedGradientHeader.MotionSpeed nextSpeed) {
@@ -103,6 +108,7 @@ final class AnimatedGradientSurface extends Pane {
                 : nextSpeed;
         publishStateProperties();
         applyAnimationFrame(System.nanoTime());
+        updateSharedClockState();
     }
 
     void setDirection(Direction nextDirection) {
@@ -138,6 +144,7 @@ final class AnimatedGradientSurface extends Pane {
         configureStrip(leadingStrip, texture, width, height);
         configureStrip(trailingStrip, texture, width, height);
         applyAnimationFrame(System.nanoTime());
+        updateSharedClockState();
     }
 
     private void configureStrip(ImageView imageView,
@@ -161,10 +168,10 @@ final class AnimatedGradientSurface extends Pane {
             leadingStrip.setLayoutX(0.0d);
             trailingStrip.setLayoutX(0.0d);
             leadingStrip.setLayoutY(phase - stripLogicalLength);
-            trailingStrip.setLayoutY(phase);
+            trailingStrip.setLayoutY(phase - SEAM_OVERLAP_LOGICAL_LENGTH);
         } else {
             leadingStrip.setLayoutX(-phase);
-            trailingStrip.setLayoutX(stripLogicalLength - phase);
+            trailingStrip.setLayoutX(stripLogicalLength - phase - SEAM_OVERLAP_LOGICAL_LENGTH);
             leadingStrip.setLayoutY(0.0d);
             trailingStrip.setLayoutY(0.0d);
         }
@@ -174,10 +181,12 @@ final class AnimatedGradientSurface extends Pane {
         getProperties().put(DIRECTION_PROPERTY, direction.name());
         getProperties().put(MODE_PROPERTY, headerMode.name());
         getProperties().put(SPEED_PROPERTY, motionSpeed.name());
+        getProperties().put(REPAINT_ELIGIBLE_PROPERTY, Boolean.toString(isRepaintEligible()));
     }
 
     private static void updateSharedClockState() {
-        boolean anyAttached = SURFACES.stream().anyMatch(surface -> surface.getScene() != null);
+        SURFACES.forEach(AnimatedGradientSurface::publishEligibilityProperty);
+        boolean anyAttached = SURFACES.stream().anyMatch(AnimatedGradientSurface::isRepaintEligible);
         if (anyAttached && !sharedClockRunning) {
             SHARED_CLOCK.start();
             sharedClockRunning = true;
@@ -185,6 +194,31 @@ final class AnimatedGradientSurface extends Pane {
             SHARED_CLOCK.stop();
             sharedClockRunning = false;
         }
+    }
+
+    private void publishEligibilityProperty() {
+        getProperties().put(REPAINT_ELIGIBLE_PROPERTY, Boolean.toString(isRepaintEligible()));
+    }
+
+    private boolean isRepaintEligible() {
+        return getScene() != null
+                && headerMode == AnimatedGradientHeader.HeaderMode.DYNAMIC
+                && stripLogicalLength > 0.0d
+                && getWidth() > 0.0d
+                && getHeight() > 0.0d
+                && getOpacity() > 0.0d
+                && isTreeVisible();
+    }
+
+    private boolean isTreeVisible() {
+        javafx.scene.Node current = this;
+        while (current != null) {
+            if (!current.isVisible()) {
+                return false;
+            }
+            current = current.getParent();
+        }
+        return true;
     }
 
     private static WritableImage createGradientTexture(double logicalWidth,
@@ -212,12 +246,16 @@ final class AnimatedGradientSurface extends Pane {
         for (int y = 0; y < pixelHeight; y++) {
             for (int x = 0; x < pixelWidth; x++) {
                 int axis = direction == Direction.VERTICAL ? y : x;
-                double dither = dither(x, y);
+                double dither = isSeamEdge(axis, axisPixels) ? 0.0d : dither(x, y);
                 row[x] = argb(red[axis] + dither, green[axis] + dither, blue[axis] + dither);
             }
             writer.setPixels(0, y, pixelWidth, 1, ARGB_FORMAT, row, 0, pixelWidth);
         }
         return texture;
+    }
+
+    private static boolean isSeamEdge(int axis, int axisPixels) {
+        return axis == 0 || axis == Math.max(0, axisPixels - 1);
     }
 
     private static Color colorAt(double position) {

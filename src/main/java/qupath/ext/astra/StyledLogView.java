@@ -55,7 +55,9 @@ final class StyledLogView extends VBox {
             LauncherGeometryTokens.INTRA_PANEL_SUBTLE_GAP;
     private static final double LOG_FADE_VISIBLE_FRACTION =
             LauncherGeometryTokens.LOG_FADE_VISIBLE_FRACTION;
+    private final Region liveTopSpacer = new Region();
     private final VBox entries = new VBox(LOG_STACK_GAP);
+    private final VBox liveContent = new VBox(LauncherGeometryTokens.FLUSH);
     private final StringBuilder plainText = new StringBuilder();
     private final StringBuilder rawText = new StringBuilder();
     private final ScrollPane scroll;
@@ -119,11 +121,20 @@ final class StyledLogView extends VBox {
         addStyleClass(statusDetail, "astra-log-status-detail");
         timelineRail.setAlignment(Pos.CENTER_LEFT);
 
+        liveTopSpacer.setMinHeight(LauncherGeometryTokens.FLUSH);
+        liveTopSpacer.setPrefHeight(LauncherGeometryTokens.FLUSH);
+        VBox.setVgrow(liveTopSpacer, Priority.ALWAYS);
         entries.setFillWidth(true);
-        scroll = new ScrollPane(entries);
+        liveContent.setFillWidth(true);
+        liveContent.getChildren().addAll(liveTopSpacer, entries);
+        scroll = new ScrollPane(liveContent);
         scroll.setFitToWidth(true);
         scroll.setPrefViewportHeight(520.0);
         addStyleClass(scroll, "astra-log-scroll");
+        scroll.viewportBoundsProperty().addListener((obs, oldBounds, newBounds) ->
+                liveContent.setMinHeight(newBounds == null
+                        ? Region.USE_COMPUTED_SIZE
+                        : newBounds.getHeight()));
         Region topFade = new Region();
         topFade.setMouseTransparent(true);
         topFade.setMinSize(0.0d, 0.0d);
@@ -384,6 +395,7 @@ final class StyledLogView extends VBox {
         hiddenToggle.setFocusTraversable(false);
         addStyleClass(hiddenToggle, "astra-button");
         addStyleClass(hiddenToggle, "astra-log-disclosure-button");
+        applyInlineUtilityButtonGeometry(hiddenToggle);
         hiddenToggle.setOnAction(event -> {
             boolean show = !hiddenBody.isVisible();
             hiddenBody.setVisible(show);
@@ -648,6 +660,12 @@ final class StyledLogView extends VBox {
         if (copied) {
             addStyleClass(copy, "astra-log-copy-button-copied");
         }
+    }
+
+    private static void applyInlineUtilityButtonGeometry(Button button) {
+        button.setMinHeight(LauncherGeometryTokens.BUTTON_HEIGHT);
+        button.setPrefHeight(LauncherGeometryTokens.BUTTON_HEIGHT);
+        button.setMinWidth(LauncherGeometryTokens.INLINE_UTILITY_BUTTON_MIN_WIDTH);
     }
 
     private static void addStyleClass(Node node, String styleClass) {

@@ -34,10 +34,12 @@ final class LauncherGeometryTokens {
             LAYOUT_UNIT * 2.0 / 3.0;
     static final double GRADIENT_LIVELY_CYCLE_SECONDS =
             LAYOUT_UNIT / 6.0;
-    static final double MAIN_ACTION_BUTTON_WIDTH =
-            LAYOUT_UNIT * 4.0;
-    static final double OUTPUT_ACTION_BUTTON_WIDTH =
-            MAIN_ACTION_BUTTON_WIDTH - INTRA_PANEL_MARGIN;
+    static final double BUTTON_HEIGHT =
+            LAYOUT_UNIT + INTRA_PANEL_SUBTLE_GAP + (SURFACE_BORDER_WIDTH * 2.0);
+    static final double PANEL_NAV_BUTTON_MIN_WIDTH =
+            LAYOUT_UNIT * 3.0;
+    static final double INLINE_UTILITY_BUTTON_MIN_WIDTH =
+            LAYOUT_UNIT * 7.0 / 2.0;
     static final double CONTROL_FIELD_HEIGHT =
             LAYOUT_UNIT + INTRA_PANEL_SUBTLE_GAP;
     static final double CONTROL_FIELD_MIN_WIDTH =
