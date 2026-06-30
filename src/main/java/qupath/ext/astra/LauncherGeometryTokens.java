@@ -36,8 +36,6 @@ final class LauncherGeometryTokens {
             LAYOUT_UNIT / 6.0;
     static final double BUTTON_HEIGHT =
             LAYOUT_UNIT + INTRA_PANEL_SUBTLE_GAP + (SURFACE_BORDER_WIDTH * 2.0);
-    static final double MACRO_ACTION_BUTTON_WIDTH =
-            LAYOUT_UNIT * 4.0;
     static final double PANEL_NAV_BUTTON_MIN_WIDTH =
             LAYOUT_UNIT * 3.0;
     static final double INLINE_UTILITY_BUTTON_MIN_WIDTH =

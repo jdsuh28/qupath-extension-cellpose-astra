@@ -303,23 +303,12 @@
     -fx-alignment: top-left;
 }
 
-.astra-header-action-rail-tab {
-    -fx-font-size: 10px;
-    -fx-font-weight: bold;
-    -fx-text-fill: #d8ecee;
-    -fx-padding: 1 8 1 8;
-    -fx-background-color: rgba(255, 255, 255, 0.16);
-    -fx-border-color: rgba(255, 255, 255, 0.26);
-    -fx-background-radius: 8 8 0 0;
-    -fx-border-radius: 8 8 0 0;
-}
-
 .astra-header-action-content {
     -fx-alignment: center;
-    -fx-background-color: rgba(255, 255, 255, 0.14);
-    -fx-border-color: rgba(255, 255, 255, 0.24);
-    -fx-background-radius: 0 8 8 8;
-    -fx-border-radius: 0 8 8 8;
+    -fx-background-color: rgba(255, 255, 255, 0.11);
+    -fx-border-color: rgba(255, 255, 255, 0.18);
+    -fx-background-radius: 0 0 8 8;
+    -fx-border-radius: 0 0 8 8;
 }
 
 .astra-header-actions {
@@ -360,6 +349,14 @@
     -fx-alignment: center-left;
 }
 
+.astra-header-action-page-controls .astra-header-options-label {
+    -fx-text-fill: #e8f6f7;
+}
+
+.astra-header-action-page-controls .astra-header-options-label .astra-owned-panel-text {
+    -fx-fill: #e8f6f7;
+}
+
 .astra-header-action-page-button {
     -fx-alignment: center-left;
 }
@@ -369,7 +366,6 @@
 }
 
 .astra-header-menu-button {
-    -fx-min-width: 82px;
     -fx-alignment: center;
     -fx-padding: 7 11;
 }
@@ -387,6 +383,10 @@
 .astra-header-menu-chevron {
     -fx-font-size: 13px;
     -fx-translate-y: -1px;
+}
+
+.astra-header-menu-button-home {
+    -fx-border-color: rgba(219, 235, 238, 0.86);
 }
 
 .astra-header-menu-button-settings {

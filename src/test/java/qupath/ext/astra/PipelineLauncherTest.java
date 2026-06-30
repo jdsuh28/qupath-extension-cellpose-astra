@@ -386,7 +386,8 @@ class PipelineLauncherTest {
         assertTrue(css.contains(".astra-header-menu-button"));
         assertTrue(css.contains(".astra-header-menu-label"));
         assertTrue(css.contains(".astra-header-menu-chevron"));
-        assertTrue(css.contains(".astra-header-action-rail-tab"));
+        assertFalse(css.contains(".astra-header-action-rail-tab"));
+        assertTrue(css.contains(".astra-header-action-page-controls .astra-header-options-label"));
         assertTrue(css.contains(".astra-header-context-menu"));
         assertTrue(css.contains(".astra-combo-cell"));
         assertTrue(css.contains(".astra-list-cell"));
@@ -441,8 +442,28 @@ class PipelineLauncherTest {
         assertTrue(source.contains("PANEL_NAVIGATION"));
         assertTrue(source.contains("INLINE_UTILITY"));
         assertTrue(source.contains("HELP_ICON"));
-        assertTrue(source.contains("button.setMinWidth(LauncherGeometry.MACRO_ACTION_BUTTON_WIDTH);"));
-        assertTrue(source.contains("button.setPrefWidth(LauncherGeometry.MACRO_ACTION_BUTTON_WIDTH);"));
+        assertTrue(source.contains("button.setMinWidth(LauncherGeometry.macroActionButtonWidth());"));
+        assertTrue(source.contains("button.setPrefWidth(LauncherGeometry.macroActionButtonWidth());"));
+        assertTrue(source.contains("button.setMaxWidth(LauncherGeometry.macroActionButtonWidth());"));
+        assertTrue(source.contains("private enum HeaderActionSlot"));
+        assertTrue(source.contains("HOME,"));
+        assertTrue(source.contains("SETTINGS,"));
+        assertTrue(source.contains("PROJECT,"));
+        assertTrue(source.contains("VIEW"));
+        assertTrue(source.contains("MACRO_ACTION_BUTTON_COUNT =\n"
+                + "            HeaderActionSlot.values().length;"));
+        assertTrue(source.contains("private static final double MACRO_ACTION_BUTTON_GAP_COUNT ="));
+        assertTrue(source.contains("private static double macroActionButtonWidth()"));
+        assertTrue(source.contains("- (HeaderGeometry.ACTION_RIBBON_INSET * 2.0)"));
+        assertTrue(source.contains("- (HeaderGeometry.ACTION_CLUSTER_GAP * MACRO_ACTION_BUTTON_GAP_COUNT)"));
+        assertTrue(source.contains("/ MACRO_ACTION_BUTTON_COUNT"));
+        assertTrue(source.contains("private static double macroActionClusterWidth()"));
+        assertTrue(source.contains("private static double actionRibbonHeight()"));
+        assertTrue(source.contains("return PARAMETER_ROW_HEIGHT + (ACTION_RIBBON_INSET * 2.0);"));
+        assertTrue(source.contains("actionRail.setMinHeight(HeaderGeometry.actionRibbonHeight());"));
+        assertTrue(source.contains("actionContent.setPrefHeight(HeaderGeometry.actionRibbonHeight());"));
+        assertTrue(source.contains("actionCluster.setPrefHeight(PARAMETER_ROW_HEIGHT);"));
+        assertFalse(source.contains("VBox.setVgrow(actionContent, Priority.ALWAYS);"));
         assertTrue(source.contains("applyButtonFamilyGeometry(button, ButtonFamily.MACRO_ACTION);"));
         assertTrue(source.contains("applyButtonFamilyGeometry(dashboard, ButtonFamily.PANEL_NAVIGATION);"));
         assertTrue(source.contains("applyButtonFamilyGeometry(unlock, ButtonFamily.INLINE_UTILITY);"));
@@ -1335,8 +1356,12 @@ class PipelineLauncherTest {
                 + "                LauncherGeometry.INTRA_PANEL_MARGIN;"));
         assertTrue(source.contains("private static final double TITLE_ROW_GAP =\n"
                 + "                HEADER_STACK_GAP;"));
+        assertTrue(source.contains("private static final double ACTION_RAIL_TOP_OFFSET =\n"
+                + "                -LauncherGeometry.OUTER_MARGIN;"));
+        assertTrue(source.contains("private static final double ACTION_RIBBON_INSET =\n"
+                + "                OUTPUT_PANE_INSET;"));
         assertTrue(source.contains("private static final double ACTION_CLUSTER_GAP =\n"
-                + "                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP - SURFACE_BORDER_WIDTH;"));
+                + "                ACTION_RIBBON_INSET;"));
         assertTrue(source.contains("private static final double MENU_EDGE_MARGIN =\n"
                 + "                LauncherGeometry.INTRA_PANEL_MARGIN;"));
         assertTrue(source.contains("private static final double WIDEST_SEGMENT_ROW_WIDTH =\n"
@@ -1620,13 +1645,35 @@ class PipelineLauncherTest {
         assertTrue(source.contains("profile.header_action_mode = headerActionMode.name();"));
         assertTrue(source.contains("headerActionMode = HeaderActionMode.fromText(profile.header_action_mode);"));
         assertTrue(source.contains("StackPane actionContent = new StackPane();"));
+        assertTrue(source.contains("actionRail.setTranslateY(HeaderGeometry.ACTION_RAIL_TOP_OFFSET);"));
+        assertTrue(source.contains("actionContent.setPadding(HeaderGeometry.actionRibbonPadding());"));
+        assertFalse(source.contains("actionContent.setPadding(LauncherGeometry.intraPanelPadding());"));
         assertTrue(source.contains("renderHeaderActionHome("));
         assertTrue(source.contains("createHeaderActionHome("));
+        assertTrue(source.contains("createHeaderPageHomeButton(\"Home\", \"home\", actionsAction)"));
+        assertTrue(source.contains("createHeaderPageHomeButton(\"Settings\", \"settings\", settingsAction)"));
+        assertTrue(source.contains("createHeaderPageHomeButton(\"Project\", \"project\", projectAction)"));
+        assertTrue(source.contains("createHeaderPageHomeButton(\"View\", \"view\", viewAction)"));
+        assertTrue(source.contains("button.setDisable(action == null);"));
+        assertTrue(source.contains("actionCluster.setPrefWidth(macroActionClusterWidth());"));
+        assertTrue(source.contains("HBox.setHgrow(button, Priority.NEVER);"));
+        assertFalse(source.contains("HBox.setHgrow(button, Priority.ALWAYS);"));
         assertTrue(source.contains("createHeaderActionPageShell("));
-        assertTrue(source.contains("Back to Actions"));
+        assertTrue(source.contains("Back to Home"));
+        assertTrue(source.contains("List<Runnable> launcherHomeResets = new ArrayList<>();"));
+        assertTrue(source.contains("hideLauncherTransientWindows(scroll.getScene() == null ? null : scroll.getScene().getWindow(),"));
+        assertTrue(source.contains("launcherHomeResets.forEach(Runnable::run);"));
+        assertTrue(source.contains("scroll.setVvalue(LauncherGeometry.FLUSH);"));
+        assertTrue(source.contains("setOutputVisible.accept(true);"));
+        assertTrue(source.contains("private static void hideLauncherTransientWindows(Window launcherWindow, HeaderActionMenu... menus)"));
+        assertTrue(source.contains("List.copyOf(Window.getWindows()).stream()"));
+        assertTrue(source.contains("window instanceof PopupWindow popupWindow"));
+        assertTrue(source.contains("window instanceof Stage stage"));
         assertTrue(source.contains("headerSegmentRow(\"Header Actions\", pages, dropdowns)"));
         assertTrue(source.contains("safeMode == HeaderActionMode.DROPDOWNS"));
-        assertTrue(source.contains("createHeaderDropdownFallbackHome(settingsMenu, projectMenu, viewMenu)"));
+        assertTrue(source.contains("createHeaderDropdownFallbackHome(backAction, settingsMenu, projectMenu, viewMenu)"));
+        assertTrue(source.contains("createHeaderPageHomeButton(\"Home\", \"home\", homeAction)"));
+        assertTrue(source.contains("addHeaderActionHomeButton(row, createHeaderPageHomeButton(\"Project\", \"project\", null));"));
         assertTrue(source.contains("private static double actionBoxWidth()"));
         assertTrue(source.contains("return OUTPUT_PANE_PREF_WIDTH;"));
         assertTrue(source.contains("InputGradientFillPanel inputFillPanel = new InputGradientFillPanel();"));

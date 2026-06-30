@@ -35,7 +35,9 @@ import javafx.scene.control.DialogPane;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.MenuItem;
 import javafx.stage.FileChooser;
+import javafx.stage.PopupWindow;
 import javafx.stage.Screen;
+import javafx.stage.Stage;
 import javafx.stage.Window;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
@@ -181,8 +183,6 @@ final class PipelineLauncher {
                 LauncherGeometryTokens.ACTION_PROGRESS_SHIMMER_WIDTH_DIVISOR;
         private static final double ACTION_PROGRESS_SHIMMER_SPEED_DIVISOR =
                 LauncherGeometryTokens.ACTION_PROGRESS_SHIMMER_SPEED_DIVISOR;
-        private static final double MACRO_ACTION_BUTTON_WIDTH =
-                LauncherGeometryTokens.MACRO_ACTION_BUTTON_WIDTH;
         private static final double PANEL_NAV_BUTTON_MIN_WIDTH =
                 LauncherGeometryTokens.PANEL_NAV_BUTTON_MIN_WIDTH;
         private static final double INLINE_UTILITY_BUTTON_MIN_WIDTH =
@@ -219,6 +219,10 @@ final class PipelineLauncher {
                     CONTROL_FIELD_HORIZONTAL_PADDING,
                     CONTROL_FIELD_BOTTOM_PADDING,
                     CONTROL_FIELD_HORIZONTAL_PADDING);
+        }
+
+        private static double macroActionButtonWidth() {
+            return PipelineLauncher.macroActionButtonWidth();
         }
 
     }
@@ -306,8 +310,12 @@ final class PipelineLauncher {
                 LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
         private static final double ACTION_RAIL_GAP =
                 LauncherGeometry.FLUSH;
+        private static final double ACTION_RAIL_TOP_OFFSET =
+                -LauncherGeometry.OUTER_MARGIN;
+        private static final double ACTION_RIBBON_INSET =
+                OUTPUT_PANE_INSET;
         private static final double ACTION_CLUSTER_GAP =
-                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP - SURFACE_BORDER_WIDTH;
+                ACTION_RIBBON_INSET;
         private static final double MENU_GRAPHIC_GAP =
                 ACTION_CLUSTER_GAP;
         private static final double MENU_EDGE_MARGIN =
@@ -359,9 +367,17 @@ final class PipelineLauncher {
             return OUTPUT_PANE_PREF_WIDTH;
         }
 
+        private static double actionRibbonHeight() {
+            return PARAMETER_ROW_HEIGHT + (ACTION_RIBBON_INSET * 2.0);
+        }
+
+        private static Insets actionRibbonPadding() {
+            return new Insets(ACTION_RIBBON_INSET);
+        }
+
         private static double actionPageSubtitleWidth() {
             return actionBoxWidth()
-                    - (LauncherGeometry.INTRA_PANEL_MARGIN * 2.0)
+                    - (ACTION_RIBBON_INSET * 2.0)
                     - (SURFACE_BORDER_WIDTH * 2.0);
         }
 
@@ -505,6 +521,17 @@ final class PipelineLauncher {
             ADVANCED_UNLOCK_CONTROL_GAP;
     private static final double OUTPUT_PROGRESS_SIZE =
             PARAMETER_HELP_BUTTON_SIZE;
+    private enum HeaderActionSlot {
+        HOME,
+        SETTINGS,
+        PROJECT,
+        VIEW
+    }
+
+    private static final double MACRO_ACTION_BUTTON_COUNT =
+            HeaderActionSlot.values().length;
+    private static final double MACRO_ACTION_BUTTON_GAP_COUNT =
+            MACRO_ACTION_BUTTON_COUNT - SURFACE_BORDER_WIDTH;
     private static final double COLLAPSIBLE_ARROW_WIDTH =
             PARAMETER_HELP_BUTTON_SIZE;
     private static final double COLLAPSIBLE_HEADER_VERTICAL_INSET =
@@ -538,6 +565,18 @@ final class PipelineLauncher {
     private static final String CHEVRON_DOWN = "▾";
     private static final String CHEVRON_RIGHT = "▸";
     private static final PseudoClass PRESSED_PSEUDO = PseudoClass.getPseudoClass("pressed");
+
+    private static double macroActionButtonWidth() {
+        return (HeaderGeometry.actionBoxWidth()
+                - (HeaderGeometry.ACTION_RIBBON_INSET * 2.0)
+                - (HeaderGeometry.ACTION_CLUSTER_GAP * MACRO_ACTION_BUTTON_GAP_COUNT))
+                / MACRO_ACTION_BUTTON_COUNT;
+    }
+
+    private static double macroActionClusterWidth() {
+        return (macroActionButtonWidth() * MACRO_ACTION_BUTTON_COUNT)
+                + (HeaderGeometry.ACTION_CLUSTER_GAP * MACRO_ACTION_BUTTON_GAP_COUNT);
+    }
     private static final String HEADER_MODE_PREFERENCE_KEY = "qupath.ext.astra.headerMode";
     private static final String HEADER_MOTION_PREFERENCE_KEY = "qupath.ext.astra.headerMotion";
     private static final String RELEASE_PROPERTIES_RESOURCE = "qupath/ext/astra/release/runtime.properties";
@@ -1794,6 +1833,7 @@ final class PipelineLauncher {
                 schemaId,
                 sourceScriptSha256
         );
+        List<Runnable> launcherHomeResets = new ArrayList<>();
         installColocalizationRunModeEditor(scriptName, constants);
         installProjectImageNameSelector(qupath, constants);
         installProjectAssetSelectors(qupath, constants);
@@ -1825,18 +1865,20 @@ final class PipelineLauncher {
         actionRail.setMinWidth(HeaderGeometry.actionBoxWidth());
         actionRail.setPrefWidth(HeaderGeometry.actionBoxWidth());
         actionRail.setMaxWidth(HeaderGeometry.actionBoxWidth());
-        actionRail.setMaxHeight(Double.MAX_VALUE);
+        actionRail.setMinHeight(HeaderGeometry.actionRibbonHeight());
+        actionRail.setPrefHeight(HeaderGeometry.actionRibbonHeight());
+        actionRail.setMaxHeight(HeaderGeometry.actionRibbonHeight());
+        actionRail.setTranslateY(HeaderGeometry.ACTION_RAIL_TOP_OFFSET);
         addStyleClass(actionRail, "astra-header-action-rail");
-        Label actionRailTab = GuiText.label(GuiText.Role.PANEL_TEXT, "Actions");
-        addStyleClass(actionRailTab, "astra-header-action-rail-tab");
         StackPane actionContent = new StackPane();
         actionContent.setMinWidth(HeaderGeometry.actionBoxWidth());
         actionContent.setPrefWidth(HeaderGeometry.actionBoxWidth());
         actionContent.setMaxWidth(HeaderGeometry.actionBoxWidth());
-        actionContent.setMaxHeight(Double.MAX_VALUE);
-        actionContent.setPadding(LauncherGeometry.intraPanelPadding());
+        actionContent.setMinHeight(HeaderGeometry.actionRibbonHeight());
+        actionContent.setPrefHeight(HeaderGeometry.actionRibbonHeight());
+        actionContent.setMaxHeight(HeaderGeometry.actionRibbonHeight());
+        actionContent.setPadding(HeaderGeometry.actionRibbonPadding());
         addStyleClass(actionContent, "astra-header-action-content");
-        VBox.setVgrow(actionContent, Priority.ALWAYS);
         HeaderActionMenu settingsMenu = createHeaderMenuButton("Settings", "settings");
         HeaderActionMenu projectMenu = createHeaderMenuButton("Project", "project");
         HeaderActionMenu viewMenu = createHeaderMenuButton("View", "view");
@@ -1904,7 +1946,7 @@ final class PipelineLauncher {
                 appendHeaderActionToPanel(projectMenu.getItems().get(0), projectMenu.menu(), exportSpec);
             }
         }
-        actionRail.getChildren().addAll(actionRailTab, actionContent);
+        actionRail.getChildren().add(actionContent);
         titleStack.getChildren().add(createPipelineFlow(scriptName));
         titleRow.getChildren().addAll(titleStack, titleSpacer, actionRail);
         header.getChildren().add(titleRow);
@@ -1965,7 +2007,8 @@ final class PipelineLauncher {
         Node routineNavigator = createSettingsNavigator("Settings Dashboard",
                 "Choose one settings group at a time, or switch to All Settings for a full review.",
                 routineSections,
-                launcherViewState);
+                launcherViewState,
+                launcherHomeResets::add);
         addStyleClass(routineNavigator, "astra-routine-settings-panel");
         body.getChildren().add(routineNavigator);
         InputGradientFillPanel inputFillPanel = new InputGradientFillPanel();
@@ -1974,13 +2017,20 @@ final class PipelineLauncher {
             Node advanced = createSettingsNavigator("Advanced Settings",
                     "Developer controls for deliberate tuning, diagnostics, and publication-specific overrides.",
                     advancedSections,
-                    launcherViewState);
+                    launcherViewState,
+                    launcherHomeResets::add);
             addStyleClass(advanced, "astra-advanced-settings-panel");
             if (GuiPresentation.advancedControlsLockedByDefault()) {
                 advanced.setVisible(false);
                 advanced.setManaged(false);
                 VBox advancedUnlock = createAdvancedUnlockPanel(advanced);
                 addStyleClass(advancedUnlock, "astra-advanced-unlock-panel");
+                launcherHomeResets.add(() -> {
+                    advanced.setVisible(false);
+                    advanced.setManaged(false);
+                    advancedUnlock.setVisible(true);
+                    advancedUnlock.setManaged(true);
+                });
                 body.getChildren().addAll(advancedUnlock, advanced, inputFillPanel);
             } else {
                 body.getChildren().addAll(advanced, inputFillPanel);
@@ -2014,6 +2064,7 @@ final class PipelineLauncher {
         RunProgressLane runProgressLane = new RunProgressLane();
         feedback.attachRunProgressLane(runProgressLane);
         Runnable[] renderHeaderHome = new Runnable[1];
+        Runnable[] launcherHomeAction = new Runnable[1];
         Consumer<HeaderActionMode> setHeaderActionMode = mode -> {
             launcherViewState.setHeaderActionMode(mode);
             launcherViewState.save();
@@ -2043,7 +2094,17 @@ final class PipelineLauncher {
                 runProgressLane,
                 inputFillPanel,
                 setHeaderActionMode,
-                renderHeaderHome[0]);
+                launcherHomeAction[0]);
+        launcherHomeAction[0] = () -> {
+            hideLauncherTransientWindows(scroll.getScene() == null ? null : scroll.getScene().getWindow(),
+                    settingsMenu, projectMenu, viewMenu);
+            launcherHomeResets.forEach(Runnable::run);
+            scroll.setVvalue(LauncherGeometry.FLUSH);
+            setOutputVisible.accept(true);
+            if (renderHeaderHome[0] != null) {
+                renderHeaderHome[0].run();
+            }
+        };
         renderHeaderHome[0].run();
         workspace.getChildren().addAll(scroll, feedbackNode);
         VBox.setVgrow(workspace, Priority.ALWAYS);
@@ -2415,7 +2476,8 @@ final class PipelineLauncher {
 
     private static Node createSettingsNavigator(String titleText, String subtitleText,
                                                 List<SettingsSectionModel> sections,
-                                                LauncherViewState launcherViewState) {
+                                                LauncherViewState launcherViewState,
+                                                Consumer<Runnable> homeResetSink) {
         HBox viewRow = new HBox(COMPACT_CONTROL_GAP);
         viewRow.setAlignment(Pos.TOP_RIGHT);
         addStyleClass(viewRow, "astra-settings-view-toggle");
@@ -2515,6 +2577,9 @@ final class PipelineLauncher {
             });
             host.getChildren().setAll(all);
         };
+        if (homeResetSink != null) {
+            homeResetSink.accept(showDashboard[0]);
+        }
         dashboard.setOnAction(event -> showDashboard[0].run());
         allSettings.setOnAction(event -> showAll[0].run());
         if (launcherViewState.viewMode() == LauncherViewMode.ALL_SETTINGS) {
@@ -3182,8 +3247,9 @@ final class PipelineLauncher {
         }
         HeaderActionMode safeMode = mode == null ? HeaderActionMode.PAGES : mode;
         Node content = safeMode == HeaderActionMode.DROPDOWNS
-                ? createHeaderDropdownFallbackHome(settingsMenu, projectMenu, viewMenu)
+                ? createHeaderDropdownFallbackHome(backAction, settingsMenu, projectMenu, viewMenu)
                 : createHeaderActionHome(
+                        backAction,
                         () -> host.getChildren().setAll(createHeaderActionPage(
                                 "Settings",
                                 "Profiles and script defaults.",
@@ -3207,27 +3273,31 @@ final class PipelineLauncher {
         host.getChildren().setAll(content);
     }
 
-    private static Node createHeaderActionHome(Runnable settingsAction,
+    private static Node createHeaderActionHome(Runnable actionsAction,
+                                               Runnable settingsAction,
                                                Runnable projectAction,
                                                Runnable viewAction) {
         HBox row = createHeaderActionCluster();
+        addHeaderActionHomeButton(row, createHeaderPageHomeButton("Home", "home", actionsAction));
         addHeaderActionHomeButton(row, createHeaderPageHomeButton("Settings", "settings", settingsAction));
-        if (projectAction != null) {
-            addHeaderActionHomeButton(row, createHeaderPageHomeButton("Project", "project", projectAction));
-        }
+        addHeaderActionHomeButton(row, createHeaderPageHomeButton("Project", "project", projectAction));
         addHeaderActionHomeButton(row, createHeaderPageHomeButton("View", "view", viewAction));
         return row;
     }
 
-    private static Node createHeaderDropdownFallbackHome(HeaderActionMenu settingsMenu,
+    private static Node createHeaderDropdownFallbackHome(Runnable homeAction,
+                                                        HeaderActionMenu settingsMenu,
                                                         HeaderActionMenu projectMenu,
                                                         HeaderActionMenu viewMenu) {
         HBox row = createHeaderActionCluster();
+        addHeaderActionHomeButton(row, createHeaderPageHomeButton("Home", "home", homeAction));
         if (settingsMenu != null) {
             addHeaderActionHomeButton(row, settingsMenu.button());
         }
         if (projectMenu != null) {
             addHeaderActionHomeButton(row, projectMenu.button());
+        } else {
+            addHeaderActionHomeButton(row, createHeaderPageHomeButton("Project", "project", null));
         }
         if (viewMenu != null) {
             addHeaderActionHomeButton(row, viewMenu.button());
@@ -3239,8 +3309,12 @@ final class PipelineLauncher {
         HBox actionCluster = new HBox(HeaderGeometry.ACTION_CLUSTER_GAP);
         actionCluster.setAlignment(Pos.CENTER_RIGHT);
         actionCluster.setFillHeight(true);
-        actionCluster.setMaxWidth(Double.MAX_VALUE);
-        actionCluster.setMaxHeight(Double.MAX_VALUE);
+        actionCluster.setMinWidth(macroActionClusterWidth());
+        actionCluster.setPrefWidth(macroActionClusterWidth());
+        actionCluster.setMaxWidth(macroActionClusterWidth());
+        actionCluster.setMinHeight(PARAMETER_ROW_HEIGHT);
+        actionCluster.setPrefHeight(PARAMETER_ROW_HEIGHT);
+        actionCluster.setMaxHeight(PARAMETER_ROW_HEIGHT);
         addStyleClass(actionCluster, "astra-header-actions");
         return actionCluster;
     }
@@ -3249,9 +3323,7 @@ final class PipelineLauncher {
         if (row == null || button == null) {
             return;
         }
-        button.setMaxWidth(Double.MAX_VALUE);
-        button.setMaxHeight(Double.MAX_VALUE);
-        HBox.setHgrow(button, Priority.ALWAYS);
+        HBox.setHgrow(button, Priority.NEVER);
         row.getChildren().add(button);
     }
 
@@ -3260,8 +3332,7 @@ final class PipelineLauncher {
         button.setFocusTraversable(false);
         styleButton(button, ButtonRole.HEADER);
         applyButtonFamilyGeometry(button, ButtonFamily.MACRO_ACTION);
-        button.setMaxWidth(Double.MAX_VALUE);
-        button.setMaxHeight(Double.MAX_VALUE);
+        button.setDisable(action == null);
         addStyleClass(button, "astra-header-menu-button");
         button.setOnAction(event -> {
             if (action != null) {
@@ -3307,7 +3378,7 @@ final class PipelineLauncher {
         titleBlock.getChildren().addAll(titleLabel, subtitleLabel);
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        Button back = GuiText.button(GuiText.Role.CONTROL_TEXT, "Back to Actions");
+        Button back = GuiText.button(GuiText.Role.CONTROL_TEXT, "Back to Home");
         back.setFocusTraversable(false);
         styleButton(back, ButtonRole.HEADER);
         applyButtonFamilyGeometry(back, ButtonFamily.PANEL_NAVIGATION);
@@ -3447,6 +3518,34 @@ final class PipelineLauncher {
                     visualBounds.getMaxX() - width - HeaderGeometry.MENU_EDGE_MARGIN);
             menu.setX(alignedX);
         });
+    }
+
+    private static void hideLauncherTransientWindows(Window launcherWindow, HeaderActionMenu... menus) {
+        if (menus != null) {
+            for (HeaderActionMenu menu : menus) {
+                if (menu != null && menu.menu() != null) {
+                    menu.menu().hide();
+                }
+            }
+        }
+        if (launcherWindow == null) {
+            return;
+        }
+        List.copyOf(Window.getWindows()).stream()
+                .filter(Window::isShowing)
+                .filter(window -> window != launcherWindow)
+                .filter(window -> isOwnedBy(window, launcherWindow))
+                .forEach(Window::hide);
+    }
+
+    private static boolean isOwnedBy(Window window, Window owner) {
+        if (window instanceof PopupWindow popupWindow) {
+            return popupWindow.getOwnerWindow() == owner;
+        }
+        if (window instanceof Stage stage) {
+            return stage.getOwner() == owner;
+        }
+        return false;
     }
 
     static double preferredHeaderMenuX(double launcherMinX, double launcherMaxX,
@@ -5121,8 +5220,10 @@ final class PipelineLauncher {
             case MACRO_ACTION -> {
                 button.setMinHeight(PARAMETER_ROW_HEIGHT);
                 button.setPrefHeight(PARAMETER_ROW_HEIGHT);
-                button.setMinWidth(LauncherGeometry.MACRO_ACTION_BUTTON_WIDTH);
-                button.setPrefWidth(LauncherGeometry.MACRO_ACTION_BUTTON_WIDTH);
+                button.setMaxHeight(PARAMETER_ROW_HEIGHT);
+                button.setMinWidth(LauncherGeometry.macroActionButtonWidth());
+                button.setPrefWidth(LauncherGeometry.macroActionButtonWidth());
+                button.setMaxWidth(LauncherGeometry.macroActionButtonWidth());
             }
             case HEADER_DROPDOWN_ACTION -> {
                 button.setMinHeight(HeaderGeometry.SEGMENT_BUTTON_HEIGHT);

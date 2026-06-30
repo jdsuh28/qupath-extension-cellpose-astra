@@ -2312,9 +2312,9 @@ public final class LauncherPreviewApp extends Application {
                         staticField("OUTPUT_PANE_INSET")
                                 + LauncherGeometryTokens.SURFACE_BORDER_WIDTH
                                 + staticField("OUTPUT_HEADER_GAP")
-                                + LauncherGeometryTokens.MACRO_ACTION_BUTTON_WIDTH,
+                                + macroActionButtonWidth(),
                         outputBounds.getMaxX() - copyBounds.getMaxX(),
-                        "OUTPUT_PANE_INSET + SURFACE_BORDER_WIDTH + OUTPUT_HEADER_GAP + MACRO_ACTION_BUTTON_WIDTH");
+                        "OUTPUT_PANE_INSET + SURFACE_BORDER_WIDTH + OUTPUT_HEADER_GAP + macroActionButtonWidth()");
                 killButton.ifPresent(kill -> {
                     Bounds killBounds = relativeBounds(sceneRoot, kill, rootMinX, rootMinY);
                     addMeasurement(measurements, "output action button width equality",
@@ -4795,6 +4795,14 @@ public final class LauncherPreviewApp extends Application {
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("Unable to read StyledLogView geometry field " + name, e);
         }
+    }
+
+    private static double macroActionButtonWidth() {
+        return (staticField("OUTPUT_PANE_PREF_WIDTH")
+                - (nestedStaticField("HeaderGeometry", "ACTION_RIBBON_INSET") * 2.0d)
+                - (nestedStaticField("HeaderGeometry", "ACTION_CLUSTER_GAP")
+                * staticField("MACRO_ACTION_BUTTON_GAP_COUNT")))
+                / staticField("MACRO_ACTION_BUTTON_COUNT");
     }
 
     private static double snapUpToOutputPixel(Node node, double value) {
