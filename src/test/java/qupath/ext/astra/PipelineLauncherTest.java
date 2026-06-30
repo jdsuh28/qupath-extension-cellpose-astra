@@ -436,12 +436,23 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private static final String CHEVRON_DOWN"));
         assertTrue(source.contains("addStyleClass(chevron, \"astra-header-menu-chevron\")"));
         assertTrue(source.contains("GuiText.helpButton(\"?\")"));
-        assertTrue(source.contains("button.setMinWidth(LauncherGeometry.MAIN_ACTION_BUTTON_WIDTH);"));
-        assertTrue(source.contains("button.setPrefWidth(LauncherGeometry.MAIN_ACTION_BUTTON_WIDTH);"));
-        assertTrue(source.contains("button.setMinWidth(LauncherGeometry.OUTPUT_ACTION_BUTTON_WIDTH);"));
-        assertTrue(source.contains("button.setPrefWidth(LauncherGeometry.OUTPUT_ACTION_BUTTON_WIDTH);"));
-        assertTrue(source.contains("CustomMenuItem item = new CustomMenuItem(row, true);"));
+        assertTrue(source.contains("private enum ButtonFamily"));
+        assertTrue(source.contains("MACRO_ACTION"));
+        assertTrue(source.contains("PANEL_NAVIGATION"));
+        assertTrue(source.contains("INLINE_UTILITY"));
+        assertTrue(source.contains("HELP_ICON"));
+        assertTrue(source.contains("button.setMinWidth(LauncherGeometry.MACRO_ACTION_BUTTON_WIDTH);"));
+        assertTrue(source.contains("button.setPrefWidth(LauncherGeometry.MACRO_ACTION_BUTTON_WIDTH);"));
+        assertTrue(source.contains("applyButtonFamilyGeometry(button, ButtonFamily.MACRO_ACTION);"));
+        assertTrue(source.contains("applyButtonFamilyGeometry(dashboard, ButtonFamily.PANEL_NAVIGATION);"));
+        assertTrue(source.contains("applyButtonFamilyGeometry(unlock, ButtonFamily.INLINE_UTILITY);"));
+        assertFalse(source.contains("MAIN_ACTION_BUTTON_WIDTH"));
+        assertFalse(source.contains("OUTPUT_ACTION_BUTTON_WIDTH"));
+        assertTrue(source.contains("createHeaderActionPanelMenuItem("));
+        assertTrue(source.contains("CustomMenuItem item = new CustomMenuItem(menuContent, false);"));
         assertTrue(source.contains("addStyleClass(row, \"astra-header-menu-action-button\")"));
+        assertTrue(source.contains("createHeaderDropdownPanel()"));
+        assertTrue(source.contains("createHeaderDropdownGroup("));
         assertTrue(css.contains(".astra-header-menu-action-button"));
         String guiText = Files.readString(Path.of("src/main/java/qupath/ext/astra/GuiText.java"));
         assertTrue(guiText.contains("static Button helpButton(String text)"));
@@ -1246,9 +1257,7 @@ class PipelineLauncherTest {
         assertFalse(source.contains("MAIN_ACTION_BAR_NATURAL_TOP_GAP"));
         assertFalse(source.contains("MAIN_ACTION_BAR_TOP_PADDING"));
         assertTrue(source.contains("private static final double PARAMETER_ROW_HEIGHT =\n"
-                + "            LauncherGeometry.LAYOUT_UNIT\n"
-                + "                    + LauncherGeometry.INTRA_PANEL_SUBTLE_GAP\n"
-                + "                    + (LauncherGeometryTokens.SURFACE_BORDER_WIDTH * 2.0);"));
+                + "            LauncherGeometryTokens.BUTTON_HEIGHT;"));
         assertTrue(source.contains("private static final double PARAMETER_ROW_GAP =\n"
                 + "            LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;"));
         assertTrue(source.contains("private static final double PARAMETER_LABEL_COLUMN_WIDTH =\n"
@@ -1353,7 +1362,9 @@ class PipelineLauncherTest {
         assertTrue(source.contains("screenBounds.getMaxY() + HeaderGeometry.MENU_VERTICAL_OFFSET;"));
         assertTrue(source.contains("visualBounds.getMaxY() - HeaderGeometry.MENU_MIN_VISIBLE_HEIGHT"));
         assertTrue(source.contains("menuContent.setPadding(new Insets(HeaderGeometry.OPTIONS_PANEL_INSET));"));
-        assertTrue(source.contains("new VBox(HeaderGeometry.OPTIONS_GROUP_GAP, outputRow, modeRow, motionRow);"));
+        assertTrue(source.contains("wrapInGroup\n"
+                + "                ? createHeaderDropdownGroup(\"View\")"));
+        assertTrue(source.contains("menuContent.getChildren().addAll(outputRow, modeRow, motionRow, headerActionsRow);"));
         assertTrue(source.contains("new HBox(HeaderGeometry.SEGMENT_ROW_GAP);"));
         assertTrue(source.contains("new HBox(HeaderGeometry.SEGMENT_CONTROL_GAP, buttons);"));
         assertTrue(source.contains("VBox root = new VBox(LauncherGeometry.FLUSH);"));
@@ -1372,8 +1383,8 @@ class PipelineLauncherTest {
         assertTrue(source.contains("HBox workspace = new HBox(LauncherGeometry.INTER_PANE_GAP);"));
         assertTrue(source.contains("workspace.setPadding(LauncherGeometry.uniformOuterMargin());"));
         assertTrue(source.contains("addStyleClass(dialog.getDialogPane(), \"astra-launcher-dialog-pane\");"));
-        assertTrue(source.contains("applyMainActionButtonGeometry(runButton);"));
-        assertTrue(source.contains("applyMainActionButtonGeometry(cancelButton);"));
+        assertTrue(source.contains("applyButtonFamilyGeometry(runButton, ButtonFamily.MACRO_ACTION);"));
+        assertTrue(source.contains("applyButtonFamilyGeometry(cancelButton, ButtonFamily.MACRO_ACTION);"));
         assertTrue(source.contains("createMainActionBar(runProgressLane, cancelButton, runButton)"));
         assertTrue(source.contains("HBox.setHgrow(progressLane, Priority.ALWAYS);"));
         assertTrue(source.contains("addStyleClass(bar, \"astra-main-action-bar\");"));
@@ -1597,12 +1608,27 @@ class PipelineLauncherTest {
         assertTrue(source.contains("createHeaderMenuButton(\"Settings\""));
         assertTrue(source.contains("createHeaderMenuButton(\"Project\""));
         assertTrue(source.contains("createHeaderMenuButton(\"View\""));
-        assertTrue(source.contains("createHeaderActionMenuItem(\"Reset settings\""));
-        assertTrue(source.contains("createHeaderActionMenuItem(\"Reset Image\""));
-        assertTrue(source.contains("createHeaderActionMenuItem(\"Export\""));
-        assertFalse(source.contains("createHeaderActionGroup(\"Settings\""));
+        assertTrue(source.contains("createHeaderActionPanelMenuItem(settingsMenu.menu(), \"Settings\""));
+        assertTrue(source.contains("createHeaderActionPanelMenuItem(projectMenu.menu(), \"Project\""));
+        assertTrue(source.contains("appendHeaderActionToPanel(projectMenu.getItems().get(0), projectMenu.menu()"));
+        assertFalse(source.contains("createHeaderActionMenuItem(\"Reset settings\""));
         assertTrue(source.contains("createViewMenuItem("));
         assertTrue(source.contains("createHeaderViewPanel("));
+        assertTrue(source.contains("enum HeaderActionMode"));
+        assertTrue(source.contains("return PAGES;"));
+        assertTrue(source.contains("private HeaderActionMode headerActionMode = HeaderActionMode.PAGES;"));
+        assertTrue(source.contains("profile.header_action_mode = headerActionMode.name();"));
+        assertTrue(source.contains("headerActionMode = HeaderActionMode.fromText(profile.header_action_mode);"));
+        assertTrue(source.contains("StackPane actionContent = new StackPane();"));
+        assertTrue(source.contains("renderHeaderActionHome("));
+        assertTrue(source.contains("createHeaderActionHome("));
+        assertTrue(source.contains("createHeaderActionPageShell("));
+        assertTrue(source.contains("Back to Actions"));
+        assertTrue(source.contains("headerSegmentRow(\"Header Actions\", pages, dropdowns)"));
+        assertTrue(source.contains("safeMode == HeaderActionMode.DROPDOWNS"));
+        assertTrue(source.contains("createHeaderDropdownFallbackHome(settingsMenu, projectMenu, viewMenu)"));
+        assertTrue(source.contains("private static double actionBoxWidth()"));
+        assertTrue(source.contains("return OUTPUT_PANE_PREF_WIDTH;"));
         assertTrue(source.contains("InputGradientFillPanel inputFillPanel = new InputGradientFillPanel();"));
         assertTrue(source.contains("VBox.setVgrow(inputFillPanel, Priority.ALWAYS);"));
         assertTrue(source.contains("RunProgressLane runProgressLane = new RunProgressLane();"));
@@ -1692,6 +1718,12 @@ class PipelineLauncherTest {
         assertTrue(source.contains("textField.setAlignment(Pos.CENTER_LEFT);"));
         assertTrue(source.contains("textField.setMinHeight(LauncherGeometry.CONTROL_FIELD_HEIGHT);"));
         assertTrue(source.contains("textField.setPrefHeight(LauncherGeometry.CONTROL_FIELD_HEIGHT);"));
+        assertTrue(source.contains("textField.setMaxHeight(LauncherGeometry.CONTROL_FIELD_HEIGHT);"));
+        assertTrue(source.contains("textField.setPadding(LauncherGeometry.controlFieldPadding());"));
+        assertTrue(source.contains("private static Insets controlFieldPadding()"));
+        assertTrue(source.contains("return new Insets(\n"
+                + "                    CONTROL_FIELD_TOP_PADDING,"));
+        assertTrue(source.contains("CONTROL_FIELD_BOTTOM_PADDING"));
         assertTrue(source.contains("private static boolean isTallParameterEditor(Node editor)"));
         assertTrue(source.contains("|| editor instanceof StageModeEditor"));
         assertTrue(source.contains("HBox row = labeledRow(displayLabel(constant.name), editor,\n"
@@ -1954,16 +1986,24 @@ class PipelineLauncherTest {
         assertTrue(surface.contains("DIRECTION_PROPERTY"));
         assertTrue(surface.contains("MODE_PROPERTY"));
         assertTrue(surface.contains("SPEED_PROPERTY"));
+        assertTrue(surface.contains("REPAINT_ELIGIBLE_PROPERTY"));
+        assertTrue(surface.contains("SEAM_OVERLAP_LOGICAL_LENGTH = 1.0d / TEXTURE_SCALE"));
+        assertTrue(surface.contains("trailingStrip.setLayoutY(phase - SEAM_OVERLAP_LOGICAL_LENGTH);"));
+        assertTrue(surface.contains("trailingStrip.setLayoutX(stripLogicalLength - phase - SEAM_OVERLAP_LOGICAL_LENGTH);"));
+        assertTrue(surface.contains("isSeamEdge(axis, axisPixels) ? 0.0d : dither(x, y)"));
         assertTrue(surface.contains("private static boolean sharedClockRunning;"));
         assertTrue(surface.contains("sceneProperty().addListener((obs, oldScene, newScene) -> updateSharedClockState())"));
+        assertTrue(surface.contains("visibleProperty().addListener((obs, oldValue, newValue) -> updateSharedClockState())"));
         assertTrue(surface.contains("private static void updateSharedClockState()"));
-        assertTrue(surface.contains("boolean anyAttached = SURFACES.stream().anyMatch(surface -> surface.getScene() != null);"));
+        assertTrue(surface.contains("boolean anyAttached = SURFACES.stream().anyMatch(AnimatedGradientSurface::isRepaintEligible);"));
+        assertTrue(surface.contains("private boolean isRepaintEligible()"));
+        assertTrue(surface.contains("headerMode == AnimatedGradientHeader.HeaderMode.DYNAMIC"));
         assertTrue(surface.contains("if (anyAttached && !sharedClockRunning)"));
         assertTrue(surface.contains("} else if (!anyAttached && sharedClockRunning)"));
         assertFalse(surface.contains("SURFACES.add(this);\n        SHARED_CLOCK.start();"));
         assertTrue(surface.contains("void setDirection(Direction nextDirection)"));
         assertTrue(surface.contains("leadingStrip.setLayoutY(phase - stripLogicalLength);"));
-        assertTrue(surface.contains("trailingStrip.setLayoutY(phase);"));
+        assertFalse(surface.contains("trailingStrip.setLayoutY(phase);"));
         assertTrue(launcher.contains("gradientSurface.setDirection(AnimatedGradientSurface.Direction.VERTICAL);"));
         assertFalse(launcher.contains("output.setGradientMode(headerModePreference());"));
         assertFalse(launcher.contains("output.setMotionSpeed(headerMotionPreference());"));
@@ -2282,8 +2322,9 @@ class PipelineLauncherTest {
         assertTrue(source.contains("compartment.setPrefWidth(CHECK_COMPARTMENT_PREF_WIDTH)"));
         assertTrue(source.contains("styleComboBox(compartment)"));
         assertTrue(source.contains("label.setMinWidth(CHECK_LABEL_MIN_WIDTH)"));
-        assertTrue(source.contains("remove.setMinHeight(CHECK_REMOVE_BUTTON_HEIGHT)"));
-        assertTrue(source.contains("remove.setMinWidth(CHECK_REMOVE_BUTTON_WIDTH)"));
+        assertFalse(source.contains("CHECK_REMOVE_BUTTON_HEIGHT"));
+        assertFalse(source.contains("CHECK_REMOVE_BUTTON_WIDTH"));
+        assertTrue(source.contains("applyButtonFamilyGeometry(remove, ButtonFamily.INLINE_UTILITY);"));
         assertTrue(source.contains("private static void styleCheckBox(CheckBox box)"));
         assertTrue(source.contains("addStyleClass(box, \"astra-checkbox\")"));
     }
@@ -3028,13 +3069,22 @@ class PipelineLauncherTest {
         assertTrue(view.contains("Button copyButton()"));
         assertTrue(source.contains("Button copyButton = output.copyButton();"));
         assertTrue(source.contains("HBox actionRail = new HBox(OUTPUT_HEADER_GAP, copyButton, killButton);"));
-        assertTrue(source.contains("applyOutputActionButtonGeometry(killButton);"));
-        assertTrue(source.contains("applyOutputActionButtonGeometry(copyButton);"));
-        assertTrue(source.contains("private static final double OUTPUT_ACTION_BUTTON_WIDTH ="));
+        assertTrue(source.contains("applyButtonFamilyGeometry(killButton, ButtonFamily.MACRO_ACTION);"));
+        assertTrue(source.contains("applyButtonFamilyGeometry(copyButton, ButtonFamily.MACRO_ACTION);"));
+        assertTrue(source.contains("applyButtonFamilyGeometry(runButton, ButtonFamily.MACRO_ACTION);"));
+        assertTrue(source.contains("applyButtonFamilyGeometry(cancelButton, ButtonFamily.MACRO_ACTION);"));
         assertTrue(source.contains("addStyleClass(killButton, \"astra-output-action-button\")"));
         assertTrue(source.contains("addStyleClass(copyButton, \"astra-output-action-button\")"));
         assertTrue(source.contains("header.getChildren().addAll(progress, status, killSpacer, actionRail);"));
         assertTrue(view.contains("addStyleClass(hiddenToggle, \"astra-log-disclosure-button\")"));
+        assertTrue(view.contains("applyInlineUtilityButtonGeometry(hiddenToggle);"));
+        assertTrue(view.contains("private final Region liveTopSpacer = new Region();"));
+        assertTrue(view.contains("private final VBox liveContent = new VBox(LauncherGeometryTokens.FLUSH);"));
+        assertTrue(view.contains("VBox.setVgrow(liveTopSpacer, Priority.ALWAYS);"));
+        assertTrue(view.contains("liveContent.getChildren().addAll(liveTopSpacer, entries);"));
+        assertTrue(view.contains("scroll = new ScrollPane(liveContent);"));
+        assertTrue(view.contains("liveContent.setMinHeight(newBounds == null"));
+        assertTrue(view.contains("applyInlineUtilityButtonGeometry(hiddenToggle);"));
         assertTrue(view.contains("StackPane scrollFrame = new StackPane(scroll, topFade);"));
         assertTrue(view.contains("topFade.prefWidthProperty().bind(scrollFrame.widthProperty());"));
         assertTrue(view.contains("topFade.prefHeightProperty().bind(scrollFrame.heightProperty().multiply(LOG_FADE_VISIBLE_FRACTION));"));

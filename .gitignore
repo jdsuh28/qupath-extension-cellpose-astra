@@ -36,6 +36,7 @@ target/
 bin/
 deploy/
 out/
+*.nosync/
 
 # ----------------
 # Keep tracked Gradle wrapper files

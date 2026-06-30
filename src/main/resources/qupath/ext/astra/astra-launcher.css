@@ -314,12 +314,58 @@
     -fx-border-radius: 8 8 0 0;
 }
 
-.astra-header-actions {
-    -fx-padding: 7 8;
+.astra-header-action-content {
+    -fx-alignment: center;
     -fx-background-color: rgba(255, 255, 255, 0.14);
     -fx-border-color: rgba(255, 255, 255, 0.24);
     -fx-background-radius: 0 8 8 8;
     -fx-border-radius: 0 8 8 8;
+}
+
+.astra-header-actions {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.astra-header-action-page {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.astra-header-action-page-title {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #e8f6f7;
+}
+
+.astra-header-action-page-title .astra-owned-panel-text {
+    -fx-fill: #e8f6f7;
+}
+
+.astra-header-action-page-subtitle {
+    -fx-font-size: 10px;
+    -fx-text-fill: #c4dadd;
+}
+
+.astra-header-action-page-subtitle .astra-owned-panel-text {
+    -fx-fill: #c4dadd;
+}
+
+.astra-header-action-page-actions {
+    -fx-alignment: center-left;
+}
+
+.astra-header-action-page-controls {
+    -fx-alignment: center-left;
+}
+
+.astra-header-action-page-button {
+    -fx-alignment: center-left;
+}
+
+.astra-header-action-back-button {
+    -fx-font-size: 10.5px;
 }
 
 .astra-header-menu-button {
@@ -416,20 +462,27 @@
     -fx-border-radius: 4;
     -fx-background-radius: 4;
     -fx-cursor: hand;
-    -fx-min-width: 76px;
-    -fx-pref-width: 76px;
 }
 
 .astra-header-segment-button-selected,
+.astra-header-segment-button:selected,
+.toggle-button.astra-header-segment-button:selected,
 .astra-header-segment-button-selected:hover {
     -fx-background-color: #0d4f55;
+    -fx-background-insets: 0;
     -fx-text-fill: white;
     -fx-border-color: #0d4f55;
 }
 
 .astra-header-segment-button-selected .astra-owned-control-text,
+.astra-header-segment-button:selected .astra-owned-control-text,
+.toggle-button.astra-header-segment-button:selected .astra-owned-control-text,
+.astra-header-segment-button-selected .text,
+.astra-header-segment-button:selected .text,
+.toggle-button.astra-header-segment-button:selected .text,
 .astra-header-segment-button-selected:hover .astra-owned-control-text {
     -fx-fill: white;
+    -fx-text-fill: white;
 }
 
 .astra-button-toggle-active {
@@ -1022,6 +1075,13 @@
     -fx-border-color: #7fa3ad;
     -fx-border-radius: 5;
     -fx-background-radius: 5;
+}
+
+/* Mirrors PipelineLauncher.LauncherGeometry.controlFieldPadding(). */
+.text-field.astra-input,
+.astra-input.text-field {
+    -fx-alignment: center-left;
+    -fx-padding: 0 8 8 8;
 }
 
 .astra-input:focused,

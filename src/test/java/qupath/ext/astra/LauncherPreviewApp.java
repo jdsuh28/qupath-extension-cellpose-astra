@@ -16,6 +16,7 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBase;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.ContentDisplay;
@@ -131,6 +132,37 @@ public final class LauncherPreviewApp extends Application {
         if ("dashboard".equals(snapshotMode)) {
             schedule(1.5, () -> snapshot("dashboard", title));
             schedule(2.1, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("header-actions-page".equals(snapshotMode)) {
+            schedule(1.5, () -> snapshot("header-actions-page", title));
+            schedule(2.1, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("header-settings-page".equals(snapshotMode)) {
+            schedule(1.5, () -> fireButton(title, "Settings"));
+            schedule(2.2, () -> snapshot("header-settings-page", title));
+            schedule(2.8, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("header-project-page".equals(snapshotMode)) {
+            schedule(1.5, () -> fireButton(title, "Project"));
+            schedule(2.2, () -> snapshot("header-project-page", title));
+            schedule(2.8, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("header-view-page".equals(snapshotMode)) {
+            schedule(1.5, () -> fireButton(title, "View"));
+            schedule(2.2, () -> snapshot("header-view-page", title));
+            schedule(2.8, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("header-dropdown-fallback".equals(snapshotMode)) {
+            schedule(1.5, () -> fireButton(title, "View"));
+            schedule(2.2, () -> fireButton(title, "Dropdowns"));
+            schedule(2.9, () -> showHeaderMenu(title, "View"));
+            schedule(3.6, () -> snapshotTransientWindow("header-dropdown-fallback", title));
+            schedule(4.2, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("run-setup".equals(snapshotMode)) {
@@ -664,9 +696,11 @@ public final class LauncherPreviewApp extends Application {
 
     private static void fireButton(String title, String text) {
         boolean fired = findWindowRoot(title)
-                .flatMap(root -> root.lookupAll(".button").stream()
-                        .filter(Button.class::isInstance)
-                        .map(Button.class::cast)
+                .flatMap(root -> java.util.stream.Stream.concat(
+                                root.lookupAll(".button").stream(),
+                                root.lookupAll(".toggle-button").stream())
+                        .filter(ButtonBase.class::isInstance)
+                        .map(ButtonBase.class::cast)
                         .filter(button -> text.equals(button.getText()))
                         .findFirst())
                 .map(button -> {
@@ -2278,9 +2312,9 @@ public final class LauncherPreviewApp extends Application {
                         staticField("OUTPUT_PANE_INSET")
                                 + LauncherGeometryTokens.SURFACE_BORDER_WIDTH
                                 + staticField("OUTPUT_HEADER_GAP")
-                                + LauncherGeometryTokens.OUTPUT_ACTION_BUTTON_WIDTH,
+                                + LauncherGeometryTokens.MACRO_ACTION_BUTTON_WIDTH,
                         outputBounds.getMaxX() - copyBounds.getMaxX(),
-                        "OUTPUT_PANE_INSET + SURFACE_BORDER_WIDTH + OUTPUT_HEADER_GAP + OUTPUT_ACTION_BUTTON_WIDTH");
+                        "OUTPUT_PANE_INSET + SURFACE_BORDER_WIDTH + OUTPUT_HEADER_GAP + MACRO_ACTION_BUTTON_WIDTH");
                 killButton.ifPresent(kill -> {
                     Bounds killBounds = relativeBounds(sceneRoot, kill, rootMinX, rootMinY);
                     addMeasurement(measurements, "output action button width equality",
@@ -2471,20 +2505,15 @@ public final class LauncherPreviewApp extends Application {
         firstNode(sceneRoot, ".astra-routine-settings-panel").ifPresent(settings -> panel.ifPresent(advanced -> {
             Bounds settingsBounds = relativeBounds(sceneRoot, settings, rootMinX, rootMinY);
             Bounds advancedBounds = relativeBounds(sceneRoot, advanced, rootMinX, rootMinY);
+            addMeasurement(measurements, "routine to advanced panel gap",
+                    LauncherGeometryTokens.OUTER_MARGIN,
+                    advancedBounds.getMinY() - settingsBounds.getMaxY(),
+                    "INPUT_STACK_GAP");
             if (filler.isPresent() && filler.get().isManaged()) {
                 Bounds fillerBounds = relativeBounds(sceneRoot, filler.get(), rootMinX, rootMinY);
-                addMeasurement(measurements, "routine to input filler gap",
+                addMeasurement(measurements, "advanced panel to input filler gap",
                         LauncherGeometryTokens.OUTER_MARGIN,
-                        fillerBounds.getMinY() - settingsBounds.getMaxY(),
-                        "INPUT_STACK_GAP");
-                addMeasurement(measurements, "input filler to advanced panel gap",
-                        LauncherGeometryTokens.OUTER_MARGIN,
-                        advancedBounds.getMinY() - fillerBounds.getMaxY(),
-                        "INPUT_STACK_GAP");
-            } else {
-                addMeasurement(measurements, "routine to advanced panel gap",
-                        LauncherGeometryTokens.OUTER_MARGIN,
-                        advancedBounds.getMinY() - settingsBounds.getMaxY(),
+                        fillerBounds.getMinY() - advancedBounds.getMaxY(),
                         "INPUT_STACK_GAP");
             }
         }));
@@ -3597,23 +3626,25 @@ public final class LauncherPreviewApp extends Application {
             addMeasurement(measurements, "channel panel to settings panel", outerMargin,
                     settings.getMinY() - channel.getMaxY(), "INPUT_STACK_GAP");
         }
-        if (settingsPanel.isPresent() && inputFillerPanel.isPresent()) {
+        if (settingsPanel.isPresent() && advancedPanel.isPresent()) {
+            Bounds settings = relativeBounds(sceneRoot, settingsPanel.get(), rootMinX, rootMinY);
+            Bounds advanced = relativeBounds(sceneRoot, advancedPanel.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "settings panel to advanced panel", outerMargin,
+                    advanced.getMinY() - settings.getMaxY(), "INPUT_STACK_GAP");
+            if (inputFillerPanel.isPresent()) {
+                Bounds filler = relativeBounds(sceneRoot, inputFillerPanel.get(), rootMinX, rootMinY);
+                addMeasurement(measurements, "advanced panel to input filler", outerMargin,
+                        filler.getMinY() - advanced.getMaxY(), "INPUT_STACK_GAP");
+                addMeasurement(measurements, "input filler height self-consistency", filler.getHeight(),
+                        filler.getHeight(), "input filler absorbs remaining vertical space");
+            }
+        } else if (settingsPanel.isPresent() && inputFillerPanel.isPresent()) {
             Bounds settings = relativeBounds(sceneRoot, settingsPanel.get(), rootMinX, rootMinY);
             Bounds filler = relativeBounds(sceneRoot, inputFillerPanel.get(), rootMinX, rootMinY);
             addMeasurement(measurements, "settings panel to input filler", outerMargin,
                     filler.getMinY() - settings.getMaxY(), "INPUT_STACK_GAP");
             addMeasurement(measurements, "input filler height self-consistency", filler.getHeight(),
                     filler.getHeight(), "input filler absorbs remaining vertical space");
-            if (advancedPanel.isPresent()) {
-                Bounds advanced = relativeBounds(sceneRoot, advancedPanel.get(), rootMinX, rootMinY);
-                addMeasurement(measurements, "input filler to advanced panel", outerMargin,
-                        advanced.getMinY() - filler.getMaxY(), "INPUT_STACK_GAP");
-            }
-        } else if (settingsPanel.isPresent() && advancedPanel.isPresent()) {
-            Bounds settings = relativeBounds(sceneRoot, settingsPanel.get(), rootMinX, rootMinY);
-            Bounds advanced = relativeBounds(sceneRoot, advancedPanel.get(), rootMinX, rootMinY);
-            addMeasurement(measurements, "settings panel to advanced panel", outerMargin,
-                    advanced.getMinY() - settings.getMaxY(), "INPUT_STACK_GAP");
         }
         if (focusedPanel.isPresent() && parameterGrid.isPresent()) {
             Bounds panel = relativeBounds(sceneRoot, focusedPanel.get(), rootMinX, rootMinY);
@@ -4558,6 +4589,9 @@ public final class LauncherPreviewApp extends Application {
                 AnimatedGradientSurface.MODE_PROPERTY, ""));
         String speed = String.valueOf(node.getProperties().getOrDefault(
                 AnimatedGradientSurface.SPEED_PROPERTY, ""));
+        String repaintEligible = String.valueOf(node.getProperties().getOrDefault(
+                AnimatedGradientSurface.REPAINT_ELIGIBLE_PROPERTY, ""));
+        String visible = Boolean.toString(node.isVisible() && node.getScene() != null);
         boolean verticalSurface = owner.contains("astra-parameter-anchor");
         String expectedDirection = verticalSurface
                 ? AnimatedGradientSurface.Direction.VERTICAL.name()
@@ -4576,13 +4610,13 @@ public final class LauncherPreviewApp extends Application {
                 expectedDirection,
                 mode,
                 speed,
-                "",
-                "",
+                repaintEligible,
+                visible,
                 "false",
                 "false",
                 format(drift),
                 status,
-                "AnimatedGradientSurface properties and layout bounds");
+                "AnimatedGradientSurface properties, repaint eligibility, and layout bounds");
     }
 
     private static GradientSurfaceRow shimmerSurfaceRow(String surface,
