@@ -3,6 +3,10 @@
     -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 }
 
+.astra-launcher-dialog-pane {
+    -fx-background-color: #f4f7f8;
+}
+
 .astra-button {
     -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     -fx-font-size: 12px;
@@ -267,6 +271,12 @@
     -fx-border-radius: 16;
 }
 
+.astra-workflow-strip {
+    -fx-alignment: center;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
 .astra-workflow-chip .astra-owned-panel-text {
     -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     -fx-font-size: 12px;
@@ -303,12 +313,25 @@
     -fx-alignment: top-left;
 }
 
+.astra-header-action-shell {
+    -fx-background-color: transparent;
+}
+
+.astra-header-action-shell-fill {
+    -fx-fill: rgba(255, 255, 255, 0.11);
+    -fx-stroke: transparent;
+}
+
+.astra-header-action-shell-border {
+    -fx-fill: transparent;
+    -fx-stroke: rgba(255, 255, 255, 0.18);
+    -fx-stroke-width: 1px;
+}
+
 .astra-header-action-content {
     -fx-alignment: center;
-    -fx-background-color: rgba(255, 255, 255, 0.11);
-    -fx-border-color: rgba(255, 255, 255, 0.18);
-    -fx-background-radius: 0 0 8 8;
-    -fx-border-radius: 0 0 8 8;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
 }
 
 .astra-header-actions {
@@ -370,6 +393,18 @@
     -fx-padding: 7 11;
 }
 
+.astra-header-home-button {
+    -fx-alignment: center;
+    -fx-padding: 7 11;
+}
+
+.button.astra-header-home-button .text,
+.button.astra-header-home-button .astra-owned-control-text {
+    -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -fx-font-size: 12.5px;
+    -fx-font-weight: bold;
+}
+
 .astra-header-menu-graphic {
     -fx-alignment: center;
 }
@@ -383,10 +418,6 @@
 .astra-header-menu-chevron {
     -fx-font-size: 13px;
     -fx-translate-y: -1px;
-}
-
-.astra-header-menu-button-home {
-    -fx-border-color: rgba(219, 235, 238, 0.86);
 }
 
 .astra-header-menu-button-settings {
@@ -747,6 +778,30 @@
 
 .astra-main-action-bar {
     -fx-background-color: #f4f7f8;
+}
+
+.astra-footer-action-shell {
+    -fx-background-color: transparent;
+}
+
+.astra-footer-action-shell .astra-animated-gradient-surface {
+    -fx-opacity: 0.86;
+}
+
+.astra-footer-action-shell-fill {
+    -fx-fill: rgba(255, 255, 255, 0.10);
+    -fx-stroke: transparent;
+}
+
+.astra-footer-action-shell-border {
+    -fx-fill: transparent;
+    -fx-stroke: rgba(31, 122, 122, 0.28);
+    -fx-stroke-width: 1px;
+}
+
+.astra-footer-action-content {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
 }
 
 .astra-input-gradient-filler {

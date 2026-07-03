@@ -333,6 +333,12 @@ class PipelineLauncherTest {
         assertTrue(source.contains("addStyleClass(this, \"astra-collapsible-section\")"));
         assertTrue(source.contains("addStyleClass(header, \"astra-collapsible-header\")"));
         assertTrue(source.contains("addStyleClass(chip, \"astra-workflow-chip\")"));
+        assertTrue(source.contains("addStyleClass(flow, \"astra-workflow-strip\")"));
+        assertTrue(source.contains("private static double workflowChipWidth(int stageCount)"));
+        assertTrue(source.contains("chip.setPrefWidth(chipWidth);"));
+        assertTrue(source.contains("arrow.setPrefWidth(HeaderGeometry.WORKFLOW_ARROW_WIDTH);"));
+        assertTrue(source.contains("actionRail.getChildren().addAll(actionShell, createPipelineFlow(scriptName));"));
+        assertFalse(source.contains("titleStack.getChildren().add(createPipelineFlow(scriptName));"));
         assertTrue(source.contains("addStyleClass(panel, \"astra-channel-panel\")"));
         assertTrue(source.contains("static Node createChannelPanel(List<ImageChannel> channels)"));
         assertTrue(source.contains("addStyleClass(swatch, \"astra-channel-chip-swatch\")"));
@@ -355,6 +361,7 @@ class PipelineLauncherTest {
         assertTrue(css.contains(".astra-section-content-focused"));
         assertTrue(css.contains(".astra-collapsible-header"));
         assertTrue(css.contains(".astra-workflow-chip"));
+        assertTrue(css.contains(".astra-workflow-strip"));
         assertTrue(css.contains(".astra-channel-panel"));
         assertTrue(css.contains(".astra-channel-chip"));
         assertTrue(css.contains(".astra-button-toggle-active"));
@@ -450,20 +457,134 @@ class PipelineLauncherTest {
         assertTrue(source.contains("SETTINGS,"));
         assertTrue(source.contains("PROJECT,"));
         assertTrue(source.contains("VIEW"));
+        assertTrue(source.contains("private static final double SINGLE_COUNT =\n"
+                + "            LauncherGeometry.LAYOUT_UNIT / LauncherGeometry.LAYOUT_UNIT;"));
         assertTrue(source.contains("MACRO_ACTION_BUTTON_COUNT =\n"
                 + "            HeaderActionSlot.values().length;"));
         assertTrue(source.contains("private static final double MACRO_ACTION_BUTTON_GAP_COUNT ="));
+        assertTrue(source.contains("MACRO_ACTION_BUTTON_GAP_COUNT =\n"
+                + "            MACRO_ACTION_BUTTON_COUNT - SINGLE_COUNT;"));
         assertTrue(source.contains("private static double macroActionButtonWidth()"));
+        assertTrue(source.contains("private static final double ACTION_RIBBON_SIDE_INSET =\n"
+                + "                LauncherGeometry.OUTER_MARGIN;"));
+        assertTrue(source.contains("private static final double ACTION_RIBBON_BEVEL_RADIUS =\n"
+                + "                ACTION_RIBBON_INSET;"));
+        assertTrue(source.contains("private static final double ACTION_RIBBON_SLOPE_WIDTH =\n"
+                + "                ACTION_RIBBON_SIDE_INSET - ACTION_RIBBON_BEVEL_RADIUS;"));
         assertTrue(source.contains("- (HeaderGeometry.ACTION_RIBBON_INSET * 2.0)"));
         assertTrue(source.contains("- (HeaderGeometry.ACTION_CLUSTER_GAP * MACRO_ACTION_BUTTON_GAP_COUNT)"));
         assertTrue(source.contains("/ MACRO_ACTION_BUTTON_COUNT"));
         assertTrue(source.contains("private static double macroActionClusterWidth()"));
         assertTrue(source.contains("private static double actionRibbonHeight()"));
         assertTrue(source.contains("return PARAMETER_ROW_HEIGHT + (ACTION_RIBBON_INSET * 2.0);"));
-        assertTrue(source.contains("actionRail.setMinHeight(HeaderGeometry.actionRibbonHeight());"));
+        assertTrue(source.contains("private static javafx.scene.shape.Path createHeaderRibbonPath(String styleClass)"));
+        assertTrue(source.contains("private static void updateHeaderRibbonPath(javafx.scene.shape.Path fill,"));
+        assertTrue(source.contains("private static final class ActionTrapezoidGeometry"));
+        assertTrue(source.contains("ActionTrapezoidGeometry.slopeWidth(\n"
+                + "                HeaderGeometry.ACTION_RIBBON_SLOPE_WIDTH, safeWidth);"));
+        assertTrue(source.contains("ActionTrapezoidGeometry.bevelRadius(\n"
+                + "                HeaderGeometry.ACTION_RIBBON_BEVEL_RADIUS, safeHeight);"));
+        assertTrue(source.contains("private static double folderCurveRun(double outerX, double innerX)"));
+        assertTrue(source.contains("return Math.abs(outerX - innerX);"));
+        assertTrue(source.contains("private static double folderCurveHandle(double run, double bevelRadius)"));
+        assertTrue(source.contains("private static final double QUARTER_CURVE_CONTROL ="));
+        assertTrue(source.contains("return Math.max(bevelRadius, run) * QUARTER_CURVE_CONTROL;"));
+        assertTrue(source.contains("private static double bevelCurveHandle(double bevelRadius)"));
+        assertTrue(source.contains("return bevelRadius * QUARTER_CURVE_CONTROL;"));
+        assertTrue(source.contains("private static double edgeInset()"));
+        assertTrue(source.contains("return SURFACE_BORDER_WIDTH;"));
+        assertFalse(source.contains("diagonalControl"));
+        assertTrue(source.contains("double cornerHandle = ActionTrapezoidGeometry.bevelCurveHandle(bevelRadius);"));
+        assertTrue(source.contains("double curveInset = ActionTrapezoidGeometry.folderCurveInset("));
+        assertTrue(source.contains("double wallLength = ActionTrapezoidGeometry.folderWallLength(curveInset);"));
+        assertTrue(source.contains("private static void appendFolderCurveOuterToRail(javafx.scene.shape.Path path,"));
+        assertTrue(source.contains("private static void appendFolderCurveRailToOuter(javafx.scene.shape.Path path,"));
+        assertTrue(source.contains("path.setStrokeType(StrokeType.INSIDE);"));
+        assertTrue(source.contains("new MoveTo(leftInnerX, topY)"));
+        assertTrue(source.contains("new LineTo(rightInnerX, topY)"));
+        assertTrue(source.contains("new CubicCurveTo(\n"
+                + "                        rightInnerX + cornerHandle,\n"
+                + "                        topY,\n"
+                + "                        rightRail,\n"
+                + "                        topY + bevelRadius - cornerHandle,\n"
+                + "                        rightRail, topY + bevelRadius)"));
+        assertTrue(source.contains("new LineTo(rightRail, bottomY - curveInset)"));
+        assertTrue(source.contains("appendFolderCurveRailToOuter(\n"
+                + "                path,\n"
+                + "                rightRail, bottomY - curveInset,\n"
+                + "                rightOuterX, bottomY,\n"
+                + "                wallLength);"));
+        assertTrue(source.contains("StackPane actionShell = new StackPane();"));
+        assertTrue(source.contains("createHeaderRibbonPath(\"astra-header-action-shell-fill\")"));
+        assertTrue(source.contains("createHeaderRibbonPath(\"astra-header-action-shell-border\")"));
+        assertFalse(source.contains("createHeaderRibbonWingPolygon("));
+        assertTrue(source.contains("private static final class FooterGeometry"));
+        assertTrue(source.contains("ACTION_SHELL_INSET =\n"
+                + "                HeaderGeometry.ACTION_RIBBON_INSET;"));
+        assertTrue(source.contains("ACTION_SHELL_SLOPE_WIDTH =\n"
+                + "                HeaderGeometry.ACTION_RIBBON_SLOPE_WIDTH;"));
+        assertTrue(source.contains("ACTION_SHELL_BEVEL_RADIUS =\n"
+                + "                HeaderGeometry.ACTION_RIBBON_BEVEL_RADIUS;"));
+        assertTrue(source.contains("ACTION_SHELL_BUTTON_COUNT =\n"
+                + "                2.0;"));
+        assertTrue(source.contains("ACTION_SHELL_GAP_COUNT =\n"
+                + "                ACTION_SHELL_BUTTON_COUNT - SINGLE_COUNT;"));
+        assertTrue(source.contains("private static double actionShellWidth()"));
+        assertTrue(source.contains("private static double actionShellSlopeWidth(double shellWidth)"));
+        assertTrue(source.contains("private static double actionShellVisibleWidth(double shellWidth)"));
+        assertTrue(source.contains("LauncherGeometry.macroActionButtonWidth() * ACTION_SHELL_BUTTON_COUNT"));
+        assertTrue(source.contains("private static final class FooterActionShell extends StackPane"));
+        assertTrue(source.contains("private final AnimatedGradientHeader gradientLayer = new AnimatedGradientHeader(new Pane());"));
+        assertTrue(source.contains("gradientLayer.setManaged(false);"));
+        assertTrue(source.contains("gradientLayer.setClip(clipPath);"));
+        assertTrue(source.contains("gradientLayer.setMinWidth(FooterGeometry.actionShellVisibleWidth());"));
+        assertTrue(source.contains("HEADER_MODE_PREFERENCE.addListener((obs, oldValue, newValue) -> applyHeaderGradientPreferences());"));
+        assertTrue(source.contains("HEADER_MOTION_PREFERENCE.addListener((obs, oldValue, newValue) -> applyHeaderGradientPreferences());"));
+        assertTrue(source.contains("bar.getChildren().addAll(progressLane, new FooterActionShell(cancelButton, runButton));"));
+        assertTrue(source.contains("private static javafx.scene.shape.Path createFooterTrapezoidPath(String styleClass)"));
+        assertTrue(source.contains("private static void updateFooterTrapezoidPath(javafx.scene.shape.Path path,"));
+        assertTrue(source.contains("private static void updateFooterTrapezoidPath(javafx.scene.shape.Path path,\n"
+                + "                                                  double width,\n"
+                + "                                                  double height,\n"
+                + "                                                  double xOffset)"));
+        assertTrue(source.contains("double slopeWidth = FooterGeometry.actionShellSlopeWidth(safeWidth);"));
+        assertTrue(source.contains("ActionTrapezoidGeometry.bevelRadius(\n"
+                + "                FooterGeometry.ACTION_SHELL_BEVEL_RADIUS, safeHeight);"));
+        assertTrue(source.contains("double leftRail = xOffset;"));
+        assertTrue(source.contains("double rightRail = xOffset + safeWidth;"));
+        assertTrue(source.contains("double bottomY = ActionTrapezoidGeometry.footerPaintBottom(safeHeight);"));
+        assertTrue(source.contains("new MoveTo(leftOuterX, topY)"));
+        assertTrue(source.contains("new LineTo(rightOuterX, topY)"));
+        assertTrue(source.contains("appendFolderCurveOuterToRail(\n"
+                + "                path,\n"
+                + "                rightOuterX, topY,\n"
+                + "                rightRail, topY + curveInset,\n"
+                + "                wallLength);"));
+        assertTrue(source.contains("new LineTo(rightRail, bottomY - bevelRadius)"));
+        assertTrue(source.contains("new CubicCurveTo(\n"
+                + "                        rightRail,\n"
+                + "                        bottomY - bevelRadius + cornerHandle,\n"
+                + "                        rightInnerX + cornerHandle,\n"
+                + "                        bottomY,\n"
+                + "                        rightInnerX, bottomY)"));
+        assertTrue(source.contains("actionRail.setMinHeight(HeaderGeometry.actionRailHeight());"));
+        assertTrue(source.contains("private static double actionRailHeight()"));
         assertTrue(source.contains("actionContent.setPrefHeight(HeaderGeometry.actionRibbonHeight());"));
         assertTrue(source.contains("actionCluster.setPrefHeight(PARAMETER_ROW_HEIGHT);"));
         assertFalse(source.contains("VBox.setVgrow(actionContent, Priority.ALWAYS);"));
+        assertTrue(css.contains(".astra-header-action-shell-fill"));
+        assertTrue(css.contains(".astra-header-action-shell-border"));
+        assertTrue(css.contains(".astra-header-action-content"));
+        assertFalse(css.contains(".astra-header-action-wing-fill"));
+        assertFalse(css.contains(".astra-header-action-wing-border"));
+        assertTrue(css.contains(".astra-header-home-button"));
+        assertTrue(css.contains(".astra-footer-action-shell"));
+        assertTrue(css.contains(".astra-footer-action-shell .astra-animated-gradient-surface"));
+        assertTrue(css.contains(".astra-footer-action-shell-fill"));
+        assertTrue(css.contains(".astra-footer-action-shell-border"));
+        assertTrue(css.contains(".astra-footer-action-content"));
+        assertTrue(source.contains("styleButton(button, homeButton ? ButtonRole.PRIMARY : ButtonRole.HEADER);"));
+        assertTrue(source.contains("addStyleClass(button, homeButton ? \"astra-header-home-button\" : \"astra-header-menu-button\");"));
         assertTrue(source.contains("applyButtonFamilyGeometry(button, ButtonFamily.MACRO_ACTION);"));
         assertTrue(source.contains("applyButtonFamilyGeometry(dashboard, ButtonFamily.PANEL_NAVIGATION);"));
         assertTrue(source.contains("applyButtonFamilyGeometry(unlock, ButtonFamily.INLINE_UTILITY);"));
@@ -622,6 +743,49 @@ class PipelineLauncherTest {
         assertTrue(preview.contains("openRuntimeFailureDialog"));
         assertTrue(preview.contains("openRuntimeRepairFailureDialog"));
         assertTrue(preview.contains("openRuntimeCancelledDialog"));
+    }
+
+    @Test
+    void footerTrapezoidHasZeroDeltaPreviewDiagnostic() throws Exception {
+        String preview = Files.readString(Path.of("src/test/java/qupath/ext/astra/LauncherPreviewApp.java"));
+
+        assertTrue(preview.contains("\"footer-trapezoid-diagnostic\".equals(snapshotMode)"));
+        assertTrue(preview.contains("snapshotFooterTrapezoidDiagnostic(\"footer-trapezoid-diagnostic\", title)"));
+        assertTrue(preview.contains("firstNode(sceneRoot, \".astra-footer-action-content\")"));
+        assertTrue(preview.contains("firstNode(sceneRoot, \".astra-footer-action-shell-border\")"));
+        assertTrue(preview.contains("firstNode(sceneRoot, \".astra-header-action-shell-border\")"));
+        assertTrue(preview.contains("footerTrapezoidMeasurements("));
+        assertTrue(preview.contains("footerPathPoints(border)"));
+        assertTrue(preview.contains("header shell min x + header top-right foot x == footer shell min x + footer bottom-right foot x"));
+        assertTrue(preview.contains("footer shell min y + footerPaintBottom(height)"));
+        assertTrue(preview.contains("FooterGeometry.actionShellWidth()"));
+    }
+
+    @Test
+    void previewSnapshotsWriteRawEvidenceAndEdgeAudit() throws Exception {
+        String preview = Files.readString(Path.of("src/test/java/qupath/ext/astra/LauncherPreviewApp.java"));
+        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+
+        assertTrue(preview.contains("private record SnapshotCapture(WritableImage raw,"));
+        assertTrue(preview.contains("int floorWidth,"));
+        assertTrue(preview.contains("int floorHeight)"));
+        assertTrue(preview.contains("private record EdgeAuditRow(String edge,"));
+        assertTrue(preview.contains("private record EdgePixelCounts(int totalPixels,"));
+        assertTrue(preview.contains("private static SnapshotCapture snapshotNode(Node node)"));
+        assertTrue(preview.contains("WritableImage raw = node.snapshot(rawParameters, null);"));
+        assertTrue(preview.contains("parameters.setFill(javafx.scene.paint.Color.TRANSPARENT);"));
+        assertTrue(preview.contains("return new SnapshotCapture(raw, raw, bounds, floorWidth, floorHeight);"));
+        assertTrue(preview.contains("private static void writeEdgeAudit(String name, SnapshotCapture capture)"));
+        assertTrue(preview.contains("name + \"-edge-audit.csv\""));
+        assertTrue(preview.contains("name + \"-edge-audit.md\""));
+        assertTrue(preview.contains("name + \"-raw.png\""));
+        assertTrue(preview.contains("SAFE_BACKGROUND_ONLY"));
+        assertTrue(preview.contains("RETAINED_NON_BACKGROUND_PIXELS"));
+        assertTrue(preview.contains("REVIEW_NON_BACKGROUND_PIXELS"));
+        assertTrue(preview.contains("BufferedImage buffered = SwingFXUtils.fromFXImage(capture.normalized(), null);"));
+        assertFalse(preview.contains("WritableImage image = sceneRoot.snapshot(new SnapshotParameters(), null);"));
+        assertFalse(preview.contains("WritableImage image = root.snapshot(new SnapshotParameters(), null);"));
+        assertTrue(css.contains(".astra-launcher-dialog-pane {\n    -fx-background-color: #f4f7f8;\n}"));
     }
 
     @Test
@@ -1341,7 +1505,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private static Insets parameterGridPadding()"));
         assertTrue(source.contains("LauncherGeometry.INTRA_PANEL_MARGIN);"));
         assertTrue(source.contains("private static Insets mainActionBarPadding()"));
-        assertTrue(source.contains("LauncherGeometry.FLUSH,\n                LauncherGeometry.OUTER_MARGIN,\n                LauncherGeometry.OUTER_MARGIN,\n                LauncherGeometry.OUTER_MARGIN);"));
+        assertTrue(source.contains("LauncherGeometry.FLUSH,\n                LauncherGeometry.OUTER_MARGIN,\n                LauncherGeometry.FLUSH,\n                LauncherGeometry.OUTER_MARGIN);"));
         assertTrue(source.contains("private static Insets parameterRowPadding()"));
         assertTrue(source.contains("private static Insets dependentPanelPadding()"));
         assertTrue(source.contains("private static Insets dependentRowsPadding()"));
@@ -1358,8 +1522,16 @@ class PipelineLauncherTest {
                 + "                HEADER_STACK_GAP;"));
         assertTrue(source.contains("private static final double ACTION_RAIL_TOP_OFFSET =\n"
                 + "                -LauncherGeometry.OUTER_MARGIN;"));
+        assertTrue(source.contains("private static final double ACTION_RAIL_X_OFFSET =\n"
+                + "                SURFACE_BORDER_WIDTH;"));
         assertTrue(source.contains("private static final double ACTION_RIBBON_INSET =\n"
                 + "                OUTPUT_PANE_INSET;"));
+        assertTrue(source.contains("private static final double ACTION_RIBBON_SIDE_INSET =\n"
+                + "                LauncherGeometry.OUTER_MARGIN;"));
+        assertTrue(source.contains("private static final double ACTION_RIBBON_BEVEL_RADIUS =\n"
+                + "                ACTION_RIBBON_INSET;"));
+        assertTrue(source.contains("private static final double ACTION_RIBBON_SLOPE_WIDTH =\n"
+                + "                ACTION_RIBBON_SIDE_INSET - ACTION_RIBBON_BEVEL_RADIUS;"));
         assertTrue(source.contains("private static final double ACTION_CLUSTER_GAP =\n"
                 + "                ACTION_RIBBON_INSET;"));
         assertTrue(source.contains("private static final double MENU_EDGE_MARGIN =\n"
@@ -1646,6 +1818,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("headerActionMode = HeaderActionMode.fromText(profile.header_action_mode);"));
         assertTrue(source.contains("StackPane actionContent = new StackPane();"));
         assertTrue(source.contains("actionRail.setTranslateY(HeaderGeometry.ACTION_RAIL_TOP_OFFSET);"));
+        assertTrue(source.contains("actionRail.setTranslateX(HeaderGeometry.ACTION_RAIL_X_OFFSET);"));
         assertTrue(source.contains("actionContent.setPadding(HeaderGeometry.actionRibbonPadding());"));
         assertFalse(source.contains("actionContent.setPadding(LauncherGeometry.intraPanelPadding());"));
         assertTrue(source.contains("renderHeaderActionHome("));

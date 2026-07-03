@@ -64,6 +64,10 @@ import javafx.scene.layout.RowConstraints;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
+import javafx.scene.shape.ClosePath;
+import javafx.scene.shape.CubicCurveTo;
+import javafx.scene.shape.LineTo;
+import javafx.scene.shape.MoveTo;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.StrokeType;
 import javafx.scene.text.Text;
@@ -309,13 +313,29 @@ final class PipelineLauncher {
         private static final double TITLE_BLOCK_GAP =
                 LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
         private static final double ACTION_RAIL_GAP =
-                LauncherGeometry.FLUSH;
+                OUTPUT_PANE_INSET;
         private static final double ACTION_RAIL_TOP_OFFSET =
                 -LauncherGeometry.OUTER_MARGIN;
+        private static final double ACTION_RAIL_X_OFFSET =
+                SURFACE_BORDER_WIDTH;
         private static final double ACTION_RIBBON_INSET =
                 OUTPUT_PANE_INSET;
+        private static final double ACTION_RIBBON_SIDE_INSET =
+                LauncherGeometry.OUTER_MARGIN;
+        private static final double ACTION_RIBBON_BEVEL_RADIUS =
+                ACTION_RIBBON_INSET;
+        private static final double ACTION_RIBBON_SLOPE_WIDTH =
+                ACTION_RIBBON_SIDE_INSET - ACTION_RIBBON_BEVEL_RADIUS;
         private static final double ACTION_CLUSTER_GAP =
                 ACTION_RIBBON_INSET;
+        private static final double WORKFLOW_ROW_GAP =
+                ACTION_CLUSTER_GAP;
+        private static final double WORKFLOW_ROW_INSET =
+                ACTION_RIBBON_INSET;
+        private static final double WORKFLOW_ARROW_WIDTH =
+                ACTION_RIBBON_INSET;
+        private static final double WORKFLOW_CHIP_HEIGHT =
+                PARAMETER_ROW_HEIGHT;
         private static final double MENU_GRAPHIC_GAP =
                 ACTION_CLUSTER_GAP;
         private static final double MENU_EDGE_MARGIN =
@@ -371,8 +391,16 @@ final class PipelineLauncher {
             return PARAMETER_ROW_HEIGHT + (ACTION_RIBBON_INSET * 2.0);
         }
 
+        private static double actionRailHeight() {
+            return actionRibbonHeight() + WORKFLOW_ROW_GAP + WORKFLOW_CHIP_HEIGHT;
+        }
+
         private static Insets actionRibbonPadding() {
-            return new Insets(ACTION_RIBBON_INSET);
+            return new Insets(
+                    ACTION_RIBBON_INSET,
+                    ACTION_RIBBON_INSET,
+                    ACTION_RIBBON_INSET,
+                    ACTION_RIBBON_INSET);
         }
 
         private static double actionPageSubtitleWidth() {
@@ -381,7 +409,120 @@ final class PipelineLauncher {
                     - (SURFACE_BORDER_WIDTH * 2.0);
         }
 
+        private static double workflowChipWidth(int stageCount) {
+            int safeStageCount = Math.max(1, stageCount);
+            double arrowCount = Math.max(LauncherGeometry.FLUSH, safeStageCount - 1.0);
+            double nodeGapCount = Math.max(LauncherGeometry.FLUSH, (safeStageCount * 2.0) - 2.0);
+            return (actionBoxWidth()
+                    - (WORKFLOW_ROW_INSET * 2.0)
+                    - (WORKFLOW_ARROW_WIDTH * arrowCount)
+                    - (WORKFLOW_ROW_GAP * nodeGapCount))
+                    / safeStageCount;
+        }
+
         private HeaderGeometry() {
+        }
+    }
+    private static final class FooterGeometry {
+        private static final double ACTION_SHELL_INSET =
+                HeaderGeometry.ACTION_RIBBON_INSET;
+        private static final double ACTION_SHELL_GAP =
+                HeaderGeometry.ACTION_CLUSTER_GAP;
+        private static final double ACTION_SHELL_SLOPE_WIDTH =
+                HeaderGeometry.ACTION_RIBBON_SLOPE_WIDTH;
+        private static final double ACTION_SHELL_BEVEL_RADIUS =
+                HeaderGeometry.ACTION_RIBBON_BEVEL_RADIUS;
+        private static final double ACTION_SHELL_BUTTON_COUNT =
+                2.0;
+        private static final double ACTION_SHELL_GAP_COUNT =
+                ACTION_SHELL_BUTTON_COUNT - SINGLE_COUNT;
+
+        private static double actionShellWidth() {
+            return (LauncherGeometry.macroActionButtonWidth() * ACTION_SHELL_BUTTON_COUNT)
+                    + (ACTION_SHELL_GAP * ACTION_SHELL_GAP_COUNT)
+                    + (ACTION_SHELL_INSET * 2.0);
+        }
+
+        private static double actionShellSlopeWidth(double shellWidth) {
+            return ActionTrapezoidGeometry.slopeWidth(ACTION_SHELL_SLOPE_WIDTH, shellWidth);
+        }
+
+        private static double actionShellVisibleWidth() {
+            return actionShellVisibleWidth(actionShellWidth());
+        }
+
+        private static double actionShellVisibleWidth(double shellWidth) {
+            return shellWidth + (actionShellSlopeWidth(shellWidth) * 2.0);
+        }
+
+        private static double actionShellHeight() {
+            return HeaderGeometry.actionRibbonHeight();
+        }
+
+        private static Insets actionShellPadding() {
+            return new Insets(
+                    ACTION_SHELL_INSET,
+                    ACTION_SHELL_INSET,
+                    ACTION_SHELL_INSET,
+                    ACTION_SHELL_INSET);
+        }
+
+        private FooterGeometry() {
+        }
+    }
+    private static final class ActionTrapezoidGeometry {
+        private static final double QUARTER_CURVE_CONTROL =
+                (Math.sqrt(SINGLE_COUNT + SINGLE_COUNT) - SINGLE_COUNT) * 4.0 / 3.0;
+        private static final double FOLDER_CURVE_DEPTH_FRACTION =
+                SINGLE_COUNT / 3.0;
+        private static final double FOLDER_CURVE_WALL_FRACTION =
+                SINGLE_COUNT - SINGLE_COUNT;
+
+        private static double slopeWidth(double configuredSlopeWidth, double width) {
+            return Math.min(configuredSlopeWidth, width / 2.0);
+        }
+
+        private static double bevelRadius(double configuredBevelRadius, double height) {
+            return Math.min(configuredBevelRadius, height / 2.0);
+        }
+
+        private static double edgeInset() {
+            return SURFACE_BORDER_WIDTH;
+        }
+
+        private static double footerPaintBottom(double height) {
+            return Math.max(LauncherGeometry.FLUSH, height);
+        }
+
+        private static double folderCurveRun(double outerX, double innerX) {
+            return Math.abs(outerX - innerX);
+        }
+
+        private static double folderCurveHandle(double run, double bevelRadius) {
+            return Math.max(bevelRadius, run) * QUARTER_CURVE_CONTROL;
+        }
+
+        private static double bevelCurveHandle(double bevelRadius) {
+            return bevelRadius * QUARTER_CURVE_CONTROL;
+        }
+
+        private static double curveInset(double bevelRadius) {
+            return Math.max(edgeInset(), bevelRadius);
+        }
+
+        private static double folderCurveInset(double height, double bevelRadius) {
+            return Math.max(curveInset(bevelRadius), height * FOLDER_CURVE_DEPTH_FRACTION);
+        }
+
+        private static double folderCurveInset(double height, double bevelRadius, double targetInset) {
+            return Math.max(curveInset(bevelRadius), Math.min(height, targetInset));
+        }
+
+        private static double folderWallLength(double curveInset) {
+            return curveInset * FOLDER_CURVE_WALL_FRACTION;
+        }
+
+        private ActionTrapezoidGeometry() {
         }
     }
     private static final class ControlGeometry {
@@ -521,6 +662,8 @@ final class PipelineLauncher {
             ADVANCED_UNLOCK_CONTROL_GAP;
     private static final double OUTPUT_PROGRESS_SIZE =
             PARAMETER_HELP_BUTTON_SIZE;
+    private static final double SINGLE_COUNT =
+            LauncherGeometry.LAYOUT_UNIT / LauncherGeometry.LAYOUT_UNIT;
     private enum HeaderActionSlot {
         HOME,
         SETTINGS,
@@ -531,7 +674,7 @@ final class PipelineLauncher {
     private static final double MACRO_ACTION_BUTTON_COUNT =
             HeaderActionSlot.values().length;
     private static final double MACRO_ACTION_BUTTON_GAP_COUNT =
-            MACRO_ACTION_BUTTON_COUNT - SURFACE_BORDER_WIDTH;
+            MACRO_ACTION_BUTTON_COUNT - SINGLE_COUNT;
     private static final double COLLAPSIBLE_ARROW_WIDTH =
             PARAMETER_HELP_BUTTON_SIZE;
     private static final double COLLAPSIBLE_HEADER_VERTICAL_INSET =
@@ -597,7 +740,7 @@ final class PipelineLauncher {
         return new Insets(
                 LauncherGeometry.FLUSH,
                 LauncherGeometry.OUTER_MARGIN,
-                LauncherGeometry.OUTER_MARGIN,
+                LauncherGeometry.FLUSH,
                 LauncherGeometry.OUTER_MARGIN);
     }
 
@@ -1865,11 +2008,22 @@ final class PipelineLauncher {
         actionRail.setMinWidth(HeaderGeometry.actionBoxWidth());
         actionRail.setPrefWidth(HeaderGeometry.actionBoxWidth());
         actionRail.setMaxWidth(HeaderGeometry.actionBoxWidth());
-        actionRail.setMinHeight(HeaderGeometry.actionRibbonHeight());
-        actionRail.setPrefHeight(HeaderGeometry.actionRibbonHeight());
-        actionRail.setMaxHeight(HeaderGeometry.actionRibbonHeight());
+        actionRail.setMinHeight(HeaderGeometry.actionRailHeight());
+        actionRail.setPrefHeight(HeaderGeometry.actionRailHeight());
+        actionRail.setMaxHeight(HeaderGeometry.actionRailHeight());
         actionRail.setTranslateY(HeaderGeometry.ACTION_RAIL_TOP_OFFSET);
+        actionRail.setTranslateX(HeaderGeometry.ACTION_RAIL_X_OFFSET);
         addStyleClass(actionRail, "astra-header-action-rail");
+        StackPane actionShell = new StackPane();
+        actionShell.setMinWidth(HeaderGeometry.actionBoxWidth());
+        actionShell.setPrefWidth(HeaderGeometry.actionBoxWidth());
+        actionShell.setMaxWidth(HeaderGeometry.actionBoxWidth());
+        actionShell.setMinHeight(HeaderGeometry.actionRibbonHeight());
+        actionShell.setPrefHeight(HeaderGeometry.actionRibbonHeight());
+        actionShell.setMaxHeight(HeaderGeometry.actionRibbonHeight());
+        addStyleClass(actionShell, "astra-header-action-shell");
+        javafx.scene.shape.Path actionShellFill = createHeaderRibbonPath("astra-header-action-shell-fill");
+        javafx.scene.shape.Path actionShellBorder = createHeaderRibbonPath("astra-header-action-shell-border");
         StackPane actionContent = new StackPane();
         actionContent.setMinWidth(HeaderGeometry.actionBoxWidth());
         actionContent.setPrefWidth(HeaderGeometry.actionBoxWidth());
@@ -1879,6 +2033,18 @@ final class PipelineLauncher {
         actionContent.setMaxHeight(HeaderGeometry.actionRibbonHeight());
         actionContent.setPadding(HeaderGeometry.actionRibbonPadding());
         addStyleClass(actionContent, "astra-header-action-content");
+        actionShell.getChildren().addAll(actionShellFill, actionShellBorder, actionContent);
+        actionShell.widthProperty().addListener((obs, oldWidth, newWidth) ->
+                updateHeaderRibbonPath(actionShellFill, actionShellBorder,
+                        newWidth.doubleValue(), actionShell.getHeight()));
+        actionShell.heightProperty().addListener((obs, oldHeight, newHeight) ->
+                updateHeaderRibbonPath(actionShellFill, actionShellBorder,
+                        actionShell.getWidth(), newHeight.doubleValue()));
+        Platform.runLater(() -> updateHeaderRibbonPath(
+                actionShellFill,
+                actionShellBorder,
+                actionShell.getWidth() <= LauncherGeometry.FLUSH ? HeaderGeometry.actionBoxWidth() : actionShell.getWidth(),
+                actionShell.getHeight() <= LauncherGeometry.FLUSH ? HeaderGeometry.actionRibbonHeight() : actionShell.getHeight()));
         HeaderActionMenu settingsMenu = createHeaderMenuButton("Settings", "settings");
         HeaderActionMenu projectMenu = createHeaderMenuButton("Project", "project");
         HeaderActionMenu viewMenu = createHeaderMenuButton("View", "view");
@@ -1946,8 +2112,7 @@ final class PipelineLauncher {
                 appendHeaderActionToPanel(projectMenu.getItems().get(0), projectMenu.menu(), exportSpec);
             }
         }
-        actionRail.getChildren().add(actionContent);
-        titleStack.getChildren().add(createPipelineFlow(scriptName));
+        actionRail.getChildren().addAll(actionShell, createPipelineFlow(scriptName));
         titleRow.getChildren().addAll(titleStack, titleSpacer, actionRail);
         header.getChildren().add(titleRow);
         AnimatedGradientHeader animatedHeader = new AnimatedGradientHeader(header);
@@ -2119,7 +2284,7 @@ final class PipelineLauncher {
         bar.setPadding(mainActionBarPadding());
         addStyleClass(bar, "astra-main-action-bar");
         HBox.setHgrow(progressLane, Priority.ALWAYS);
-        bar.getChildren().addAll(progressLane, cancelButton, runButton);
+        bar.getChildren().addAll(progressLane, new FooterActionShell(cancelButton, runButton));
         return bar;
     }
 
@@ -3202,12 +3367,25 @@ final class PipelineLauncher {
     }
 
     private static Node createPipelineFlow(String scriptName) {
-        HBox flow = new HBox(COMPACT_CONTROL_GAP);
-        flow.setAlignment(Pos.CENTER_LEFT);
         List<String> stages = GuiPresentation.workflowSequence(scriptName);
         if (stages.isEmpty()) {
             stages = List.of("Training", "Tuning", "Validation", pipelineStage(scriptName));
         }
+        HBox flow = new HBox(HeaderGeometry.WORKFLOW_ROW_GAP);
+        flow.setAlignment(Pos.CENTER);
+        flow.setMinWidth(HeaderGeometry.actionBoxWidth());
+        flow.setPrefWidth(HeaderGeometry.actionBoxWidth());
+        flow.setMaxWidth(HeaderGeometry.actionBoxWidth());
+        flow.setMinHeight(HeaderGeometry.WORKFLOW_CHIP_HEIGHT);
+        flow.setPrefHeight(HeaderGeometry.WORKFLOW_CHIP_HEIGHT);
+        flow.setMaxHeight(HeaderGeometry.WORKFLOW_CHIP_HEIGHT);
+        flow.setPadding(new Insets(
+                LauncherGeometry.FLUSH,
+                HeaderGeometry.WORKFLOW_ROW_INSET,
+                LauncherGeometry.FLUSH,
+                HeaderGeometry.WORKFLOW_ROW_INSET));
+        addStyleClass(flow, "astra-workflow-strip");
+        double chipWidth = HeaderGeometry.workflowChipWidth(stages.size());
         String active = GuiPresentation.workflowActiveLabel(scriptName);
         if (active.isBlank()) {
             active = pipelineStage(scriptName);
@@ -3215,12 +3393,26 @@ final class PipelineLauncher {
         for (int i = 0; i < stages.size(); i++) {
             String stage = stages.get(i);
             Label chip = GuiText.label(GuiText.Role.PANEL_TEXT, stage);
+            chip.setAlignment(Pos.CENTER);
+            chip.setMinWidth(chipWidth);
+            chip.setPrefWidth(chipWidth);
+            chip.setMaxWidth(chipWidth);
+            chip.setMinHeight(HeaderGeometry.WORKFLOW_CHIP_HEIGHT);
+            chip.setPrefHeight(HeaderGeometry.WORKFLOW_CHIP_HEIGHT);
+            chip.setMaxHeight(HeaderGeometry.WORKFLOW_CHIP_HEIGHT);
             boolean isActive = stage.equals(active);
             addStyleClass(chip, "astra-workflow-chip");
             addStyleClass(chip, isActive ? "astra-workflow-chip-active" : "astra-workflow-chip-idle");
             flow.getChildren().add(chip);
             if (i < stages.size() - 1) {
                 Label arrow = GuiText.label(GuiText.Role.PANEL_TEXT, ">");
+                arrow.setAlignment(Pos.CENTER);
+                arrow.setMinWidth(HeaderGeometry.WORKFLOW_ARROW_WIDTH);
+                arrow.setPrefWidth(HeaderGeometry.WORKFLOW_ARROW_WIDTH);
+                arrow.setMaxWidth(HeaderGeometry.WORKFLOW_ARROW_WIDTH);
+                arrow.setMinHeight(HeaderGeometry.WORKFLOW_CHIP_HEIGHT);
+                arrow.setPrefHeight(HeaderGeometry.WORKFLOW_CHIP_HEIGHT);
+                arrow.setMaxHeight(HeaderGeometry.WORKFLOW_CHIP_HEIGHT);
                 addStyleClass(arrow, "astra-workflow-arrow");
                 flow.getChildren().add(arrow);
             }
@@ -3319,6 +3511,129 @@ final class PipelineLauncher {
         return actionCluster;
     }
 
+    private static javafx.scene.shape.Path createHeaderRibbonPath(String styleClass) {
+        javafx.scene.shape.Path path = new javafx.scene.shape.Path();
+        path.setManaged(false);
+        path.setMouseTransparent(true);
+        path.setStrokeType(StrokeType.INSIDE);
+        addStyleClass(path, styleClass);
+        return path;
+    }
+
+    private static void updateHeaderRibbonPath(javafx.scene.shape.Path fill,
+                                               javafx.scene.shape.Path border,
+                                               double width,
+                                               double height) {
+        double safeWidth = Math.max(LauncherGeometry.FLUSH, width);
+        double safeHeight = Math.max(LauncherGeometry.FLUSH, height);
+        double slopeWidth = ActionTrapezoidGeometry.slopeWidth(
+                HeaderGeometry.ACTION_RIBBON_SLOPE_WIDTH, safeWidth);
+        double bevelRadius = ActionTrapezoidGeometry.bevelRadius(
+                HeaderGeometry.ACTION_RIBBON_BEVEL_RADIUS, safeHeight);
+        updateHeaderRibbonPath(fill, safeWidth, safeHeight, slopeWidth, bevelRadius);
+        updateHeaderRibbonPath(border, safeWidth, safeHeight, slopeWidth, bevelRadius);
+    }
+
+    private static void updateHeaderRibbonPath(javafx.scene.shape.Path path,
+                                               double width,
+                                               double height,
+                                               double slopeWidth,
+                                               double bevelRadius) {
+        if (path == null) {
+            return;
+        }
+        double topY = LauncherGeometry.FLUSH;
+        double bottomY = height;
+        double leftRail = LauncherGeometry.FLUSH;
+        double rightRail = width;
+        double leftOuterX = -slopeWidth;
+        double rightOuterX = width + slopeWidth;
+        double leftInnerX = leftRail + bevelRadius;
+        double rightInnerX = rightRail - bevelRadius;
+        double cornerHandle = ActionTrapezoidGeometry.bevelCurveHandle(bevelRadius);
+        double curveInset = ActionTrapezoidGeometry.folderCurveInset(
+                height, bevelRadius, HeaderGeometry.ACTION_RIBBON_INSET);
+        double wallLength = ActionTrapezoidGeometry.folderWallLength(curveInset);
+        path.getElements().setAll(
+                new MoveTo(leftOuterX, topY),
+                new LineTo(rightOuterX, topY));
+        appendFolderCurveOuterToRail(
+                path,
+                rightOuterX, topY,
+                rightRail, topY + curveInset,
+                wallLength);
+        path.getElements().addAll(
+                new LineTo(rightRail, bottomY - bevelRadius),
+                new CubicCurveTo(
+                        rightRail,
+                        bottomY - bevelRadius + cornerHandle,
+                        rightInnerX + cornerHandle,
+                        bottomY,
+                        rightInnerX, bottomY),
+                new LineTo(leftInnerX, bottomY),
+                new CubicCurveTo(
+                        leftInnerX - cornerHandle,
+                        bottomY,
+                        leftRail,
+                        bottomY - bevelRadius + cornerHandle,
+                        leftRail, bottomY - bevelRadius),
+                new LineTo(leftRail, topY + curveInset));
+        appendFolderCurveRailToOuter(
+                path,
+                leftRail, topY + curveInset,
+                leftOuterX, topY,
+                wallLength);
+        path.getElements().add(new ClosePath());
+    }
+
+    private static void appendFolderCurveOuterToRail(javafx.scene.shape.Path path,
+                                                     double outerX,
+                                                     double outerY,
+                                                     double railX,
+                                                     double railY,
+                                                     double wallLength) {
+        double run = Math.abs(outerX - railX);
+        double rise = Math.abs(railY - outerY);
+        double wall = Math.min(Math.max(LauncherGeometry.FLUSH, wallLength), rise);
+        double curveEndY = railY > outerY ? railY - wall : railY + wall;
+        double horizontalDirection = Math.signum(railX - outerX);
+        double verticalDirection = Math.signum(curveEndY - outerY);
+        double horizontalHandle = ActionTrapezoidGeometry.bevelCurveHandle(run);
+        double verticalHandle = ActionTrapezoidGeometry.bevelCurveHandle(Math.abs(curveEndY - outerY));
+        path.getElements().add(new CubicCurveTo(
+                outerX + (horizontalDirection * horizontalHandle),
+                outerY,
+                railX,
+                curveEndY - (verticalDirection * verticalHandle),
+                railX,
+                curveEndY));
+        path.getElements().add(new LineTo(railX, railY));
+    }
+
+    private static void appendFolderCurveRailToOuter(javafx.scene.shape.Path path,
+                                                     double railX,
+                                                     double railY,
+                                                     double outerX,
+                                                     double outerY,
+                                                     double wallLength) {
+        double run = Math.abs(outerX - railX);
+        double rise = Math.abs(railY - outerY);
+        double wall = Math.min(Math.max(LauncherGeometry.FLUSH, wallLength), rise);
+        double curveStartY = railY > outerY ? railY - wall : railY + wall;
+        double horizontalDirection = Math.signum(outerX - railX);
+        double verticalDirection = Math.signum(outerY - curveStartY);
+        double horizontalHandle = ActionTrapezoidGeometry.bevelCurveHandle(run);
+        double verticalHandle = ActionTrapezoidGeometry.bevelCurveHandle(Math.abs(outerY - curveStartY));
+        path.getElements().add(new LineTo(railX, curveStartY));
+        path.getElements().add(new CubicCurveTo(
+                railX,
+                curveStartY + (verticalDirection * verticalHandle),
+                outerX - (horizontalDirection * horizontalHandle),
+                outerY,
+                outerX,
+                outerY));
+    }
+
     private static void addHeaderActionHomeButton(HBox row, Button button) {
         if (row == null || button == null) {
             return;
@@ -3330,10 +3645,11 @@ final class PipelineLauncher {
     private static Button createHeaderPageHomeButton(String title, String token, Runnable action) {
         Button button = GuiText.button(GuiText.Role.CONTROL_TEXT, title);
         button.setFocusTraversable(false);
-        styleButton(button, ButtonRole.HEADER);
+        boolean homeButton = "home".equals(cssToken(token));
+        styleButton(button, homeButton ? ButtonRole.PRIMARY : ButtonRole.HEADER);
         applyButtonFamilyGeometry(button, ButtonFamily.MACRO_ACTION);
         button.setDisable(action == null);
-        addStyleClass(button, "astra-header-menu-button");
+        addStyleClass(button, homeButton ? "astra-header-home-button" : "astra-header-menu-button");
         button.setOnAction(event -> {
             if (action != null) {
                 action.run();
@@ -6037,6 +6353,148 @@ final class PipelineLauncher {
                     selectedSpeed.cycleSeconds() / LauncherGeometry.ACTION_PROGRESS_SHIMMER_SPEED_DIVISOR));
             applyShimmerState();
         }
+    }
+
+    private static final class FooterActionShell extends StackPane {
+
+        private final AnimatedGradientHeader gradientLayer = new AnimatedGradientHeader(new Pane());
+        private final javafx.scene.shape.Path clipPath = createFooterTrapezoidPath("astra-footer-action-shell-clip");
+        private final javafx.scene.shape.Path overlayPath = createFooterTrapezoidPath("astra-footer-action-shell-fill");
+        private final javafx.scene.shape.Path borderPath = createFooterTrapezoidPath("astra-footer-action-shell-border");
+
+        private FooterActionShell(Button cancelButton, Button runButton) {
+            setMinWidth(FooterGeometry.actionShellWidth());
+            setPrefWidth(FooterGeometry.actionShellWidth());
+            setMaxWidth(FooterGeometry.actionShellWidth());
+            setMinHeight(FooterGeometry.actionShellHeight());
+            setPrefHeight(FooterGeometry.actionShellHeight());
+            setMaxHeight(FooterGeometry.actionShellHeight());
+            addStyleClass(this, "astra-footer-action-shell");
+            gradientLayer.setMouseTransparent(true);
+            gradientLayer.setManaged(false);
+            gradientLayer.setClip(clipPath);
+            gradientLayer.setMinWidth(FooterGeometry.actionShellVisibleWidth());
+            gradientLayer.setPrefWidth(FooterGeometry.actionShellVisibleWidth());
+            gradientLayer.setMaxWidth(FooterGeometry.actionShellVisibleWidth());
+            gradientLayer.setMinHeight(FooterGeometry.actionShellHeight());
+            gradientLayer.setPrefHeight(FooterGeometry.actionShellHeight());
+            gradientLayer.setMaxHeight(FooterGeometry.actionShellHeight());
+
+            HBox buttons = new HBox(FooterGeometry.ACTION_SHELL_GAP);
+            buttons.setAlignment(Pos.CENTER);
+            buttons.setPadding(FooterGeometry.actionShellPadding());
+            buttons.setMinWidth(FooterGeometry.actionShellWidth());
+            buttons.setPrefWidth(FooterGeometry.actionShellWidth());
+            buttons.setMaxWidth(FooterGeometry.actionShellWidth());
+            buttons.setMinHeight(FooterGeometry.actionShellHeight());
+            buttons.setPrefHeight(FooterGeometry.actionShellHeight());
+            buttons.setMaxHeight(FooterGeometry.actionShellHeight());
+            addStyleClass(buttons, "astra-footer-action-content");
+            buttons.getChildren().addAll(cancelButton, runButton);
+
+            widthProperty().addListener((obs, oldValue, newValue) -> resizeFooterShell());
+            heightProperty().addListener((obs, oldValue, newValue) -> resizeFooterShell());
+            HEADER_MODE_PREFERENCE.addListener((obs, oldValue, newValue) -> applyHeaderGradientPreferences());
+            HEADER_MOTION_PREFERENCE.addListener((obs, oldValue, newValue) -> applyHeaderGradientPreferences());
+
+            getChildren().addAll(gradientLayer, overlayPath, buttons, borderPath);
+            applyHeaderGradientPreferences();
+            resizeFooterShell();
+        }
+
+        private void applyHeaderGradientPreferences() {
+            gradientLayer.setHeaderMode(headerModePreference());
+            gradientLayer.setMotionSpeed(headerMotionPreference());
+        }
+
+        private void resizeFooterShell() {
+            double width = Math.max(LauncherGeometry.FLUSH, getWidth());
+            double height = Math.max(LauncherGeometry.FLUSH, getHeight());
+            double slopeWidth = FooterGeometry.actionShellSlopeWidth(width);
+            double visibleWidth = FooterGeometry.actionShellVisibleWidth(width);
+            gradientLayer.resizeRelocate(
+                    -slopeWidth,
+                    LauncherGeometry.FLUSH,
+                    visibleWidth,
+                    height);
+            updateFooterTrapezoidPath(clipPath, width, height, slopeWidth);
+            updateFooterTrapezoidPath(overlayPath, width, height);
+            updateFooterTrapezoidPath(borderPath, width, height);
+        }
+    }
+
+    private static javafx.scene.shape.Path createFooterTrapezoidPath(String styleClass) {
+        javafx.scene.shape.Path path = new javafx.scene.shape.Path();
+        path.setManaged(false);
+        path.setMouseTransparent(true);
+        path.setStrokeType(StrokeType.INSIDE);
+        addStyleClass(path, styleClass);
+        if ("astra-footer-action-shell-clip".equals(styleClass)) {
+            path.setFill(javafx.scene.paint.Color.BLACK);
+        }
+        return path;
+    }
+
+    private static void updateFooterTrapezoidPath(javafx.scene.shape.Path path,
+                                                  double width,
+                                                  double height) {
+        updateFooterTrapezoidPath(path, width, height, LauncherGeometry.FLUSH);
+    }
+
+    private static void updateFooterTrapezoidPath(javafx.scene.shape.Path path,
+                                                  double width,
+                                                  double height,
+                                                  double xOffset) {
+        if (path == null) {
+            return;
+        }
+        double safeWidth = Math.max(LauncherGeometry.FLUSH, width);
+        double safeHeight = Math.max(LauncherGeometry.FLUSH, height);
+        double slopeWidth = FooterGeometry.actionShellSlopeWidth(safeWidth);
+        double bevelRadius = ActionTrapezoidGeometry.bevelRadius(
+                FooterGeometry.ACTION_SHELL_BEVEL_RADIUS, safeHeight);
+        double topY = LauncherGeometry.FLUSH;
+        double bottomY = ActionTrapezoidGeometry.footerPaintBottom(safeHeight);
+        double leftRail = xOffset;
+        double rightRail = xOffset + safeWidth;
+        double rightOuterX = rightRail + slopeWidth;
+        double leftOuterX = leftRail - slopeWidth;
+        double rightInnerX = rightRail - bevelRadius;
+        double leftInnerX = leftRail + bevelRadius;
+        double cornerHandle = ActionTrapezoidGeometry.bevelCurveHandle(bevelRadius);
+        double curveInset = ActionTrapezoidGeometry.folderCurveInset(
+                safeHeight, bevelRadius, FooterGeometry.ACTION_SHELL_INSET);
+        double wallLength = ActionTrapezoidGeometry.folderWallLength(curveInset);
+        path.getElements().setAll(
+                new MoveTo(leftInnerX, topY),
+                new LineTo(rightInnerX, topY),
+                new CubicCurveTo(
+                        rightInnerX + cornerHandle,
+                        topY,
+                        rightRail,
+                        topY + bevelRadius - cornerHandle,
+                        rightRail, topY + bevelRadius),
+                new LineTo(rightRail, bottomY - curveInset));
+        appendFolderCurveRailToOuter(
+                path,
+                rightRail, bottomY - curveInset,
+                rightOuterX, bottomY,
+                wallLength);
+        path.getElements().add(new LineTo(leftOuterX, bottomY));
+        appendFolderCurveOuterToRail(
+                path,
+                leftOuterX, bottomY,
+                leftRail, bottomY - curveInset,
+                wallLength);
+        path.getElements().addAll(
+                new LineTo(leftRail, topY + bevelRadius),
+                new CubicCurveTo(
+                        leftRail,
+                        topY + bevelRadius - cornerHandle,
+                        leftInnerX - cornerHandle,
+                        topY,
+                        leftInnerX, topY),
+                new ClosePath());
     }
 
     private static final class ParameterAccentBar extends StackPane {

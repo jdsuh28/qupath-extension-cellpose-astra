@@ -31,7 +31,10 @@ import javafx.scene.control.Tooltip;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.Point2D;
+import javafx.geometry.Rectangle2D;
 import javafx.geometry.VPos;
+import javafx.scene.image.PixelReader;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
@@ -136,6 +139,21 @@ public final class LauncherPreviewApp extends Application {
         }
         if ("header-actions-page".equals(snapshotMode)) {
             schedule(1.5, () -> snapshot("header-actions-page", title));
+            schedule(2.1, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("header-ribbon-diagnostic".equals(snapshotMode)) {
+            schedule(1.5, () -> snapshotHeaderRibbonDiagnostic("header-ribbon-diagnostic", title));
+            schedule(2.1, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("footer-trapezoid-diagnostic".equals(snapshotMode)) {
+            schedule(1.5, () -> snapshotFooterTrapezoidDiagnostic("footer-trapezoid-diagnostic", title));
+            schedule(2.1, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("header-footer-button-wall-proof".equals(snapshotMode)) {
+            schedule(1.5, () -> snapshotHeaderFooterButtonWallProof("header-footer-button-wall-proof", title));
             schedule(2.1, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -953,8 +971,305 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         Node root = target.getScene().getRoot();
-        WritableImage image = root.snapshot(new SnapshotParameters(), null);
-        writeImage(name, image);
+        SnapshotCapture capture = snapshotNode(root);
+        writeImage(name, capture);
+    }
+
+    private static SnapshotCapture snapshotNode(Node node) {
+        SnapshotParameters rawParameters = snapshotParameters(node);
+        WritableImage raw = node.snapshot(rawParameters, null);
+        Bounds bounds = node.getLayoutBounds();
+        int floorWidth = Math.max((int)LauncherGeometryTokens.FLUSH, (int)Math.floor(bounds.getWidth()));
+        int floorHeight = Math.max((int)LauncherGeometryTokens.FLUSH, (int)Math.floor(bounds.getHeight()));
+        if (floorWidth <= LauncherGeometryTokens.FLUSH || floorHeight <= LauncherGeometryTokens.FLUSH) {
+            return new SnapshotCapture(raw, raw, bounds, floorWidth, floorHeight);
+        }
+        return new SnapshotCapture(raw, raw, bounds, floorWidth, floorHeight);
+    }
+
+    private static SnapshotParameters snapshotParameters(Node node) {
+        SnapshotParameters parameters = new SnapshotParameters();
+        parameters.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        return parameters;
+    }
+
+    private static void snapshotHeaderRibbonDiagnostic(String name, String launcherTitle) {
+        Optional<Node> rootOptional = findWindowRoot(launcherTitle);
+        if (rootOptional.isEmpty()) {
+            System.err.println("No launcher root for " + name);
+            return;
+        }
+        Node sceneRoot = rootOptional.get();
+        Optional<Node> bodyOptional = firstNode(sceneRoot, ".astra-header-action-content");
+        Optional<Node> fillOptional = firstNode(sceneRoot, ".astra-header-action-shell-fill");
+        Optional<Node> outputOptional = firstNode(sceneRoot, ".astra-output-pane");
+        if (bodyOptional.isEmpty() || fillOptional.isEmpty() || outputOptional.isEmpty()) {
+            System.err.println("No header ribbon geometry target for " + name);
+            return;
+        }
+        Node body = bodyOptional.get();
+        Node fill = fillOptional.get();
+        Node output = outputOptional.get();
+        double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
+        double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
+        Bounds bodyBounds = relativeBounds(sceneRoot, body, rootMinX, rootMinY);
+        Bounds outputBounds = relativeBounds(sceneRoot, output, rootMinX, rootMinY);
+        RibbonPathPoints points = ribbonPathPoints(fill);
+        List<GeometryMeasurement> measurements = headerRibbonMeasurements(bodyBounds, outputBounds, points);
+        SnapshotCapture capture = snapshotNode(sceneRoot);
+        BufferedImage buffered = SwingFXUtils.fromFXImage(capture.normalized(), null);
+        drawHeaderRibbonDiagnostic(buffered, bodyBounds, outputBounds);
+        File file = options.outputPath().resolve(name + ".png").toFile();
+        try {
+            ImageIO.write(buffered, "png", file);
+            writeEdgeAudit(name, capture);
+            writeGeometryTables(name, measurements);
+            System.out.println(file.getAbsolutePath());
+            measurements.forEach(measurement -> System.out.printf(
+                    Locale.ROOT,
+                    "%s expected=%.2f observed=%.2f delta=%.2f formula=%s%n",
+                    measurement.label(),
+                    measurement.expected(),
+                    measurement.observed(),
+                    measurement.delta(),
+                    measurement.formula()));
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+        }
+    }
+
+    private static void snapshotFooterTrapezoidDiagnostic(String name, String launcherTitle) {
+        Optional<Node> rootOptional = findWindowRoot(launcherTitle);
+        if (rootOptional.isEmpty()) {
+            System.err.println("No launcher root for " + name);
+            return;
+        }
+        Node sceneRoot = rootOptional.get();
+        Optional<Node> bodyOptional = firstNode(sceneRoot, ".astra-footer-action-content");
+        Optional<Node> borderOptional = firstNode(sceneRoot, ".astra-footer-action-shell-border");
+        Optional<Node> headerBodyOptional = firstNode(sceneRoot, ".astra-header-action-content");
+        Optional<Node> headerBorderOptional = firstNode(sceneRoot, ".astra-header-action-shell-border");
+        Optional<Node> outputOptional = firstNode(sceneRoot, ".astra-output-pane");
+        if (bodyOptional.isEmpty()
+                || borderOptional.isEmpty()
+                || headerBodyOptional.isEmpty()
+                || headerBorderOptional.isEmpty()
+                || outputOptional.isEmpty()) {
+            System.err.println("No footer trapezoid geometry target for " + name);
+            return;
+        }
+        Node body = bodyOptional.get();
+        Node border = borderOptional.get();
+        Node headerBody = headerBodyOptional.get();
+        Node headerBorder = headerBorderOptional.get();
+        Node output = outputOptional.get();
+        Bounds sceneBounds = sceneRoot.localToScene(sceneRoot.getBoundsInLocal());
+        double rootMinX = sceneBounds.getMinX();
+        double rootMinY = sceneBounds.getMinY();
+        Bounds bodyBounds = relativeBounds(sceneRoot, body, rootMinX, rootMinY);
+        Bounds headerBodyBounds = relativeBounds(sceneRoot, headerBody, rootMinX, rootMinY);
+        Bounds outputBounds = relativeBounds(sceneRoot, output, rootMinX, rootMinY);
+        FooterPathPoints points = footerPathPoints(border);
+        RibbonPathPoints headerPoints = ribbonPathPoints(headerBorder);
+        List<GeometryMeasurement> measurements = footerTrapezoidMeasurements(
+                bodyBounds,
+                headerBodyBounds,
+                outputBounds,
+                points,
+                headerPoints);
+        SnapshotCapture capture = snapshotNode(sceneRoot);
+        BufferedImage buffered = SwingFXUtils.fromFXImage(capture.normalized(), null);
+        drawFooterTrapezoidDiagnostic(buffered, bodyBounds, outputBounds);
+        File file = options.outputPath().resolve(name + ".png").toFile();
+        try {
+            ImageIO.write(buffered, "png", file);
+            writeEdgeAudit(name, capture);
+            writeGeometryTables(name, measurements);
+            System.out.println(file.getAbsolutePath());
+            measurements.forEach(measurement -> System.out.printf(
+                    Locale.ROOT,
+                    "%s expected=%.2f observed=%.2f delta=%.2f formula=%s%n",
+                    measurement.label(),
+                    measurement.expected(),
+                    measurement.observed(),
+                    measurement.delta(),
+                    measurement.formula()));
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+        }
+    }
+
+    private static void snapshotHeaderFooterButtonWallProof(String name, String launcherTitle) {
+        Optional<Node> rootOptional = findWindowRoot(launcherTitle);
+        if (rootOptional.isEmpty()) {
+            System.err.println("No launcher root for " + name);
+            return;
+        }
+        Node sceneRoot = rootOptional.get();
+        Optional<Node> headerShellOptional = firstNode(sceneRoot, ".astra-header-action-content");
+        Optional<Node> footerShellOptional = firstNode(sceneRoot, ".astra-footer-action-content");
+        Optional<Node> headerButtonOptional = firstButtonIn(sceneRoot, ".astra-header-action-content");
+        Optional<Node> footerButtonOptional = firstButtonIn(sceneRoot, ".astra-footer-action-content");
+        Optional<Node> headerBorderOptional = firstNode(sceneRoot, ".astra-header-action-shell-border");
+        Optional<Node> footerBorderOptional = firstNode(sceneRoot, ".astra-footer-action-shell-border");
+        if (headerShellOptional.isEmpty()
+                || footerShellOptional.isEmpty()
+                || headerButtonOptional.isEmpty()
+                || footerButtonOptional.isEmpty()
+                || headerBorderOptional.isEmpty()
+                || footerBorderOptional.isEmpty()) {
+            System.err.println("No header/footer button wall proof target for " + name);
+            return;
+        }
+        Node headerShell = headerShellOptional.get();
+        Node footerShell = footerShellOptional.get();
+        Node headerButton = headerButtonOptional.get();
+        Node footerButton = footerButtonOptional.get();
+        Node headerBorder = headerBorderOptional.get();
+        Node footerBorder = footerBorderOptional.get();
+        Bounds sceneBounds = sceneRoot.localToScene(sceneRoot.getBoundsInLocal());
+        double rootMinX = sceneBounds.getMinX();
+        double rootMinY = sceneBounds.getMinY();
+        Bounds headerShellBounds = relativeBounds(sceneRoot, headerShell, rootMinX, rootMinY);
+        Bounds footerShellBounds = relativeBounds(sceneRoot, footerShell, rootMinX, rootMinY);
+        RenderedAlphaBounds headerButtonInk = renderedAlphaBounds(headerButton)
+                .orElse(RenderedAlphaBounds.nan());
+        RenderedAlphaBounds footerButtonInk = renderedAlphaBounds(footerButton)
+                .orElse(RenderedAlphaBounds.nan());
+        double headerInset = nestedStaticField("HeaderGeometry", "ACTION_RIBBON_INSET");
+        double footerInset = nestedStaticField("FooterGeometry", "ACTION_SHELL_INSET");
+        double headerWallTop = headerShellBounds.getMinY() + headerInset;
+        double headerWallBottom = headerShellBounds.getMaxY() - headerInset;
+        double footerWallTop = footerShellBounds.getMinY() + footerInset;
+        double footerWallBottom = footerShellBounds.getMaxY() - footerInset;
+        WallPair headerWalls = verticalPathWallPair(headerBorder);
+        WallPair footerWalls = verticalPathWallPair(footerBorder);
+        List<GeometryMeasurement> measurements = new ArrayList<>();
+        addMeasurement(measurements, "header rendered button top == header wall start",
+                headerButtonInk.minY(), headerWallTop,
+                "rendered button alpha minY == header shell minY + ACTION_RIBBON_INSET");
+        addMeasurement(measurements, "header rendered button bottom == header wall end",
+                headerButtonInk.maxY(), headerWallBottom,
+                "rendered button alpha maxY == header shell maxY - ACTION_RIBBON_INSET");
+        addMeasurement(measurements, "header rendered button height == header wall height",
+                headerButtonInk.height(), headerWallBottom - headerWallTop,
+                "rendered button alpha height == header wall end - wall start");
+        addMeasurement(measurements, "footer rendered button top == footer wall start",
+                footerButtonInk.minY(), footerWallTop,
+                "rendered button alpha minY == footer shell minY + ACTION_SHELL_INSET");
+        addMeasurement(measurements, "footer rendered button bottom == footer wall end",
+                footerButtonInk.maxY(), footerWallBottom,
+                "rendered button alpha maxY == footer shell maxY - ACTION_SHELL_INSET");
+        addMeasurement(measurements, "footer rendered button height == footer wall height",
+                footerButtonInk.height(), footerWallBottom - footerWallTop,
+                "rendered button alpha height == footer wall end - wall start");
+        addWallSegmentMeasurements(measurements, "header left", headerButtonInk, headerWalls.left());
+        addWallSegmentMeasurements(measurements, "header right", headerButtonInk, headerWalls.right());
+        addWallSegmentMeasurements(measurements, "footer left", footerButtonInk, footerWalls.left());
+        addWallSegmentMeasurements(measurements, "footer right", footerButtonInk, footerWalls.right());
+        SnapshotCapture capture = snapshotNode(sceneRoot);
+        BufferedImage buffered = SwingFXUtils.fromFXImage(capture.normalized(), null);
+        drawButtonWallProof(buffered, headerShellBounds, headerButtonInk,
+                headerWalls.left().x(), headerWalls.right().x(),
+                headerWallTop, headerWallBottom, "header");
+        drawButtonWallProof(buffered, footerShellBounds, footerButtonInk,
+                footerWalls.left().x(), footerWalls.right().x(),
+                footerWallTop, footerWallBottom, "footer");
+        File file = options.outputPath().resolve(name + ".png").toFile();
+        File headerCrop = options.outputPath().resolve(name + "-header.png").toFile();
+        File footerCrop = options.outputPath().resolve(name + "-footer.png").toFile();
+        try {
+            ImageIO.write(buffered, "png", file);
+            ImageIO.write(cropAround(buffered, headerBorder, sceneRoot, rootMinX, rootMinY), "png", headerCrop);
+            ImageIO.write(cropAround(buffered, footerBorder, sceneRoot, rootMinX, rootMinY), "png", footerCrop);
+            writeEdgeAudit(name, capture);
+            writeGeometryTables(name, measurements);
+            System.out.println(file.getAbsolutePath());
+            System.out.println(headerCrop.getAbsolutePath());
+            System.out.println(footerCrop.getAbsolutePath());
+            measurements.forEach(measurement -> System.out.printf(
+                    Locale.ROOT,
+                    "%s expected=%.2f observed=%.2f delta=%.2f formula=%s%n",
+                    measurement.label(),
+                    measurement.expected(),
+                    measurement.observed(),
+                    measurement.delta(),
+                    measurement.formula()));
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+        }
+    }
+
+    private static void addWallSegmentMeasurements(List<GeometryMeasurement> measurements,
+                                                   String label,
+                                                   RenderedAlphaBounds buttonInk,
+                                                   VerticalPathSegment wall) {
+        addMeasurement(measurements, label + " path wall top == rendered button top",
+                buttonInk.minY(), wall.minY(),
+                "live JavaFX vertical LineTo segment minY == rendered button alpha minY");
+        addMeasurement(measurements, label + " path wall bottom == rendered button bottom",
+                buttonInk.maxY(), wall.maxY(),
+                "live JavaFX vertical LineTo segment maxY == rendered button alpha maxY");
+        addMeasurement(measurements, label + " path wall height == rendered button height",
+                buttonInk.height(), wall.height(),
+                "live JavaFX vertical LineTo segment height == rendered button alpha height");
+    }
+
+    private static WallPair verticalPathWallPair(Node node) {
+        List<VerticalPathSegment> segments = verticalPathSegments(node).stream()
+                .filter(segment -> segment.height() > LauncherGeometryTokens.SURFACE_BORDER_WIDTH)
+                .toList();
+        if (segments.isEmpty()) {
+            return WallPair.nan();
+        }
+        double tallest = segments.stream()
+                .mapToDouble(VerticalPathSegment::height)
+                .max()
+                .orElse(Double.NaN);
+        List<VerticalPathSegment> walls = segments.stream()
+                .filter(segment -> Math.abs(segment.height() - tallest)
+                        <= LauncherGeometryTokens.SURFACE_BORDER_WIDTH)
+                .sorted(java.util.Comparator.comparingDouble(VerticalPathSegment::x))
+                .toList();
+        if (walls.size() < 2) {
+            return WallPair.nan();
+        }
+        return new WallPair(walls.get(0), walls.get(walls.size() - 1));
+    }
+
+    private static List<VerticalPathSegment> verticalPathSegments(Node node) {
+        if (!(node instanceof javafx.scene.shape.Path path)) {
+            return List.of();
+        }
+        List<VerticalPathSegment> segments = new ArrayList<>();
+        double currentX = Double.NaN;
+        double currentY = Double.NaN;
+        for (javafx.scene.shape.PathElement element : path.getElements()) {
+            if (element instanceof javafx.scene.shape.MoveTo move) {
+                currentX = move.getX();
+                currentY = move.getY();
+            } else if (element instanceof javafx.scene.shape.LineTo line) {
+                if (!Double.isNaN(currentX)
+                        && Math.abs(line.getX() - currentX)
+                        <= LauncherGeometryTokens.SURFACE_BORDER_WIDTH) {
+                    Point2D start = path.localToScene(currentX, currentY);
+                    Point2D end = path.localToScene(line.getX(), line.getY());
+                    segments.add(new VerticalPathSegment(
+                            (start.getX() + end.getX()) / 2.0d,
+                            Math.min(start.getY(), end.getY()),
+                            Math.max(start.getY(), end.getY())));
+                }
+                currentX = line.getX();
+                currentY = line.getY();
+            } else if (element instanceof javafx.scene.shape.CubicCurveTo curve) {
+                currentX = curve.getX();
+                currentY = curve.getY();
+            } else if (element instanceof javafx.scene.shape.QuadCurveTo curve) {
+                currentX = curve.getX();
+                currentY = curve.getY();
+            }
+        }
+        return segments;
     }
 
     private static void snapshotTransientWindow(String name, String launcherTitle) {
@@ -979,14 +1294,15 @@ public final class LauncherPreviewApp extends Application {
                             + " h=" + window.getHeight()));
             return;
         }
-        WritableImage image = target.getScene().getRoot().snapshot(new SnapshotParameters(), null);
-        writeImage(name, image);
+        SnapshotCapture capture = snapshotNode(target.getScene().getRoot());
+        writeImage(name, capture);
     }
 
-    private static void writeImage(String name, WritableImage image) {
+    private static void writeImage(String name, SnapshotCapture capture) {
         File file = options.outputPath().resolve(name + ".png").toFile();
         try {
-            ImageIO.write(SwingFXUtils.fromFXImage(image, null), "png", file);
+            ImageIO.write(SwingFXUtils.fromFXImage(capture.normalized(), null), "png", file);
+            writeEdgeAudit(name, capture);
             System.out.println(file.getAbsolutePath());
         } catch (Exception e) {
             e.printStackTrace(System.err);
@@ -1000,8 +1316,8 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         Node sceneRoot = rootOptional.get();
-        WritableImage image = sceneRoot.snapshot(new SnapshotParameters(), null);
-        BufferedImage buffered = SwingFXUtils.fromFXImage(image, null);
+        SnapshotCapture capture = snapshotNode(sceneRoot);
+        BufferedImage buffered = SwingFXUtils.fromFXImage(capture.normalized(), null);
         List<DistanceMarker> distances = new ArrayList<>();
         distances.addAll(marginMarkers(sceneRoot));
         distances.addAll(focusedPanelMarkers(sceneRoot));
@@ -1014,6 +1330,7 @@ public final class LauncherPreviewApp extends Application {
         File file = options.outputPath().resolve(name + ".png").toFile();
         try {
             ImageIO.write(buffered, "png", file);
+            writeEdgeAudit(name, capture);
             writeGeometryTables(name, measurements);
             System.out.println(file.getAbsolutePath());
             measurements.forEach(measurement -> System.out.printf(
@@ -1045,8 +1362,8 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         Node sceneRoot = rootOptional.get();
-        WritableImage image = sceneRoot.snapshot(new SnapshotParameters(), null);
-        BufferedImage buffered = SwingFXUtils.fromFXImage(image, null);
+        SnapshotCapture capture = snapshotNode(sceneRoot);
+        BufferedImage buffered = SwingFXUtils.fromFXImage(capture.normalized(), null);
         List<DistanceMarker> distances = new ArrayList<>();
         List<RailMarker> rails = new ArrayList<>();
         List<BoundsMarker> bounds = surfaceBounds(sceneRoot, surface);
@@ -1062,6 +1379,7 @@ public final class LauncherPreviewApp extends Application {
         File file = options.outputPath().resolve(name + ".png").toFile();
         try {
             ImageIO.write(buffered, "png", file);
+            writeEdgeAudit(name, capture);
             writeGeometryTables(name, measurements);
             System.out.println(file.getAbsolutePath());
             measurements.forEach(measurement -> System.out.printf(
@@ -1120,14 +1438,15 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         Node root = rootOptional.get();
-        WritableImage image = root.snapshot(new SnapshotParameters(), null);
-        BufferedImage buffered = SwingFXUtils.fromFXImage(image, null);
+        SnapshotCapture capture = snapshotNode(root);
+        BufferedImage buffered = SwingFXUtils.fromFXImage(capture.normalized(), null);
         List<RailMarker> markers = railMarkers(root);
         List<RailDistance> distances = railDistances(markers);
         drawRailMarkers(buffered, markers);
         File file = options.outputPath().resolve(name + ".png").toFile();
         try {
             ImageIO.write(buffered, "png", file);
+            writeEdgeAudit(name, capture);
             System.out.println(file.getAbsolutePath());
             markers.forEach(marker -> System.out.printf(
                     Locale.ROOT,
@@ -1155,13 +1474,14 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         Node sceneRoot = rootOptional.get();
-        WritableImage image = sceneRoot.snapshot(new SnapshotParameters(), null);
-        BufferedImage buffered = SwingFXUtils.fromFXImage(image, null);
+        SnapshotCapture capture = snapshotNode(sceneRoot);
+        BufferedImage buffered = SwingFXUtils.fromFXImage(capture.normalized(), null);
         List<DistanceMarker> markers = marginMarkers(sceneRoot);
         drawDistanceMarkers(buffered, markers);
         File file = options.outputPath().resolve(name + ".png").toFile();
         try {
             ImageIO.write(buffered, "png", file);
+            writeEdgeAudit(name, capture);
             System.out.println(file.getAbsolutePath());
             printLayoutDiagnostics(sceneRoot);
             markers.forEach(marker -> System.out.printf(
@@ -1181,13 +1501,14 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         Node sceneRoot = rootOptional.get();
-        WritableImage image = sceneRoot.snapshot(new SnapshotParameters(), null);
-        BufferedImage buffered = SwingFXUtils.fromFXImage(image, null);
+        SnapshotCapture capture = snapshotNode(sceneRoot);
+        BufferedImage buffered = SwingFXUtils.fromFXImage(capture.normalized(), null);
         List<DistanceMarker> markers = focusedPanelMarkers(sceneRoot);
         drawDistanceMarkers(buffered, markers);
         File file = options.outputPath().resolve(name + ".png").toFile();
         try {
             ImageIO.write(buffered, "png", file);
+            writeEdgeAudit(name, capture);
             System.out.println(file.getAbsolutePath());
             markers.forEach(marker -> System.out.printf(
                     Locale.ROOT,
@@ -3985,6 +4306,417 @@ public final class LauncherPreviewApp extends Application {
         }
     }
 
+    private static List<GeometryMeasurement> headerRibbonMeasurements(Bounds shellBounds,
+                                                                      Bounds outputBounds,
+                                                                      RibbonPathPoints points) {
+        double width = shellBounds.getWidth();
+        double height = shellBounds.getHeight();
+        double slopeWidth = Math.min(nestedStaticField("HeaderGeometry", "ACTION_RIBBON_SLOPE_WIDTH"), width / 2.0d);
+        double bevelRadius = Math.min(nestedStaticField("HeaderGeometry", "ACTION_RIBBON_BEVEL_RADIUS"), height / 2.0d);
+        double curveRun = slopeWidth;
+        double shoulderHandle = quarterCurveHandle(curveRun);
+        double cornerHandle = quarterCurveHandle(bevelRadius);
+        double curveInset = folderCurveInset(height, bevelRadius);
+        List<GeometryMeasurement> measurements = new ArrayList<>();
+        addMeasurement(measurements, "ribbon body left aligns with output pane",
+                outputBounds.getMinX(), shellBounds.getMinX(),
+                "action shell min x == output pane min x");
+        addMeasurement(measurements, "ribbon body right aligns with output pane",
+                outputBounds.getMaxX(), shellBounds.getMaxX(),
+                "action shell max x == output pane max x");
+        addMeasurement(measurements, "ribbon body width equals output pane width",
+                outputBounds.getWidth(), width,
+                "HeaderGeometry.actionBoxWidth() == OUTPUT_PANE_PREF_WIDTH");
+        addMeasurement(measurements, "top left tangent x",
+                -slopeWidth, points.topLeftX(),
+                "-HeaderGeometry.ACTION_RIBBON_SLOPE_WIDTH");
+        addMeasurement(measurements, "top left y",
+                LauncherGeometryTokens.FLUSH, points.topLeftY(),
+                "LauncherGeometry.FLUSH");
+        addMeasurement(measurements, "top right tangent x",
+                width + slopeWidth, points.topRightX(),
+                "width + HeaderGeometry.ACTION_RIBBON_SLOPE_WIDTH");
+        addMeasurement(measurements, "top right y",
+                LauncherGeometryTokens.FLUSH, points.topRightY(),
+                "LauncherGeometry.FLUSH");
+        addMeasurement(measurements, "right side first control x",
+                width + slopeWidth - shoulderHandle, points.rightSideControl1X(),
+                "width + slope - folderCurveHandle");
+        addMeasurement(measurements, "right side first control y",
+                LauncherGeometryTokens.FLUSH, points.rightSideControl1Y(),
+                "LauncherGeometry.FLUSH");
+        addMeasurement(measurements, "right side second control x",
+                width, points.rightSideControl2X(),
+                "width");
+        addMeasurement(measurements, "right side second control y",
+                curveInset - cornerHandle, points.rightSideControl2Y(),
+                "curveInset - bevelCurveHandle");
+        addMeasurement(measurements, "right shoulder endpoint x",
+                width, points.rightSideEndX(),
+                "width");
+        addMeasurement(measurements, "right shoulder endpoint y",
+                curveInset, points.rightSideEndY(),
+                "curveInset");
+        addMeasurement(measurements, "right bottom body x",
+                width - bevelRadius, points.rightBottomX(),
+                "width - HeaderGeometry.ACTION_RIBBON_BEVEL_RADIUS");
+        addMeasurement(measurements, "right bottom body y",
+                height, points.rightBottomY(),
+                "height");
+        addMeasurement(measurements, "left bottom body x",
+                bevelRadius, points.leftBottomX(),
+                "HeaderGeometry.ACTION_RIBBON_BEVEL_RADIUS");
+        addMeasurement(measurements, "left bottom body y",
+                height, points.leftBottomY(),
+                "height");
+        addMeasurement(measurements, "left side first control x",
+                LauncherGeometryTokens.FLUSH, points.leftSideControl1X(),
+                "LauncherGeometry.FLUSH");
+        addMeasurement(measurements, "left side first control y",
+                curveInset - cornerHandle, points.leftSideControl1Y(),
+                "curveInset - bevelCurveHandle");
+        addMeasurement(measurements, "left side second control x",
+                -slopeWidth + shoulderHandle, points.leftSideControl2X(),
+                "-slope + folderCurveHandle");
+        addMeasurement(measurements, "left side second control y",
+                LauncherGeometryTokens.FLUSH, points.leftSideControl2Y(),
+                "LauncherGeometry.FLUSH");
+        addMeasurement(measurements, "left side endpoint x",
+                -slopeWidth, points.leftSideEndX(),
+                "-HeaderGeometry.ACTION_RIBBON_SLOPE_WIDTH");
+        addMeasurement(measurements, "left side endpoint y",
+                LauncherGeometryTokens.FLUSH, points.leftSideEndY(),
+                "LauncherGeometry.FLUSH");
+        addMeasurement(measurements, "ribbon top foot span",
+                width + (slopeWidth * 2.0d),
+                points.topRightX() - points.topLeftX(),
+                "body width + 2 * HeaderGeometry.ACTION_RIBBON_SLOPE_WIDTH");
+        addMeasurement(measurements, "ribbon bottom/body straight span",
+                outputBounds.getWidth() - (bevelRadius * 2.0d),
+                points.rightBottomX() - points.leftBottomX(),
+                "output pane width - 2 * HeaderGeometry.ACTION_RIBBON_BEVEL_RADIUS");
+        return measurements;
+    }
+
+    private static RibbonPathPoints ribbonPathPoints(Node node) {
+        if (!(node instanceof javafx.scene.shape.Path path) || path.getElements().size() < 9) {
+            return RibbonPathPoints.nan();
+        }
+        javafx.scene.shape.MoveTo topLeft = (javafx.scene.shape.MoveTo)path.getElements().get(0);
+        javafx.scene.shape.LineTo topRight = (javafx.scene.shape.LineTo)path.getElements().get(1);
+        javafx.scene.shape.CubicCurveTo rightShoulder = (javafx.scene.shape.CubicCurveTo)path.getElements().get(2);
+        javafx.scene.shape.CubicCurveTo rightCorner = (javafx.scene.shape.CubicCurveTo)path.getElements().get(4);
+        javafx.scene.shape.LineTo leftBottom = (javafx.scene.shape.LineTo)path.getElements().get(5);
+        javafx.scene.shape.CubicCurveTo leftShoulder = (javafx.scene.shape.CubicCurveTo)path.getElements().get(8);
+        return new RibbonPathPoints(
+                topLeft.getX(), topLeft.getY(),
+                topRight.getX(), topRight.getY(),
+                rightShoulder.getControlX1(), rightShoulder.getControlY1(),
+                rightShoulder.getControlX2(), rightShoulder.getControlY2(),
+                rightShoulder.getX(), rightShoulder.getY(),
+                rightCorner.getX(), rightCorner.getY(),
+                leftBottom.getX(), leftBottom.getY(),
+                leftShoulder.getControlX1(), leftShoulder.getControlY1(),
+                leftShoulder.getControlX2(), leftShoulder.getControlY2(),
+                leftShoulder.getX(), leftShoulder.getY());
+    }
+
+    private static double quarterCurveHandle(double radius) {
+        return radius * ((Math.sqrt(2.0d) - 1.0d) * 4.0d / 3.0d);
+    }
+
+    private static double folderCurveInset(double height, double bevelRadius) {
+        double fraction = nestedStaticField("ActionTrapezoidGeometry", "FOLDER_CURVE_DEPTH_FRACTION");
+        return Math.max(Math.max(LauncherGeometryTokens.SURFACE_BORDER_WIDTH, bevelRadius), height * fraction);
+    }
+
+    private static List<GeometryMeasurement> footerTrapezoidMeasurements(Bounds shellBounds,
+                                                                         Bounds headerShellBounds,
+                                                                         Bounds outputBounds,
+                                                                         FooterPathPoints points,
+                                                                         RibbonPathPoints headerPoints) {
+        double width = shellBounds.getWidth();
+        double height = shellBounds.getHeight();
+        double slopeWidth = Math.min(nestedStaticField("FooterGeometry", "ACTION_SHELL_SLOPE_WIDTH"), width / 2.0d);
+        double bevelRadius = Math.min(nestedStaticField("FooterGeometry", "ACTION_SHELL_BEVEL_RADIUS"), height / 2.0d);
+        double bottomY = Math.max(LauncherGeometryTokens.FLUSH, height);
+        double curveRun = slopeWidth;
+        double shoulderHandle = quarterCurveHandle(curveRun);
+        double cornerHandle = quarterCurveHandle(bevelRadius);
+        double curveInset = folderCurveInset(height, bevelRadius);
+        List<GeometryMeasurement> measurements = new ArrayList<>();
+        addMeasurement(measurements, "footer body right aligns with output pane",
+                outputBounds.getMaxX(), shellBounds.getMaxX(),
+                "footer shell max x == output pane max x");
+        addMeasurement(measurements, "footer visible right aligns with header visible right",
+                headerShellBounds.getMinX() + headerPoints.topRightX(),
+                shellBounds.getMinX() + points.rightBottomX(),
+                "header shell min x + header top-right foot x == footer shell min x + footer bottom-right foot x");
+        addMeasurement(measurements, "footer path bottom aligns with shell bottom",
+                shellBounds.getMinY() + bottomY, shellBounds.getMinY() + points.rightBottomY(),
+                "footer shell min y + footerPaintBottom(height)");
+        addMeasurement(measurements, "footer body width",
+                footerActionShellWidth(), width,
+                "FooterGeometry.actionShellWidth()");
+        addMeasurement(measurements, "top left body x",
+                bevelRadius, points.topLeftTangentX(),
+                "FooterGeometry.ACTION_SHELL_BEVEL_RADIUS");
+        addMeasurement(measurements, "top left tangent y",
+                LauncherGeometryTokens.FLUSH, points.topLeftTangentY(),
+                "LauncherGeometry.FLUSH");
+        addMeasurement(measurements, "top right body x",
+                width - bevelRadius, points.topRightTangentX(),
+                "width - FooterGeometry.ACTION_SHELL_BEVEL_RADIUS");
+        addMeasurement(measurements, "top right tangent y",
+                LauncherGeometryTokens.FLUSH, points.topRightTangentY(),
+                "LauncherGeometry.FLUSH");
+        addMeasurement(measurements, "right side first control x",
+                width - bevelRadius + cornerHandle, points.rightSideControl1X(),
+                "width - bevel + bevelCurveHandle");
+        addMeasurement(measurements, "right side first control y",
+                LauncherGeometryTokens.FLUSH, points.rightSideControl1Y(),
+                "LauncherGeometry.FLUSH");
+        addMeasurement(measurements, "right side second control x",
+                width, points.rightSideControl2X(),
+                "width");
+        addMeasurement(measurements, "right side second control y",
+                bevelRadius - cornerHandle, points.rightSideControl2Y(),
+                "bevelRadius - bevelCurveHandle");
+        addMeasurement(measurements, "right bottom x",
+                width + slopeWidth, points.rightBottomX(),
+                "width + FooterGeometry.ACTION_SHELL_SLOPE_WIDTH");
+        addMeasurement(measurements, "right bottom y",
+                bottomY, points.rightBottomY(),
+                "footerPaintBottom(height)");
+        addMeasurement(measurements, "left bottom x",
+                -slopeWidth, points.leftBottomX(),
+                "-FooterGeometry.ACTION_SHELL_SLOPE_WIDTH");
+        addMeasurement(measurements, "left bottom y",
+                bottomY, points.leftBottomY(),
+                "footerPaintBottom(height)");
+        addMeasurement(measurements, "left side first control x",
+                -slopeWidth + shoulderHandle, points.leftSideControl1X(),
+                "-slope + folderCurveHandle");
+        addMeasurement(measurements, "left side first control y",
+                bottomY, points.leftSideControl1Y(),
+                "footerPaintBottom(height)");
+        addMeasurement(measurements, "left side second control x",
+                LauncherGeometryTokens.FLUSH, points.leftSideControl2X(),
+                "LauncherGeometry.FLUSH");
+        addMeasurement(measurements, "left side second control y",
+                bottomY - curveInset + cornerHandle, points.leftSideControl2Y(),
+                "footerPaintBottom(height) - curveInset + bevelCurveHandle");
+        addMeasurement(measurements, "left side endpoint x",
+                LauncherGeometryTokens.FLUSH, points.leftSideEndX(),
+                "LauncherGeometry.FLUSH");
+        addMeasurement(measurements, "left side endpoint y",
+                bottomY - curveInset, points.leftSideEndY(),
+                "footerPaintBottom(height) - curveInset");
+        addMeasurement(measurements, "footer bottom foot span",
+                width + (slopeWidth * 2.0d),
+                points.rightBottomX() - points.leftBottomX(),
+                "body width + 2 * FooterGeometry.ACTION_SHELL_SLOPE_WIDTH");
+        addMeasurement(measurements, "footer top/body straight span",
+                width - (bevelRadius * 2.0d),
+                points.topRightTangentX() - points.topLeftTangentX(),
+                "body width - 2 * FooterGeometry.ACTION_SHELL_BEVEL_RADIUS");
+        return measurements;
+    }
+
+    private static FooterPathPoints footerPathPoints(Node node) {
+        if (!(node instanceof javafx.scene.shape.Path path) || path.getElements().size() < 9) {
+            return FooterPathPoints.nan();
+        }
+        javafx.scene.shape.MoveTo topLeftTangent = (javafx.scene.shape.MoveTo)path.getElements().get(0);
+        javafx.scene.shape.LineTo topRightTangent = (javafx.scene.shape.LineTo)path.getElements().get(1);
+        javafx.scene.shape.CubicCurveTo rightShoulder = (javafx.scene.shape.CubicCurveTo)path.getElements().get(2);
+        javafx.scene.shape.CubicCurveTo rightCorner = (javafx.scene.shape.CubicCurveTo)path.getElements().get(4);
+        javafx.scene.shape.LineTo leftBottom = (javafx.scene.shape.LineTo)path.getElements().get(5);
+        javafx.scene.shape.CubicCurveTo leftShoulder = (javafx.scene.shape.CubicCurveTo)path.getElements().get(6);
+        return new FooterPathPoints(
+                topLeftTangent.getX(), topLeftTangent.getY(),
+                topRightTangent.getX(), topRightTangent.getY(),
+                rightShoulder.getControlX1(), rightShoulder.getControlY1(),
+                rightShoulder.getControlX2(), rightShoulder.getControlY2(),
+                rightCorner.getX(), rightCorner.getY(),
+                leftBottom.getX(), leftBottom.getY(),
+                leftShoulder.getControlX1(), leftShoulder.getControlY1(),
+                leftShoulder.getControlX2(), leftShoulder.getControlY2(),
+                leftShoulder.getX(), leftShoulder.getY());
+    }
+
+    private static void drawHeaderRibbonDiagnostic(BufferedImage image,
+                                                   Bounds shellBounds,
+                                                   Bounds outputBounds) {
+        double width = shellBounds.getWidth();
+        double height = shellBounds.getHeight();
+        double slopeWidth = Math.min(nestedStaticField("HeaderGeometry", "ACTION_RIBBON_SLOPE_WIDTH"), width / 2.0d);
+        double bevelRadius = Math.min(nestedStaticField("HeaderGeometry", "ACTION_RIBBON_BEVEL_RADIUS"), height / 2.0d);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setFont(new Font("SansSerif", Font.BOLD, 12));
+            Color topColor = new Color(255, 193, 7);
+            Color bodyColor = new Color(0, 184, 212);
+            Color bevelColor = new Color(255, 0, 110);
+            Color bottomColor = new Color(80, 220, 100);
+            Color outputColor = new Color(124, 77, 255);
+            double yTop = shellBounds.getMinY();
+            double yBottom = shellBounds.getMaxY();
+            double ySlopeStart = shellBounds.getMinY() + bevelRadius;
+            double xTopLeft = shellBounds.getMinX() - slopeWidth;
+            double xTopRight = shellBounds.getMaxX() + slopeWidth;
+            double xBodyLeft = shellBounds.getMinX();
+            double xBodyRight = shellBounds.getMaxX();
+            double xBottomLeft = shellBounds.getMinX() + bevelRadius;
+            double xBottomRight = shellBounds.getMaxX() - bevelRadius;
+            drawDiagnosticLine(g, xTopLeft, yTop, xTopRight, yTop, topColor, "top straight");
+            drawDiagnosticLine(g, xTopRight, yTop, xBodyRight, ySlopeStart, bevelColor, "right shoulder curve");
+            drawDiagnosticLine(g, xBodyLeft, ySlopeStart, xTopLeft, yTop, bevelColor, "left shoulder curve");
+            drawDiagnosticLine(g, xBodyRight, ySlopeStart, xBodyRight, yBottom - bevelRadius,
+                    bodyColor, "right side wall");
+            drawDiagnosticLine(g, xBodyLeft, yBottom - bevelRadius, xBodyLeft, ySlopeStart,
+                    bodyColor, "left side wall");
+            drawDiagnosticLine(g, xBottomLeft, yBottom, xBottomRight, yBottom, bottomColor, "bottom straight");
+            drawDiagnosticLine(g,
+                    outputBounds.getMinX() + bevelRadius,
+                    outputBounds.getMinY(),
+                    outputBounds.getMaxX() - bevelRadius,
+                    outputBounds.getMinY(),
+                    outputColor,
+                    "output straight reference");
+            drawVerticalRail(g, xBodyLeft, yTop, yBottom, bodyColor, "body L");
+            drawVerticalRail(g, xBodyRight, yTop, yBottom, bodyColor, "body R");
+            drawVerticalRail(g, xTopLeft, yTop, yTop + (LauncherGeometryTokens.INTRA_PANEL_MARGIN * 2.0d),
+                    topColor, "top L tangent");
+            drawVerticalRail(g, xTopRight, yTop, yTop + (LauncherGeometryTokens.INTRA_PANEL_MARGIN * 2.0d),
+                    topColor, "top R tangent");
+        } finally {
+            g.dispose();
+        }
+    }
+
+    private static void drawFooterTrapezoidDiagnostic(BufferedImage image,
+                                                      Bounds shellBounds,
+                                                      Bounds outputBounds) {
+        double width = shellBounds.getWidth();
+        double height = shellBounds.getHeight();
+        double slopeWidth = Math.min(nestedStaticField("FooterGeometry", "ACTION_SHELL_SLOPE_WIDTH"), width / 2.0d);
+        double bevelRadius = Math.min(nestedStaticField("FooterGeometry", "ACTION_SHELL_BEVEL_RADIUS"), height / 2.0d);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setFont(new Font("SansSerif", Font.BOLD, 12));
+            Color topColor = new Color(255, 193, 7);
+            Color bodyColor = new Color(0, 184, 212);
+            Color bevelColor = new Color(255, 0, 110);
+            Color bottomColor = new Color(80, 220, 100);
+            Color outputColor = new Color(124, 77, 255);
+            double yTop = shellBounds.getMinY();
+            double yBottom = shellBounds.getMaxY() - LauncherGeometryTokens.SURFACE_BORDER_WIDTH;
+            double ySlopeStart = yBottom - bevelRadius;
+            double xTopLeft = shellBounds.getMinX() + bevelRadius;
+            double xTopRight = shellBounds.getMaxX() - bevelRadius;
+            double xBodyLeft = shellBounds.getMinX();
+            double xBodyRight = shellBounds.getMaxX();
+            double xBottomLeft = shellBounds.getMinX() - slopeWidth;
+            double xBottomRight = shellBounds.getMaxX() + slopeWidth;
+            drawDiagnosticLine(g, xTopLeft, yTop, xTopRight, yTop, topColor, "top straight");
+            drawDiagnosticLine(g, xBodyRight, yTop + bevelRadius, xBodyRight, ySlopeStart,
+                    bodyColor, "right side wall");
+            drawDiagnosticLine(g, xBodyLeft, ySlopeStart, xBodyLeft, yTop + bevelRadius,
+                    bodyColor, "left side wall");
+            drawDiagnosticLine(g, xBodyRight, ySlopeStart, xBottomRight, yBottom,
+                    bevelColor, "right shoulder curve");
+            drawDiagnosticLine(g, xBottomLeft, yBottom, xBodyLeft, ySlopeStart,
+                    bevelColor, "left shoulder curve");
+            drawDiagnosticLine(g, xBottomLeft, yBottom, xBottomRight, yBottom, bottomColor, "bottom straight");
+            drawDiagnosticLine(g,
+                    outputBounds.getMinX(),
+                    outputBounds.getMaxY(),
+                    outputBounds.getMaxX(),
+                    outputBounds.getMaxY(),
+                    outputColor,
+                    "output right reference");
+            drawVerticalRail(g, xBodyRight, yTop, yBottom, bodyColor, "body R");
+            drawVerticalRail(g, xBottomRight, yTop, yBottom, bottomColor, "visible R");
+            drawVerticalRail(g, image.getWidth(), yTop, yBottom, outputColor, "window R");
+        } finally {
+            g.dispose();
+        }
+    }
+
+    private static void drawButtonWallProof(BufferedImage image,
+                                            Bounds shellBounds,
+                                            RenderedAlphaBounds buttonInk,
+                                            double wallLeft,
+                                            double wallRight,
+                                            double wallTop,
+                                            double wallBottom,
+                                            String label) {
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setFont(new Font("SansSerif", Font.BOLD, 12));
+            Color wallColor = new Color(0, 200, 255);
+            Color buttonColor = new Color(255, 193, 7);
+            drawDiagnosticLine(g, wallLeft, wallTop, wallLeft, wallBottom,
+                    wallColor, label + " L wall");
+            drawDiagnosticLine(g, wallRight, wallTop, wallRight, wallBottom,
+                    wallColor, label + " R wall");
+            drawDiagnosticLine(g, shellBounds.getMinX(), buttonInk.minY(), shellBounds.getMaxX(), buttonInk.minY(),
+                    buttonColor, label + " button top / wall start");
+            drawDiagnosticLine(g, shellBounds.getMinX(), buttonInk.maxY(), shellBounds.getMaxX(), buttonInk.maxY(),
+                    buttonColor, label + " button bottom / wall end");
+        } finally {
+            g.dispose();
+        }
+    }
+
+    private static BufferedImage cropAround(BufferedImage image,
+                                            Node node,
+                                            Node sceneRoot,
+                                            double rootMinX,
+                                            double rootMinY) {
+        Bounds bounds = relativeBounds(sceneRoot, node, rootMinX, rootMinY);
+        double pad = LauncherGeometryTokens.OUTER_MARGIN;
+        int x = clampInt(Math.floor(bounds.getMinX() - pad), 0, image.getWidth() - 1);
+        int y = clampInt(Math.floor(bounds.getMinY() - pad), 0, image.getHeight() - 1);
+        int right = clampInt(Math.ceil(bounds.getMaxX() + pad), x + 1, image.getWidth());
+        int bottom = clampInt(Math.ceil(bounds.getMaxY() + pad), y + 1, image.getHeight());
+        return image.getSubimage(x, y, right - x, bottom - y);
+    }
+
+    private static int clampInt(double value, int min, int max) {
+        return Math.max(min, Math.min(max, (int)Math.round(value)));
+    }
+
+    private static void drawDiagnosticLine(Graphics2D g,
+                                           double x1,
+                                           double y1,
+                                           double x2,
+                                           double y2,
+                                           Color color,
+                                           String label) {
+        g.setColor(color);
+        g.setStroke(new BasicStroke(2.5f));
+        g.drawLine((int)Math.round(x1), (int)Math.round(y1), (int)Math.round(x2), (int)Math.round(y2));
+        drawLabel(g, label, (int)Math.round((x1 + x2) / 2.0d) + 4,
+                (int)Math.round((y1 + y2) / 2.0d) - 4, color);
+    }
+
+    private static void drawVerticalRail(Graphics2D g,
+                                         double x,
+                                         double y1,
+                                         double y2,
+                                         Color color,
+                                         String label) {
+        g.setColor(color);
+        g.setStroke(new BasicStroke(1.5f));
+        g.drawLine((int)Math.round(x), (int)Math.round(y1), (int)Math.round(x), (int)Math.round(y2));
+        drawLabel(g, label, (int)Math.round(x) + 4, (int)Math.round(y2) - 4, color);
+    }
+
     private static void addMeasurement(List<GeometryMeasurement> measurements,
                                        String label,
                                        double expected,
@@ -4492,6 +5224,151 @@ public final class LauncherPreviewApp extends Application {
         System.out.println(markdown.toAbsolutePath());
     }
 
+    private static void writeEdgeAudit(String name, SnapshotCapture capture) throws IOException {
+        List<EdgeAuditRow> rows = edgeAuditRows(capture);
+        Path csv = options.outputPath().resolve(name + "-edge-audit.csv");
+        Path markdown = options.outputPath().resolve(name + "-edge-audit.md");
+        StringBuilder csvText = new StringBuilder("edge,raw_width,raw_height,normalized_width,normalized_height,"
+                + "stripped_pixels,transparent_pixels,background_argb,background_pixels,non_background_pixels,status\n");
+        StringBuilder mdText = new StringBuilder();
+        mdText.append("| Edge | Raw | Normalized | Stripped px | Transparent px | Background ARGB | Background px | Non-background px | Status |\n");
+        mdText.append("| --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | --- |\n");
+        for (EdgeAuditRow row : rows) {
+            csvText.append(csvEscape(row.edge())).append(',')
+                    .append(row.rawWidth()).append(',')
+                    .append(row.rawHeight()).append(',')
+                    .append(row.normalizedWidth()).append(',')
+                    .append(row.normalizedHeight()).append(',')
+                    .append(row.strippedPixels()).append(',')
+                    .append(row.transparentPixels()).append(',')
+                    .append(csvEscape(row.backgroundArgb())).append(',')
+                    .append(row.backgroundPixels()).append(',')
+                    .append(row.nonBackgroundPixels()).append(',')
+                    .append(csvEscape(row.status())).append('\n');
+            mdText.append("| ")
+                    .append(row.edge()).append(" | ")
+                    .append(row.rawWidth()).append(" x ").append(row.rawHeight()).append(" | ")
+                    .append(row.normalizedWidth()).append(" x ").append(row.normalizedHeight()).append(" | ")
+                    .append(row.strippedPixels()).append(" | ")
+                    .append(row.transparentPixels()).append(" | `")
+                    .append(row.backgroundArgb()).append("` | ")
+                    .append(row.backgroundPixels()).append(" | ")
+                    .append(row.nonBackgroundPixels()).append(" | ")
+                    .append(row.status()).append(" |\n");
+        }
+        Files.writeString(csv, csvText.toString());
+        Files.writeString(markdown, mdText.toString());
+        if (capture.rawWidth() != capture.normalizedWidth()
+                || capture.rawHeight() != capture.normalizedHeight()) {
+            File rawFile = options.outputPath().resolve(name + "-raw.png").toFile();
+            ImageIO.write(SwingFXUtils.fromFXImage(capture.raw(), null), "png", rawFile);
+            System.out.println(rawFile.getAbsolutePath());
+        }
+        System.out.println(csv.toAbsolutePath());
+        System.out.println(markdown.toAbsolutePath());
+    }
+
+    private static List<EdgeAuditRow> edgeAuditRows(SnapshotCapture capture) {
+        return List.of(
+                edgeAuditRow("right", capture, true),
+                edgeAuditRow("bottom", capture, false));
+    }
+
+    private static EdgeAuditRow edgeAuditRow(String edge, SnapshotCapture capture, boolean rightEdge) {
+        int rawWidth = capture.rawWidth();
+        int rawHeight = capture.rawHeight();
+        int normalizedWidth = capture.normalizedWidth();
+        int normalizedHeight = capture.normalizedHeight();
+        int flush = (int)LauncherGeometryTokens.FLUSH;
+        int floorWidth = capture.floorWidth();
+        int floorHeight = capture.floorHeight();
+        int xStart = rightEdge ? Math.min(normalizedWidth, floorWidth) : flush;
+        int xEnd = rightEdge ? rawWidth : rawWidth;
+        int yStart = rightEdge ? flush : Math.min(normalizedHeight, floorHeight);
+        int yEnd = rightEdge ? rawHeight : rawHeight;
+        if (xStart >= xEnd || yStart >= yEnd) {
+            return new EdgeAuditRow(
+                    edge,
+                    rawWidth,
+                    rawHeight,
+                    normalizedWidth,
+                    normalizedHeight,
+                    0,
+                    0,
+                    argbText(edgeBackgroundArgb(capture.raw())),
+                    0,
+                    0,
+                    "NO_STRIPPED_PIXELS");
+        }
+        int backgroundArgb = edgeBackgroundArgb(capture.raw());
+        EdgePixelCounts counts = edgeCounts(capture.raw(), xStart, xEnd, yStart, yEnd, backgroundArgb);
+        boolean retained = rightEdge
+                ? normalizedWidth == rawWidth && floorWidth < rawWidth
+                : normalizedHeight == rawHeight && floorHeight < rawHeight;
+        String status = counts.nonBackgroundPixels() == 0
+                ? "SAFE_BACKGROUND_ONLY"
+                : retained
+                        ? "RETAINED_NON_BACKGROUND_PIXELS"
+                        : "REVIEW_NON_BACKGROUND_PIXELS";
+        return new EdgeAuditRow(
+                edge,
+                rawWidth,
+                rawHeight,
+                normalizedWidth,
+                normalizedHeight,
+                counts.totalPixels(),
+                counts.transparentPixels(),
+                argbText(backgroundArgb),
+                counts.backgroundPixels(),
+                counts.nonBackgroundPixels(),
+                status);
+    }
+
+    private static EdgePixelCounts edgeCounts(WritableImage image,
+                                              int xStart,
+                                              int xEnd,
+                                              int yStart,
+                                              int yEnd,
+                                              int backgroundArgb) {
+        PixelReader reader = image.getPixelReader();
+        int total = 0;
+        int transparent = 0;
+        int background = 0;
+        int nonBackground = 0;
+        for (int y = yStart; y < yEnd; y++) {
+            for (int x = xStart; x < xEnd; x++) {
+                int argb = reader.getArgb(x, y);
+                total++;
+                if (((argb >>> 24) & 0xff) == 0) {
+                    transparent++;
+                } else if (argb == backgroundArgb) {
+                    background++;
+                } else {
+                    nonBackground++;
+                }
+            }
+        }
+        return new EdgePixelCounts(total, transparent, background, nonBackground);
+    }
+
+    private static int edgeBackgroundArgb(WritableImage image) {
+        return image.getPixelReader().getArgb(
+                Math.max((int)LauncherGeometryTokens.FLUSH, rawWidth(image) - 1),
+                Math.max((int)LauncherGeometryTokens.FLUSH, rawHeight(image) - 1));
+    }
+
+    private static int rawWidth(WritableImage image) {
+        return (int)image.getWidth();
+    }
+
+    private static int rawHeight(WritableImage image) {
+        return (int)image.getHeight();
+    }
+
+    private static String argbText(int argb) {
+        return String.format(Locale.ROOT, "#%08X", argb);
+    }
+
     private static void collectLauncherContractSurface(String surface, String launcherTitle) {
         collectContractSurface(surface, findWindowRoot(launcherTitle));
     }
@@ -4805,6 +5682,13 @@ public final class LauncherPreviewApp extends Application {
                 / staticField("MACRO_ACTION_BUTTON_COUNT");
     }
 
+    private static double footerActionShellWidth() {
+        return (macroActionButtonWidth() * nestedStaticField("FooterGeometry", "ACTION_SHELL_BUTTON_COUNT"))
+                + (nestedStaticField("FooterGeometry", "ACTION_SHELL_GAP")
+                * nestedStaticField("FooterGeometry", "ACTION_SHELL_GAP_COUNT"))
+                + (nestedStaticField("FooterGeometry", "ACTION_SHELL_INSET") * 2.0d);
+    }
+
     private static double snapUpToOutputPixel(Node node, double value) {
         Window window = node == null || node.getScene() == null ? null : node.getScene().getWindow();
         double scale = window == null || window.getOutputScaleY() <= 0.0d ? 1.0d : window.getOutputScaleY();
@@ -4815,6 +5699,14 @@ public final class LauncherPreviewApp extends Application {
         java.lang.reflect.Field field = type.getDeclaredField(name);
         field.setAccessible(true);
         return field.getDouble(null);
+    }
+
+    private static Optional<Node> firstButtonIn(Node root, String styleClass) {
+        return firstNode(root, styleClass)
+                .flatMap(container -> container.lookupAll(".button").stream()
+                        .filter(Node::isManaged)
+                        .filter(ButtonBase.class::isInstance)
+                        .findFirst());
     }
 
     private static Optional<Node> firstNode(Node root, String styleClass) {
@@ -5254,6 +6146,86 @@ public final class LauncherPreviewApp extends Application {
         return node.localToScene(node.getBoundsInLocal()).getMinX();
     }
 
+    private static Optional<RenderedAlphaBounds> renderedAlphaBounds(Node node) {
+        SnapshotParameters parameters = new SnapshotParameters();
+        parameters.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        WritableImage image = node.snapshot(parameters, null);
+        if (image == null || image.getPixelReader() == null) {
+            return Optional.empty();
+        }
+        int width = (int)Math.ceil(image.getWidth());
+        int height = (int)Math.ceil(image.getHeight());
+        int minX = width;
+        int minY = height;
+        int maxX = -1;
+        int maxY = -1;
+        PixelReader reader = image.getPixelReader();
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int alpha = (reader.getArgb(x, y) >>> 24) & 0xff;
+                if (alpha > 0) {
+                    minX = Math.min(minX, x);
+                    minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x);
+                    maxY = Math.max(maxY, y);
+                }
+            }
+        }
+        if (maxX < minX || maxY < minY) {
+            return Optional.empty();
+        }
+        Bounds bounds = node.localToScene(node.getBoundsInLocal());
+        return Optional.of(new RenderedAlphaBounds(
+                bounds.getMinX() + minX,
+                bounds.getMinY() + minY,
+                bounds.getMinX() + maxX + 1.0d,
+                bounds.getMinY() + maxY + 1.0d));
+    }
+
+    private static Optional<RenderedVerticalRun> renderedVerticalRun(Node node, double sceneX) {
+        SnapshotParameters parameters = new SnapshotParameters();
+        parameters.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        WritableImage image = node.snapshot(parameters, null);
+        if (image == null || image.getPixelReader() == null) {
+            return Optional.empty();
+        }
+        Bounds bounds = node.localToScene(node.getBoundsInLocal());
+        int width = (int)Math.ceil(image.getWidth());
+        int height = (int)Math.ceil(image.getHeight());
+        int x = (int)Math.round(sceneX - bounds.getMinX());
+        if (x < 0 || x >= width) {
+            return Optional.empty();
+        }
+        PixelReader reader = image.getPixelReader();
+        int bestStart = -1;
+        int bestEnd = -1;
+        int currentStart = -1;
+        for (int y = 0; y < height; y++) {
+            int alpha = (reader.getArgb(x, y) >>> 24) & 0xff;
+            if (alpha > 0) {
+                if (currentStart < 0) {
+                    currentStart = y;
+                }
+            } else if (currentStart >= 0) {
+                if (bestStart < 0 || y - currentStart > bestEnd - bestStart) {
+                    bestStart = currentStart;
+                    bestEnd = y;
+                }
+                currentStart = -1;
+            }
+        }
+        if (currentStart >= 0 && (bestStart < 0 || height - currentStart > bestEnd - bestStart)) {
+            bestStart = currentStart;
+            bestEnd = height;
+        }
+        if (bestStart < 0) {
+            return Optional.empty();
+        }
+        return Optional.of(new RenderedVerticalRun(
+                bounds.getMinY() + bestStart,
+                bounds.getMinY() + bestEnd));
+    }
+
     private static OptionalDouble renderedInkMinX(Node node) {
         Node textNode = node instanceof Text ? node : textDescendants(node).stream()
                 .<Node>map(text -> text)
@@ -5337,6 +6309,153 @@ public final class LauncherPreviewApp extends Application {
                                        double observed, String formula) {
         private double delta() {
             return observed - expected;
+        }
+    }
+
+    private record SnapshotCapture(WritableImage raw,
+                                   WritableImage normalized,
+                                   Bounds layoutBounds,
+                                   int floorWidth,
+                                   int floorHeight) {
+        private int rawWidth() {
+            return (int)raw.getWidth();
+        }
+
+        private int rawHeight() {
+            return (int)raw.getHeight();
+        }
+
+        private int normalizedWidth() {
+            return (int)normalized.getWidth();
+        }
+
+        private int normalizedHeight() {
+            return (int)normalized.getHeight();
+        }
+    }
+
+    private record RenderedAlphaBounds(double minX,
+                                       double minY,
+                                       double maxX,
+                                       double maxY) {
+        private double height() {
+            return maxY - minY;
+        }
+
+        private static RenderedAlphaBounds nan() {
+            return new RenderedAlphaBounds(Double.NaN, Double.NaN, Double.NaN, Double.NaN);
+        }
+    }
+
+    private record RenderedVerticalRun(double minY,
+                                       double maxY) {
+        private static RenderedVerticalRun nan() {
+            return new RenderedVerticalRun(Double.NaN, Double.NaN);
+        }
+    }
+
+    private record VerticalPathSegment(double x,
+                                       double minY,
+                                       double maxY) {
+        private double height() {
+            return maxY - minY;
+        }
+
+        private static VerticalPathSegment nan() {
+            return new VerticalPathSegment(Double.NaN, Double.NaN, Double.NaN);
+        }
+    }
+
+    private record WallPair(VerticalPathSegment left,
+                            VerticalPathSegment right) {
+        private static WallPair nan() {
+            return new WallPair(VerticalPathSegment.nan(), VerticalPathSegment.nan());
+        }
+    }
+
+    private record EdgePixelCounts(int totalPixels,
+                                   int transparentPixels,
+                                   int backgroundPixels,
+                                   int nonBackgroundPixels) {
+    }
+
+    private record EdgeAuditRow(String edge,
+                                int rawWidth,
+                                int rawHeight,
+                                int normalizedWidth,
+                                int normalizedHeight,
+                                int strippedPixels,
+                                int transparentPixels,
+                                String backgroundArgb,
+                                int backgroundPixels,
+                                int nonBackgroundPixels,
+                                String status) {
+    }
+
+    private record RibbonPathPoints(double topLeftX,
+                                    double topLeftY,
+                                    double topRightX,
+                                    double topRightY,
+                                    double rightSideControl1X,
+                                    double rightSideControl1Y,
+                                    double rightSideControl2X,
+                                    double rightSideControl2Y,
+                                    double rightSideEndX,
+                                    double rightSideEndY,
+                                    double rightBottomX,
+                                    double rightBottomY,
+                                    double leftBottomX,
+                                    double leftBottomY,
+                                    double leftSideControl1X,
+                                    double leftSideControl1Y,
+                                    double leftSideControl2X,
+                                    double leftSideControl2Y,
+                                    double leftSideEndX,
+                                    double leftSideEndY) {
+        private static RibbonPathPoints nan() {
+            return new RibbonPathPoints(
+                    Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN);
+        }
+    }
+
+    private record FooterPathPoints(double topLeftTangentX,
+                                    double topLeftTangentY,
+                                    double topRightTangentX,
+                                    double topRightTangentY,
+                                    double rightSideControl1X,
+                                    double rightSideControl1Y,
+                                    double rightSideControl2X,
+                                    double rightSideControl2Y,
+                                    double rightBottomX,
+                                    double rightBottomY,
+                                    double leftBottomX,
+                                    double leftBottomY,
+                                    double leftSideControl1X,
+                                    double leftSideControl1Y,
+                                    double leftSideControl2X,
+                                    double leftSideControl2Y,
+                                    double leftSideEndX,
+                                    double leftSideEndY) {
+        private static FooterPathPoints nan() {
+            return new FooterPathPoints(
+                    Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN);
         }
     }
 
