@@ -103,7 +103,7 @@ class ExtensionContractTest {
                         || path.startsWith("bin/")
                         || path.startsWith("target/")
                         || path.startsWith("out/")
-                        || path.startsWith("docs/")
+                        || (path.startsWith("docs/") && !isGuiProofDocument(path))
                         || path.startsWith("files/")
                         || path.startsWith("QC/")
                         || path.startsWith("src/main/resources/astra/"))
@@ -192,10 +192,10 @@ class ExtensionContractTest {
         assertTrue(header.contains("LIVELY(\"Lively\", LauncherGeometryTokens.GRADIENT_LIVELY_CYCLE_SECONDS)"));
         assertTrue(header.contains("void setHeaderMode(HeaderMode nextMode)"));
         assertTrue(header.contains("void setMotionSpeed(MotionSpeed nextSpeed)"));
-        assertTrue(surface.contains("TEXTURE_SCALE = 3.0d"));
-        assertTrue(surface.contains("GRADIENT_SPAN_MULTIPLIER = 3.0d"));
-        assertTrue(surface.contains("TEXTURE_MAX_PIXEL_HEIGHT = 128"));
-        assertTrue(surface.contains("DITHER_AMPLITUDE = 1.2d / 255.0d"));
+        assertTrue(surface.contains("LauncherMotionTokens.GRADIENT_TEXTURE_SCALE"));
+        assertTrue(surface.contains("LauncherMotionTokens.GRADIENT_SPAN_MULTIPLIER"));
+        assertTrue(surface.contains("LauncherMotionTokens.GRADIENT_TEXTURE_MAX_PIXEL_HEIGHT"));
+        assertTrue(surface.contains("LauncherMotionTokens.GRADIENT_DITHER_AMPLITUDE"));
         assertTrue(surface.contains("surface.applyAnimationFrame(now)"));
         assertTrue(surface.contains("leadingStrip.setLayoutX"));
         assertTrue(surface.contains("trailingStrip.setLayoutX"));
@@ -1163,6 +1163,11 @@ class ExtensionContractTest {
         int exitCode = process.waitFor();
         assertEquals(0, exitCode, output);
         return output.lines().toList();
+    }
+
+    private static boolean isGuiProofDocument(String path) {
+        return path.startsWith("docs/gui-")
+                && (path.endsWith(".md") || path.endsWith(".csv"));
     }
 
     private static boolean hasConstant(List<?> constants, String name) throws Exception {

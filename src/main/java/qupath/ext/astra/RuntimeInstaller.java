@@ -76,13 +76,18 @@ final class RuntimeInstaller {
     static final String CONDA_OVERRIDE_OSX = "CONDA_OVERRIDE_OSX";
     static final String MACOS_CONDA_SOLVER_VERSION = "10.15";
     static final String RUNTIME_PIN_PREFIX = "runtime_pin.";
+    static final long INITIAL_ELAPSED_SECONDS = 0L;
+    static final String ELAPSED_PREFIX = "Elapsed ";
+    static final String ELAPSED_SUFFIX = "s";
 
     private static final String RUNTIME_FOLDER_NAME = ENVIRONMENT_NAME;
     private static final String RELEASE_PROPERTIES_RESOURCE = "qupath/ext/astra/release/runtime.properties";
     private static final String RELEASE_MANIFEST_RESOURCE = "astra/rulebook/manifests/release.json";
     private static final String MINIFORGE_FOLDER_NAME = "miniforge";
-    private static final Duration COMMAND_TIMEOUT = Duration.ofMinutes(45);
-    private static final Duration BOOTSTRAP_TIMEOUT = Duration.ofMinutes(20);
+    private static final Duration COMMAND_TIMEOUT =
+            LauncherMotionTokens.RUNTIME_COMMAND_TIMEOUT;
+    private static final Duration BOOTSTRAP_TIMEOUT =
+            LauncherMotionTokens.RUNTIME_BOOTSTRAP_TIMEOUT;
     private static final Gson GSON = new Gson();
     private static final Type MAP_TYPE = new TypeToken<LinkedHashMap<String, Object>>() {}.getType();
     private static final Map<String, String> DEFAULT_RUNTIME_PINS = Map.ofEntries(
@@ -729,7 +734,8 @@ final class RuntimeInstaller {
 
         for (String candidate : candidates) {
             try {
-                CommandResult result = runCommand(List.of(candidate, "--version"), null, Duration.ofSeconds(20), null, null);
+                CommandResult result = runCommand(List.of(candidate, "--version"), null,
+                        LauncherMotionTokens.RUNTIME_PROBE_TIMEOUT, null, null);
                 if (result.exitCode() == 0) {
                     return candidate;
                 }
@@ -909,7 +915,8 @@ final class RuntimeInstaller {
             return false;
         }
         try {
-            return runCommand(List.of(conda.getAbsolutePath(), "--version"), null, Duration.ofSeconds(20), null, null).exitCode() == 0;
+            return runCommand(List.of(conda.getAbsolutePath(), "--version"), null,
+                    LauncherMotionTokens.RUNTIME_PROBE_TIMEOUT, null, null).exitCode() == 0;
         } catch (IOException ignored) {
             return false;
         }
@@ -921,8 +928,8 @@ final class RuntimeInstaller {
         }
         appendLog(logFile, "\n$ download " + url + " -> " + target.getAbsolutePath() + System.lineSeparator());
         URLConnection connection = URI.create(url).toURL().openConnection();
-        connection.setConnectTimeout((int) Duration.ofSeconds(30).toMillis());
-        connection.setReadTimeout((int) Duration.ofSeconds(30).toMillis());
+        connection.setConnectTimeout((int) LauncherMotionTokens.RUNTIME_NETWORK_TIMEOUT.toMillis());
+        connection.setReadTimeout((int) LauncherMotionTokens.RUNTIME_NETWORK_TIMEOUT.toMillis());
         try (InputStream stream = connection.getInputStream();
              OutputStream out = Files.newOutputStream(target.toPath())) {
             byte[] buffer = new byte[8192];
@@ -1054,7 +1061,8 @@ final class RuntimeInstaller {
     private static void verifyRuntime(File python, InstallProgress progress, File logFile) throws IOException, InterruptedException {
         progressStep(progress, "Validating runtime", python.getAbsolutePath());
         for (List<String> command : validationCommands(python)) {
-            CommandResult result = runCommand(command, null, Duration.ofMinutes(2), progress, logFile);
+            CommandResult result = runCommand(command, null,
+                    LauncherMotionTokens.RUNTIME_VALIDATION_TIMEOUT, progress, logFile);
             if (result.exitCode() != 0) {
                 throw new IOException(formatCommandFailure(command, result));
             }
@@ -1188,10 +1196,11 @@ final class RuntimeInstaller {
 
             boolean finished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
             if (!finished) {
-                terminateProcessForCancellation(process, Duration.ofSeconds(2));
+                terminateProcessForCancellation(process,
+                        LauncherMotionTokens.RUNTIME_CANCELLATION_GRACE);
                 throw new IOException("Command timed out after " + timeout.toMinutes() + " minutes:\n" + String.join(" ", command));
             }
-            reader.join(Duration.ofSeconds(2).toMillis());
+            reader.join(LauncherMotionTokens.RUNTIME_CANCELLATION_GRACE.toMillis());
             if (progress != null && progress.cancelRequested) {
                 throw new CancellationException("ASTRA runtime installation cancelled by user after command:\n" + String.join(" ", command));
             }
@@ -1443,7 +1452,9 @@ final class RuntimeInstaller {
             this.progressBar = progressBar;
             this.cancel = cancel;
             this.log = log;
-            this.elapsedTimeline = new Timeline(new KeyFrame(javafx.util.Duration.seconds(1.0), event -> refreshElapsed()));
+            this.elapsedTimeline = new Timeline(new KeyFrame(
+                    javafx.util.Duration.seconds(LauncherMotionTokens.RUN_LOG_ELAPSED_REFRESH_SECONDS),
+                    event -> refreshElapsed()));
             this.elapsedTimeline.setCycleCount(Animation.INDEFINITE);
         }
 
@@ -1456,7 +1467,8 @@ final class RuntimeInstaller {
             Stage stage = new Stage();
             Label phase = GuiText.label(GuiText.Role.DIALOG_TEXT, "Preparing runtime setup");
             Label detail = GuiText.label(GuiText.Role.DIALOG_TEXT, "ASTRA is preparing the managed Cellpose runtime workflow.");
-            Label elapsed = GuiText.label(GuiText.Role.DIALOG_TEXT, "Elapsed 0s");
+            Label elapsed = GuiText.label(GuiText.Role.DIALOG_TEXT,
+                    formatElapsedSeconds(INITIAL_ELAPSED_SECONDS));
             Label stepList = GuiText.label(GuiText.Role.DIALOG_TEXT, "Steps: validate managed runtime -> repair if needed -> install pinned packages -> validate final runtime -> register with QuPath.");
             Label resultTitle = GuiText.label(GuiText.Role.DIALOG_TEXT, "Runtime setup pending");
             Label resultBody = GuiText.label(GuiText.Role.DIALOG_TEXT, "Validation, repair, installation, and registration messages will appear here.");
@@ -1530,7 +1542,8 @@ final class RuntimeInstaller {
         void setCurrentProcess(Process process) {
             currentProcess = process;
             if (cancelRequested) {
-                terminateProcessForCancellation(process, Duration.ofSeconds(2));
+                terminateProcessForCancellation(process,
+                        LauncherMotionTokens.RUNTIME_CANCELLATION_GRACE);
             }
         }
 
@@ -1558,7 +1571,8 @@ final class RuntimeInstaller {
                 resultBody.setText(RuntimeFailureKind.CANCELLED.nextAction);
             });
             Process process = currentProcess;
-            if (terminateProcessForCancellation(process, Duration.ofSeconds(2))) {
+            if (terminateProcessForCancellation(process,
+                    LauncherMotionTokens.RUNTIME_CANCELLATION_GRACE)) {
                 line("Active install command was asked to terminate.");
             }
         }
@@ -1611,14 +1625,15 @@ final class RuntimeInstaller {
         }
 
         private void refreshElapsed() {
-            elapsed.setText("Elapsed " + elapsedSeconds() + "s");
+            elapsed.setText(formatElapsedSeconds(elapsedSeconds()));
         }
     }
 
     static VBox createInstallProgressRootForTesting() {
         Label phase = GuiText.label(GuiText.Role.DIALOG_TEXT, "Preparing runtime setup");
         Label detail = GuiText.label(GuiText.Role.DIALOG_TEXT, "ASTRA is preparing the managed Cellpose runtime workflow.");
-        Label elapsed = GuiText.label(GuiText.Role.DIALOG_TEXT, "Elapsed 0s");
+        Label elapsed = GuiText.label(GuiText.Role.DIALOG_TEXT,
+                formatElapsedSeconds(INITIAL_ELAPSED_SECONDS));
         Label stepList = GuiText.label(GuiText.Role.DIALOG_TEXT, "Steps: validate managed runtime -> repair if needed -> install pinned packages -> validate final runtime -> register with QuPath.");
         Label resultTitle = GuiText.label(GuiText.Role.DIALOG_TEXT, "Runtime setup pending");
         Label resultBody = GuiText.label(GuiText.Role.DIALOG_TEXT, "Validation, repair, installation, and registration messages will appear here.");
@@ -1637,6 +1652,10 @@ final class RuntimeInstaller {
         GuiText.adoptEditableText(log);
         return createInstallProgressRoot(phase, detail, elapsed, stepList, resultTitle, resultBody,
                 progressBar, cancel, copyLog, logPane, log);
+    }
+
+    static String formatElapsedSeconds(long seconds) {
+        return ELAPSED_PREFIX + Math.max(INITIAL_ELAPSED_SECONDS, seconds) + ELAPSED_SUFFIX;
     }
 
     static double installerRootPaddingForTesting() {
@@ -1721,7 +1740,7 @@ final class RuntimeInstaller {
     }
 
     private static void addAstraStylesheet(Scene scene) {
-        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }

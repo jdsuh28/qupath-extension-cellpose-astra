@@ -29,28 +29,34 @@ final class AnimatedGradientSurface extends Pane {
         VERTICAL
     }
 
-    private static final double TEXTURE_SCALE = 3.0d;
-    private static final double GRADIENT_SPAN_MULTIPLIER = 3.0d;
-    private static final double SEAM_OVERLAP_LOGICAL_LENGTH = 1.0d / TEXTURE_SCALE;
-    private static final int TEXTURE_MAX_PIXEL_HEIGHT = 128;
-    private static final double DITHER_AMPLITUDE = 1.2d / 255.0d;
-    private static final double OVERLAY_ALPHA = 0.18d;
-    private static final Color OVERLAY_COLOR = Color.rgb(6, 23, 32);
+    private static final double TEXTURE_SCALE =
+            LauncherMotionTokens.GRADIENT_TEXTURE_SCALE;
+    private static final double GRADIENT_SPAN_MULTIPLIER =
+            LauncherMotionTokens.GRADIENT_SPAN_MULTIPLIER;
+    private static final double SEAM_OVERLAP_LOGICAL_LENGTH =
+            LauncherMotionTokens.GRADIENT_SEAM_OVERLAP_LOGICAL_LENGTH;
+    private static final int TEXTURE_MAX_PIXEL_HEIGHT =
+            LauncherMotionTokens.GRADIENT_TEXTURE_MAX_PIXEL_HEIGHT;
+    private static final double DITHER_AMPLITUDE =
+            LauncherMotionTokens.GRADIENT_DITHER_AMPLITUDE;
+    private static final double OVERLAY_ALPHA =
+            LauncherMotionTokens.GRADIENT_OVERLAY_ALPHA;
+    private static final Color OVERLAY_COLOR = LauncherThemeTokens.GRADIENT_OVERLAY_COLOR;
     private static final WritablePixelFormat<IntBuffer> ARGB_FORMAT =
             PixelFormat.getIntArgbInstance();
     private static final Stop[] STOPS = {
-            new Stop(0.00d, Color.web("#071d29")),
-            new Stop(0.08d, Color.web("#092937")),
-            new Stop(0.16d, Color.web("#0b3c48")),
-            new Stop(0.24d, Color.web("#075a5a")),
-            new Stop(0.32d, Color.web("#08786d")),
-            new Stop(0.42d, Color.web("#1f8a78")),
-            new Stop(0.52d, Color.web("#466f78")),
-            new Stop(0.62d, Color.web("#215b73")),
-            new Stop(0.72d, Color.web("#134b62")),
-            new Stop(0.82d, Color.web("#0d3548")),
-            new Stop(0.92d, Color.web("#092937")),
-            new Stop(1.00d, Color.web("#071d29"))
+            new Stop(0.00d, Color.web(LauncherThemeTokens.GRADIENT_STOP_00)),
+            new Stop(0.08d, Color.web(LauncherThemeTokens.GRADIENT_STOP_01)),
+            new Stop(0.16d, Color.web(LauncherThemeTokens.GRADIENT_STOP_02)),
+            new Stop(0.24d, Color.web(LauncherThemeTokens.GRADIENT_STOP_03)),
+            new Stop(0.32d, Color.web(LauncherThemeTokens.GRADIENT_STOP_04)),
+            new Stop(0.42d, Color.web(LauncherThemeTokens.GRADIENT_STOP_05)),
+            new Stop(0.52d, Color.web(LauncherThemeTokens.GRADIENT_STOP_06)),
+            new Stop(0.62d, Color.web(LauncherThemeTokens.GRADIENT_STOP_07)),
+            new Stop(0.72d, Color.web(LauncherThemeTokens.GRADIENT_STOP_08)),
+            new Stop(0.82d, Color.web(LauncherThemeTokens.GRADIENT_STOP_09)),
+            new Stop(0.92d, Color.web(LauncherThemeTokens.GRADIENT_STOP_10)),
+            new Stop(1.00d, Color.web(LauncherThemeTokens.GRADIENT_STOP_11))
     };
     private static final Set<AnimatedGradientSurface> SURFACES =
             Collections.newSetFromMap(new WeakHashMap<>());
@@ -224,8 +230,10 @@ final class AnimatedGradientSurface extends Pane {
     private static WritableImage createGradientTexture(double logicalWidth,
                                                        double logicalHeight,
                                                        Direction direction) {
-        int pixelWidth = Math.max(2, (int) Math.ceil(logicalWidth * TEXTURE_SCALE));
-        int pixelHeight = Math.max(2, Math.min(TEXTURE_MAX_PIXEL_HEIGHT,
+        int pixelWidth = Math.max(LauncherMotionTokens.GRADIENT_MIN_TEXTURE_PIXELS,
+                (int) Math.ceil(logicalWidth * TEXTURE_SCALE));
+        int pixelHeight = Math.max(LauncherMotionTokens.GRADIENT_MIN_TEXTURE_PIXELS,
+                Math.min(TEXTURE_MAX_PIXEL_HEIGHT,
                 (int) Math.ceil(logicalHeight * TEXTURE_SCALE)));
         WritableImage texture = new WritableImage(pixelWidth, pixelHeight);
 
@@ -274,7 +282,8 @@ final class AnimatedGradientSurface extends Pane {
     }
 
     private static double overlay(double channel, double overlayChannel) {
-        return channel * (1.0d - OVERLAY_ALPHA) + overlayChannel * OVERLAY_ALPHA;
+        return channel * (LauncherMotionTokens.GRADIENT_FULL_ALPHA - OVERLAY_ALPHA)
+                + overlayChannel * OVERLAY_ALPHA;
     }
 
     private static double dither(int x, int y) {

@@ -141,18 +141,20 @@ final class PipelineLauncher {
     private static final String AUTOSAVE_PROFILE_FILE = "_autosave.json";
     private static final String LAUNCHER_VIEW_FILE = "_launcher_view.json";
     private static final String GUI_RUN_ACTIVE_PROPERTY = "ASTRA_GUI_RUN_ACTIVE";
-    private static final String LAUNCHER_STYLESHEET_RESOURCE = "/qupath/ext/astra/astra-launcher.css";
-    private static final String FONT_STACK = "\"Inter\", \"Aptos Display\", \"Segoe UI\", \"Helvetica Neue\", Arial, sans-serif";
-    private static final String MONO_FONT_STACK = "\"JetBrains Mono\", \"SF Mono\", Consolas, monospace";
-    private static final String INK = "#172431";
-    private static final String MUTED = "#5f7080";
-    private static final String PAPER = "#f4f7f8";
-    private static final String PANEL = "#ffffff";
-    private static final String TEAL = "#1f7a7a";
-    private static final String TEAL_DARK = "#0d4f55";
-    private static final String CORAL = "#d9604c";
-    private static final String GOLD = "#d4a72c";
-    private static final String CONTROL_BORDER = "#7fa3ad";
+    private static final String LAUNCHER_STYLESHEET_RESOURCE = "/qupath/ext/astra/launcher.css";
+    private static final String FONT_STACK = LauncherTypographyTokens.PRIMARY_FONT_STACK;
+    private static final String MONO_FONT_STACK = LauncherTypographyTokens.MONO_FONT_STACK;
+    private static final String INK = LauncherThemeTokens.INK;
+    private static final String MUTED = LauncherThemeTokens.MUTED;
+    private static final String PAPER = LauncherThemeTokens.PAPER;
+    private static final String PANEL = LauncherThemeTokens.PANEL;
+    private static final String TEAL = LauncherThemeTokens.TEAL;
+    private static final String TEAL_DARK = LauncherThemeTokens.TEAL_DARK;
+    private static final String CORAL = LauncherThemeTokens.CORAL;
+    private static final String GOLD = LauncherThemeTokens.GOLD;
+    private static final String CONTROL_BORDER = LauncherThemeTokens.CONTROL_BORDER;
+    private static final String CLEARED_INLINE_STYLE = "";
+    private static final String BASE_INLINE_STYLE_PROPERTY = "astra.baseStyle";
     private static final int SETTINGS_PROFILE_SCHEMA_VERSION = 1;
     private static final class LauncherGeometry {
         private static final double FLUSH = LauncherGeometryTokens.FLUSH;
@@ -163,9 +165,12 @@ final class PipelineLauncher {
         private static final double INTRA_PANEL_TIGHT_GAP = LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP;
         private static final double INTRA_PANEL_SUBTLE_GAP = LauncherGeometryTokens.INTRA_PANEL_SUBTLE_GAP;
         private static final double SCROLLBAR_GUTTER_WIDTH = OUTER_MARGIN;
-        private static final double SCROLLBAR_THUMB_WIDTH = SCROLLBAR_GUTTER_WIDTH / 3.0;
+        private static final double SCROLLBAR_THUMB_WIDTH =
+                SCROLLBAR_GUTTER_WIDTH
+                        / LauncherGeometryTokens.SCROLLBAR_THUMB_GUTTER_DIVISOR;
         private static final double SCROLLBAR_SIDE_PADDING =
-                (SCROLLBAR_GUTTER_WIDTH - SCROLLBAR_THUMB_WIDTH) / 2.0;
+                (SCROLLBAR_GUTTER_WIDTH - SCROLLBAR_THUMB_WIDTH)
+                        / LauncherGeometryTokens.SCROLLBAR_SIDE_PADDING_DIVISOR;
         // Visual gap to the bar is derived gap plus the centered gutter padding.
         private static final double INPUT_CONTENT_TO_BAR_GAP =
                 OUTER_MARGIN - SCROLLBAR_SIDE_PADDING;
@@ -236,12 +241,18 @@ final class PipelineLauncher {
             LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
     private static final double BORDER_WIDTH =
             LauncherGeometryTokens.SURFACE_BORDER_WIDTH;
+    private static final double SINGLE_COUNT =
+            LauncherGeometryTokens.SINGLE_COUNT;
+    private static final double BILATERAL_EDGE_COUNT =
+            LauncherGeometryTokens.BILATERAL_EDGE_COUNT;
+    private static final double TRILATERAL_EDGE_COUNT =
+            LauncherGeometryTokens.TRILATERAL_EDGE_COUNT;
     private static final double PARAMETER_LABEL_COLUMN_WIDTH =
             (LauncherGeometry.LAYOUT_UNIT * 12.0)
                     + LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
     private static final double PARAMETER_HELP_COLUMN_WIDTH =
             LauncherGeometry.LAYOUT_UNIT
-                    - (BORDER_WIDTH * 2.0);
+                    - (BORDER_WIDTH * BILATERAL_EDGE_COUNT);
     private static final double PARAMETER_ANCHOR_WIDTH =
             LauncherGeometry.LAYOUT_UNIT / 4.0;
     private static final double BAR_WIDTH =
@@ -253,9 +264,10 @@ final class PipelineLauncher {
     private static final double PARAMETER_ANCHOR_HEIGHT =
             PARAMETER_FIRST_ROW_HEIGHT;
     private static final double PARAMETER_ANCHOR_PAINT_RADIUS =
-            Math.min(PARAMETER_ANCHOR_WIDTH, PARAMETER_FIRST_ROW_HEIGHT) / 2.0;
+            Math.min(PARAMETER_ANCHOR_WIDTH, PARAMETER_FIRST_ROW_HEIGHT)
+                    / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR;
     private static final double PARAMETER_ANCHOR_PAINT_ARC =
-            PARAMETER_ANCHOR_PAINT_RADIUS * 2.0;
+            PARAMETER_ANCHOR_PAINT_RADIUS * LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR;
     private static final double PARAMETER_HELP_BUTTON_SIZE =
             PARAMETER_HELP_COLUMN_WIDTH
                     - LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
@@ -278,7 +290,7 @@ final class PipelineLauncher {
     private static final double PARAMETER_BAR_TO_TEXT_GAP =
             ACCENT_INDENT - BAR_WIDTH;
     private static final double TEXT_OPTICAL_INSET_CORRECTION =
-            LauncherGeometry.FLUSH;
+            LauncherTypographyTokens.TEXT_OPTICAL_INSET_CORRECTION;
     private static final double PARAMETER_LABEL_COLUMN_GAP =
             PARAMETER_BAR_TO_TEXT_GAP;
     private static final double PARAMETER_ROW_TEXT_RAIL =
@@ -294,7 +306,9 @@ final class PipelineLauncher {
                     - PARAMETER_ROW_HORIZONTAL_PADDING
                     - PARAMETER_HELP_COLUMN_WIDTH;
     private static final double DEPENDENT_PANEL_LEFT_INSET =
-            ACCENT_INDENT - (BORDER_WIDTH * 2.0) - PARAMETER_ROW_EDGE_TO_BAR_GAP;
+            ACCENT_INDENT
+                    - (BORDER_WIDTH * BILATERAL_EDGE_COUNT)
+                    - PARAMETER_ROW_EDGE_TO_BAR_GAP;
     private static final double DEPENDENT_ROWS_LEFT_INSET =
             DEPENDENT_PANEL_LEFT_INSET + BORDER_WIDTH;
     private static final double DEPENDENT_PANEL_OUTER_LEFT_MARGIN =
@@ -354,41 +368,49 @@ final class PipelineLauncher {
                 LauncherGeometry.LAYOUT_UNIT * 4.0;
         private static final double SEGMENT_CONTROL_GAP =
                 LauncherGeometry.INTRA_PANEL_TIGHT_GAP - SURFACE_BORDER_WIDTH;
+        private static final double SEGMENT_BUTTON_COUNT =
+                HeaderActionSlot.values().length - SINGLE_COUNT;
+        private static final double SEGMENT_CONTROL_GAP_COUNT =
+                SEGMENT_BUTTON_COUNT - SINGLE_COUNT;
+        private static final double SEGMENT_BUTTON_WIDTH_REDUCTION =
+                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP
+                        * (SEGMENT_BUTTON_COUNT + BILATERAL_EDGE_COUNT)
+                        / BILATERAL_EDGE_COUNT;
         private static final double SEGMENT_BUTTON_WIDTH =
-                SEGMENT_LABEL_WIDTH - (LauncherGeometry.INTRA_PANEL_SUBTLE_GAP * 5.0 / 2.0);
+                SEGMENT_LABEL_WIDTH - SEGMENT_BUTTON_WIDTH_REDUCTION;
         private static final double SEGMENT_BUTTON_HEIGHT =
                 LauncherGeometry.LAYOUT_UNIT + SURFACE_BORDER_WIDTH;
         private static final double WIDEST_SEGMENT_ROW_WIDTH =
                 SEGMENT_LABEL_WIDTH
                         + SEGMENT_ROW_GAP
-                        + (SEGMENT_BUTTON_WIDTH * 3.0)
-                        + (SEGMENT_CONTROL_GAP * 2.0);
+                        + (SEGMENT_BUTTON_WIDTH * SEGMENT_BUTTON_COUNT)
+                        + (SEGMENT_CONTROL_GAP * SEGMENT_CONTROL_GAP_COUNT);
         private static final double OPTIONS_GROUP_OUTER_WIDTH =
                 WIDEST_SEGMENT_ROW_WIDTH
-                        + (OPTIONS_GROUP_GAP * 2.0)
-                        + (SURFACE_BORDER_WIDTH * 2.0);
+                        + (OPTIONS_GROUP_GAP * BILATERAL_EDGE_COUNT)
+                        + (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
         private static final double MENU_WIDTH =
                 OPTIONS_GROUP_OUTER_WIDTH
-                        + (OPTIONS_PANEL_INSET * 2.0)
-                        + (SURFACE_BORDER_WIDTH * 2.0);
+                        + (OPTIONS_PANEL_INSET * BILATERAL_EDGE_COUNT)
+                        + (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
         private static final double MENU_POPUP_WIDTH =
                 MENU_WIDTH
-                        + (OPTIONS_PANEL_INSET * 2.0)
+                        + (OPTIONS_PANEL_INSET * BILATERAL_EDGE_COUNT)
                         + SURFACE_BORDER_WIDTH;
         private static final double MENU_RENDERED_POPUP_WIDTH =
-                MENU_POPUP_WIDTH + (MENU_EDGE_MARGIN * 2.0);
+                MENU_POPUP_WIDTH + (MENU_EDGE_MARGIN * BILATERAL_EDGE_COUNT);
         private static final double MENU_ANCHOR_TO_WINDOW_OFFSET =
                 MENU_EDGE_MARGIN;
         private static final double SIMPLE_MENU_ITEM_SHELL_INSET =
-                OPTIONS_PANEL_INSET - (SURFACE_BORDER_WIDTH * 2.0);
+                OPTIONS_PANEL_INSET - (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
         private static final double MENU_ITEM_WIDTH =
-                MENU_WIDTH - (OPTIONS_PANEL_INSET * 2.0);
+                MENU_WIDTH - (OPTIONS_PANEL_INSET * BILATERAL_EDGE_COUNT);
         private static double actionBoxWidth() {
             return OUTPUT_PANE_PREF_WIDTH;
         }
 
         private static double actionRibbonHeight() {
-            return PARAMETER_ROW_HEIGHT + (ACTION_RIBBON_INSET * 2.0);
+            return PARAMETER_ROW_HEIGHT + (ACTION_RIBBON_INSET * BILATERAL_EDGE_COUNT);
         }
 
         private static double actionRailHeight() {
@@ -405,16 +427,18 @@ final class PipelineLauncher {
 
         private static double actionPageSubtitleWidth() {
             return actionBoxWidth()
-                    - (ACTION_RIBBON_INSET * 2.0)
-                    - (SURFACE_BORDER_WIDTH * 2.0);
+                    - (ACTION_RIBBON_INSET * BILATERAL_EDGE_COUNT)
+                    - (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
         }
 
         private static double workflowChipWidth(int stageCount) {
             int safeStageCount = Math.max(1, stageCount);
             double arrowCount = Math.max(LauncherGeometry.FLUSH, safeStageCount - 1.0);
-            double nodeGapCount = Math.max(LauncherGeometry.FLUSH, (safeStageCount * 2.0) - 2.0);
+            double nodeGapCount = Math.max(
+                    LauncherGeometry.FLUSH,
+                    (safeStageCount * BILATERAL_EDGE_COUNT) - BILATERAL_EDGE_COUNT);
             return (actionBoxWidth()
-                    - (WORKFLOW_ROW_INSET * 2.0)
+                    - (WORKFLOW_ROW_INSET * BILATERAL_EDGE_COUNT)
                     - (WORKFLOW_ARROW_WIDTH * arrowCount)
                     - (WORKFLOW_ROW_GAP * nodeGapCount))
                     / safeStageCount;
@@ -436,11 +460,19 @@ final class PipelineLauncher {
                 2.0;
         private static final double ACTION_SHELL_GAP_COUNT =
                 ACTION_SHELL_BUTTON_COUNT - SINGLE_COUNT;
+        private static final double ACTION_BUTTON_OUTER_GAP =
+                LauncherGeometry.OUTER_MARGIN;
+        private static final double ACTION_SHELL_PLACEMENT_GAP =
+                ACTION_BUTTON_OUTER_GAP - ACTION_SHELL_INSET;
+        private static final double ACTION_SHELL_TOP_PLACEMENT_GAP =
+                ACTION_BUTTON_OUTER_GAP
+                        - LauncherGeometry.OUTER_MARGIN
+                        - ACTION_SHELL_INSET;
 
         private static double actionShellWidth() {
             return (LauncherGeometry.macroActionButtonWidth() * ACTION_SHELL_BUTTON_COUNT)
                     + (ACTION_SHELL_GAP * ACTION_SHELL_GAP_COUNT)
-                    + (ACTION_SHELL_INSET * 2.0);
+                    + (ACTION_SHELL_INSET * BILATERAL_EDGE_COUNT);
         }
 
         private static double actionShellSlopeWidth(double shellWidth) {
@@ -452,7 +484,7 @@ final class PipelineLauncher {
         }
 
         private static double actionShellVisibleWidth(double shellWidth) {
-            return shellWidth + (actionShellSlopeWidth(shellWidth) * 2.0);
+            return shellWidth + (actionShellSlopeWidth(shellWidth) * BILATERAL_EDGE_COUNT);
         }
 
         private static double actionShellHeight() {
@@ -467,23 +499,31 @@ final class PipelineLauncher {
                     ACTION_SHELL_INSET);
         }
 
+        private static Insets actionBarPadding() {
+            return new Insets(
+                    ACTION_SHELL_TOP_PLACEMENT_GAP,
+                    ACTION_SHELL_PLACEMENT_GAP,
+                    ACTION_SHELL_PLACEMENT_GAP,
+                    LauncherGeometry.OUTER_MARGIN);
+        }
+
         private FooterGeometry() {
         }
     }
     private static final class ActionTrapezoidGeometry {
         private static final double QUARTER_CURVE_CONTROL =
-                (Math.sqrt(SINGLE_COUNT + SINGLE_COUNT) - SINGLE_COUNT) * 4.0 / 3.0;
+                LauncherGeometryTokens.CUBIC_ARC_HANDLE_RATIO;
         private static final double FOLDER_CURVE_DEPTH_FRACTION =
                 SINGLE_COUNT / 3.0;
         private static final double FOLDER_CURVE_WALL_FRACTION =
                 SINGLE_COUNT - SINGLE_COUNT;
 
         private static double slopeWidth(double configuredSlopeWidth, double width) {
-            return Math.min(configuredSlopeWidth, width / 2.0);
+            return Math.min(configuredSlopeWidth, width / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR);
         }
 
         private static double bevelRadius(double configuredBevelRadius, double height) {
-            return Math.min(configuredBevelRadius, height / 2.0);
+            return Math.min(configuredBevelRadius, height / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR);
         }
 
         private static double edgeInset() {
@@ -529,7 +569,8 @@ final class PipelineLauncher {
         private static final double COMBO_CELL_VERTICAL_INSET =
                 LauncherGeometry.INTRA_PANEL_SUBTLE_GAP - SURFACE_BORDER_WIDTH;
         private static final double COMBO_CELL_HORIZONTAL_INSET =
-                LauncherGeometry.INTRA_PANEL_MARGIN - (SURFACE_BORDER_WIDTH * 2.0);
+                LauncherGeometry.INTRA_PANEL_MARGIN
+                        - (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
 
         private ControlGeometry() {
         }
@@ -554,9 +595,9 @@ final class PipelineLauncher {
         private static final double PROJECT_LIST_HEIGHT =
                 LauncherGeometry.LAYOUT_UNIT * 40.0 / 3.0;
         private static final double SINGLE_LIST_WIDTH =
-                PROJECT_LIST_WIDTH * 7.0 / 5.0;
+                PROJECT_LIST_WIDTH * LauncherGeometryTokens.SINGLE_LIST_WIDTH_SCALE;
         private static final double SINGLE_LIST_HEIGHT =
-                PROJECT_LIST_HEIGHT * 7.0 / 8.0;
+                PROJECT_LIST_HEIGHT * LauncherGeometryTokens.SINGLE_LIST_HEIGHT_SCALE;
 
         private SelectionGeometry() {
         }
@@ -576,7 +617,8 @@ final class PipelineLauncher {
     private static final double LEGEND_VERTICAL_GAP =
             LauncherGeometry.INTRA_PANEL_TIGHT_GAP + SURFACE_BORDER_WIDTH;
     private static final double ADVANCED_UNLOCK_CONTROL_GAP =
-            LauncherGeometry.INTRA_PANEL_MARGIN - (SURFACE_BORDER_WIDTH * 2.0);
+            LauncherGeometry.INTRA_PANEL_MARGIN
+                    - (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
     private static final double MODEL_SOURCE_CARD_INSET =
             ADVANCED_UNLOCK_CONTROL_GAP;
     private static final double DASHBOARD_CARD_HEIGHT =
@@ -585,19 +627,19 @@ final class PipelineLauncher {
             LauncherGeometry.INTRA_PANEL_MARGIN;
     private static final double DASHBOARD_CARD_BODY_HEIGHT =
             DASHBOARD_CARD_HEIGHT
-                    - (DASHBOARD_CARD_INSET * 2.0)
-                    - (SURFACE_BORDER_WIDTH * 2.0);
+                    - (DASHBOARD_CARD_INSET * BILATERAL_EDGE_COUNT)
+                    - (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
     private static final double DASHBOARD_CARD_ACCENT_WIDTH =
             PARAMETER_ANCHOR_WIDTH;
     private static final double DASHBOARD_CARD_ACCENT_HEIGHT =
             DASHBOARD_CARD_BODY_HEIGHT
-                    - (LauncherGeometry.INTRA_PANEL_SUBTLE_GAP * 2.0)
+                    - (LauncherGeometry.INTRA_PANEL_SUBTLE_GAP * BILATERAL_EDGE_COUNT)
                     - (PARAMETER_ANCHOR_WIDTH);
     private static final double DASHBOARD_CARD_ACCENT_TO_CONTENT_GAP =
             DASHBOARD_CARD_INSET;
     private static final double DASHBOARD_GRID_MAX_WIDTH =
-            (DASHBOARD_CARD_HEIGHT * 2.0 * 3.0)
-                    + (SECTION_CONTENT_GAP * 2.0);
+            (DASHBOARD_CARD_HEIGHT * BILATERAL_EDGE_COUNT * TRILATERAL_EDGE_COUNT)
+                    + (SECTION_CONTENT_GAP * BILATERAL_EDGE_COUNT);
     private static final double HELP_DIALOG_INSET =
             LauncherGeometry.INTRA_PANEL_MARGIN;
     private static final double HELP_DIALOG_SECTION_GAP =
@@ -625,7 +667,8 @@ final class PipelineLauncher {
     private static final double HELP_SUMMARY_LABEL_WIDTH =
             LauncherGeometry.LAYOUT_UNIT * 55.0 / 12.0;
     private static final double FORM_BLOCK_GAP =
-            LauncherGeometry.INTRA_PANEL_TIGHT_GAP + (SURFACE_BORDER_WIDTH * 2.0);
+            LauncherGeometry.INTRA_PANEL_TIGHT_GAP
+                    + (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
     private static final double NESTED_FIELD_GAP =
             LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
     private static final double NESTED_PANEL_INSET =
@@ -633,9 +676,11 @@ final class PipelineLauncher {
     private static final double CHANNEL_PANEL_GAP =
             COMPACT_CONTROL_GAP;
     private static final double CHANNEL_PANEL_INSET =
-            LauncherGeometry.INTRA_PANEL_MARGIN + (SURFACE_BORDER_WIDTH * 2.0);
+            LauncherGeometry.INTRA_PANEL_MARGIN
+                    + (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
     private static final double CHANNEL_CHIP_GAP =
-            LauncherGeometry.INTRA_PANEL_TIGHT_GAP + (SURFACE_BORDER_WIDTH * 2.0);
+            LauncherGeometry.INTRA_PANEL_TIGHT_GAP
+                    + (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
     private static final double CHANNEL_CHIP_VERTICAL_INSET =
             LauncherGeometry.INTRA_PANEL_TIGHT_GAP + SURFACE_BORDER_WIDTH;
     private static final double CHANNEL_CHIP_HORIZONTAL_INSET =
@@ -645,7 +690,7 @@ final class PipelineLauncher {
     private static final double CHANNEL_SWATCH_ARC =
             PARAMETER_ANCHOR_WIDTH;
     private static final double CHANNEL_SWATCH_STROKE_WIDTH =
-            SURFACE_BORDER_WIDTH / 2.0;
+            SURFACE_BORDER_WIDTH / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR;
     private static final double UNGROUPED_SECTION_HGAP =
             LauncherGeometry.INTRA_PANEL_MARGIN;
     private static final double UNGROUPED_LABEL_WIDTH =
@@ -662,8 +707,6 @@ final class PipelineLauncher {
             ADVANCED_UNLOCK_CONTROL_GAP;
     private static final double OUTPUT_PROGRESS_SIZE =
             PARAMETER_HELP_BUTTON_SIZE;
-    private static final double SINGLE_COUNT =
-            LauncherGeometry.LAYOUT_UNIT / LauncherGeometry.LAYOUT_UNIT;
     private enum HeaderActionSlot {
         HOME,
         SETTINGS,
@@ -704,14 +747,15 @@ final class PipelineLauncher {
             LauncherGeometry.LAYOUT_UNIT * 20.0 / 3.0;
     private static final double COLOCALIZATION_PANEL_WIDE_LABEL_WIDTH =
             LauncherGeometry.LAYOUT_UNIT * 15.0 / 2.0;
-    private static final int MULTI_SELECT_BUTTON_SUMMARY_LIMIT = 64;
+    private static final int MULTI_SELECT_BUTTON_SUMMARY_LIMIT =
+            LauncherGeometryTokens.MULTI_SELECT_SUMMARY_CHARACTER_LIMIT;
     private static final String CHEVRON_DOWN = "▾";
     private static final String CHEVRON_RIGHT = "▸";
     private static final PseudoClass PRESSED_PSEUDO = PseudoClass.getPseudoClass("pressed");
 
     private static double macroActionButtonWidth() {
         return (HeaderGeometry.actionBoxWidth()
-                - (HeaderGeometry.ACTION_RIBBON_INSET * 2.0)
+                - (HeaderGeometry.ACTION_RIBBON_INSET * BILATERAL_EDGE_COUNT)
                 - (HeaderGeometry.ACTION_CLUSTER_GAP * MACRO_ACTION_BUTTON_GAP_COUNT))
                 / MACRO_ACTION_BUTTON_COUNT;
     }
@@ -737,11 +781,7 @@ final class PipelineLauncher {
     }
 
     private static Insets mainActionBarPadding() {
-        return new Insets(
-                LauncherGeometry.FLUSH,
-                LauncherGeometry.OUTER_MARGIN,
-                LauncherGeometry.FLUSH,
-                LauncherGeometry.OUTER_MARGIN);
+        return FooterGeometry.actionBarPadding();
     }
 
     private static Insets parameterRowPadding() {
@@ -795,10 +835,10 @@ final class PipelineLauncher {
     private static double parameterLabelTextWidth(double labelColumnWidth,
                                                   double labelColumnGap) {
         return labelColumnWidth
-                - (PARAMETER_ROW_HORIZONTAL_PADDING * 2.0)
+                - (PARAMETER_ROW_HORIZONTAL_PADDING * BILATERAL_EDGE_COUNT)
                 - PARAMETER_ANCHOR_COLUMN_WIDTH
                 - PARAMETER_HELP_COLUMN_WIDTH
-                - (labelColumnGap * 2.0);
+                - (labelColumnGap * BILATERAL_EDGE_COUNT);
     }
 
     private static Insets helpDialogPadding() {
@@ -1910,6 +1950,10 @@ final class PipelineLauncher {
     }
 
     private static List<String> projectImageNames(QuPathGUI qupath) {
+        List<String> testingImageNames = projectImageNamesForTesting;
+        if (testingImageNames != null) {
+            return testingImageNames;
+        }
         if (qupath == null || qupath.getProject() == null) {
             return List.of();
         }
@@ -1919,6 +1963,12 @@ final class PipelineLauncher {
                 .distinct()
                 .sorted(String.CASE_INSENSITIVE_ORDER)
                 .toList();
+    }
+
+    private static volatile List<String> projectImageNamesForTesting;
+
+    static void setProjectImageNamesForTesting(List<String> imageNames) {
+        projectImageNamesForTesting = imageNames == null ? null : List.copyOf(imageNames);
     }
 
     static List<String> targetModelControlNames(String detectionTarget) {
@@ -3259,11 +3309,11 @@ final class PipelineLauncher {
     }
 
     private static void styleComboBox(ComboBox<String> combo) {
-        combo.setStyle("");
+        clearInlineStyle(combo);
         addStyleClass(combo, "astra-combo");
         styleComboBoxText(combo);
         if (combo.isEditable()) {
-            combo.getEditor().setStyle("");
+            clearInlineStyle(combo.getEditor());
             addStyleClass(combo.getEditor(), "astra-input");
         }
         combo.skinProperty().addListener((obs, oldSkin, newSkin) -> Platform.runLater(() -> styleComboBoxSubnodes(combo)));
@@ -3279,22 +3329,22 @@ final class PipelineLauncher {
     private static void styleComboBoxSubnodes(ComboBox<String> combo) {
         Node arrowButton = combo.lookup(".arrow-button");
         if (arrowButton != null) {
-            arrowButton.setStyle("");
+            clearInlineStyle(arrowButton);
             addStyleClass(arrowButton, "astra-combo-arrow-button");
         }
         Node arrow = combo.lookup(".arrow");
         if (arrow != null) {
-            arrow.setStyle("");
+            clearInlineStyle(arrow);
             addStyleClass(arrow, "astra-combo-arrow");
         }
         Node editor = combo.lookup(".text-field");
         if (editor instanceof TextField textField) {
-            textField.setStyle("");
+            clearInlineStyle(textField);
             addStyleClass(textField, "astra-input");
         }
         Node selectedCell = combo.lookup(".list-cell");
         if (selectedCell != null) {
-            selectedCell.setStyle("");
+            clearInlineStyle(selectedCell);
             addStyleClass(selectedCell, "astra-combo-cell");
         }
     }
@@ -3319,7 +3369,7 @@ final class PipelineLauncher {
     }
 
     private static void styleComboCell(ListCell<?> cell) {
-        cell.setStyle("");
+        clearInlineStyle(cell);
         cell.setPadding(comboCellPadding());
         GuiText.mark(cell, GuiText.Role.CONTROL_TEXT);
         addStyleClass(cell, "astra-combo-cell");
@@ -3331,7 +3381,7 @@ final class PipelineLauncher {
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
                 setText(empty ? null : item);
-                setStyle("");
+                clearInlineStyle(this);
                 GuiText.mark(this, GuiText.Role.CONTROL_TEXT);
                 addStyleClass(this, "astra-list-cell");
             }
@@ -4161,7 +4211,7 @@ final class PipelineLauncher {
 
     private static void styleHeaderSegmentButton(ToggleButton button) {
         boolean selected = button.isSelected();
-        button.setStyle("");
+        clearInlineStyle(button);
         if (selected) {
             addStyleClass(button, "astra-header-segment-button-selected");
         } else {
@@ -4171,7 +4221,9 @@ final class PipelineLauncher {
 
     private static void setHeaderMotionRowEnabled(HBox motionRow, boolean enabled) {
         motionRow.setDisable(!enabled);
-        motionRow.setOpacity(enabled ? 1.0d : 0.48d);
+        motionRow.setOpacity(enabled
+                ? LauncherThemeTokens.ENABLED_OPACITY
+                : LauncherThemeTokens.HEADER_MOTION_ROW_DISABLED_OPACITY);
     }
 
     private static HBox labeledRow(String labelText, Node editor, double labelWidth) {
@@ -4700,9 +4752,9 @@ final class PipelineLauncher {
         comboRow.getChildren().addAll(combo, logBadge, sourceTab, dialogSample, diagnosticSample);
 
         Region widthProbe = new Region();
-        widthProbe.setMinSize(0, 0);
-        widthProbe.setPrefSize(0, 0);
-        widthProbe.setMaxHeight(0);
+        widthProbe.setMinSize(LauncherGeometryTokens.HIDDEN_CONTROL_SIZE, LauncherGeometryTokens.HIDDEN_CONTROL_SIZE);
+        widthProbe.setPrefSize(LauncherGeometryTokens.HIDDEN_CONTROL_SIZE, LauncherGeometryTokens.HIDDEN_CONTROL_SIZE);
+        widthProbe.setMaxHeight(LauncherGeometryTokens.HIDDEN_CONTROL_SIZE);
         widthProbe.setMaxWidth(Double.MAX_VALUE);
         addStyleClass(widthProbe, "astra-typography-width-probe");
 
@@ -5179,7 +5231,9 @@ final class PipelineLauncher {
             swatch.setArcWidth(CHANNEL_SWATCH_ARC);
             swatch.setStrokeType(StrokeType.INSIDE);
             addStyleClass(swatch, "astra-channel-chip-swatch");
-            swatch.setStyle("-fx-fill: " + channelColor(channel) + "; -fx-stroke: #31404a; -fx-stroke-width: " + CHANNEL_SWATCH_STROKE_WIDTH + ";");
+            swatch.setStyle("-fx-fill: " + channelColor(channel)
+                    + "; -fx-stroke: " + LauncherThemeTokens.lookup(LauncherThemeTokens.CHANNEL_SWATCH_STROKE)
+                    + "; -fx-stroke-width: " + CHANNEL_SWATCH_STROKE_WIDTH + ";");
             Label name = GuiText.label(GuiText.Role.PANEL_TEXT, channel.getName());
             addStyleClass(name, "astra-channel-chip-name");
             chip.getChildren().addAll(swatch, name);
@@ -5469,6 +5523,26 @@ final class PipelineLauncher {
         }
     }
 
+    private static void clearInlineStyle(Node node) {
+        if (node != null) {
+            node.setStyle(CLEARED_INLINE_STYLE);
+        }
+    }
+
+    private static void rememberBaseInlineStyle(Node node) {
+        if (node != null) {
+            node.getProperties().putIfAbsent(BASE_INLINE_STYLE_PROPERTY,
+                    node.getStyle() == null ? CLEARED_INLINE_STYLE : node.getStyle());
+        }
+    }
+
+    private static void restoreBaseInlineStyle(Node node) {
+        if (node != null) {
+            Object base = node.getProperties().getOrDefault(BASE_INLINE_STYLE_PROPERTY, CLEARED_INLINE_STYLE);
+            node.setStyle(String.valueOf(base));
+        }
+    }
+
     private static void removeStyleClass(Node node, String styleClass) {
         if (node != null && styleClass != null && !styleClass.isBlank()) {
             node.getStyleClass().remove(styleClass);
@@ -5504,7 +5578,7 @@ final class PipelineLauncher {
             return;
         }
         button.getStyleClass().removeIf(name -> name.startsWith("astra-button"));
-        button.setStyle("");
+        clearInlineStyle(button);
         button.getStyleClass().add("astra-button");
         button.getStyleClass().add(switch (role) {
             case PRIMARY -> "astra-button-primary";
@@ -5570,7 +5644,7 @@ final class PipelineLauncher {
     }
 
     private static void styleCheckBox(CheckBox box) {
-        box.setStyle("");
+        clearInlineStyle(box);
         addStyleClass(box, "astra-checkbox");
     }
 
@@ -6129,7 +6203,7 @@ final class PipelineLauncher {
     private static String channelColor(ImageChannel channel) {
         Integer color = channel.getColor();
         if (color == null || channel.isTransparent()) {
-            return "#b7c0c7";
+            return LauncherThemeTokens.CHANNEL_FALLBACK;
         }
         int[] rgb = ColorTools.unpackRGB(color);
         return String.format("#%02x%02x%02x", rgb[0], rgb[1], rgb[2]);
@@ -6270,7 +6344,7 @@ final class PipelineLauncher {
             shimmer.resizeRelocate(
                     -shimmer.getBoundsInLocal().getWidth(),
                     LauncherGeometry.FLUSH,
-                    Math.max(LauncherGeometry.FLUSH, shimmer.prefWidth(-1.0d)),
+                    Math.max(LauncherGeometry.FLUSH, shimmer.prefWidth(Region.USE_COMPUTED_SIZE)),
                     LauncherGeometry.ACTION_PROGRESS_HEIGHT);
             configureShimmerAnimation();
         }
@@ -6344,7 +6418,8 @@ final class PipelineLauncher {
         }
 
         private void configureShimmerAnimation() {
-            double shimmerWidth = Math.max(LauncherGeometry.FLUSH, shimmer.prefWidth(-1.0d));
+            double shimmerWidth = Math.max(LauncherGeometry.FLUSH,
+                    shimmer.prefWidth(Region.USE_COMPUTED_SIZE));
             double runWidth = Math.max(LauncherGeometry.FLUSH, progressBar.getWidth());
             shimmerAnimation.stop();
             shimmerAnimation.setFromX(-shimmerWidth);
@@ -6613,7 +6688,9 @@ final class PipelineLauncher {
             header.getChildren().addAll(progress, status, killSpacer, actionRail);
 
             VBox.setVgrow(output, Priority.ALWAYS);
-            elapsedHeartbeat = new Timeline(new KeyFrame(Duration.seconds(1.0), event -> output.refreshTimelineElapsed()));
+            elapsedHeartbeat = new Timeline(new KeyFrame(
+                    Duration.seconds(LauncherMotionTokens.RUN_LOG_ELAPSED_REFRESH_SECONDS),
+                    event -> output.refreshTimelineElapsed()));
             elapsedHeartbeat.setCycleCount(Animation.INDEFINITE);
 
             box.getChildren().addAll(header, output);
@@ -7064,7 +7141,9 @@ final class PipelineLauncher {
             if (pendingSave != null) {
                 pendingSave.stop();
             }
-            pendingSave = new Timeline(new KeyFrame(Duration.millis(350.0), event -> saveCurrent()));
+            pendingSave = new Timeline(new KeyFrame(
+                    Duration.millis(LauncherMotionTokens.AUTOSAVE_DEBOUNCE_MILLIS),
+                    event -> saveCurrent()));
             pendingSave.setCycleCount(1);
             pendingSave.play();
         }
@@ -7379,7 +7458,7 @@ final class PipelineLauncher {
                 protected void updateItem(String item, boolean empty) {
                     super.updateItem(item, empty);
                     setText(empty ? null : display.apply(item));
-                    setStyle("");
+                    clearInlineStyle(this);
                     GuiText.mark(this, GuiText.Role.CONTROL_TEXT);
                     addStyleClass(this, "astra-list-cell");
                 }
@@ -8368,7 +8447,7 @@ final class PipelineLauncher {
                 return;
             }
             defaultStyleInstalled = true;
-            editor.getProperties().putIfAbsent("astra.baseStyle", editor.getStyle() == null ? "" : editor.getStyle());
+            rememberBaseInlineStyle(editor);
             addChangeListener(this::updateDefaultStateStyle);
             updateDefaultStateStyle();
         }
@@ -8377,10 +8456,12 @@ final class PipelineLauncher {
             if (editor == null) {
                 return;
             }
-            Object base = editor.getProperties().getOrDefault("astra.baseStyle", "");
-            String baseStyle = String.valueOf(base);
-            String changedStyle = " -fx-effect: dropshadow(gaussian, rgba(212,167,44,0.42), 8, 0.2, 0, 0);";
-            editor.setStyle(isAtDefaultValue() ? baseStyle : baseStyle + changedStyle);
+            restoreBaseInlineStyle(editor);
+            if (isAtDefaultValue()) {
+                removeStyleClass(editor, "astra-editor-changed-from-default");
+            } else {
+                addStyleClass(editor, "astra-editor-changed-from-default");
+            }
         }
 
         private String optionValue() {
@@ -8432,9 +8513,17 @@ final class PipelineLauncher {
         }
 
         private static String controlStyle() {
-            return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-background-color: #fbfdff; " +
-                    "-fx-border-color: " + CONTROL_BORDER + "; -fx-border-radius: 4; -fx-background-radius: 4; " +
-                    "-fx-control-inner-background: #fbfdff; -fx-text-fill: " + INK + ";";
+            return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: "
+                    + LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_BODY)
+                    + "; -fx-background-color: " + LauncherThemeTokens.lookup(LauncherThemeTokens.FIELD_BACKGROUND) + "; "
+                    + "-fx-border-color: " + LauncherThemeTokens.lookup(CONTROL_BORDER) + "; -fx-border-radius: " + compactBevelCss() +
+                    "; -fx-background-radius: " + compactBevelCss() + "; " +
+                    "-fx-control-inner-background: " + LauncherThemeTokens.lookup(LauncherThemeTokens.FIELD_BACKGROUND)
+                            + "; -fx-text-fill: " + LauncherThemeTokens.lookup(INK) + ";";
+        }
+
+        private static String compactBevelCss() {
+            return Double.toString(LauncherGeometryTokens.COMPACT_BEVEL_RADIUS);
         }
 
         private void installOptionDisplay(ComboBox<String> comboBox) {

@@ -9,6 +9,7 @@ import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.nio.file.Files;
@@ -236,7 +237,7 @@ class PipelineLauncherTest {
     @Test
     void launcherDisplaysMetadataBackedVersionProvenance() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
-        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+        String css = launcherCss();
 
         assertTrue(source.contains("RELEASE_PROPERTIES_RESOURCE = \"qupath/ext/astra/release/runtime.properties\""));
         assertTrue(source.contains("Label provenance = GuiText.label(GuiText.Role.PANEL_TEXT, launcherVersionSummary());"));
@@ -256,6 +257,293 @@ class PipelineLauncherTest {
     }
 
     @Test
+    void launcherCssTokensAreGeneratedFromGeometryTokens() throws Exception {
+        Path tokenPath = Path.of("src/main/resources/qupath/ext/astra/launcher.tokens.css");
+        String css = launcherCss();
+
+        assertTrue(css.startsWith("@import \"launcher.tokens.css\";"));
+        assertTrue(resourceBasenamesWithInvalidAstraPrefix().isEmpty());
+        assertEquals(expectedLauncherTokenCss(), Files.readString(tokenPath));
+        assertFalse(spacingFamilyInventory().contains(",css-semantic-spacing-mirror,"));
+    }
+
+    @Test
+    void launcherTypographyCssUsesGeneratedTypographyTokens() throws Exception {
+        String css = launcherCss();
+        String typographyInventory = typographyFamilyInventory();
+
+        assertTrue(css.contains("-fx-font-family: " + LauncherTypographyTokens.PRIMARY_FONT_STACK + ";"));
+        assertTrue(css.contains("-fx-font-family: " + LauncherTypographyTokens.MONO_FONT_STACK + ";"));
+        assertTrue(css.contains("-fx-font-size: "
+                + LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_BODY) + ";"));
+        assertTrue(css.contains("-fx-font-weight: " + LauncherTypographyTokens.FONT_WEIGHT_BOLD + ";"));
+        assertTrue(css.contains("-fx-font-weight: " + LauncherTypographyTokens.FONT_WEIGHT_NORMAL + ";"));
+        assertTrue(Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"))
+                .contains("LauncherTypographyTokens.TEXT_OPTICAL_INSET_CORRECTION"));
+        assertTrue(Files.readString(Path.of("src/main/java/qupath/ext/astra/RuntimeInstaller.java"))
+                .contains("formatElapsedSeconds(INITIAL_ELAPSED_SECONDS)"));
+
+        Set<String> allowedFontSizes = Set.of(
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_TIMELINE_DURATION),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_BADGE_TINY),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_CAPTION),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_COMPACT),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_LOG_DETAIL),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_SMALL),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_DESCRIPTION),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_BODY),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_LARGE_BODY),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_CARD_LABEL),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_HEADER_SUBTITLE),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_CARD_TITLE),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_FOCUSED_TITLE),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_SECTION_TITLE),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_DIALOG_TITLE),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_HELP_TITLE),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_HEADER_TITLE));
+        assertCssDeclarationsIn(css, "-fx-font-size", allowedFontSizes);
+        assertCssDeclarationsIn(css, "-fx-font-family", Set.of(
+                LauncherTypographyTokens.PRIMARY_FONT_STACK,
+                LauncherTypographyTokens.MONO_FONT_STACK));
+        assertCssDeclarationsIn(css, "-fx-font-weight", Set.of(
+                LauncherTypographyTokens.FONT_WEIGHT_NORMAL,
+                LauncherTypographyTokens.FONT_WEIGHT_BOLD));
+
+        for (String unresolved : List.of(
+                ",raw-literal-needs-token,",
+                ",named-but-semantics-unclear,",
+                ",formula-needs-semantic-name,",
+                ",needs-human-review,")) {
+            assertFalse(typographyInventory.contains(unresolved), unresolved);
+        }
+    }
+
+    @Test
+    void launcherThemeCssUsesGeneratedThemeTokens() throws Exception {
+        String css = launcherCss();
+        String generatedTokens = Files.readString(Path.of("src/main/resources/qupath/ext/astra/launcher.tokens.css"));
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+        String gradientSource = Files.readString(Path.of("src/main/java/qupath/ext/astra/AnimatedGradientSurface.java"));
+
+        assertTrue(generatedTokens.contains("-launcher-color-teal: " + LauncherThemeTokens.TEAL + ";"));
+        assertTrue(generatedTokens.contains("-launcher-color-ink: " + LauncherThemeTokens.INK + ";"));
+        assertTrue(generatedTokens.contains("-launcher-color-paper: " + LauncherThemeTokens.PAPER + ";"));
+        assertTrue(generatedTokens.contains("-launcher-color-changed-value-shadow: "
+                + LauncherThemeTokens.CHANGED_VALUE_SHADOW + ";"));
+        assertTrue(generatedTokens.contains("-launcher-opacity-button-disabled: "
+                + LauncherThemeTokens.CSS_OPACITY_BUTTON_DISABLED + ";"));
+        assertTrue(css.contains("-fx-background-color: -launcher-color-teal;"));
+        assertTrue(css.contains("-fx-text-fill: -launcher-color-white;"));
+        assertTrue(css.contains(".combo-box-popup .list-cell:filled:selected"));
+        assertTrue(css.contains(".astra-editor-changed-from-default"));
+        assertFalse(css.contains("-launcher-color--"));
+        assertFalse(Pattern.compile("#[0-9a-fA-F]{3,8}|rgba?\\(").matcher(css).find());
+        assertTrue(source.contains("private static final String INK = LauncherThemeTokens.INK;"));
+        assertTrue(source.contains("LauncherThemeTokens.lookup(LauncherThemeTokens.FIELD_BACKGROUND)"));
+        assertTrue(source.contains("LauncherThemeTokens.HEADER_MOTION_ROW_DISABLED_OPACITY"));
+        assertTrue(source.contains("LauncherThemeTokens.CHANNEL_FALLBACK"));
+        assertFalse(source.contains("rgba(212,167,44,0.42)"));
+        assertTrue(gradientSource.contains("LauncherThemeTokens.GRADIENT_OVERLAY_COLOR"));
+        assertTrue(gradientSource.contains("LauncherThemeTokens.GRADIENT_STOP_00"));
+        assertFalse(gradientSource.contains("Color.web(\"#"));
+
+        var opacityMatcher = Pattern.compile("-fx-opacity:\\s*([^;]+);").matcher(css);
+        while (opacityMatcher.find()) {
+            assertTrue(LauncherThemeTokens.CSS_OPACITY_VALUES.contains(opacityMatcher.group(1).trim()),
+                    "Unapproved launcher opacity value: " + opacityMatcher.group(1).trim());
+        }
+    }
+
+    @Test
+    void launcherMotionUsesNamedTokensForGradientAndTimingPolicy() throws Exception {
+        String launcher = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+        String runtime = Files.readString(Path.of("src/main/java/qupath/ext/astra/RuntimeInstaller.java"));
+        String gradient = Files.readString(Path.of("src/main/java/qupath/ext/astra/AnimatedGradientSurface.java"));
+        String logView = Files.readString(Path.of("src/main/java/qupath/ext/astra/StyledLogView.java"));
+        String motionTokens = Files.readString(Path.of("src/main/java/qupath/ext/astra/LauncherMotionTokens.java"));
+        String motionInventory = visualFamilyInventory("motion-animation-gradient-speed")
+                + visualFamilyInventory("fades-overlays-masks");
+
+        assertTrue(launcher.contains("Duration.seconds(LauncherMotionTokens.RUN_LOG_ELAPSED_REFRESH_SECONDS)"));
+        assertTrue(launcher.contains("Duration.millis(LauncherMotionTokens.AUTOSAVE_DEBOUNCE_MILLIS)"));
+        assertTrue(launcher.contains("shimmer.prefWidth(Region.USE_COMPUTED_SIZE)"));
+        assertFalse(launcher.contains("prefWidth(-1.0d)"));
+        assertFalse(launcher.contains("Duration.seconds(1.0)"));
+        assertFalse(launcher.contains("Duration.millis(350.0)"));
+
+        assertTrue(logView.contains("Duration.seconds(LauncherMotionTokens.COPY_FEEDBACK_SECONDS)"));
+        assertFalse(logView.contains("Duration.seconds(1.2)"));
+        assertTrue(logView.contains("topFade.setMinSize(LauncherGeometryTokens.FLUSH, LauncherGeometryTokens.FLUSH)"));
+
+        assertTrue(runtime.contains("LauncherMotionTokens.RUNTIME_COMMAND_TIMEOUT"));
+        assertTrue(runtime.contains("LauncherMotionTokens.RUNTIME_BOOTSTRAP_TIMEOUT"));
+        assertTrue(runtime.contains("LauncherMotionTokens.RUNTIME_PROBE_TIMEOUT"));
+        assertTrue(runtime.contains("LauncherMotionTokens.RUNTIME_NETWORK_TIMEOUT"));
+        assertTrue(runtime.contains("LauncherMotionTokens.RUNTIME_VALIDATION_TIMEOUT"));
+        assertTrue(runtime.contains("LauncherMotionTokens.RUNTIME_CANCELLATION_GRACE"));
+        assertFalse(runtime.contains("Duration.ofSeconds(20)"));
+        assertFalse(runtime.contains("Duration.ofSeconds(30)"));
+        assertFalse(runtime.contains("Duration.ofMinutes(2)"));
+        assertFalse(runtime.contains("Duration.ofSeconds(2)"));
+
+        assertTrue(gradient.contains("LauncherMotionTokens.GRADIENT_TEXTURE_SCALE"));
+        assertTrue(gradient.contains("LauncherMotionTokens.GRADIENT_SPAN_MULTIPLIER"));
+        assertTrue(gradient.contains("LauncherMotionTokens.GRADIENT_SEAM_OVERLAP_LOGICAL_LENGTH"));
+        assertTrue(gradient.contains("LauncherMotionTokens.GRADIENT_TEXTURE_MAX_PIXEL_HEIGHT"));
+        assertTrue(gradient.contains("LauncherMotionTokens.GRADIENT_DITHER_AMPLITUDE"));
+        assertTrue(gradient.contains("LauncherMotionTokens.GRADIENT_OVERLAY_ALPHA"));
+        assertTrue(gradient.contains("LauncherMotionTokens.GRADIENT_FULL_ALPHA"));
+        assertTrue(gradient.contains("LauncherMotionTokens.GRADIENT_MIN_TEXTURE_PIXELS"));
+        assertFalse(gradient.contains("TEXTURE_SCALE = 3.0d"));
+        assertFalse(gradient.contains("TEXTURE_MAX_PIXEL_HEIGHT = 128"));
+        assertFalse(gradient.contains("DITHER_AMPLITUDE = 1.2d / 255.0d"));
+        assertFalse(gradient.contains("OVERLAY_ALPHA = 0.18d"));
+
+        assertTrue(motionTokens.contains("RUN_LOG_ELAPSED_REFRESH_SECONDS"));
+        assertTrue(motionTokens.contains("AUTOSAVE_DEBOUNCE_MILLIS"));
+        assertTrue(motionTokens.contains("RUNTIME_CANCELLATION_GRACE"));
+        for (String unresolved : List.of(
+                ",raw-literal-needs-token,",
+                ",named-but-semantics-unclear,",
+                ",formula-needs-semantic-name,",
+                ",needs-human-review,")) {
+            assertFalse(motionInventory.contains(unresolved), unresolved);
+        }
+    }
+
+    @Test
+    void launcherTransientSurfacePreviewUsesNamedDialogAndMenuCaptureTiming() throws Exception {
+        String preview = Files.readString(Path.of("src/test/java/qupath/ext/astra/LauncherPreviewApp.java"));
+        String transientInventory = visualFamilyInventory("dialogs-popups-menus-lists");
+
+        assertTrue(preview.contains("HEADER_SETTINGS_MENU_CAPTURE_SECONDS"));
+        assertTrue(preview.contains("HEADER_PROJECT_MENU_CAPTURE_SECONDS"));
+        assertTrue(preview.contains("HEADER_VIEW_MENU_CAPTURE_SECONDS"));
+        assertTrue(preview.contains("SELECTED_IMAGES_DIALOG_CAPTURE_SECONDS"));
+        assertTrue(preview.contains("MULTI_SELECT_DIALOG_CAPTURE_SECONDS"));
+        assertFalse(preview.contains("schedule(2.8, () -> snapshotSurfaceGeometry(\"settings-menu-geometry\""));
+        assertFalse(preview.contains("schedule(4.2, () -> snapshotSurfaceGeometry(\"project-menu-geometry\""));
+        assertFalse(preview.contains("schedule(5.6, () -> snapshotSurfaceGeometry(\"view-menu-geometry\""));
+        assertFalse(preview.contains("schedule(4.1, () -> snapshotSurfaceGeometry(\"selected-images-dialog-geometry\""));
+        assertFalse(preview.contains("schedule(3.6, () -> snapshotSurfaceGeometry(\"multi-select-dialog-geometry\""));
+
+        for (String unresolved : List.of(
+                ",raw-literal-needs-token,",
+                ",named-but-semantics-unclear,",
+                ",formula-needs-semantic-name,",
+                ",needs-human-review,")) {
+            assertFalse(transientInventory.contains(unresolved), unresolved);
+        }
+    }
+
+    @Test
+    void launcherUncategorizedVisualLiteralsUseNamedInlineStylePaths() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
+        String inventory = visualFamilyInventory("css-java-uncategorized-visual-literals");
+
+        assertTrue(source.contains("private static final String CLEARED_INLINE_STYLE = \"\";"));
+        assertTrue(source.contains("private static final String BASE_INLINE_STYLE_PROPERTY = \"astra.baseStyle\";"));
+        assertTrue(source.contains("private static void clearInlineStyle(Node node)"));
+        assertTrue(source.contains("private static void rememberBaseInlineStyle(Node node)"));
+        assertTrue(source.contains("private static void restoreBaseInlineStyle(Node node)"));
+        assertTrue(source.contains("node.setStyle(CLEARED_INLINE_STYLE);"));
+        assertTrue(source.contains("node.getProperties().putIfAbsent(BASE_INLINE_STYLE_PROPERTY"));
+        assertTrue(source.contains("node.getProperties().getOrDefault(BASE_INLINE_STYLE_PROPERTY, CLEARED_INLINE_STYLE)"));
+        assertFalse(source.contains("setStyle(\"\")"));
+        assertFalse(source.contains("putIfAbsent(\"astra.baseStyle\""));
+        assertFalse(source.contains("getOrDefault(\"astra.baseStyle\", \"\")"));
+        assertFalse(source.contains("baseStyle + changedStyle"));
+
+        for (String unresolved : List.of(
+                ",raw-literal-needs-token,",
+                ",named-but-semantics-unclear,",
+                ",formula-needs-semantic-name,",
+                ",needs-human-review,")) {
+            assertFalse(inventory.contains(unresolved), unresolved);
+        }
+    }
+
+    @Test
+    void launcherVisualTokenInventoryHasNoResidualRiskStates() throws Exception {
+        String inventory = Files.readString(Path.of("docs/gui-visual-token-inventory.csv"));
+        String[] lines = inventory.split("\\R");
+        assertTrue(lines[0].contains(",classification,closure_state,recommended_action,"));
+        assertFalse(lines[0].contains(",risk,"));
+        assertFalse(inventory.contains(",high,"));
+        assertFalse(inventory.contains(",medium,"));
+        assertFalse(inventory.contains(",low,"));
+
+        Set<String> acceptedClosureStates = Set.of(
+                "closed-proven",
+                "closed-generated",
+                "closed-test-only");
+        for (int i = 1; i < lines.length; i++) {
+            String line = lines[i];
+            if (line.isBlank()) {
+                continue;
+            }
+            long stateCount = acceptedClosureStates.stream()
+                    .filter(state -> line.contains("," + state + ","))
+                    .count();
+            assertEquals(1L, stateCount, "Expected exactly one closed state in inventory row: " + line);
+        }
+    }
+
+    @Test
+    void launcherCompletedVisualArtifactsAvoidResidualRiskLanguage() throws Exception {
+        String carryForward = Files.readString(Path.of("..", "astra", "rulebook", "carry-forward.md"));
+        String guiCarryForward = carryForward.substring(0, carryForward.indexOf("- Pipeline backend logical smoke-run audit:"));
+        String artifacts = Files.readString(Path.of("docs/gui-visual-token-audit.md"))
+                + Files.readString(Path.of("docs/gui-bevel-token-proof.md"))
+                + Files.readString(Path.of("docs/gui-control-geometry-token-proof.md"))
+                + Files.readString(Path.of("docs/gui-dialog-popup-token-proof.md"))
+                + Files.readString(Path.of("docs/gui-motion-gradient-token-proof.md"))
+                + Files.readString(Path.of("docs/gui-spacing-token-proof.md"))
+                + Files.readString(Path.of("docs/gui-theme-state-token-proof.md"))
+                + Files.readString(Path.of("docs/gui-typography-token-proof.md"))
+                + Files.readString(Path.of("docs/gui-uncategorized-visual-literal-proof.md"))
+                + guiCarryForward;
+
+        for (String stale : List.of(
+                "High-Risk",
+                "high-risk",
+                "medium-risk",
+                "low-risk",
+                "Risk",
+                "risk",
+                "Proof required later",
+                "raw-literal-needs-token",
+                "named-but-semantics-unclear",
+                "formula-needs-semantic-name",
+                "needs-human-review",
+                "still pending")) {
+            assertFalse(artifacts.contains(stale), stale);
+        }
+    }
+
+    @Test
+    void launcherShapeCssUsesGeneratedTokensForShapeProperties() throws Exception {
+        String css = launcherCss();
+
+        assertFalse(css.contains("-launcher-flush"));
+        assertFalse(css.contains("-launcher-surface-border-width"));
+        assertTrue(css.contains("-fx-border-width: "
+                + cssLength(staticDouble(LauncherGeometryTokens.class, "SURFACE_BORDER_WIDTH")) + ";"));
+        assertTrue(css.contains("-fx-border-width: "
+                + cssLength(staticDouble(LauncherGeometryTokens.class, "NO_BORDER_WIDTH")) + ";"));
+        assertTrue(css.contains("-fx-stroke-width: "
+                + cssLength(staticDouble(LauncherGeometryTokens.class, "SURFACE_BORDER_WIDTH")) + ";"));
+        assertTrue(css.contains("-fx-arc-width: "
+                + cssLength(staticDouble(LauncherGeometryTokens.class, "SETTINGS_CARD_ACCENT_ARC")) + ";"));
+        assertTrue(css.contains("-fx-arc-height: "
+                + cssLength(staticDouble(LauncherGeometryTokens.class, "SETTINGS_CARD_ACCENT_ARC")) + ";"));
+        assertTrue(css.contains("-fx-translate-y: "
+                + cssLength(staticDouble(LauncherGeometryTokens.class, "PRESSED_TRANSLATE_Y")) + ";"));
+        assertTrue(css.contains("-fx-translate-y: "
+                + cssLength(staticDouble(LauncherGeometryTokens.class, "CHEVRON_OPTICAL_Y_OFFSET")) + ";"));
+    }
+
+    @Test
     void launcherUsesStandardGroupOrderAndUiOrder() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
@@ -268,7 +556,7 @@ class PipelineLauncherTest {
     @Test
     void launcherSeparatesHoverHelpFromDetailedHelpDialog() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
-        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+        String css = launcherCss();
 
         assertTrue(source.contains("new Tooltip(constant.helpText())"));
         assertTrue(source.contains("info.setOnAction(event -> showParameterHelpDialog(constant))"));
@@ -316,17 +604,15 @@ class PipelineLauncherTest {
         assertFalse(css.contains(".astra-help-summary-grid {\n    -fx-padding:"));
         assertFalse(css.contains(".astra-help-detail-card {\n    -fx-background-color: #ffffff;\n"
                 + "    -fx-border-color: #d2e3e7;\n"
-                + "    -fx-background-radius: 6;\n"
-                + "    -fx-border-radius: 6;\n"
                 + "    -fx-padding:"));
     }
 
     @Test
     void launcherDefinesCardDashboardAndSharedStylesheet() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
-        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/launcher.css"));
 
-        assertTrue(source.contains("LAUNCHER_STYLESHEET_RESOURCE = \"/qupath/ext/astra/astra-launcher.css\""));
+        assertTrue(source.contains("LAUNCHER_STYLESHEET_RESOURCE = \"/qupath/ext/astra/launcher.css\""));
         assertTrue(source.contains("installAstraStyles(dialog.getDialogPane())"));
         assertTrue(source.contains("addStyleClass(root, \"astra-launcher-root\")"));
         assertTrue(source.contains("addStyleClass(grid, \"astra-section-content\")"));
@@ -343,7 +629,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("static Node createChannelPanel(List<ImageChannel> channels)"));
         assertTrue(source.contains("addStyleClass(swatch, \"astra-channel-chip-swatch\")"));
         assertTrue(source.contains("CHANNEL_SWATCH_STROKE_WIDTH ="));
-        assertTrue(source.contains("SURFACE_BORDER_WIDTH / 2.0"));
+        assertTrue(source.contains("SURFACE_BORDER_WIDTH / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR"));
         assertTrue(source.contains("createSettingsCard(section"));
         assertTrue(source.contains("GridPane cards = new GridPane()"));
         assertTrue(source.contains("column.setPercentWidth(100.0d / 3.0d)"));
@@ -386,8 +672,8 @@ class PipelineLauncherTest {
         assertTrue(css.contains(".combo-box-popup .list-view"));
         assertTrue(css.contains(".combo-box-popup .list-cell:filled:selected"));
         assertTrue(css.contains(".combo-box-popup .list-cell:filled:selected .text"));
-        assertTrue(css.contains("-fx-background-color: #1f7a7a;"));
-        assertTrue(css.contains("-fx-fill: #ffffff;"));
+        assertTrue(css.contains("-fx-background-color: -launcher-color-teal;"));
+        assertTrue(css.contains("-fx-fill: -launcher-color-white"));
         assertTrue(css.contains(".context-menu"));
         assertTrue(css.contains(".tooltip"));
         assertTrue(css.contains(".astra-header-menu-button"));
@@ -414,20 +700,14 @@ class PipelineLauncherTest {
         assertFalse(css.contains(".astra-log-view {\n"
                 + "    -fx-background-color: #061720;\n"
                 + "    -fx-border-color: #355b69;\n"
-                + "    -fx-border-radius: 6;\n"
-                + "    -fx-background-radius: 6;\n"
                 + "    -fx-padding:"));
         assertFalse(css.contains(".astra-nested-panel {\n"
                 + "    -fx-background-color: #ffffff;\n"
                 + "    -fx-border-color: #d7e2e6;\n"
-                + "    -fx-border-radius: 6;\n"
-                + "    -fx-background-radius: 6;\n"
                 + "    -fx-padding:"));
         assertFalse(css.contains(".astra-header-options-group {\n"
                 + "    -fx-background-color: #f7fbfc;\n"
-                + "    -fx-background-radius: 6;\n"
                 + "    -fx-border-color: #d2e3e7;\n"
-                + "    -fx-border-radius: 6;\n"
                 + "    -fx-padding:"));
         assertTrue(css.contains("-fx-pref-width: 24px;"));
         assertFalse(css.contains("-fx-pref-width: 28px;"));
@@ -458,7 +738,9 @@ class PipelineLauncherTest {
         assertTrue(source.contains("PROJECT,"));
         assertTrue(source.contains("VIEW"));
         assertTrue(source.contains("private static final double SINGLE_COUNT =\n"
-                + "            LauncherGeometry.LAYOUT_UNIT / LauncherGeometry.LAYOUT_UNIT;"));
+                + "            LauncherGeometryTokens.SINGLE_COUNT;"));
+        assertTrue(source.contains("private static final double BILATERAL_EDGE_COUNT =\n"
+                + "            LauncherGeometryTokens.BILATERAL_EDGE_COUNT;"));
         assertTrue(source.contains("MACRO_ACTION_BUTTON_COUNT =\n"
                 + "            HeaderActionSlot.values().length;"));
         assertTrue(source.contains("private static final double MACRO_ACTION_BUTTON_GAP_COUNT ="));
@@ -471,12 +753,12 @@ class PipelineLauncherTest {
                 + "                ACTION_RIBBON_INSET;"));
         assertTrue(source.contains("private static final double ACTION_RIBBON_SLOPE_WIDTH =\n"
                 + "                ACTION_RIBBON_SIDE_INSET - ACTION_RIBBON_BEVEL_RADIUS;"));
-        assertTrue(source.contains("- (HeaderGeometry.ACTION_RIBBON_INSET * 2.0)"));
+        assertTrue(source.contains("- (HeaderGeometry.ACTION_RIBBON_INSET * BILATERAL_EDGE_COUNT)"));
         assertTrue(source.contains("- (HeaderGeometry.ACTION_CLUSTER_GAP * MACRO_ACTION_BUTTON_GAP_COUNT)"));
         assertTrue(source.contains("/ MACRO_ACTION_BUTTON_COUNT"));
         assertTrue(source.contains("private static double macroActionClusterWidth()"));
         assertTrue(source.contains("private static double actionRibbonHeight()"));
-        assertTrue(source.contains("return PARAMETER_ROW_HEIGHT + (ACTION_RIBBON_INSET * 2.0);"));
+        assertTrue(source.contains("return PARAMETER_ROW_HEIGHT + (ACTION_RIBBON_INSET * BILATERAL_EDGE_COUNT);"));
         assertTrue(source.contains("private static javafx.scene.shape.Path createHeaderRibbonPath(String styleClass)"));
         assertTrue(source.contains("private static void updateHeaderRibbonPath(javafx.scene.shape.Path fill,"));
         assertTrue(source.contains("private static final class ActionTrapezoidGeometry"));
@@ -488,6 +770,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("return Math.abs(outerX - innerX);"));
         assertTrue(source.contains("private static double folderCurveHandle(double run, double bevelRadius)"));
         assertTrue(source.contains("private static final double QUARTER_CURVE_CONTROL ="));
+        assertTrue(source.contains("LauncherGeometryTokens.CUBIC_ARC_HANDLE_RATIO"));
         assertTrue(source.contains("return Math.max(bevelRadius, run) * QUARTER_CURVE_CONTROL;"));
         assertTrue(source.contains("private static double bevelCurveHandle(double bevelRadius)"));
         assertTrue(source.contains("return bevelRadius * QUARTER_CURVE_CONTROL;"));
@@ -600,7 +883,7 @@ class PipelineLauncherTest {
         assertTrue(guiText.contains("static Button helpButton(String text)"));
         assertTrue(guiText.contains("button.getStyleClass().add(\"astra-help-control\")"));
         assertFalse(guiText.contains("setId(\"astra-help-control\")"));
-        assertTrue(css.contains("-fx-background-insets: 0;"));
+        assertTrue(css.contains("-fx-background-insets: 0px;"));
         assertTrue(css.contains(".astra-button:hover"));
         assertTrue(css.contains("-fx-effect: null;"));
         assertFalse(css.contains("-fx-translate-y: 1;"));
@@ -669,7 +952,7 @@ class PipelineLauncherTest {
         if (!Files.exists(provenancePath)) {
             return;
         }
-        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/launcher.css"));
         List<String> provenanceRows = Files.readAllLines(provenancePath);
         Pattern layoutDeclaration = Pattern.compile(
                 "-fx-(padding|spacing|border-radius|background-radius|min-width|pref-width|max-width|min-height|pref-height|max-height|translate-[xy]|background-insets|border-insets):\\s*([^;]+);");
@@ -698,7 +981,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("stepList.setMaxWidth(Double.MAX_VALUE);"));
         assertTrue(source.contains("progressBar.setMaxWidth(Double.MAX_VALUE);"));
         assertTrue(source.contains("Clipboard.getSystemClipboard().setContent(content);"));
-        assertTrue(source.contains("new Timeline(new KeyFrame(javafx.util.Duration.seconds(1.0)"));
+        assertTrue(source.contains("javafx.util.Duration.seconds(LauncherMotionTokens.RUN_LOG_ELAPSED_REFRESH_SECONDS)"));
         assertTrue(source.contains("createInstallProgressRoot(phase, detail, elapsed, stepList, resultTitle, resultBody,"));
         assertTrue(source.contains("progressBar.setMinHeight(InstallerGeometry.PROGRESS_BAR_HEIGHT);"));
         assertTrue(source.contains("addAstraStylesheet(scene);"));
@@ -712,17 +995,28 @@ class PipelineLauncherTest {
     @Test
     void tooltipGeometryUsesSharedTokensAndPreviewMode() throws Exception {
         String tokens = Files.readString(Path.of("src/main/java/qupath/ext/astra/LauncherGeometryTokens.java"));
-        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/launcher.css"));
         String preview = Files.readString(Path.of("src/test/java/qupath/ext/astra/LauncherPreviewApp.java"));
 
         assertTrue(tokens.contains("TOOLTIP_VERTICAL_INSET = INTRA_PANEL_TIGHT_GAP"));
         assertTrue(tokens.contains("TOOLTIP_HORIZONTAL_INSET = INTRA_PANEL_SUBTLE_GAP"));
-        assertTrue(css.contains("Mirrors LauncherGeometryTokens tooltip inset formulas"));
         assertTrue(css.contains("-fx-padding: 4px 8px 4px 8px;"));
         assertTrue(preview.contains("\"tooltip-geometry\".equals(snapshotMode)"));
         assertTrue(preview.contains("\"help-dialog-geometry\".equals(snapshotMode)"));
         assertTrue(preview.contains("Surface.TOOLTIP"));
         assertTrue(preview.contains("addTooltipMeasurements(sceneRoot, measurements)"));
+    }
+
+    @Test
+    void previewEdgeAuditUsesRenderedSnapshotDimensionsWhenLayoutBoundsAreEmpty() throws Exception {
+        String preview = Files.readString(Path.of("src/test/java/qupath/ext/astra/LauncherPreviewApp.java"));
+
+        assertTrue(preview.contains("snapshotFloorDimension(bounds.getWidth(), raw.getWidth())"));
+        assertTrue(preview.contains("snapshotFloorDimension(bounds.getHeight(), raw.getHeight())"));
+        assertTrue(preview.contains("private static int snapshotFloorDimension(double layoutDimension, double snapshotDimension)"));
+        assertTrue(preview.contains("layoutDimension > LauncherGeometryTokens.FLUSH ? layoutDimension : snapshotDimension"));
+        assertTrue(preview.contains("Scene scene = new Scene(panel);"));
+        assertTrue(preview.contains("stage.sizeToScene();"));
     }
 
     @Test
@@ -764,7 +1058,7 @@ class PipelineLauncherTest {
     @Test
     void previewSnapshotsWriteRawEvidenceAndEdgeAudit() throws Exception {
         String preview = Files.readString(Path.of("src/test/java/qupath/ext/astra/LauncherPreviewApp.java"));
-        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/launcher.css"));
 
         assertTrue(preview.contains("private record SnapshotCapture(WritableImage raw,"));
         assertTrue(preview.contains("int floorWidth,"));
@@ -785,7 +1079,7 @@ class PipelineLauncherTest {
         assertTrue(preview.contains("BufferedImage buffered = SwingFXUtils.fromFXImage(capture.normalized(), null);"));
         assertFalse(preview.contains("WritableImage image = sceneRoot.snapshot(new SnapshotParameters(), null);"));
         assertFalse(preview.contains("WritableImage image = root.snapshot(new SnapshotParameters(), null);"));
-        assertTrue(css.contains(".astra-launcher-dialog-pane {\n    -fx-background-color: #f4f7f8;\n}"));
+        assertTrue(css.contains(".astra-launcher-dialog-pane {\n    -fx-background-color: -launcher-color-paper;\n}"));
     }
 
     @Test
@@ -1021,7 +1315,7 @@ class PipelineLauncherTest {
 
         assertTrue(source.contains("private Timeline pendingSave;"));
         assertTrue(source.contains("scheduleSaveCurrent();"));
-        assertTrue(source.contains("Duration.millis(350.0)"));
+        assertTrue(source.contains("Duration.millis(LauncherMotionTokens.AUTOSAVE_DEBOUNCE_MILLIS)"));
         assertTrue(source.contains("isTransientAutosaveState(e)"));
         assertTrue(source.contains("message.contains(\" must not be blank.\")"));
         assertTrue(source.contains("catch (RuntimeException e)"));
@@ -1415,14 +1709,27 @@ class PipelineLauncherTest {
     void launcherSourceUsesOneContentRailAndSharedRowHeight() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
         String sharedGeometry = Files.readString(Path.of("src/main/java/qupath/ext/astra/LauncherGeometryTokens.java"));
-        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/launcher.css"));
 
         assertTrue(sharedGeometry.contains("static final double LAYOUT_UNIT = 24.0;"));
+        assertTrue(sharedGeometry.contains("static final double SINGLE_COUNT = LAYOUT_UNIT / LAYOUT_UNIT;"));
+        assertTrue(sharedGeometry.contains("static final double BILATERAL_EDGE_COUNT = SINGLE_COUNT + SINGLE_COUNT;"));
+        assertTrue(sharedGeometry.contains("static final double TRILATERAL_EDGE_COUNT = BILATERAL_EDGE_COUNT + SINGLE_COUNT;"));
         assertTrue(sharedGeometry.contains("static final double OUTER_MARGIN = LAYOUT_UNIT;"));
-        assertTrue(sharedGeometry.contains("static final double INTRA_PANEL_MARGIN = OUTER_MARGIN / 2.0;"));
-        assertTrue(sharedGeometry.contains("static final double INTRA_PANEL_TIGHT_GAP = INTRA_PANEL_MARGIN / 3.0;"));
-        assertTrue(sharedGeometry.contains("static final double INTRA_PANEL_SUBTLE_GAP = INTRA_PANEL_MARGIN * 2.0 / 3.0;"));
+        assertTrue(sharedGeometry.contains("static final double INTRA_PANEL_MARGIN = OUTER_MARGIN / BILATERAL_EDGE_COUNT;"));
+        assertTrue(sharedGeometry.contains("static final double INTRA_PANEL_TIGHT_GAP = INTRA_PANEL_MARGIN / TRILATERAL_EDGE_COUNT;"));
+        assertTrue(sharedGeometry.contains("static final double INTRA_PANEL_SUBTLE_GAP =\n"
+                + "            INTRA_PANEL_MARGIN * BILATERAL_EDGE_COUNT / TRILATERAL_EDGE_COUNT;"));
         assertTrue(sharedGeometry.contains("static final double SURFACE_BORDER_WIDTH = LAYOUT_UNIT / 24.0;"));
+        assertTrue(sharedGeometry.contains("static final double BEVEL_DIAMETER_DIVISOR = OUTER_MARGIN / INTRA_PANEL_MARGIN;"));
+        assertTrue(sharedGeometry.contains("static final double CUBIC_ARC_HANDLE_RATIO ="));
+        assertTrue(sharedGeometry.contains("static final double COMPACT_BEVEL_RADIUS = INTRA_PANEL_TIGHT_GAP;"));
+        assertTrue(sharedGeometry.contains("static final double CONTROL_BEVEL_RADIUS ="));
+        assertTrue(sharedGeometry.contains("static final double CARD_BEVEL_RADIUS ="));
+        assertTrue(sharedGeometry.contains("static final double SURFACE_BEVEL_RADIUS = INTRA_PANEL_SUBTLE_GAP;"));
+        assertTrue(sharedGeometry.contains("static final double BADGE_BEVEL_RADIUS ="));
+        assertTrue(sharedGeometry.contains("static final double DIALOG_BEVEL_RADIUS ="));
+        assertTrue(sharedGeometry.contains("static final double WORKFLOW_PILL_BEVEL_RADIUS ="));
         assertTrue(source.contains("private static final class LauncherGeometry"));
         assertTrue(source.contains("private static final double LAYOUT_UNIT = LauncherGeometryTokens.LAYOUT_UNIT;"));
         assertTrue(source.contains("private static final double OUTER_MARGIN = LauncherGeometryTokens.OUTER_MARGIN;"));
@@ -1433,8 +1740,13 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private static Insets intraPanelPadding()"));
         assertTrue(source.contains("return LauncherGeometryTokens.intraPanelPadding();"));
         assertTrue(source.contains("private static final double SCROLLBAR_GUTTER_WIDTH = OUTER_MARGIN;"));
-        assertTrue(source.contains("private static final double SCROLLBAR_THUMB_WIDTH = SCROLLBAR_GUTTER_WIDTH / 3.0;"));
-        assertTrue(source.contains("(SCROLLBAR_GUTTER_WIDTH - SCROLLBAR_THUMB_WIDTH) / 2.0"));
+        assertTrue(sharedGeometry.contains("static final double SCROLLBAR_THUMB_GUTTER_DIVISOR ="));
+        assertTrue(sharedGeometry.contains("static final double SCROLLBAR_SIDE_PADDING_DIVISOR ="));
+        assertTrue(source.contains("private static final double SCROLLBAR_THUMB_WIDTH =\n"
+                + "                SCROLLBAR_GUTTER_WIDTH\n"
+                + "                        / LauncherGeometryTokens.SCROLLBAR_THUMB_GUTTER_DIVISOR;"));
+        assertTrue(source.contains("(SCROLLBAR_GUTTER_WIDTH - SCROLLBAR_THUMB_WIDTH)\n"
+                + "                        / LauncherGeometryTokens.SCROLLBAR_SIDE_PADDING_DIVISOR;"));
         assertTrue(source.contains("private static final double INPUT_CONTENT_TO_BAR_GAP =\n                OUTER_MARGIN - SCROLLBAR_SIDE_PADDING;"));
         assertTrue(source.contains("private static final double INTER_PANE_GAP =\n                OUTER_MARGIN - SCROLLBAR_SIDE_PADDING;"));
         assertFalse(source.contains("BUTTON_BAR_INTERNAL_VERTICAL_OFFSET"));
@@ -1450,7 +1762,7 @@ class PipelineLauncherTest {
                 + "                    + LauncherGeometry.INTRA_PANEL_TIGHT_GAP;"));
         assertTrue(source.contains("private static final double PARAMETER_HELP_COLUMN_WIDTH =\n"
                 + "            LauncherGeometry.LAYOUT_UNIT\n"
-                + "                    - (BORDER_WIDTH * 2.0);"));
+                + "                    - (BORDER_WIDTH * BILATERAL_EDGE_COUNT);"));
         assertTrue(source.contains("private static final double PARAMETER_ANCHOR_WIDTH =\n"
                 + "            LauncherGeometry.LAYOUT_UNIT / 4.0;"));
         assertTrue(source.contains("private static final double PARAMETER_ANCHOR_COLUMN_WIDTH =\n"
@@ -1460,9 +1772,10 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private static final double PARAMETER_ANCHOR_HEIGHT =\n"
                 + "            PARAMETER_FIRST_ROW_HEIGHT;"));
         assertTrue(source.contains("private static final double PARAMETER_ANCHOR_PAINT_RADIUS =\n"
-                + "            Math.min(PARAMETER_ANCHOR_WIDTH, PARAMETER_FIRST_ROW_HEIGHT) / 2.0;"));
+                + "            Math.min(PARAMETER_ANCHOR_WIDTH, PARAMETER_FIRST_ROW_HEIGHT)\n"
+                + "                    / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR;"));
         assertTrue(source.contains("private static final double PARAMETER_ANCHOR_PAINT_ARC =\n"
-                + "            PARAMETER_ANCHOR_PAINT_RADIUS * 2.0;"));
+                + "            PARAMETER_ANCHOR_PAINT_RADIUS * LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR;"));
         assertTrue(source.contains("private static final double PARAMETER_HELP_BUTTON_SIZE =\n"
                 + "            PARAMETER_HELP_COLUMN_WIDTH\n"
                 + "                    - LauncherGeometry.INTRA_PANEL_TIGHT_GAP;"));
@@ -1489,7 +1802,9 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private static final double PARAMETER_GRID_TEXT_RAIL =\n"
                 + "            LauncherGeometry.INTRA_PANEL_MARGIN + BORDER_WIDTH + PARAMETER_ROW_TEXT_RAIL;"));
         assertTrue(source.contains("private static final double DEPENDENT_PANEL_LEFT_INSET =\n"
-                + "            ACCENT_INDENT - (BORDER_WIDTH * 2.0) - PARAMETER_ROW_EDGE_TO_BAR_GAP;"));
+                + "            ACCENT_INDENT\n"
+                + "                    - (BORDER_WIDTH * BILATERAL_EDGE_COUNT)\n"
+                + "                    - PARAMETER_ROW_EDGE_TO_BAR_GAP;"));
         assertTrue(source.contains("private static final double DEPENDENT_ROWS_LEFT_INSET =\n"
                 + "            DEPENDENT_PANEL_LEFT_INSET + BORDER_WIDTH;"));
         assertTrue(source.contains("private static final double DEPENDENT_PANEL_OUTER_LEFT_MARGIN =\n"
@@ -1505,7 +1820,16 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private static Insets parameterGridPadding()"));
         assertTrue(source.contains("LauncherGeometry.INTRA_PANEL_MARGIN);"));
         assertTrue(source.contains("private static Insets mainActionBarPadding()"));
-        assertTrue(source.contains("LauncherGeometry.FLUSH,\n                LauncherGeometry.OUTER_MARGIN,\n                LauncherGeometry.FLUSH,\n                LauncherGeometry.OUTER_MARGIN);"));
+        assertTrue(source.contains("private static final double ACTION_BUTTON_OUTER_GAP =\n"
+                + "                LauncherGeometry.OUTER_MARGIN;"));
+        assertTrue(source.contains("private static final double ACTION_SHELL_PLACEMENT_GAP =\n"
+                + "                ACTION_BUTTON_OUTER_GAP - ACTION_SHELL_INSET;"));
+        assertTrue(source.contains("private static final double ACTION_SHELL_TOP_PLACEMENT_GAP =\n"
+                + "                ACTION_BUTTON_OUTER_GAP\n"
+                + "                        - LauncherGeometry.OUTER_MARGIN\n"
+                + "                        - ACTION_SHELL_INSET;"));
+        assertTrue(source.contains("private static Insets actionBarPadding()"));
+        assertTrue(source.contains("return FooterGeometry.actionBarPadding();"));
         assertTrue(source.contains("private static Insets parameterRowPadding()"));
         assertTrue(source.contains("private static Insets dependentPanelPadding()"));
         assertTrue(source.contains("private static Insets dependentRowsPadding()"));
@@ -1513,7 +1837,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private static Insets dependentPanelGridMargin()"));
         assertTrue(source.contains("private static double parameterLabelTextWidth(double labelColumnWidth,\n"
                 + "                                                  double labelColumnGap)"));
-        assertTrue(source.contains("- (labelColumnGap * 2.0);"));
+        assertTrue(source.contains("- (labelColumnGap * BILATERAL_EDGE_COUNT);"));
         assertTrue(source.contains("header.setPadding(LauncherGeometry.uniformOuterMargin());"));
         assertTrue(source.contains("private static final class HeaderGeometry"));
         assertTrue(source.contains("private static final double HEADER_STACK_GAP =\n"
@@ -1545,9 +1869,9 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private static final double MENU_POPUP_WIDTH =\n"
                 + "                MENU_WIDTH"));
         assertTrue(source.contains("private static final double SIMPLE_MENU_ITEM_SHELL_INSET =\n"
-                + "                OPTIONS_PANEL_INSET - (SURFACE_BORDER_WIDTH * 2.0);"));
+                + "                OPTIONS_PANEL_INSET - (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);"));
         assertTrue(source.contains("private static final double MENU_ITEM_WIDTH =\n"
-                + "                MENU_WIDTH - (OPTIONS_PANEL_INSET * 2.0);"));
+                + "                MENU_WIDTH - (OPTIONS_PANEL_INSET * BILATERAL_EDGE_COUNT);"));
         assertTrue(source.contains("VBox header = new VBox(HeaderGeometry.HEADER_STACK_GAP);"));
         assertTrue(source.contains("HBox titleRow = new HBox(HeaderGeometry.TITLE_ROW_GAP);"));
         assertTrue(source.contains("VBox titleBlock = new VBox(HeaderGeometry.TITLE_BLOCK_GAP);"));
@@ -1590,14 +1914,14 @@ class PipelineLauncherTest {
         assertTrue(css.contains(".astra-launcher-dialog-pane .button-bar"));
         assertTrue(css.contains("-fx-pref-height: 0;"));
         assertTrue(css.contains(".astra-dependent-panel"));
-        assertTrue(css.contains("-fx-border-width: 1;"));
+        assertTrue(css.contains("-fx-border-width: 1px;"));
         assertTrue(source.contains("button.setMinHeight(PARAMETER_ROW_HEIGHT);"));
         assertTrue(source.contains("button.setPrefHeight(PARAMETER_ROW_HEIGHT);"));
         assertTrue(css.contains("Mirrors PipelineLauncher.LauncherGeometry"));
         assertTrue(css.contains("-fx-pref-width: 24px;"));
         assertTrue(css.contains("-fx-min-width: 24px;"));
         assertTrue(css.contains("-fx-max-width: 24px;"));
-        assertTrue(css.contains("-fx-padding: 0 8 0 8;"));
+        assertTrue(css.contains("-fx-padding: 0px 8px 0px 8px;"));
         assertFalse(css.contains("-fx-min-height: 58px;"));
         assertFalse(css.contains("-fx-pref-height: 58px;"));
         assertFalse(css.contains("-fx-padding: 0 24 24 24;"));
@@ -1642,8 +1966,13 @@ class PipelineLauncherTest {
 
         assertEquals(outerMargin, inputStackGap);
         assertEquals(outerMargin, scrollbarGutter);
-        assertEquals(scrollbarGutter / 3.0d, scrollbarThumb);
-        assertEquals((scrollbarGutter - scrollbarThumb) / 2.0d, scrollbarSidePadding);
+        assertEquals(
+                scrollbarGutter / staticDouble(LauncherGeometryTokens.class, "SCROLLBAR_THUMB_GUTTER_DIVISOR"),
+                scrollbarThumb);
+        assertEquals(
+                (scrollbarGutter - scrollbarThumb)
+                        / staticDouble(LauncherGeometryTokens.class, "SCROLLBAR_SIDE_PADDING_DIVISOR"),
+                scrollbarSidePadding);
         assertEquals(outerMargin - scrollbarSidePadding, inputContentToBarGap);
         assertEquals(outerMargin - scrollbarSidePadding, interPaneGap);
         assertEquals(outerMargin, inputContentToBarGap + scrollbarSidePadding);
@@ -1652,7 +1981,7 @@ class PipelineLauncherTest {
 
     @Test
     void settingsScrollbarCssMirrorsLauncherGeometry() throws Exception {
-        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/launcher.css"));
         Class<?> launcherGeometry = nestedClass(PipelineLauncher.class, "LauncherGeometry");
 
         double gutter = staticDouble(launcherGeometry, "SCROLLBAR_GUTTER_WIDTH");
@@ -1663,7 +1992,8 @@ class PipelineLauncherTest {
         assertEquals(gutter, cssPx(scrollbarBlock, "-fx-pref-width"));
         assertEquals(gutter, cssPx(scrollbarBlock, "-fx-min-width"));
         assertEquals(gutter, cssPx(scrollbarBlock, "-fx-max-width"));
-        assertTrue(scrollbarBlock.contains("-fx-padding: 0 %.0f 0 %.0f;".formatted(sidePadding, sidePadding)));
+        assertEquals(sidePadding, staticDouble(LauncherGeometryTokens.class, "INTRA_PANEL_SUBTLE_GAP"));
+        assertTrue(scrollbarBlock.contains("-fx-padding: 0px 8px 0px 8px;"));
     }
 
     @Test
@@ -1762,8 +2092,10 @@ class PipelineLauncherTest {
         assertEquals(anchorWidth, anchorColumnWidth);
         assertEquals(rowHeight, firstRowHeight);
         assertEquals(firstRowHeight, anchorHeight);
-        assertEquals(Math.min(anchorWidth, firstRowHeight) / 2.0d, anchorPaintRadius);
-        assertEquals(anchorPaintRadius * 2.0d, anchorPaintArc);
+        double bevelDiameterDivisor = staticDouble(LauncherGeometryTokens.class,
+                "BEVEL_DIAMETER_DIVISOR");
+        assertEquals(Math.min(anchorWidth, firstRowHeight) / bevelDiameterDivisor, anchorPaintRadius);
+        assertEquals(anchorPaintRadius * bevelDiameterDivisor, anchorPaintArc);
         assertEquals(helpColumnWidth - intraPanelTightGap, helpButtonSize);
         assertEquals(intraPanelMargin + borderWidth + rowEdgeToBarGap, accentIndent);
         assertEquals(accentIndent - barWidth, barToTextGap);
@@ -1875,7 +2207,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("showHeaderActionMenu(button, menu)"));
         assertTrue(source.contains("preferredHeaderMenuX("));
         assertTrue(source.contains("MENU_RENDERED_POPUP_WIDTH ="));
-        assertTrue(source.contains("MENU_POPUP_WIDTH + (MENU_EDGE_MARGIN * 2.0)"));
+        assertTrue(source.contains("MENU_POPUP_WIDTH + (MENU_EDGE_MARGIN * BILATERAL_EDGE_COUNT)"));
         assertTrue(source.contains("MENU_ANCHOR_TO_WINDOW_OFFSET ="));
         assertTrue(source.contains("MENU_EDGE_MARGIN;"));
         assertTrue(source.contains("Window popupWindow = menu.getScene() == null ? null : menu.getScene().getWindow();"));
@@ -1918,7 +2250,8 @@ class PipelineLauncherTest {
     @Test
     void launcherSourceUsesSharedLabeledRowsForConsistentVerticalSpacing() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
-        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/launcher.css"));
+        String sharedGeometry = Files.readString(Path.of("src/main/java/qupath/ext/astra/LauncherGeometryTokens.java"));
 
         assertTrue(source.contains("private static HBox labeledRow(String labelText, Node editor, double labelWidth)"));
         assertTrue(source.contains("row.setMinHeight(PARAMETER_ROW_HEIGHT);"));
@@ -1966,25 +2299,26 @@ class PipelineLauncherTest {
         assertTrue(source.contains("HBox shell = new HBox(DASHBOARD_CARD_ACCENT_TO_CONTENT_GAP, accent, content);"));
         assertFalse(css.contains(".astra-settings-card {\n    -fx-background-color: #ffffff;\n"
                 + "    -fx-border-color: #c8dce1;\n"
-                + "    -fx-border-radius: 7;\n"
-                + "    -fx-background-radius: 7;\n"
                 + "    -fx-padding:"));
-        assertTrue(source.contains("private static final int MULTI_SELECT_BUTTON_SUMMARY_LIMIT = 64;"));
+        assertTrue(sharedGeometry.contains("static final int MULTI_SELECT_SUMMARY_CHARACTER_LIMIT ="));
+        assertTrue(source.contains("private static final int MULTI_SELECT_BUTTON_SUMMARY_LIMIT =\n"
+                + "            LauncherGeometryTokens.MULTI_SELECT_SUMMARY_CHARACTER_LIMIT;"));
         assertTrue(source.contains("selectedButtonText(selectedValues)"));
         assertTrue(source.contains("double labelColumnWidth = dependent ? DEPENDENT_LABEL_COLUMN_WIDTH : PARAMETER_LABEL_COLUMN_WIDTH;"));
         assertTrue(source.contains("double labelColumnGap = dependent ? DEPENDENT_LABEL_COLUMN_GAP : PARAMETER_LABEL_COLUMN_GAP;"));
         assertTrue(source.contains("private static final double TEXT_OPTICAL_INSET_CORRECTION =\n"
-                + "            LauncherGeometry.FLUSH;"));
+                + "            LauncherTypographyTokens.TEXT_OPTICAL_INSET_CORRECTION;"));
         assertTrue(source.contains("RailText label = railText(displayLabel(constant.name), labelTextWidth,"));
         assertTrue(source.contains("private static final class RailText extends Text"));
         assertTrue(source.contains("setBoundsType(TextBoundsType.VISUAL);"));
         assertTrue(source.contains("setTranslateX(TEXT_OPTICAL_INSET_CORRECTION);"));
+        assertTrue(css.contains(".astra-parameter-label {"));
         assertTrue(css.contains(".astra-parameter-label {\n"
                 + "    -fx-font-size: 12px;\n"
                 + "    -fx-font-weight: bold;\n"
-                + "    -fx-text-fill: #172431;\n"
-                + "    -fx-fill: #172431;\n"
-                + "    -fx-padding: 0;\n"
+                + "    -fx-text-fill: -launcher-color-ink;\n"
+                + "    -fx-fill: -launcher-color-ink;\n"
+                + "    -fx-padding: 0px;\n"
                 + "}"));
         assertTrue(source.contains("double labelTextWidth = parameterLabelTextWidth(labelColumnWidth, labelColumnGap);"));
         assertTrue(source.contains("labelBox.setHgap(labelColumnGap);"));
@@ -2155,11 +2489,11 @@ class PipelineLauncherTest {
     @Test
     void railTextStylesAndDiagnosticsCoverRenderedInkContract() throws Exception {
         String launcher = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
-        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/launcher.css"));
         String preview = Files.readString(Path.of("src/test/java/qupath/ext/astra/LauncherPreviewApp.java"));
 
         assertTrue(launcher.contains("private static final double TEXT_OPTICAL_INSET_CORRECTION =\n"
-                + "            LauncherGeometry.FLUSH;"));
+                + "            LauncherTypographyTokens.TEXT_OPTICAL_INSET_CORRECTION;"));
         assertTrue(launcher.contains("private static final class RailText extends Text"));
         assertTrue(launcher.contains("setBoundsType(TextBoundsType.VISUAL);"));
         assertTrue(launcher.contains("setTranslateX(TEXT_OPTICAL_INSET_CORRECTION);"));
@@ -2197,7 +2531,7 @@ class PipelineLauncherTest {
         String launcher = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
         String surface = Files.readString(Path.of("src/main/java/qupath/ext/astra/AnimatedGradientSurface.java"));
         String preview = Files.readString(Path.of("src/test/java/qupath/ext/astra/LauncherPreviewApp.java"));
-        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/launcher.css"));
         String tokens = Files.readString(Path.of("src/main/java/qupath/ext/astra/LauncherGeometryTokens.java"));
 
         assertTrue(surface.contains("enum Direction"));
@@ -2207,7 +2541,7 @@ class PipelineLauncherTest {
         assertTrue(surface.contains("MODE_PROPERTY"));
         assertTrue(surface.contains("SPEED_PROPERTY"));
         assertTrue(surface.contains("REPAINT_ELIGIBLE_PROPERTY"));
-        assertTrue(surface.contains("SEAM_OVERLAP_LOGICAL_LENGTH = 1.0d / TEXTURE_SCALE"));
+        assertTrue(surface.contains("LauncherMotionTokens.GRADIENT_SEAM_OVERLAP_LOGICAL_LENGTH"));
         assertTrue(surface.contains("trailingStrip.setLayoutY(phase - SEAM_OVERLAP_LOGICAL_LENGTH);"));
         assertTrue(surface.contains("trailingStrip.setLayoutX(stripLogicalLength - phase - SEAM_OVERLAP_LOGICAL_LENGTH);"));
         assertTrue(surface.contains("isSeamEdge(axis, axisPixels) ? 0.0d : dither(x, y)"));
@@ -2552,13 +2886,15 @@ class PipelineLauncherTest {
     @Test
     void comboBoxSelectedValueUsesReadableTextColor() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
-        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/astra-launcher.css"));
+        String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/launcher.css"));
+        String sharedGeometry = Files.readString(Path.of("src/main/java/qupath/ext/astra/LauncherGeometryTokens.java"));
 
         assertTrue(source.contains("private static final class ControlGeometry"));
         assertTrue(source.contains("private static final double COMBO_CELL_VERTICAL_INSET =\n"
                 + "                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP - SURFACE_BORDER_WIDTH;"));
         assertTrue(source.contains("private static final double COMBO_CELL_HORIZONTAL_INSET =\n"
-                + "                LauncherGeometry.INTRA_PANEL_MARGIN - (SURFACE_BORDER_WIDTH * 2.0);"));
+                + "                LauncherGeometry.INTRA_PANEL_MARGIN\n"
+                + "                        - (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);"));
         assertTrue(source.contains("private static final class SelectionGeometry"));
         assertTrue(source.contains("private static final double EDITOR_STACK_GAP =\n"
                 + "                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP - SURFACE_BORDER_WIDTH;"));
@@ -2570,6 +2906,12 @@ class PipelineLauncherTest {
                 + "                LauncherGeometry.LAYOUT_UNIT * 25.0 / 2.0;"));
         assertTrue(source.contains("private static final double PROJECT_LIST_HEIGHT =\n"
                 + "                LauncherGeometry.LAYOUT_UNIT * 40.0 / 3.0;"));
+        assertTrue(sharedGeometry.contains("static final double SINGLE_LIST_WIDTH_SCALE ="));
+        assertTrue(sharedGeometry.contains("static final double SINGLE_LIST_HEIGHT_SCALE ="));
+        assertTrue(source.contains("private static final double SINGLE_LIST_WIDTH =\n"
+                + "                PROJECT_LIST_WIDTH * LauncherGeometryTokens.SINGLE_LIST_WIDTH_SCALE;"));
+        assertTrue(source.contains("private static final double SINGLE_LIST_HEIGHT =\n"
+                + "                PROJECT_LIST_HEIGHT * LauncherGeometryTokens.SINGLE_LIST_HEIGHT_SCALE;"));
         assertTrue(source.contains("private static Insets comboCellPadding()"));
         assertTrue(source.contains("private static void styleComboCell(ListCell<?> cell)"));
         assertTrue(source.contains("cell.setPadding(comboCellPadding());"));
@@ -3284,7 +3626,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("output.appendText(text, RunLogSource.QUPATH"));
         assertTrue(source.contains("feedback.appendScriptText(text, error);"));
         assertTrue(view.contains("copyButton.setText(\"Copied\")"));
-        assertTrue(view.contains("new PauseTransition(Duration.seconds(1.2))"));
+        assertTrue(view.contains("Duration.seconds(LauncherMotionTokens.COPY_FEEDBACK_SECONDS)"));
         assertTrue(view.contains("styleCopyButton(copyButton, true)"));
         assertTrue(view.contains("Button copyButton()"));
         assertTrue(source.contains("Button copyButton = output.copyButton();"));
@@ -3340,7 +3682,7 @@ class PipelineLauncherTest {
         assertTrue(view.contains("RunLogErrorAdvisor.advise"));
         assertTrue(view.contains("appendProgressLine(entry)"));
         assertTrue(view.contains("refreshTimelineElapsed()"));
-        assertTrue(source.contains("new Timeline(new KeyFrame(Duration.seconds(1.0)"));
+        assertTrue(source.contains("Duration.seconds(LauncherMotionTokens.RUN_LOG_ELAPSED_REFRESH_SECONDS)"));
         assertTrue(source.contains("elapsedHeartbeat.playFromStart()"));
         assertTrue(source.contains("elapsedHeartbeat.stop()"));
         assertFalse(source.contains("append(\"[LOG] \" + text)"));
@@ -3419,6 +3761,226 @@ class PipelineLauncherTest {
     private static String realBaseScript(String relativePath) throws Exception {
         Path path = currentBaseScriptPath(relativePath);
         return Files.readString(path);
+    }
+
+    private static String launcherCss() throws Exception {
+        return Files.readString(Path.of("src/main/resources/qupath/ext/astra/launcher.css"));
+    }
+
+    private static String spacingFamilyInventory() throws Exception {
+        return Files.readString(Path.of("docs/gui-visual-token-inventory.csv"))
+                .lines()
+                .filter(line -> line.contains(",margins-padding-gaps-spacing,"))
+                .reduce("", (left, right) -> left + right + "\n");
+    }
+
+    private static String typographyFamilyInventory() throws Exception {
+        return Files.readString(Path.of("docs/gui-visual-token-inventory.csv"))
+                .lines()
+                .filter(line -> line.contains(",typography-text-ink,"))
+                .reduce("", (left, right) -> left + right + "\n");
+    }
+
+    private static String visualFamilyInventory(String family) throws Exception {
+        return Files.readString(Path.of("docs/gui-visual-token-inventory.csv"))
+                .lines()
+                .filter(line -> line.contains("," + family + ","))
+                .reduce("", (left, right) -> left + right + "\n");
+    }
+
+    private static String expectedLauncherTokenCss() throws Exception {
+        double flush = staticDouble(LauncherGeometryTokens.class, "FLUSH");
+        double layoutUnit = staticDouble(LauncherGeometryTokens.class, "LAYOUT_UNIT");
+        double surfaceBorderWidth = staticDouble(LauncherGeometryTokens.class, "SURFACE_BORDER_WIDTH");
+        double noBorderWidth = staticDouble(LauncherGeometryTokens.class, "NO_BORDER_WIDTH");
+        double bilateralBorderWidth = staticDouble(LauncherGeometryTokens.class, "BILATERAL_BORDER_WIDTH");
+        double intraPanelTightGap = staticDouble(LauncherGeometryTokens.class, "INTRA_PANEL_TIGHT_GAP");
+        double intraPanelSubtleGap = staticDouble(LauncherGeometryTokens.class, "INTRA_PANEL_SUBTLE_GAP");
+        double intraPanelMargin = staticDouble(LauncherGeometryTokens.class, "INTRA_PANEL_MARGIN");
+        double bilateralEdgeCount = staticDouble(LauncherGeometryTokens.class, "BILATERAL_EDGE_COUNT");
+        double compactBevelRadius = staticDouble(LauncherGeometryTokens.class, "COMPACT_BEVEL_RADIUS");
+        double controlBevelRadius = staticDouble(LauncherGeometryTokens.class, "CONTROL_BEVEL_RADIUS");
+        double settingsCardAccentArc = staticDouble(LauncherGeometryTokens.class, "SETTINGS_CARD_ACCENT_ARC");
+        double subpanelBevelRadius = staticDouble(LauncherGeometryTokens.class, "SUBPANEL_BEVEL_RADIUS");
+        double cardBevelRadius = staticDouble(LauncherGeometryTokens.class, "CARD_BEVEL_RADIUS");
+        double surfaceBevelRadius = staticDouble(LauncherGeometryTokens.class, "SURFACE_BEVEL_RADIUS");
+        double helpBevelRadius = staticDouble(LauncherGeometryTokens.class, "HELP_BEVEL_RADIUS");
+        double badgeBevelRadius = staticDouble(LauncherGeometryTokens.class, "BADGE_BEVEL_RADIUS");
+        double fillerBevelRadius = staticDouble(LauncherGeometryTokens.class, "FILLER_BEVEL_RADIUS");
+        double dialogBevelRadius = staticDouble(LauncherGeometryTokens.class, "DIALOG_BEVEL_RADIUS");
+        double workflowPillBevelRadius = staticDouble(LauncherGeometryTokens.class, "WORKFLOW_PILL_BEVEL_RADIUS");
+        double pressedTranslateY = staticDouble(LauncherGeometryTokens.class, "PRESSED_TRANSLATE_Y");
+        double chevronOpticalYOffset = staticDouble(LauncherGeometryTokens.class, "CHEVRON_OPTICAL_Y_OFFSET");
+        double hiddenControlSize = staticDouble(LauncherGeometryTokens.class, "HIDDEN_CONTROL_SIZE");
+        double actionProgressMinWidth = staticDouble(LauncherGeometryTokens.class, "ACTION_PROGRESS_MIN_WIDTH");
+        double controlFieldHeight = staticDouble(LauncherGeometryTokens.class, "CONTROL_FIELD_HEIGHT");
+        double controlFieldMinWidth = staticDouble(LauncherGeometryTokens.class, "CONTROL_FIELD_MIN_WIDTH");
+        double buttonVerticalPadding = intraPanelMargin / bilateralEdgeCount;
+        double lineSpacingStandard = intraPanelTightGap / bilateralEdgeCount;
+        double microGap = surfaceBorderWidth * bilateralEdgeCount;
+        double compactInset = intraPanelTightGap - surfaceBorderWidth;
+        double menuEdgePadding = controlBevelRadius;
+        double quarterUnit = layoutUnit / (bilateralEdgeCount * bilateralEdgeCount);
+        double cardInset = cardBevelRadius;
+        double headerMenuHorizontalPadding = badgeBevelRadius;
+
+        return """
+                /*
+                 * Generated launcher visual tokens.
+                 *
+                 * Source of truth: LauncherGeometryTokens, LauncherTypographyTokens,
+                 * and LauncherThemeTokens.
+                 * Do not edit by hand; update token classes and the staleness test
+                 * will report the expected file content.
+                 */
+
+                .root {
+                    -launcher-flush: %s;
+                    -launcher-layout-unit: %s;
+                    -launcher-surface-border-width: %s;
+                    -launcher-no-border-width: %s;
+                    -launcher-bilateral-border-width: %s;
+                    -launcher-intra-panel-tight-gap: %s;
+                    -launcher-intra-panel-subtle-gap: %s;
+                    -launcher-intra-panel-margin: %s;
+                    -launcher-line-spacing-standard: %s;
+                    -launcher-micro-gap: %s;
+                    -launcher-compact-inset: %s;
+                    -launcher-menu-edge-padding: %s;
+                    -launcher-quarter-unit: %s;
+                    -launcher-control-button-vertical-padding: %s;
+                    -launcher-card-inset: %s;
+                    -launcher-header-menu-horizontal-padding: %s;
+                    -launcher-compact-bevel-radius: %s;
+                    -launcher-control-bevel-radius: %s;
+                    -launcher-subpanel-bevel-radius: %s;
+                    -launcher-card-bevel-radius: %s;
+                    -launcher-surface-bevel-radius: %s;
+                    -launcher-help-bevel-radius: %s;
+                    -launcher-badge-bevel-radius: %s;
+                    -launcher-filler-bevel-radius: %s;
+                    -launcher-dialog-bevel-radius: %s;
+                    -launcher-workflow-pill-bevel-radius: %s;
+                    -launcher-settings-card-accent-arc: %s;
+                    -launcher-pressed-translate-y: %s;
+                    -launcher-chevron-optical-y-offset: %s;
+                    -launcher-hidden-control-size: %s;
+                    -launcher-action-progress-min-width: %s;
+                    -launcher-control-field-height: %s;
+                    -launcher-control-field-min-width: %s;
+                    -launcher-font-stack-primary: %s;
+                    -launcher-font-stack-mono: %s;
+                    -launcher-font-weight-normal: %s;
+                    -launcher-font-weight-bold: %s;
+                    -launcher-font-size-timeline-duration: %s;
+                    -launcher-font-size-badge-tiny: %s;
+                    -launcher-font-size-caption: %s;
+                    -launcher-font-size-compact: %s;
+                    -launcher-font-size-log-detail: %s;
+                    -launcher-font-size-small: %s;
+                    -launcher-font-size-description: %s;
+                    -launcher-font-size-body: %s;
+                    -launcher-font-size-large-body: %s;
+                    -launcher-font-size-card-label: %s;
+                    -launcher-font-size-header-subtitle: %s;
+                    -launcher-font-size-card-title: %s;
+                    -launcher-font-size-focused-title: %s;
+                    -launcher-font-size-section-title: %s;
+                    -launcher-font-size-dialog-title: %s;
+                    -launcher-font-size-help-title: %s;
+                    -launcher-font-size-header-title: %s;
+                    -launcher-text-optical-inset-correction: %s;
+                %s}
+                """.formatted(
+                cssLength(flush),
+                cssLength(layoutUnit),
+                cssLength(surfaceBorderWidth),
+                cssLength(noBorderWidth),
+                cssLength(bilateralBorderWidth),
+                cssLength(intraPanelTightGap),
+                cssLength(intraPanelSubtleGap),
+                cssLength(intraPanelMargin),
+                cssLength(lineSpacingStandard),
+                cssLength(microGap),
+                cssLength(compactInset),
+                cssLength(menuEdgePadding),
+                cssLength(quarterUnit),
+                cssLength(buttonVerticalPadding),
+                cssLength(cardInset),
+                cssLength(headerMenuHorizontalPadding),
+                cssLength(compactBevelRadius),
+                cssLength(controlBevelRadius),
+                cssLength(subpanelBevelRadius),
+                cssLength(cardBevelRadius),
+                cssLength(surfaceBevelRadius),
+                cssLength(helpBevelRadius),
+                cssLength(badgeBevelRadius),
+                cssLength(fillerBevelRadius),
+                cssLength(dialogBevelRadius),
+                cssLength(workflowPillBevelRadius),
+                cssLength(settingsCardAccentArc),
+                cssLength(pressedTranslateY),
+                cssLength(chevronOpticalYOffset),
+                cssLength(hiddenControlSize),
+                cssLength(actionProgressMinWidth),
+                cssLength(controlFieldHeight),
+                cssLength(controlFieldMinWidth),
+                LauncherTypographyTokens.PRIMARY_FONT_STACK,
+                LauncherTypographyTokens.MONO_FONT_STACK,
+                LauncherTypographyTokens.FONT_WEIGHT_NORMAL,
+                LauncherTypographyTokens.FONT_WEIGHT_BOLD,
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_TIMELINE_DURATION),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_BADGE_TINY),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_CAPTION),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_COMPACT),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_LOG_DETAIL),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_SMALL),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_DESCRIPTION),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_BODY),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_LARGE_BODY),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_CARD_LABEL),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_HEADER_SUBTITLE),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_CARD_TITLE),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_FOCUSED_TITLE),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_SECTION_TITLE),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_DIALOG_TITLE),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_HELP_TITLE),
+                LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_HEADER_TITLE),
+                cssLength(LauncherTypographyTokens.TEXT_OPTICAL_INSET_CORRECTION),
+                LauncherThemeTokens.cssDeclarations());
+    }
+
+    private static Set<String> resourceBasenamesWithInvalidAstraPrefix() throws Exception {
+        Path resourceRoot = Path.of("src/main/resources/qupath/ext/astra");
+        try (var stream = Files.walk(resourceRoot)) {
+            return stream
+                    .filter(Files::isRegularFile)
+                    .map(path -> path.getFileName().toString())
+                    .filter(name -> name.toLowerCase(Locale.ROOT).startsWith("astra"))
+                    .collect(java.util.stream.Collectors.toSet());
+        }
+    }
+
+    private static String cssLength(double value) {
+        if (Math.rint(value) == value) {
+            return String.format(Locale.ROOT, "%.0fpx", value);
+        }
+        return String.format(Locale.ROOT, "%.6fpx", value)
+                .replaceAll("0+px$", "px")
+                .replace(".px", "px");
+    }
+
+    private static void assertCssDeclarationsIn(String css, String property, Set<String> allowedValues) {
+        java.util.regex.Matcher matcher = Pattern.compile(Pattern.quote(property) + ":\\s*([^;]+);")
+                .matcher(css);
+        List<String> violations = new ArrayList<>();
+        while (matcher.find()) {
+            String value = matcher.group(1).trim();
+            if (!allowedValues.contains(value)) {
+                violations.add(property + ": " + value);
+            }
+        }
+        assertEquals(List.of(), violations);
     }
 
     private static Class<?> nestedClass(Class<?> parent, String simpleName) {

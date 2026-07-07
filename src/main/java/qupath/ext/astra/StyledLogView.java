@@ -21,8 +21,8 @@ import java.util.Map;
 
 final class StyledLogView extends VBox {
 
-    private static final String FONT_STACK = "\"Inter\", \"Avenir Next\", \"Segoe UI\", sans-serif";
-    private static final String MONO_FONT_STACK = "\"JetBrains Mono\", \"SFMono-Regular\", \"Consolas\", monospace";
+    private static final String FONT_STACK = LauncherTypographyTokens.PRIMARY_FONT_STACK;
+    private static final String MONO_FONT_STACK = LauncherTypographyTokens.MONO_FONT_STACK;
     private static final double LOG_STACK_GAP =
             LauncherGeometryTokens.INTRA_PANEL_SUBTLE_GAP - LauncherGeometryTokens.SURFACE_BORDER_WIDTH;
     private static final double LOG_ROW_GAP =
@@ -93,7 +93,8 @@ final class StyledLogView extends VBox {
             Clipboard.getSystemClipboard().setContent(content);
             copyButton.setText("Copied");
             styleCopyButton(copyButton, true);
-            PauseTransition reset = new PauseTransition(Duration.seconds(1.2));
+            PauseTransition reset = new PauseTransition(
+                    Duration.seconds(LauncherMotionTokens.COPY_FEEDBACK_SECONDS));
             reset.setOnFinished(done -> {
                 copyButton.setText("Copy All");
                 styleCopyButton(copyButton, false);
@@ -137,7 +138,7 @@ final class StyledLogView extends VBox {
                         : newBounds.getHeight()));
         Region topFade = new Region();
         topFade.setMouseTransparent(true);
-        topFade.setMinSize(0.0d, 0.0d);
+        topFade.setMinSize(LauncherGeometryTokens.FLUSH, LauncherGeometryTokens.FLUSH);
         topFade.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         addStyleClass(topFade, "astra-log-scroll-top-fade");
         StackPane scrollFrame = new StackPane(scroll, topFade);

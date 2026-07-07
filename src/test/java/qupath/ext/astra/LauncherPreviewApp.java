@@ -52,6 +52,10 @@ import javafx.util.Duration;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.images.servers.ImageChannel;
+import qupath.lib.images.servers.ImageServer;
+import qupath.lib.images.servers.ImageServers;
+import qupath.lib.projects.Project;
+import qupath.lib.projects.Projects;
 
 import javax.imageio.ImageIO;
 import java.awt.BasicStroke;
@@ -100,6 +104,26 @@ public final class LauncherPreviewApp extends Application {
             PseudoClass.getPseudoClass("pressed");
     private static final double PREVIEW_BOOTSTRAP_STAGE_SIZE =
             LauncherGeometryTokens.LAYOUT_UNIT;
+    private static final double CONTROL_POPUP_CAPTURE_DELAY_SECONDS =
+            LauncherGeometryTokens.BILATERAL_EDGE_COUNT
+                    * LauncherGeometryTokens.INTRA_PANEL_SUBTLE_GAP
+                    / LauncherGeometryTokens.CONTROL_BEVEL_RADIUS;
+    private static final double CUSTOM_CONTROL_CAPTURE_DELAY_SECONDS =
+            LauncherGeometryTokens.TRILATERAL_EDGE_COUNT
+                    - LauncherGeometryTokens.SURFACE_BORDER_WIDTH
+                    / (LauncherGeometryTokens.INTRA_PANEL_SUBTLE_GAP
+                    + LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
+    private static final double HEADER_SETTINGS_MENU_CAPTURE_SECONDS = 2.8d;
+    private static final double HEADER_PROJECT_MENU_CAPTURE_SECONDS = 4.2d;
+    private static final double HEADER_VIEW_MENU_CAPTURE_SECONDS = 5.6d;
+    private static final double SELECTED_IMAGES_DIALOG_CAPTURE_SECONDS = 4.1d;
+    private static final double MULTI_SELECT_DIALOG_CAPTURE_SECONDS = 3.6d;
+    private static final int PREVIEW_PROJECT_IMAGE_COUNT =
+            (int) Math.round(LauncherGeometryTokens.TRILATERAL_EDGE_COUNT);
+    private static final int PREVIEW_PROJECT_IMAGE_SIZE_PIXELS =
+            (int) Math.round(LauncherGeometryTokens.LAYOUT_UNIT);
+    private static final float PREVIEW_PROJECT_IMAGE_SATURATION = 0.55f;
+    private static final float PREVIEW_PROJECT_IMAGE_BRIGHTNESS = 0.82f;
 
     @Override
     public void start(Stage primaryStage) throws Exception {
@@ -121,6 +145,11 @@ public final class LauncherPreviewApp extends Application {
         PathPrefs.userPathProperty().set(options.userPath().toString());
 
         QuPathGUI qupath = QuPathGUI.createHiddenInstance();
+        if (requiresPreviewProject(options.snapshotMode())) {
+            PipelineLauncher.setProjectImageNamesForTesting(createPreviewProjectImageNames(options.outputPath()));
+        } else {
+            PipelineLauncher.setProjectImageNamesForTesting(null);
+        }
         Path scriptPath = scriptPath(options.astraRoot(), options.scriptName());
         String script = Files.readString(scriptPath);
         String title = displayTitle(options.scriptName());
@@ -129,6 +158,60 @@ public final class LauncherPreviewApp extends Application {
         if (options.snapshots()) {
             scheduleSnapshots(title, options.snapshotMode());
         }
+    }
+
+    private static boolean requiresPreviewProject(String snapshotMode) {
+        return "dialogs-geometry".equals(snapshotMode)
+                || "selected-images-dialog-geometry".equals(snapshotMode)
+                || "selected-images-dialog".equals(snapshotMode);
+    }
+
+    private static List<String> createPreviewProjectImageNames(Path outputPath) throws Exception {
+        Path projectDir = outputPath.resolve("preview-project");
+        Path imageDir = projectDir.resolve("images");
+        Files.createDirectories(imageDir);
+        Project<BufferedImage> project = Projects.createProject(projectDir.toFile(), BufferedImage.class);
+        for (int index = 0; index < PREVIEW_PROJECT_IMAGE_COUNT; index++) {
+            Path imagePath = imageDir.resolve("astra-preview-image-" + (index + 1) + ".png");
+            writePreviewProjectImage(imagePath, index);
+            try (ImageServer<BufferedImage> server = ImageServers.buildServer(imagePath.toUri())) {
+                var entry = project.addImage(server.getBuilder());
+                entry.setImageName("ASTRA Preview Image " + (index + 1));
+            }
+        }
+        project.syncChanges();
+        return project.getImageList().stream()
+                .map(entry -> String.valueOf(entry.getImageName()))
+                .toList();
+    }
+
+    private static void writePreviewProjectImage(Path imagePath, int index) throws IOException {
+        BufferedImage image = new BufferedImage(
+                PREVIEW_PROJECT_IMAGE_SIZE_PIXELS,
+                PREVIEW_PROJECT_IMAGE_SIZE_PIXELS,
+                BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = image.createGraphics();
+        try {
+            float hue = index / (float) PREVIEW_PROJECT_IMAGE_COUNT;
+            graphics.setColor(Color.getHSBColor(
+                    hue,
+                    PREVIEW_PROJECT_IMAGE_SATURATION,
+                    PREVIEW_PROJECT_IMAGE_BRIGHTNESS));
+            graphics.fillRect(
+                    0,
+                    0,
+                    PREVIEW_PROJECT_IMAGE_SIZE_PIXELS,
+                    PREVIEW_PROJECT_IMAGE_SIZE_PIXELS);
+            graphics.setColor(Color.WHITE);
+            graphics.drawLine(
+                    0,
+                    index,
+                    PREVIEW_PROJECT_IMAGE_SIZE_PIXELS - 1,
+                    PREVIEW_PROJECT_IMAGE_SIZE_PIXELS - 1 - index);
+        } finally {
+            graphics.dispose();
+        }
+        ImageIO.write(image, "png", imagePath.toFile());
     }
 
     private static void scheduleSnapshots(String title, String snapshotMode) {
@@ -275,13 +358,16 @@ public final class LauncherPreviewApp extends Application {
         if ("header-menus-geometry".equals(snapshotMode)) {
             schedule(1.5, () -> snapshotSurfaceGeometry("header-action-rail-geometry", title, Surface.HEADER, false));
             schedule(2.1, () -> showHeaderMenu(title, "Settings"));
-            schedule(2.8, () -> snapshotSurfaceGeometry("settings-menu-geometry", title, Surface.HEADER_MENU, true));
+            schedule(HEADER_SETTINGS_MENU_CAPTURE_SECONDS,
+                    () -> snapshotSurfaceGeometry("settings-menu-geometry", title, Surface.HEADER_MENU, true));
             schedule(3.1, () -> hideTransientWindows(title));
             schedule(3.5, () -> showHeaderMenu(title, "Project"));
-            schedule(4.2, () -> snapshotSurfaceGeometry("project-menu-geometry", title, Surface.HEADER_MENU, true));
+            schedule(HEADER_PROJECT_MENU_CAPTURE_SECONDS,
+                    () -> snapshotSurfaceGeometry("project-menu-geometry", title, Surface.HEADER_MENU, true));
             schedule(4.5, () -> hideTransientWindows(title));
             schedule(4.9, () -> showHeaderMenu(title, "View"));
-            schedule(5.6, () -> snapshotSurfaceGeometry("view-menu-geometry", title, Surface.HEADER_MENU, true));
+            schedule(HEADER_VIEW_MENU_CAPTURE_SECONDS,
+                    () -> snapshotSurfaceGeometry("view-menu-geometry", title, Surface.HEADER_MENU, true));
             schedule(6.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -319,7 +405,8 @@ public final class LauncherPreviewApp extends Application {
             schedule(1.5, () -> fireButton(title, "Segmentation"));
             schedule(2.1, () -> snapshotSurfaceGeometry("closed-combo-geometry", title, Surface.COMBO_CLOSED, false));
             schedule(2.5, () -> showFirstComboPopup(title));
-            schedule(3.2, () -> snapshotSurfaceGeometry("combo-popup-geometry", title, Surface.COMBO_POPUP, true));
+            schedule(CONTROL_POPUP_CAPTURE_DELAY_SECONDS,
+                    () -> snapshotSurfaceGeometry("combo-popup-geometry", title, Surface.COMBO_POPUP, true));
             schedule(3.8, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -397,7 +484,7 @@ public final class LauncherPreviewApp extends Application {
         if ("run-progress-geometry".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openRunProgressDiagnosticWindow);
             schedule(2.4, () -> snapshotSurfaceGeometry("run-progress-geometry",
-                    "ASTRA Run Progress Geometry", Surface.TYPOGRAPHY, false));
+                    "ASTRA Run Progress Geometry", Surface.RUN_PROGRESS, false));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -446,7 +533,8 @@ public final class LauncherPreviewApp extends Application {
         if ("custom-controls-geometry".equals(snapshotMode)) {
             schedule(1.5, () -> fireButton(title, "Images & Scope"));
             schedule(2.2, () -> selectFirstComboValue(title, "PROJECT_IMAGE_SELECTION"));
-            schedule(2.9, () -> snapshotSurfaceGeometry("custom-controls-geometry", title, Surface.CUSTOM_CONTROLS, false));
+            schedule(CUSTOM_CONTROL_CAPTURE_DELAY_SECONDS,
+                    () -> snapshotSurfaceGeometry("custom-controls-geometry", title, Surface.CUSTOM_CONTROLS, false));
             schedule(3.5, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -516,14 +604,16 @@ public final class LauncherPreviewApp extends Application {
             schedule(1.5, () -> fireButton(title, "Images & Scope"));
             schedule(2.2, () -> selectFirstComboValue(title, "PROJECT_IMAGE_SELECTION"));
             schedule(2.9, () -> Platform.runLater(() -> fireButton(title, "Choose Images...")));
-            schedule(4.1, () -> snapshotSurfaceGeometry("selected-images-dialog-geometry", title, Surface.DIALOG, true));
+            schedule(SELECTED_IMAGES_DIALOG_CAPTURE_SECONDS,
+                    () -> snapshotSurfaceGeometry("selected-images-dialog-geometry", title, Surface.DIALOG, true));
             schedule(4.7, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("multi-select-dialog-geometry".equals(snapshotMode)) {
             schedule(1.5, () -> fireButton(title, "Run Setup"));
             schedule(2.4, () -> Platform.runLater(() -> fireButton(title, "Generate Regions, Detect Cells, Quantify")));
-            schedule(3.6, () -> snapshotSurfaceGeometry("multi-select-dialog-geometry", title, Surface.DIALOG, true));
+            schedule(MULTI_SELECT_DIALOG_CAPTURE_SECONDS,
+                    () -> snapshotSurfaceGeometry("multi-select-dialog-geometry", title, Surface.DIALOG, true));
             schedule(4.2, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -556,21 +646,24 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         if ("settings-menu".equals(snapshotMode)) {
-            schedule(1.5, () -> showHeaderMenu(title, "Settings"));
-            schedule(2.5, () -> snapshotTransientWindow("settings-menu", title));
-            schedule(3.0, LauncherPreviewApp::closeAllWindows);
+            schedule(1.5, () -> enterHeaderDropdownFallback(title));
+            schedule(2.5, () -> showHeaderMenu(title, "Settings"));
+            schedule(3.3, () -> snapshotTransientWindow("settings-menu", title));
+            schedule(3.8, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("project-menu".equals(snapshotMode)) {
-            schedule(1.5, () -> showHeaderMenu(title, "Project"));
-            schedule(2.5, () -> snapshotTransientWindow("project-menu", title));
-            schedule(3.0, LauncherPreviewApp::closeAllWindows);
+            schedule(1.5, () -> enterHeaderDropdownFallback(title));
+            schedule(2.5, () -> showHeaderMenu(title, "Project"));
+            schedule(3.3, () -> snapshotTransientWindow("project-menu", title));
+            schedule(3.8, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("view-menu".equals(snapshotMode)) {
-            schedule(1.5, () -> showHeaderMenu(title, "View"));
-            schedule(2.5, () -> snapshotTransientWindow("view-menu", title));
-            schedule(3.0, LauncherPreviewApp::closeAllWindows);
+            schedule(1.5, () -> enterHeaderDropdownFallback(title));
+            schedule(2.5, () -> showHeaderMenu(title, "View"));
+            schedule(3.3, () -> snapshotTransientWindow("view-menu", title));
+            schedule(3.8, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("combo-popup".equals(snapshotMode)) {
@@ -584,7 +677,8 @@ public final class LauncherPreviewApp extends Application {
             schedule(1.5, () -> fireButton(title, "Images & Scope"));
             schedule(2.2, () -> selectFirstComboValue(title, "PROJECT_IMAGE_SELECTION"));
             schedule(2.9, () -> Platform.runLater(() -> fireButton(title, "Choose Images...")));
-            schedule(4.1, () -> snapshotTransientWindow("selected-images-dialog", title));
+            schedule(SELECTED_IMAGES_DIALOG_CAPTURE_SECONDS,
+                    () -> snapshotTransientWindow("selected-images-dialog", title));
             schedule(4.7, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -645,41 +739,42 @@ public final class LauncherPreviewApp extends Application {
         schedule(8.7, () -> collectLauncherContractSurface("All Settings", title));
         schedule(9.1, () -> unlockAdvanced(title));
         schedule(9.8, () -> collectLauncherContractSurface("Advanced unlocked", title));
-        schedule(10.2, () -> showHeaderMenu(title, "Settings"));
-        schedule(10.8, () -> collectTransientContractSurface("Header menu Settings", title));
-        schedule(11.0, () -> hideTransientWindows(title));
-        schedule(11.3, () -> showHeaderMenu(title, "Project"));
-        schedule(11.9, () -> collectTransientContractSurface("Header menu Project", title));
-        schedule(12.1, () -> hideTransientWindows(title));
-        schedule(12.4, () -> showHeaderMenu(title, "View"));
-        schedule(13.0, () -> collectTransientContractSurface("Header menu View", title));
-        schedule(13.2, () -> hideTransientWindows(title));
-        schedule(13.5, () -> fireButton(title, "Segmentation"));
-        schedule(14.0, () -> showFirstComboPopup(title));
-        schedule(14.6, () -> collectTransientContractSurface("Combo popup", title));
-        schedule(14.8, () -> hideTransientWindows(title));
-        schedule(15.4, () -> fireFirstHelpButton(title));
-        schedule(16.4, () -> collectWindowContractSurface("Help dialog", "ASTRA Parameter Help"));
-        schedule(16.8, LauncherPreviewApp::openRuntimeInstallerDiagnosticWindow);
-        schedule(17.5, () -> collectWindowContractSurface("Runtime setup panel",
+        schedule(10.2, () -> enterHeaderDropdownFallback(title));
+        schedule(11.0, () -> showHeaderMenu(title, "Settings"));
+        schedule(11.8, () -> collectTransientContractSurface("Header menu Settings", title));
+        schedule(12.0, () -> hideTransientWindows(title));
+        schedule(12.3, () -> showHeaderMenu(title, "Project"));
+        schedule(13.1, () -> collectTransientContractSurface("Header menu Project", title));
+        schedule(13.3, () -> hideTransientWindows(title));
+        schedule(13.6, () -> showHeaderMenu(title, "View"));
+        schedule(14.4, () -> collectTransientContractSurface("Header menu View", title));
+        schedule(14.6, () -> hideTransientWindows(title));
+        schedule(14.9, () -> fireButton(title, "Segmentation"));
+        schedule(15.4, () -> showFirstComboPopup(title));
+        schedule(16.0, () -> collectTransientContractSurface("Combo popup", title));
+        schedule(16.2, () -> hideTransientWindows(title));
+        schedule(16.8, () -> fireFirstHelpButton(title));
+        schedule(17.8, () -> collectWindowContractSurface("Help dialog", "ASTRA Parameter Help"));
+        schedule(18.2, LauncherPreviewApp::openRuntimeInstallerDiagnosticWindow);
+        schedule(18.9, () -> collectWindowContractSurface("Runtime setup panel",
                 "ASTRA Runtime Installer Diagnostic"));
-        schedule(17.7, LauncherPreviewApp::openRuntimeConfirmationDialog);
-        schedule(18.4, () -> collectTransientContractSurface("Runtime confirmation dialog", title));
-        schedule(18.6, LauncherPreviewApp::openRuntimeResultDialog);
-        schedule(19.3, () -> collectTransientContractSurface("Runtime result dialog", title));
-        schedule(19.5, LauncherPreviewApp::openListCodeEditorDiagnosticWindow);
-        schedule(20.2, () -> collectWindowContractSurface("List/code editor diagnostic",
+        schedule(19.1, LauncherPreviewApp::openRuntimeConfirmationDialog);
+        schedule(19.8, () -> collectTransientContractSurface("Runtime confirmation dialog", title));
+        schedule(20.0, LauncherPreviewApp::openRuntimeResultDialog);
+        schedule(20.7, () -> collectTransientContractSurface("Runtime result dialog", title));
+        schedule(20.9, LauncherPreviewApp::openListCodeEditorDiagnosticWindow);
+        schedule(21.6, () -> collectWindowContractSurface("List/code editor diagnostic",
                 "ASTRA List And Code Editor Diagnostic"));
-        schedule(20.4, LauncherPreviewApp::openRunProgressDiagnosticWindow);
-        schedule(21.1, () -> collectWindowContractSurface("Run progress diagnostic",
+        schedule(21.8, LauncherPreviewApp::openRunProgressDiagnosticWindow);
+        schedule(22.5, () -> collectWindowContractSurface("Run progress diagnostic",
                 "ASTRA Run Progress Geometry"));
-        schedule(21.3, LauncherPreviewApp::openMarkerKeyMapDiagnosticWindow);
-        schedule(22.0, () -> collectWindowContractSurface("Marker key map diagnostic",
+        schedule(22.7, LauncherPreviewApp::openMarkerKeyMapDiagnosticWindow);
+        schedule(23.4, () -> collectWindowContractSurface("Marker key map diagnostic",
                 "ASTRA Marker Key Map Diagnostic"));
-        schedule(22.2, LauncherPreviewApp::openChannelMultiSelectDiagnosticWindow);
-        schedule(22.9, () -> collectWindowContractSurface("Channel multi-select diagnostic",
+        schedule(23.6, LauncherPreviewApp::openChannelMultiSelectDiagnosticWindow);
+        schedule(24.3, () -> collectWindowContractSurface("Channel multi-select diagnostic",
                 "ASTRA Channel Multi-Select Diagnostic"));
-        schedule(23.4, () -> {
+        schedule(24.8, () -> {
             writeTextContractSweep();
             closeAllWindows();
         });
@@ -780,6 +875,14 @@ public final class LauncherPreviewApp extends Application {
         if (!shown) {
             System.err.println("No header menu button for " + menuText);
         }
+    }
+
+    private static void enterHeaderDropdownFallback(String title) {
+        fireButton(title, "View");
+        Platform.runLater(() -> {
+            fireButton(title, "Dropdowns");
+            Platform.runLater(() -> fireButton(title, "Home"));
+        });
     }
 
     private static void fireAdvancedViewButton(String title, String buttonText) {
@@ -979,12 +1082,17 @@ public final class LauncherPreviewApp extends Application {
         SnapshotParameters rawParameters = snapshotParameters(node);
         WritableImage raw = node.snapshot(rawParameters, null);
         Bounds bounds = node.getLayoutBounds();
-        int floorWidth = Math.max((int)LauncherGeometryTokens.FLUSH, (int)Math.floor(bounds.getWidth()));
-        int floorHeight = Math.max((int)LauncherGeometryTokens.FLUSH, (int)Math.floor(bounds.getHeight()));
+        int floorWidth = snapshotFloorDimension(bounds.getWidth(), raw.getWidth());
+        int floorHeight = snapshotFloorDimension(bounds.getHeight(), raw.getHeight());
         if (floorWidth <= LauncherGeometryTokens.FLUSH || floorHeight <= LauncherGeometryTokens.FLUSH) {
             return new SnapshotCapture(raw, raw, bounds, floorWidth, floorHeight);
         }
         return new SnapshotCapture(raw, raw, bounds, floorWidth, floorHeight);
+    }
+
+    private static int snapshotFloorDimension(double layoutDimension, double snapshotDimension) {
+        double dimension = layoutDimension > LauncherGeometryTokens.FLUSH ? layoutDimension : snapshotDimension;
+        return Math.max((int)LauncherGeometryTokens.FLUSH, (int)Math.floor(dimension));
     }
 
     private static SnapshotParameters snapshotParameters(Node node) {
@@ -1646,6 +1754,18 @@ public final class LauncherPreviewApp extends Application {
                 addBounds(bounds, sceneRoot, rootMinX, rootMinY, "runtime installer log",
                         ".astra-runtime-installer-log", new Color(255, 159, 28));
             }
+            case RUN_PROGRESS -> {
+                addBounds(bounds, sceneRoot, rootMinX, rootMinY, "run progress diagnostic",
+                        ".astra-run-progress-diagnostic", new Color(0, 95, 115));
+                sceneRoot.lookupAll(".astra-run-progress-lane").forEach(node -> bounds.add(new BoundsMarker(
+                        "run progress lane",
+                        relativeBounds(sceneRoot, node, rootMinX, rootMinY),
+                        new Color(42, 157, 143))));
+                sceneRoot.lookupAll(".astra-run-progress-bar").forEach(node -> bounds.add(new BoundsMarker(
+                        "run progress bar",
+                        relativeBounds(sceneRoot, node, rootMinX, rootMinY),
+                        new Color(255, 159, 28))));
+            }
             case OUTPUT -> {
                 addBounds(bounds, sceneRoot, rootMinX, rootMinY, "output pane",
                         ".astra-output-pane", new Color(0, 95, 115));
@@ -1745,6 +1865,7 @@ public final class LauncherPreviewApp extends Application {
             case ASSET_COMBO_POPUP -> addComboPopupMeasurements(sceneRoot, measurements);
             case TOOLTIP -> addTooltipMeasurements(sceneRoot, measurements);
             case RUNTIME_INSTALLER -> addRuntimeInstallerMeasurements(sceneRoot, measurements);
+            case RUN_PROGRESS -> addRunProgressMeasurements(sceneRoot, measurements);
             case OUTPUT -> addOutputMeasurements(sceneRoot, measurements);
             case BUTTON_STATES -> addButtonStateMeasurements(sceneRoot, measurements);
             case STYLED_LOG -> addStyledLogMeasurements(sceneRoot, measurements);
@@ -1762,6 +1883,43 @@ public final class LauncherPreviewApp extends Application {
             case DIALOG -> addDialogMeasurements(sceneRoot, measurements);
         }
         return measurements;
+    }
+
+    private static void addRunProgressMeasurements(Node sceneRoot, List<GeometryMeasurement> measurements) {
+        double rootMinX = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinX();
+        double rootMinY = sceneRoot.localToScene(sceneRoot.getBoundsInLocal()).getMinY();
+        List<Node> lanes = sceneRoot.lookupAll(".astra-run-progress-lane").stream().toList();
+        List<Node> texts = sceneRoot.lookupAll(".astra-run-progress-text").stream().toList();
+        List<Node> bars = sceneRoot.lookupAll(".astra-run-progress-bar").stream().toList();
+        for (int i = 0; i < lanes.size(); i++) {
+            Bounds laneBounds = relativeBounds(sceneRoot, lanes.get(i), rootMinX, rootMinY);
+            addMeasurement(measurements, "run progress lane " + (i + 1) + " height",
+                    nestedStaticField("LauncherGeometry", "ACTION_PROGRESS_TOTAL_HEIGHT"),
+                    laneBounds.getHeight(),
+                    "LauncherGeometry.ACTION_PROGRESS_TOTAL_HEIGHT");
+        }
+        for (int i = 0; i < texts.size(); i++) {
+            Bounds textBounds = relativeBounds(sceneRoot, texts.get(i), rootMinX, rootMinY);
+            addMeasurement(measurements, "run progress text " + (i + 1) + " height",
+                    nestedStaticField("LauncherGeometry", "ACTION_PROGRESS_TEXT_HEIGHT"),
+                    textBounds.getHeight(),
+                    "LauncherGeometry.ACTION_PROGRESS_TEXT_HEIGHT");
+        }
+        for (int i = 0; i < bars.size(); i++) {
+            Bounds barBounds = relativeBounds(sceneRoot, bars.get(i), rootMinX, rootMinY);
+            addMeasurement(measurements, "run progress bar " + (i + 1) + " height",
+                    nestedStaticField("LauncherGeometry", "ACTION_PROGRESS_HEIGHT"),
+                    barBounds.getHeight(),
+                    "LauncherGeometry.ACTION_PROGRESS_HEIGHT");
+        }
+        for (int i = 1; i < lanes.size(); i++) {
+            Bounds previous = relativeBounds(sceneRoot, lanes.get(i - 1), rootMinX, rootMinY);
+            Bounds current = relativeBounds(sceneRoot, lanes.get(i), rootMinX, rootMinY);
+            addMeasurement(measurements, "run progress lane gap " + i,
+                    staticField("PARAMETER_ROW_GAP"),
+                    current.getMinY() - previous.getMaxY(),
+                    "PARAMETER_ROW_GAP");
+        }
     }
 
     private static void addHeaderMeasurements(Node sceneRoot, List<GeometryMeasurement> measurements) {
@@ -2354,9 +2512,9 @@ public final class LauncherPreviewApp extends Application {
             Bounds listBounds = relativeBounds(sceneRoot, list.get(), rootMinX, rootMinY);
             Bounds cellBounds = relativeBounds(sceneRoot, cells.get(0), rootMinX, rootMinY);
             addMeasurement(measurements, "combo popup list left to row",
-                    LauncherGeometryTokens.SURFACE_BORDER_WIDTH * 2.0,
+                    LauncherGeometryTokens.BILATERAL_BORDER_WIDTH,
                     cellBounds.getMinX() - listBounds.getMinX(),
-                    "SURFACE_BORDER_WIDTH * 2");
+                    "LauncherGeometryTokens.BILATERAL_BORDER_WIDTH");
             addMeasurement(measurements, "combo popup row text inset",
                     nestedStaticField("ControlGeometry", "COMBO_CELL_HORIZONTAL_INSET"),
                     textOrNodeMinX(cells.get(0)) - rootMinX - cellBounds.getMinX(),
@@ -2617,15 +2775,17 @@ public final class LauncherPreviewApp extends Application {
                 addMeasurement(measurements, "output pane left inset to status card",
                         staticField("OUTPUT_PANE_INSET")
                                 + styledLogField("LOG_ROW_GAP")
-                                + (LauncherGeometryTokens.SURFACE_BORDER_WIDTH * 2.0),
+                                + (LauncherGeometryTokens.SURFACE_BORDER_WIDTH
+                                * LauncherGeometryTokens.BILATERAL_EDGE_COUNT),
                         cardBounds.getMinX() - outputBounds.getMinX(),
-                        "OUTPUT_PANE_INSET + StyledLogView.LOG_ROW_GAP + (SURFACE_BORDER_WIDTH * 2)");
+                        "OUTPUT_PANE_INSET + StyledLogView.LOG_ROW_GAP + (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT)");
                 addMeasurement(measurements, "output pane right inset to status card",
                         staticField("OUTPUT_PANE_INSET")
                                 + styledLogField("LOG_ROW_GAP")
-                                + (LauncherGeometryTokens.SURFACE_BORDER_WIDTH * 2.0),
+                                + (LauncherGeometryTokens.SURFACE_BORDER_WIDTH
+                                * LauncherGeometryTokens.BILATERAL_EDGE_COUNT),
                         outputBounds.getMaxX() - cardBounds.getMaxX(),
-                        "OUTPUT_PANE_INSET + StyledLogView.LOG_ROW_GAP + (SURFACE_BORDER_WIDTH * 2)");
+                        "OUTPUT_PANE_INSET + StyledLogView.LOG_ROW_GAP + (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT)");
             });
             copy.ifPresent(button -> {
                 Bounds copyBounds = relativeBounds(sceneRoot, button, rootMinX, rootMinY);
@@ -3334,9 +3494,9 @@ public final class LauncherPreviewApp extends Application {
                         Bounds areaBounds = relativeBounds(sceneRoot, area, rootMinX, rootMinY);
                         Bounds scrollBounds = relativeBounds(sceneRoot, scrollBar, rootMinX, rootMinY);
                         addMeasurement(measurements, "code editor scrollbar right rail",
-                                LauncherGeometryTokens.SURFACE_BORDER_WIDTH * 2.0d,
+                                LauncherGeometryTokens.BILATERAL_BORDER_WIDTH,
                                 areaBounds.getMaxX() - scrollBounds.getMaxX(),
-                                "SURFACE_BORDER_WIDTH * 2");
+                                "LauncherGeometryTokens.BILATERAL_BORDER_WIDTH");
                     }));
         });
     }
@@ -3875,8 +4035,9 @@ public final class LauncherPreviewApp extends Application {
         double intraPanelMargin = LauncherGeometryTokens.INTRA_PANEL_MARGIN;
         double borderWidth = LauncherGeometryTokens.SURFACE_BORDER_WIDTH;
         double scrollbarGutter = LauncherGeometryTokens.OUTER_MARGIN;
-        double scrollbarThumb = scrollbarGutter / 3.0;
-        double scrollbarSidePadding = (scrollbarGutter - scrollbarThumb) / 2.0;
+        double scrollbarThumb = scrollbarGutter / LauncherGeometryTokens.SCROLLBAR_THUMB_GUTTER_DIVISOR;
+        double scrollbarSidePadding =
+                (scrollbarGutter - scrollbarThumb) / LauncherGeometryTokens.SCROLLBAR_SIDE_PADDING_DIVISOR;
         double interPaneGap = outerMargin - scrollbarSidePadding;
         double inputContentToBarGap = outerMargin - scrollbarSidePadding;
         double sectionContentGap = staticField("SECTION_CONTENT_GAP");
@@ -3897,7 +4058,8 @@ public final class LauncherPreviewApp extends Application {
                 visibleScrollbarBar(gutter).ifPresent(bar -> {
                     Bounds barBounds = relativeBounds(sceneRoot, bar, rootMinX, rootMinY);
                     addMeasurement(measurements, "visible bar width", scrollbarThumb,
-                            barBounds.getWidth(), "SCROLLBAR_GUTTER_WIDTH / 3");
+                            barBounds.getWidth(),
+                            "SCROLLBAR_GUTTER_WIDTH / SCROLLBAR_THUMB_GUTTER_DIVISOR");
                     inputContentRightEdge(input, sceneRoot, rootMinX, rootMinY).ifPresent(contentRight ->
                             addMeasurement(measurements, "input content to visible bar",
                                     inputContentToBarGap + scrollbarSidePadding,
@@ -4206,9 +4368,10 @@ public final class LauncherPreviewApp extends Application {
                 Bounds shell = relativeBounds(sceneRoot, helpDetailsShell.get(), rootMinX, rootMinY);
                 Bounds cardBounds = relativeBounds(sceneRoot, cards, rootMinX, rootMinY);
                 addMeasurement(measurements, "help details cards right inset",
-                        staticField("HELP_DIALOG_INSET") - (borderWidth * 2.0),
+                        staticField("HELP_DIALOG_INSET")
+                                - (borderWidth * LauncherGeometryTokens.BILATERAL_EDGE_COUNT),
                         shell.getMaxX() - cardBounds.getMaxX(),
-                        "HELP_DIALOG_INSET - (SURFACE_BORDER_WIDTH * 2)");
+                        "HELP_DIALOG_INSET - (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT)");
             });
             List<Node> cards = managedNodes(helpDetailsShell.get(), ".astra-help-detail-card");
             if (cards.size() >= 2) {
@@ -4290,9 +4453,10 @@ public final class LauncherPreviewApp extends Application {
                 Bounds cardBounds = relativeBounds(sceneRoot, cards, rootMinX, rootMinY);
                 double borderWidth = LauncherGeometryTokens.SURFACE_BORDER_WIDTH;
                 addMeasurement(measurements, "help details cards right inset",
-                        staticField("HELP_DIALOG_INSET") - (borderWidth * 2.0),
+                        staticField("HELP_DIALOG_INSET")
+                                - (borderWidth * LauncherGeometryTokens.BILATERAL_EDGE_COUNT),
                         shell.getMaxX() - cardBounds.getMaxX(),
-                        "HELP_DIALOG_INSET - (SURFACE_BORDER_WIDTH * 2)");
+                        "HELP_DIALOG_INSET - (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT)");
             });
             List<Node> cards = managedNodes(helpDetailsShell.get(), ".astra-help-detail-card");
             if (cards.size() >= 2) {
@@ -4311,8 +4475,10 @@ public final class LauncherPreviewApp extends Application {
                                                                       RibbonPathPoints points) {
         double width = shellBounds.getWidth();
         double height = shellBounds.getHeight();
-        double slopeWidth = Math.min(nestedStaticField("HeaderGeometry", "ACTION_RIBBON_SLOPE_WIDTH"), width / 2.0d);
-        double bevelRadius = Math.min(nestedStaticField("HeaderGeometry", "ACTION_RIBBON_BEVEL_RADIUS"), height / 2.0d);
+        double slopeWidth = Math.min(nestedStaticField("HeaderGeometry", "ACTION_RIBBON_SLOPE_WIDTH"),
+                width / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR);
+        double bevelRadius = Math.min(nestedStaticField("HeaderGeometry", "ACTION_RIBBON_BEVEL_RADIUS"),
+                height / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR);
         double curveRun = slopeWidth;
         double shoulderHandle = quarterCurveHandle(curveRun);
         double cornerHandle = quarterCurveHandle(bevelRadius);
@@ -4388,13 +4554,13 @@ public final class LauncherPreviewApp extends Application {
                 LauncherGeometryTokens.FLUSH, points.leftSideEndY(),
                 "LauncherGeometry.FLUSH");
         addMeasurement(measurements, "ribbon top foot span",
-                width + (slopeWidth * 2.0d),
+                width + (slopeWidth * LauncherGeometryTokens.BILATERAL_EDGE_COUNT),
                 points.topRightX() - points.topLeftX(),
-                "body width + 2 * HeaderGeometry.ACTION_RIBBON_SLOPE_WIDTH");
+                "body width + (HeaderGeometry.ACTION_RIBBON_SLOPE_WIDTH * BILATERAL_EDGE_COUNT)");
         addMeasurement(measurements, "ribbon bottom/body straight span",
-                outputBounds.getWidth() - (bevelRadius * 2.0d),
+                outputBounds.getWidth() - (bevelRadius * LauncherGeometryTokens.BILATERAL_EDGE_COUNT),
                 points.rightBottomX() - points.leftBottomX(),
-                "output pane width - 2 * HeaderGeometry.ACTION_RIBBON_BEVEL_RADIUS");
+                "output pane width - (HeaderGeometry.ACTION_RIBBON_BEVEL_RADIUS * BILATERAL_EDGE_COUNT)");
         return measurements;
     }
 
@@ -4422,7 +4588,7 @@ public final class LauncherPreviewApp extends Application {
     }
 
     private static double quarterCurveHandle(double radius) {
-        return radius * ((Math.sqrt(2.0d) - 1.0d) * 4.0d / 3.0d);
+        return radius * LauncherGeometryTokens.CUBIC_ARC_HANDLE_RATIO;
     }
 
     private static double folderCurveInset(double height, double bevelRadius) {
@@ -4437,8 +4603,10 @@ public final class LauncherPreviewApp extends Application {
                                                                          RibbonPathPoints headerPoints) {
         double width = shellBounds.getWidth();
         double height = shellBounds.getHeight();
-        double slopeWidth = Math.min(nestedStaticField("FooterGeometry", "ACTION_SHELL_SLOPE_WIDTH"), width / 2.0d);
-        double bevelRadius = Math.min(nestedStaticField("FooterGeometry", "ACTION_SHELL_BEVEL_RADIUS"), height / 2.0d);
+        double slopeWidth = Math.min(nestedStaticField("FooterGeometry", "ACTION_SHELL_SLOPE_WIDTH"),
+                width / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR);
+        double bevelRadius = Math.min(nestedStaticField("FooterGeometry", "ACTION_SHELL_BEVEL_RADIUS"),
+                height / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR);
         double bottomY = Math.max(LauncherGeometryTokens.FLUSH, height);
         double curveRun = slopeWidth;
         double shoulderHandle = quarterCurveHandle(curveRun);
@@ -4513,13 +4681,13 @@ public final class LauncherPreviewApp extends Application {
                 bottomY - curveInset, points.leftSideEndY(),
                 "footerPaintBottom(height) - curveInset");
         addMeasurement(measurements, "footer bottom foot span",
-                width + (slopeWidth * 2.0d),
+                width + (slopeWidth * LauncherGeometryTokens.BILATERAL_EDGE_COUNT),
                 points.rightBottomX() - points.leftBottomX(),
-                "body width + 2 * FooterGeometry.ACTION_SHELL_SLOPE_WIDTH");
+                "body width + (FooterGeometry.ACTION_SHELL_SLOPE_WIDTH * BILATERAL_EDGE_COUNT)");
         addMeasurement(measurements, "footer top/body straight span",
-                width - (bevelRadius * 2.0d),
+                width - (bevelRadius * LauncherGeometryTokens.BILATERAL_EDGE_COUNT),
                 points.topRightTangentX() - points.topLeftTangentX(),
-                "body width - 2 * FooterGeometry.ACTION_SHELL_BEVEL_RADIUS");
+                "body width - (FooterGeometry.ACTION_SHELL_BEVEL_RADIUS * BILATERAL_EDGE_COUNT)");
         return measurements;
     }
 
@@ -4550,8 +4718,10 @@ public final class LauncherPreviewApp extends Application {
                                                    Bounds outputBounds) {
         double width = shellBounds.getWidth();
         double height = shellBounds.getHeight();
-        double slopeWidth = Math.min(nestedStaticField("HeaderGeometry", "ACTION_RIBBON_SLOPE_WIDTH"), width / 2.0d);
-        double bevelRadius = Math.min(nestedStaticField("HeaderGeometry", "ACTION_RIBBON_BEVEL_RADIUS"), height / 2.0d);
+        double slopeWidth = Math.min(nestedStaticField("HeaderGeometry", "ACTION_RIBBON_SLOPE_WIDTH"),
+                width / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR);
+        double bevelRadius = Math.min(nestedStaticField("HeaderGeometry", "ACTION_RIBBON_BEVEL_RADIUS"),
+                height / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR);
         Graphics2D g = image.createGraphics();
         try {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -4587,9 +4757,13 @@ public final class LauncherPreviewApp extends Application {
                     "output straight reference");
             drawVerticalRail(g, xBodyLeft, yTop, yBottom, bodyColor, "body L");
             drawVerticalRail(g, xBodyRight, yTop, yBottom, bodyColor, "body R");
-            drawVerticalRail(g, xTopLeft, yTop, yTop + (LauncherGeometryTokens.INTRA_PANEL_MARGIN * 2.0d),
+            drawVerticalRail(g, xTopLeft, yTop,
+                    yTop + (LauncherGeometryTokens.INTRA_PANEL_MARGIN
+                            * LauncherGeometryTokens.BILATERAL_EDGE_COUNT),
                     topColor, "top L tangent");
-            drawVerticalRail(g, xTopRight, yTop, yTop + (LauncherGeometryTokens.INTRA_PANEL_MARGIN * 2.0d),
+            drawVerticalRail(g, xTopRight, yTop,
+                    yTop + (LauncherGeometryTokens.INTRA_PANEL_MARGIN
+                            * LauncherGeometryTokens.BILATERAL_EDGE_COUNT),
                     topColor, "top R tangent");
         } finally {
             g.dispose();
@@ -4601,8 +4775,10 @@ public final class LauncherPreviewApp extends Application {
                                                       Bounds outputBounds) {
         double width = shellBounds.getWidth();
         double height = shellBounds.getHeight();
-        double slopeWidth = Math.min(nestedStaticField("FooterGeometry", "ACTION_SHELL_SLOPE_WIDTH"), width / 2.0d);
-        double bevelRadius = Math.min(nestedStaticField("FooterGeometry", "ACTION_SHELL_BEVEL_RADIUS"), height / 2.0d);
+        double slopeWidth = Math.min(nestedStaticField("FooterGeometry", "ACTION_SHELL_SLOPE_WIDTH"),
+                width / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR);
+        double bevelRadius = Math.min(nestedStaticField("FooterGeometry", "ACTION_SHELL_BEVEL_RADIUS"),
+                height / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR);
         Graphics2D g = image.createGraphics();
         try {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -5676,7 +5852,8 @@ public final class LauncherPreviewApp extends Application {
 
     private static double macroActionButtonWidth() {
         return (staticField("OUTPUT_PANE_PREF_WIDTH")
-                - (nestedStaticField("HeaderGeometry", "ACTION_RIBBON_INSET") * 2.0d)
+                - (nestedStaticField("HeaderGeometry", "ACTION_RIBBON_INSET")
+                * LauncherGeometryTokens.BILATERAL_EDGE_COUNT)
                 - (nestedStaticField("HeaderGeometry", "ACTION_CLUSTER_GAP")
                 * staticField("MACRO_ACTION_BUTTON_GAP_COUNT")))
                 / staticField("MACRO_ACTION_BUTTON_COUNT");
@@ -5686,7 +5863,8 @@ public final class LauncherPreviewApp extends Application {
         return (macroActionButtonWidth() * nestedStaticField("FooterGeometry", "ACTION_SHELL_BUTTON_COUNT"))
                 + (nestedStaticField("FooterGeometry", "ACTION_SHELL_GAP")
                 * nestedStaticField("FooterGeometry", "ACTION_SHELL_GAP_COUNT"))
-                + (nestedStaticField("FooterGeometry", "ACTION_SHELL_INSET") * 2.0d);
+                + (nestedStaticField("FooterGeometry", "ACTION_SHELL_INSET")
+                * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
     }
 
     private static double snapUpToOutputPixel(Node node, double value) {
@@ -6594,6 +6772,7 @@ public final class LauncherPreviewApp extends Application {
         ASSET_COMBO_POPUP,
         TOOLTIP,
         RUNTIME_INSTALLER,
+        RUN_PROGRESS,
         OUTPUT,
         BUTTON_STATES,
         STYLED_LOG,
@@ -6647,7 +6826,7 @@ public final class LauncherPreviewApp extends Application {
         Stage stage = new Stage();
         stage.setTitle("ASTRA Styled Log Diagnostic");
         Scene scene = new Scene(log, 520.0, 620.0);
-        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
@@ -6663,7 +6842,7 @@ public final class LauncherPreviewApp extends Application {
         Stage stage = new Stage();
         stage.setTitle("ASTRA Channel Panel Diagnostic");
         Scene scene = new Scene((Parent) panel, 560.0, 140.0);
-        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
@@ -6697,11 +6876,11 @@ public final class LauncherPreviewApp extends Application {
         stage.setTitle("ASTRA Asset Combo Diagnostic");
         double inset = staticField("NESTED_PANEL_INSET");
         double width = nestedStaticField("HeaderGeometry", "MENU_WIDTH");
-        double height = (staticField("PARAMETER_ROW_HEIGHT") * 2.0d)
+        double height = (staticField("PARAMETER_ROW_HEIGHT") * LauncherGeometryTokens.BILATERAL_EDGE_COUNT)
                 + staticField("PARAMETER_ROW_GAP")
-                + (inset * 2.0d);
+                + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
         Scene scene = new Scene(root, width, height);
-        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
@@ -6720,7 +6899,7 @@ public final class LauncherPreviewApp extends Application {
         Label popupLabel = GuiText.label(GuiText.Role.DIAGNOSTIC_TEXT, "ASTRA tooltip diagnostic text.");
         popupLabel.getStyleClass().add("tooltip");
         activeDiagnosticTooltipNode = popupLabel;
-        var tooltipResource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        var tooltipResource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (tooltipResource != null) {
             popupLabel.getStylesheets().add(tooltipResource.toExternalForm());
         }
@@ -6735,7 +6914,7 @@ public final class LauncherPreviewApp extends Application {
         double width = LauncherGeometryTokens.LAYOUT_UNIT * 10.0d;
         double height = LauncherGeometryTokens.LAYOUT_UNIT * 4.0d;
         Scene scene = new Scene(root, width, height);
-        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
@@ -6762,7 +6941,7 @@ public final class LauncherPreviewApp extends Application {
                 root,
                 RuntimeInstaller.installerWindowWidthForTesting(),
                 RuntimeInstaller.installerWindowHeightForTesting());
-        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
@@ -6876,11 +7055,11 @@ public final class LauncherPreviewApp extends Application {
         stage.setTitle("ASTRA Marker Key Map Diagnostic");
         double inset = staticField("NESTED_PANEL_INSET");
         double width = nestedStaticField("HeaderGeometry", "MENU_WIDTH");
-        double height = (staticField("PARAMETER_ROW_HEIGHT") * 2.0d)
+        double height = (staticField("PARAMETER_ROW_HEIGHT") * LauncherGeometryTokens.BILATERAL_EDGE_COUNT)
                 + nestedStaticField("SelectionGeometry", "EDITOR_STACK_GAP")
-                + (inset * 2.0d);
+                + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
         Scene scene = new Scene(editor, width, height);
-        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
@@ -6893,15 +7072,19 @@ public final class LauncherPreviewApp extends Application {
         int caseCount = managedChildren(panel).size();
         double inset = staticField("NESTED_PANEL_INSET");
         double width = nestedStaticField("HeaderGeometry", "MENU_RENDERED_POPUP_WIDTH")
-                + (inset * 2.0d);
-        double caseHeight = (staticField("PARAMETER_ROW_HEIGHT") * 3.0d)
-                + (inset * 4.0d)
-                + (LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP * 4.0d);
+                + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
+        double caseHeight = (staticField("PARAMETER_ROW_HEIGHT")
+                * LauncherGeometryTokens.TRILATERAL_EDGE_COUNT)
+                + (inset * (LauncherGeometryTokens.TRILATERAL_EDGE_COUNT
+                + LauncherGeometryTokens.SINGLE_COUNT))
+                + (LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP
+                * (LauncherGeometryTokens.TRILATERAL_EDGE_COUNT
+                + LauncherGeometryTokens.SINGLE_COUNT));
         double height = caseHeight * caseCount;
         Stage stage = new Stage();
         stage.setTitle("ASTRA Dependency Matrix Diagnostic");
         Scene scene = new Scene(panel, width, height);
-        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
@@ -6913,14 +7096,16 @@ public final class LauncherPreviewApp extends Application {
         Parent panel = (Parent) PipelineLauncher.createRowStateDiagnosticPanel();
         double inset = LauncherGeometryTokens.INTRA_PANEL_MARGIN;
         double width = nestedStaticField("HeaderGeometry", "MENU_RENDERED_POPUP_WIDTH")
-                + (inset * 2.0d);
-        double height = (staticField("PARAMETER_ROW_HEIGHT") * 3.0d)
-                + (staticField("PARAMETER_ROW_GAP") * 2.0d)
-                + (inset * 2.0d);
+                + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
+        double height = (staticField("PARAMETER_ROW_HEIGHT")
+                * LauncherGeometryTokens.TRILATERAL_EDGE_COUNT)
+                + (staticField("PARAMETER_ROW_GAP")
+                * LauncherGeometryTokens.BILATERAL_EDGE_COUNT)
+                + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
         Stage stage = new Stage();
         stage.setTitle("ASTRA Row State Diagnostic");
         Scene scene = new Scene(panel, width, height);
-        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
@@ -6932,15 +7117,19 @@ public final class LauncherPreviewApp extends Application {
         Parent panel = (Parent) PipelineLauncher.createListCodeEditorDiagnosticPanel();
         double inset = staticField("NESTED_PANEL_INSET");
         double width = nestedStaticField("HeaderGeometry", "MENU_RENDERED_POPUP_WIDTH")
-                + (inset * 2.0d);
-        double height = (staticField("PARAMETER_ROW_HEIGHT") * 5.0d)
-                + (staticField("STRUCTURED_VALUE_EDITOR_GAP") * 5.0d)
+                + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
+        double height = (staticField("PARAMETER_ROW_HEIGHT")
+                * (LauncherGeometryTokens.TRILATERAL_EDGE_COUNT
+                + LauncherGeometryTokens.BILATERAL_EDGE_COUNT))
+                + (staticField("STRUCTURED_VALUE_EDITOR_GAP")
+                * (LauncherGeometryTokens.TRILATERAL_EDGE_COUNT
+                + LauncherGeometryTokens.BILATERAL_EDGE_COUNT))
                 + staticField("PARAMETER_ROW_GAP")
-                + (inset * 2.0d);
+                + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
         Stage stage = new Stage();
         stage.setTitle("ASTRA List And Code Editor Diagnostic");
         Scene scene = new Scene(panel, width, height);
-        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
@@ -6952,16 +7141,19 @@ public final class LauncherPreviewApp extends Application {
         Parent panel = (Parent) PipelineLauncher.createChannelMultiSelectDiagnosticPanel();
         double inset = staticField("NESTED_PANEL_INSET");
         double width = nestedStaticField("HeaderGeometry", "MENU_RENDERED_POPUP_WIDTH")
-                + (inset * 2.0d);
-        double editorHeight = (staticField("PARAMETER_ROW_HEIGHT") * 2.0d)
-                + (nestedStaticField("SelectionGeometry", "EDITOR_STACK_GAP") * 2.0d);
-        double height = (editorHeight * 3.0d)
-                + (staticField("PARAMETER_ROW_GAP") * 2.0d)
-                + (inset * 2.0d);
+                + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
+        double editorHeight = (staticField("PARAMETER_ROW_HEIGHT")
+                * LauncherGeometryTokens.BILATERAL_EDGE_COUNT)
+                + (nestedStaticField("SelectionGeometry", "EDITOR_STACK_GAP")
+                * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
+        double height = (editorHeight * LauncherGeometryTokens.TRILATERAL_EDGE_COUNT)
+                + (staticField("PARAMETER_ROW_GAP")
+                * LauncherGeometryTokens.BILATERAL_EDGE_COUNT)
+                + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
         Stage stage = new Stage();
         stage.setTitle("ASTRA Channel Multi-Select Diagnostic");
         Scene scene = new Scene(panel, width, height);
-        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
@@ -6973,14 +7165,18 @@ public final class LauncherPreviewApp extends Application {
         Parent panel = (Parent) PipelineLauncher.createTypographyDiagnosticPanel();
         double inset = staticField("NESTED_PANEL_INSET");
         double width = nestedStaticField("HeaderGeometry", "MENU_RENDERED_POPUP_WIDTH")
-                + (inset * 2.0d);
-        double height = (staticField("PARAMETER_ROW_HEIGHT") * 6.0d)
-                + (staticField("PARAMETER_ROW_GAP") * 5.0d)
-                + (inset * 2.0d);
+                + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
+        double height = (staticField("PARAMETER_ROW_HEIGHT")
+                * (LauncherGeometryTokens.TRILATERAL_EDGE_COUNT
+                * LauncherGeometryTokens.BILATERAL_EDGE_COUNT))
+                + (staticField("PARAMETER_ROW_GAP")
+                * (LauncherGeometryTokens.TRILATERAL_EDGE_COUNT
+                + LauncherGeometryTokens.BILATERAL_EDGE_COUNT))
+                + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
         Stage stage = new Stage();
         stage.setTitle("ASTRA Typography Optical QA");
         Scene scene = new Scene(panel, width, height);
-        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
@@ -6990,36 +7186,34 @@ public final class LauncherPreviewApp extends Application {
 
     private static void openButtonStateDiagnosticWindow() {
         Parent panel = (Parent) PipelineLauncher.createButtonStateDiagnosticPanel();
-        double inset = staticField("NESTED_PANEL_INSET");
-        double width = nestedStaticField("HeaderGeometry", "MENU_RENDERED_POPUP_WIDTH")
-                + (inset * 2.0d);
-        double height = staticField("PARAMETER_ROW_HEIGHT")
-                + (inset * 2.0d);
         Stage stage = new Stage();
         stage.setTitle("ASTRA Button State Geometry");
-        Scene scene = new Scene(panel, width, height);
-        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        Scene scene = new Scene(panel);
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
         stage.setScene(scene);
         stage.show();
+        panel.applyCss();
+        panel.layout();
+        stage.sizeToScene();
     }
 
     private static void openRunProgressDiagnosticWindow() {
         Parent panel = (Parent) PipelineLauncher.createRunProgressDiagnosticPanel();
         double inset = staticField("NESTED_PANEL_INSET");
         double width = nestedStaticField("HeaderGeometry", "MENU_RENDERED_POPUP_WIDTH")
-                + (inset * 2.0d);
+                + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
         double laneCount = panel.getChildrenUnmodifiable().size();
         double gapCount = Math.max(0.0d, laneCount - 1.0d);
         double height = (nestedStaticField("LauncherGeometry", "ACTION_PROGRESS_TOTAL_HEIGHT") * laneCount)
                 + (staticField("PARAMETER_ROW_GAP") * gapCount)
-                + (inset * 2.0d);
+                + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
         Stage stage = new Stage();
         stage.setTitle("ASTRA Run Progress Geometry");
         Scene scene = new Scene(panel, width, height);
-        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
@@ -7054,7 +7248,7 @@ public final class LauncherPreviewApp extends Application {
         Stage stage = new Stage();
         stage.setTitle(title);
         Scene scene = new Scene(root, width, height);
-        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
