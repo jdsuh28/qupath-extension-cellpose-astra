@@ -21,9 +21,8 @@ final class LauncherGeometryTokens {
     static final double BILATERAL_BORDER_WIDTH =
             SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT;
     static final double BEVEL_DIAMETER_DIVISOR = OUTER_MARGIN / INTRA_PANEL_MARGIN;
-    static final double CUBIC_ARC_HANDLE_NUMERATOR = INTRA_PANEL_TIGHT_GAP;
-    static final double CUBIC_ARC_HANDLE_DENOMINATOR =
-            INTRA_PANEL_MARGIN - INTRA_PANEL_TIGHT_GAP;
+    static final double CUBIC_ARC_HANDLE_NUMERATOR = QUADRILATERAL_EDGE_COUNT;
+    static final double CUBIC_ARC_HANDLE_DENOMINATOR = TRILATERAL_EDGE_COUNT;
     static final double CUBIC_ARC_HANDLE_RATIO =
             (Math.sqrt(BEVEL_DIAMETER_DIVISOR) - 1.0)
                     * CUBIC_ARC_HANDLE_NUMERATOR

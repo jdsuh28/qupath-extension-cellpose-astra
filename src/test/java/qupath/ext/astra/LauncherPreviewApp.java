@@ -1101,6 +1101,24 @@ public final class LauncherPreviewApp extends Application {
         return parameters;
     }
 
+    private static void writeBinaryAlphaMask(String name, Node node) throws IOException {
+        WritableImage rendered = node.snapshot(snapshotParameters(node), null);
+        int width = (int)Math.ceil(rendered.getWidth());
+        int height = (int)Math.ceil(rendered.getHeight());
+        WritableImage mask = new WritableImage(width, height);
+        PixelReader reader = rendered.getPixelReader();
+        javafx.scene.image.PixelWriter writer = mask.getPixelWriter();
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int alpha = (reader.getArgb(x, y) >>> 24) & 0xff;
+                writer.setArgb(x, y, alpha == 0 ? 0x00000000 : 0xffffffff);
+            }
+        }
+        File file = options.outputPath().resolve(name + ".png").toFile();
+        ImageIO.write(SwingFXUtils.fromFXImage(mask, null), "png", file);
+        System.out.println(file.getAbsolutePath());
+    }
+
     private static void snapshotHeaderRibbonDiagnostic(String name, String launcherTitle) {
         Optional<Node> rootOptional = findWindowRoot(launcherTitle);
         if (rootOptional.isEmpty()) {
@@ -1130,6 +1148,7 @@ public final class LauncherPreviewApp extends Application {
         File file = options.outputPath().resolve(name + ".png").toFile();
         try {
             ImageIO.write(buffered, "png", file);
+            writeBinaryAlphaMask(name + "-silhouette", fill);
             writeEdgeAudit(name, capture);
             writeGeometryTables(name, measurements);
             System.out.println(file.getAbsolutePath());
@@ -1155,6 +1174,7 @@ public final class LauncherPreviewApp extends Application {
         Node sceneRoot = rootOptional.get();
         Optional<Node> bodyOptional = firstNode(sceneRoot, ".astra-footer-action-shell");
         Optional<Node> borderOptional = firstNode(sceneRoot, ".astra-footer-action-shell-border");
+        Optional<Node> fillOptional = firstNode(sceneRoot, ".astra-footer-action-shell-fill");
         Optional<Node> headerBodyOptional = firstNode(sceneRoot, ".astra-header-action-content");
         Optional<Node> headerBorderOptional = firstNode(sceneRoot, ".astra-header-action-shell-border");
         Optional<Node> outputOptional = firstNode(sceneRoot, ".astra-output-pane");
@@ -1166,6 +1186,7 @@ public final class LauncherPreviewApp extends Application {
         Optional<Node> footerRunOptional = firstNode(sceneRoot, ".astra-main-run-button");
         if (bodyOptional.isEmpty()
                 || borderOptional.isEmpty()
+                || fillOptional.isEmpty()
                 || headerBodyOptional.isEmpty()
                 || headerBorderOptional.isEmpty()
                 || outputOptional.isEmpty()) {
@@ -1174,6 +1195,7 @@ public final class LauncherPreviewApp extends Application {
         }
         Node body = bodyOptional.get();
         Node border = borderOptional.get();
+        Node fill = fillOptional.get();
         Node headerBody = headerBodyOptional.get();
         Node headerBorder = headerBorderOptional.get();
         Node output = outputOptional.get();
@@ -1201,6 +1223,7 @@ public final class LauncherPreviewApp extends Application {
         File file = options.outputPath().resolve(name + ".png").toFile();
         try {
             ImageIO.write(buffered, "png", file);
+            writeBinaryAlphaMask(name + "-silhouette", fill);
             writeEdgeAudit(name, capture);
             writeGeometryTables(name, measurements);
             System.out.println(file.getAbsolutePath());

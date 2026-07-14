@@ -815,17 +815,12 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private static double actionShellWidth()"));
         assertTrue(source.contains("private static double actionShellSlopeWidth(double shellWidth)"));
         assertTrue(source.contains("private static double actionShellVisibleWidth(double shellWidth)"));
-        assertTrue(source.contains("shellWidth + (actionShellSlopeWidth(shellWidth) * BILATERAL_EDGE_COUNT)"));
         assertTrue(source.contains("LauncherGeometry.macroActionButtonWidth() * ACTION_SHELL_BUTTON_COUNT"));
         assertTrue(source.contains("private static final class FooterActionShell extends StackPane"));
         assertTrue(source.contains("private final AnimatedGradientHeader gradientLayer = new AnimatedGradientHeader(new Pane());"));
         assertTrue(source.contains("gradientLayer.setManaged(false);"));
         assertTrue(source.contains("gradientLayer.setClip(clipPath);"));
-        assertTrue(source.contains("gradientLayer.resizeRelocate(\n"
-                + "                    -slopeWidth,\n"
-                + "                    LauncherGeometry.FLUSH,\n"
-                + "                    visibleWidth,\n"
-                + "                    height);"));
+        assertTrue(source.contains("gradientLayer.setMinWidth(FooterGeometry.actionShellVisibleWidth());"));
         assertTrue(source.contains("HEADER_MODE_PREFERENCE.addListener((obs, oldValue, newValue) -> applyHeaderGradientPreferences());"));
         assertTrue(source.contains("HEADER_MOTION_PREFERENCE.addListener((obs, oldValue, newValue) -> applyHeaderGradientPreferences());"));
         assertTrue(source.contains("bar.getChildren().addAll(progressLane, new FooterActionShell(cancelButton, runButton));"));
@@ -867,9 +862,9 @@ class PipelineLauncherTest {
         assertFalse(css.contains(".astra-header-action-wing-border"));
         assertTrue(css.contains(".astra-header-home-button"));
         assertTrue(css.contains(".astra-footer-action-shell"));
-        assertTrue(css.contains(".astra-header-action-shell-fill,\n.astra-footer-action-shell-fill"));
-        assertTrue(css.contains(".astra-header-action-shell-border,\n.astra-footer-action-shell-border"));
-        assertFalse(css.contains(".astra-footer-action-shell .astra-animated-gradient-surface"));
+        assertTrue(css.contains(".astra-footer-action-shell .astra-animated-gradient-surface"));
+        assertTrue(css.contains(".astra-footer-action-shell-fill"));
+        assertTrue(css.contains(".astra-footer-action-shell-border"));
         assertTrue(css.contains(".astra-footer-action-content"));
         assertTrue(source.contains("styleButton(button, homeButton ? ButtonRole.PRIMARY : ButtonRole.HEADER);"));
         assertTrue(source.contains("addStyleClass(button, homeButton ? \"astra-header-home-button\" : \"astra-header-menu-button\");"));
@@ -1727,6 +1722,8 @@ class PipelineLauncherTest {
                 + "            INTRA_PANEL_MARGIN * BILATERAL_EDGE_COUNT / TRILATERAL_EDGE_COUNT;"));
         assertTrue(sharedGeometry.contains("static final double SURFACE_BORDER_WIDTH = LAYOUT_UNIT / 24.0;"));
         assertTrue(sharedGeometry.contains("static final double BEVEL_DIAMETER_DIVISOR = OUTER_MARGIN / INTRA_PANEL_MARGIN;"));
+        assertTrue(sharedGeometry.contains("static final double CUBIC_ARC_HANDLE_NUMERATOR = QUADRILATERAL_EDGE_COUNT;"));
+        assertTrue(sharedGeometry.contains("static final double CUBIC_ARC_HANDLE_DENOMINATOR = TRILATERAL_EDGE_COUNT;"));
         assertTrue(sharedGeometry.contains("static final double CUBIC_ARC_HANDLE_RATIO ="));
         assertTrue(sharedGeometry.contains("static final double COMPACT_BEVEL_RADIUS = INTRA_PANEL_TIGHT_GAP;"));
         assertTrue(sharedGeometry.contains("static final double CONTROL_BEVEL_RADIUS ="));
