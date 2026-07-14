@@ -6,6 +6,8 @@ final class LauncherTypographyTokens {
 
     static final String PRIMARY_FONT_STACK =
             "\"Inter\", \"Aptos Display\", \"Segoe UI\", \"Helvetica Neue\", Arial, sans-serif";
+    static final String SOFT_FONT_STACK =
+            "\"Avenir\", \"Nunito Sans\", \"Aptos\", \"Segoe UI\", \"Helvetica Neue\", Arial, sans-serif";
     static final String MONO_FONT_STACK =
             "\"JetBrains Mono\", \"SF Mono\", Consolas, monospace";
     static final String FONT_WEIGHT_NORMAL = "normal";

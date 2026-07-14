@@ -157,6 +157,15 @@ public final class LauncherPreviewApp extends Application {
         if (options.snapshotMode().startsWith("tab-sheen-")) {
             PipelineLauncher.setHeaderModeForTesting(AnimatedGradientHeader.HeaderMode.STATIC);
         }
+        if ("visual-theme-modern".equals(options.snapshotMode())) {
+            PipelineLauncher.setVisualThemeForTesting(LauncherVisualTheme.MODERN);
+        } else if ("visual-theme-soft".equals(options.snapshotMode())
+                || options.snapshotMode().startsWith("visual-theme-soft-")) {
+            PipelineLauncher.setVisualThemeForTesting(LauncherVisualTheme.SOFT);
+        } else if ("visual-theme-slate".equals(options.snapshotMode())
+                || options.snapshotMode().startsWith("visual-theme-slate-")) {
+            PipelineLauncher.setVisualThemeForTesting(LauncherVisualTheme.SLATE);
+        }
 
         Platform.runLater(() -> PipelineLauncher.configureAndRun(qupath, title, script));
         if (options.snapshots()) {
@@ -243,6 +252,54 @@ public final class LauncherPreviewApp extends Application {
             schedule(1.5, () -> prepareTabSheenComparison(title, false));
             schedule(1.8, () -> snapshot("tab-sheen-ab-base", title));
             schedule(2.4, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("visual-theme-modern".equals(snapshotMode)
+                || "visual-theme-soft".equals(snapshotMode)
+                || "visual-theme-slate".equals(snapshotMode)) {
+            schedule(1.8, () -> snapshot(snapshotMode, title));
+            schedule(2.4, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if (isVisualThemeSurface(snapshotMode, "view")) {
+            schedule(1.5, () -> fireButton(title, "View"));
+            schedule(2.2, () -> snapshot(snapshotMode, title));
+            schedule(2.8, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if (isVisualThemeSurface(snapshotMode, "look")) {
+            schedule(1.5, () -> fireButton(title, "View"));
+            schedule(2.0, () -> fireButton(title, "Look"));
+            schedule(2.6, () -> snapshot(snapshotMode, title));
+            schedule(3.2, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if (isVisualThemeSurface(snapshotMode, "run-setup")) {
+            schedule(1.5, () -> fireButton(title, "Run Setup"));
+            schedule(2.2, () -> snapshot(snapshotMode, title));
+            schedule(2.8, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if (isVisualThemeSurface(snapshotMode, "combo")) {
+            schedule(1.5, LauncherPreviewApp::openAssetBackedComboDiagnosticWindow);
+            schedule(2.2, LauncherPreviewApp::showAssetComboPopup);
+            schedule(3.0, () -> snapshotSurfaceGeometry(
+                    snapshotMode, "ASTRA Asset Combo Diagnostic", Surface.ASSET_COMBO_POPUP, true));
+            schedule(3.6, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if (isVisualThemeSurface(snapshotMode, "help")) {
+            schedule(1.5, () -> fireButton(title, "Run Setup"));
+            schedule(2.6, () -> fireFirstHelpButton(title, () -> {
+                snapshot(snapshotMode, title);
+                closeAllWindows();
+            }));
+            return;
+        }
+        if (isVisualThemeSurface(snapshotMode, "runtime")) {
+            schedule(1.5, LauncherPreviewApp::openRuntimeInstallerDiagnosticWindow);
+            schedule(2.4, () -> snapshot(snapshotMode, "ASTRA Runtime Installer Diagnostic"));
+            schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("tab-sheen-on".equals(snapshotMode)) {
@@ -731,6 +788,11 @@ public final class LauncherPreviewApp extends Application {
         schedule(17.5, LauncherPreviewApp::closeAllWindows);
     }
 
+    private static boolean isVisualThemeSurface(String snapshotMode, String surface) {
+        return ("visual-theme-soft-" + surface).equals(snapshotMode)
+                || ("visual-theme-slate-" + surface).equals(snapshotMode);
+    }
+
     private static void schedule(double seconds, Runnable runnable) {
         PauseTransition pause = new PauseTransition(Duration.seconds(seconds));
         pause.setOnFinished(event -> runnable.run());
@@ -844,12 +906,50 @@ public final class LauncherPreviewApp extends Application {
     }
 
     private static void fireFirstHelpButton(String title) {
-        findWindowRoot(title)
-                .flatMap(root -> root.lookupAll(".astra-button-help").stream()
-                        .filter(Button.class::isInstance)
-                        .map(Button.class::cast)
-                        .findFirst())
-                .ifPresent(button -> Platform.runLater(button::fire));
+        fireFirstHelpButton(title, null);
+    }
+
+    private static void fireFirstHelpButton(String title, Runnable whileDialogIsOpen) {
+        Optional<Button> target = findWindowRoot(title)
+                .flatMap(root -> {
+                    root.applyCss();
+                    if (root instanceof Parent parent) {
+                        parent.layout();
+                    }
+                    return root.lookupAll(".astra-button-help").stream()
+                            .filter(Button.class::isInstance)
+                            .map(Button.class::cast)
+                            .filter(button -> !button.isDisabled())
+                            .filter(LauncherPreviewApp::isEffectivelyVisibleAndManaged)
+                            .filter(button -> {
+                                Bounds bounds = button.localToScene(button.getBoundsInLocal());
+                                return bounds.getWidth() > 0.0 && bounds.getHeight() > 0.0;
+                            })
+                            .findFirst();
+        });
+        if (target.isPresent()) {
+            Platform.runLater(() -> {
+                if (whileDialogIsOpen != null) {
+                    Platform.runLater(whileDialogIsOpen);
+                }
+                target.get().fire();
+            });
+        } else {
+            System.err.println("No visible enabled ASTRA help button in " + title);
+        }
+    }
+
+    private static boolean isEffectivelyVisibleAndManaged(Node node) {
+        if (!node.isManaged()) {
+            return false;
+        }
+        for (Node current = node; current != null; current = current.getParent()) {
+            if (!current.isVisible() || current.getOpacity() <= 0.0) {
+                return false;
+            }
+        }
+        return node.getScene() != null && node.getScene().getWindow() != null
+                && node.getScene().getWindow().isShowing();
     }
 
     private static void unlockAdvanced(String title) {
@@ -1088,6 +1188,10 @@ public final class LauncherPreviewApp extends Application {
                         .orElse(null));
         if (target == null || target.getScene() == null) {
             System.err.println("No snapshot target for " + name);
+            Window.getWindows().stream()
+                    .filter(Window::isShowing)
+                    .forEach(window -> System.err.println("Showing window: "
+                            + window.getClass().getName() + " title='" + windowTitle(window) + "'"));
             return;
         }
         Node root = target.getScene().getRoot();
@@ -1096,6 +1200,10 @@ public final class LauncherPreviewApp extends Application {
     }
 
     private static SnapshotCapture snapshotNode(Node node) {
+        node.applyCss();
+        if (node instanceof Parent parent) {
+            parent.layout();
+        }
         SnapshotParameters rawParameters = snapshotParameters(node);
         WritableImage raw = node.snapshot(rawParameters, null);
         Bounds bounds = node.getLayoutBounds();
@@ -7049,6 +7157,7 @@ public final class LauncherPreviewApp extends Application {
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
+        PipelineLauncher.applyCurrentVisualTheme(scene.getRoot());
         stage.setScene(scene);
         stage.show();
     }
@@ -7065,6 +7174,7 @@ public final class LauncherPreviewApp extends Application {
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
+        PipelineLauncher.applyCurrentVisualTheme(scene.getRoot());
         stage.setScene(scene);
         stage.show();
     }
@@ -7103,6 +7213,7 @@ public final class LauncherPreviewApp extends Application {
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
+        PipelineLauncher.applyCurrentVisualTheme(scene.getRoot());
         stage.setScene(scene);
         stage.show();
     }
@@ -7164,6 +7275,7 @@ public final class LauncherPreviewApp extends Application {
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
+        PipelineLauncher.applyCurrentVisualTheme(scene.getRoot());
         stage.setScene(scene);
         stage.show();
     }

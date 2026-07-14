@@ -10,6 +10,555 @@
 .astra-launcher-root {
     -fx-background-color: -launcher-color-paper;
     -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -launcher-header-settings-surface: -launcher-color-white-hex;
+    -launcher-header-project-surface: -launcher-color-white-hex;
+    -launcher-header-view-surface: -launcher-color-white-hex;
+    -launcher-header-settings-border: -launcher-color-rgba-191-226-228-0p86;
+    -launcher-header-project-border: -launcher-color-rgba-252-205-184-0p9;
+    -launcher-header-view-border: -launcher-color-rgba-219-235-238-0p86;
+}
+
+/*
+ * Visual looks override only color tokens. Geometry, typography, interaction,
+ * and component structure remain shared with the default Modern look.
+ */
+.astra-theme-soft {
+    -launcher-color-paper: -launcher-soft-paper;
+    -launcher-color-ink: -launcher-soft-ink;
+    -launcher-color-muted: -launcher-soft-muted;
+    -launcher-color-teal: -launcher-soft-primary;
+    -launcher-color-teal-dark: -launcher-soft-primary-dark;
+    -launcher-color-teal-border: -launcher-soft-primary-border;
+    -launcher-color-surface-soft: -launcher-soft-surface;
+    -launcher-color-control-border-soft: -launcher-soft-border;
+    -launcher-color-disabled-text: -launcher-soft-muted;
+    -launcher-color-neutral-control-surface: -launcher-soft-surface-lavender;
+    -launcher-color-neutral-control-border: -launcher-soft-border;
+    -launcher-color-white-hex: -launcher-soft-white;
+    -launcher-color-surface-border: -launcher-soft-border;
+    -launcher-color-control-border: -launcher-soft-border-strong;
+    -launcher-color-pressed-surface: -launcher-soft-surface-lavender;
+    -launcher-color-field-background: -launcher-soft-white;
+    -launcher-color-danger-surface: -launcher-soft-surface-rose;
+    -launcher-color-danger-text: -launcher-soft-danger-text;
+    -launcher-color-danger-border: -launcher-soft-danger-border;
+    -launcher-color-success-surface: -launcher-soft-surface-mint;
+    -launcher-color-success-text: -launcher-soft-success-text;
+    -launcher-color-success-border: -launcher-soft-success-border;
+    -launcher-color-warning-surface: -launcher-soft-surface-gold;
+    -launcher-color-warning-text: -launcher-soft-warning-text;
+    -launcher-color-gold: -launcher-soft-gold;
+    -launcher-color-hex-dcefee: -launcher-soft-ink;
+    -launcher-color-hex-b8d4d6: -launcher-soft-muted;
+    -launcher-color-hex-bfd3d4: -launcher-soft-muted;
+    -launcher-color-hex-d9e7e8: -launcher-soft-muted;
+    -launcher-color-hex-e8f6f7: -launcher-soft-ink;
+    -launcher-color-hex-c4dadd: -launcher-soft-muted;
+    -launcher-color-hex-0d7f80: -launcher-soft-button-primary;
+    -launcher-color-hex-07595d: -launcher-soft-primary-border;
+    -launcher-color-hex-062938: -launcher-soft-surface-lavender;
+    -launcher-color-hex-1f6071: -launcher-soft-border-strong;
+    -launcher-color-hex-0d2430: -launcher-soft-surface-lavender;
+    -launcher-color-hex-375f6c: -launcher-soft-border;
+    -launcher-color-hex-061720: -launcher-soft-surface;
+    -launcher-color-hex-355b69: -launcher-soft-border;
+    -launcher-color-hex-ecfbf7: -launcher-soft-ink;
+    -launcher-color-hex-a9c8ce: -launcher-soft-muted;
+    -launcher-color-hex-0c2a2d: -launcher-soft-surface-mint;
+    -launcher-color-hex-0d2235: -launcher-soft-surface-blue;
+    -launcher-color-hex-191f37: -launcher-soft-surface-lavender;
+    -launcher-color-hex-2c2412: -launcher-soft-surface-gold;
+    -launcher-color-hex-172630: -launcher-soft-surface-alt;
+    -launcher-color-hex-102a1f: -launcher-soft-surface-mint;
+    -launcher-color-hex-341a18: -launcher-soft-surface-rose;
+    -launcher-color-hex-163748: -launcher-soft-surface-lavender;
+    -launcher-color-hex-eaf7f4: -launcher-soft-ink;
+    -launcher-color-hex-223846: -launcher-soft-surface-alt;
+    -launcher-color-hex-cfe2e6: -launcher-soft-ink;
+    -launcher-color-hex-eefaf6: -launcher-soft-ink;
+    -launcher-color-hex-bcd3d8: -launcher-soft-muted;
+    -launcher-color-hex-102733: -launcher-soft-surface-alt;
+    -launcher-color-hex-2f5360: -launcher-soft-border;
+    -launcher-color-hex-8fb8c0: -launcher-soft-muted;
+    -launcher-color-hex-dcebed: -launcher-soft-ink;
+    -launcher-color-hex-121d27: -launcher-soft-surface-alt;
+    -launcher-color-hex-586879: -launcher-soft-border;
+    -launcher-color-hex-b9c7cf: -launcher-soft-muted;
+    -launcher-color-hex-e6edf2: -launcher-soft-ink;
+    -launcher-color-hex-0e2a34: -launcher-soft-surface;
+    -launcher-color-hex-06202b: -launcher-soft-ink;
+    -launcher-color-rgba-6-28-39-0p26: -launcher-soft-shadow;
+    -launcher-color-rgba-255-255-255-0p18: -launcher-soft-translucent-18;
+    -launcher-color-rgba-255-255-255-0p22: -launcher-soft-translucent-22;
+    -launcher-header-settings-surface: -launcher-soft-settings-surface;
+    -launcher-header-project-surface: -launcher-soft-project-surface;
+    -launcher-header-view-surface: -launcher-soft-view-surface;
+    -launcher-header-settings-border: -launcher-soft-accent-blue;
+    -launcher-header-project-border: -launcher-soft-accent-rose;
+    -launcher-header-view-border: -launcher-soft-accent-lavender;
+    -fx-font-family: "Avenir", "Nunito Sans", "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+/*
+ * Soft is a complete component palette, not a header-only recolor. These
+ * semantic overrides keep shared geometry and interaction mechanics intact
+ * while giving every ASTRA-owned surface family the same pastel language.
+ */
+.astra-theme-soft .astra-button-primary,
+.astra-theme-soft .astra-button-toggle-active {
+    -fx-background-color: -launcher-soft-button-primary;
+    -fx-border-color: -launcher-soft-primary-border;
+}
+
+.astra-theme-soft .astra-button-primary .astra-owned-control-text,
+.astra-theme-soft .astra-button-toggle-active .astra-owned-control-text {
+    -fx-fill: -launcher-soft-ink;
+}
+
+.astra-theme-soft .button.astra-button-primary.astra-header-home-button {
+    -fx-background-color: -launcher-soft-home-surface;
+    -fx-border-color: -launcher-soft-home-border;
+}
+
+.astra-theme-soft .astra-button-secondary.astra-button-toggle-active,
+.astra-theme-soft .astra-button-header.astra-button-toggle-active {
+    -fx-background-color: -launcher-soft-button-primary;
+    -fx-border-color: -launcher-soft-primary-border;
+}
+
+.astra-theme-soft .astra-owned-control-text,
+.astra-theme-soft .astra-owned-panel-text,
+.astra-theme-soft .astra-owned-dialog-text,
+.astra-theme-soft .astra-owned-menu-text,
+.astra-theme-soft .label,
+.astra-theme-soft .button,
+.astra-theme-soft .toggle-button,
+.astra-theme-soft .text-field,
+.astra-theme-soft .text-area,
+.astra-theme-soft .combo-box-base,
+.astra-theme-soft .list-cell,
+.astra-theme-soft .menu-item,
+.astra-theme-soft .tooltip {
+    -fx-font-family: "Avenir", "Nunito Sans", "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+.astra-theme-soft .astra-owned-log-text,
+.astra-theme-soft .astra-log-command-text,
+.astra-theme-soft .astra-log-line-text,
+.astra-theme-soft .astra-runtime-installer-log {
+    -fx-font-family: "JetBrains Mono", "SF Mono", Consolas, monospace;
+}
+
+.astra-theme-soft .astra-button-secondary,
+.astra-theme-soft .astra-button-small {
+    -fx-background-color: -launcher-soft-white;
+    -fx-border-color: -launcher-soft-border;
+}
+
+.astra-theme-soft .button.astra-settings-card-theme-teal {
+    -fx-background-color: -launcher-soft-surface-mint;
+    -fx-border-color: -launcher-soft-accent-teal;
+}
+
+.astra-theme-soft .button.astra-settings-card-theme-bluegray {
+    -fx-background-color: -launcher-soft-surface-blue;
+    -fx-border-color: -launcher-soft-accent-blue;
+}
+
+.astra-theme-soft .button.astra-settings-card-theme-sage {
+    -fx-background-color: -launcher-soft-surface-mint;
+    -fx-border-color: -launcher-soft-accent-sage;
+}
+
+.astra-theme-soft .button.astra-settings-card-theme-amber {
+    -fx-background-color: -launcher-soft-surface-rose;
+    -fx-border-color: -launcher-soft-accent-rose;
+}
+
+.astra-theme-soft .button.astra-settings-card-theme-gold {
+    -fx-background-color: -launcher-soft-surface-gold;
+    -fx-border-color: -launcher-soft-accent-gold;
+}
+
+.astra-theme-soft .astra-accent-teal {
+    -fx-fill: -launcher-soft-accent-teal;
+}
+
+.astra-theme-soft .astra-accent-bluegray {
+    -fx-fill: -launcher-soft-accent-blue;
+}
+
+.astra-theme-soft .astra-accent-sage {
+    -fx-fill: -launcher-soft-accent-sage;
+}
+
+.astra-theme-soft .astra-accent-amber {
+    -fx-fill: -launcher-soft-accent-rose;
+}
+
+.astra-theme-soft .astra-accent-gold {
+    -fx-fill: -launcher-soft-accent-gold;
+}
+
+.astra-theme-soft .astra-output-pane {
+    -fx-background-color: -launcher-soft-output-surface;
+    -fx-border-color: -launcher-soft-output-border;
+    -fx-effect: dropshadow(gaussian, -launcher-soft-shadow, 12, 0.2, 0, 2);
+}
+
+.astra-theme-soft .astra-output-log-shell,
+.astra-theme-soft .astra-log-scroll-frame,
+.astra-theme-soft .astra-log-scroll-frame > .viewport,
+.astra-theme-soft .astra-log-card,
+.astra-theme-soft .astra-log-message-card,
+.astra-theme-soft .astra-log-command-card {
+    -fx-background-color: -launcher-soft-output-inner;
+    -fx-border-color: -launcher-soft-border;
+}
+
+.astra-theme-soft .astra-output-pane .astra-log-status-card {
+    -fx-background-color: -launcher-soft-surface-mint;
+    -fx-border-color: -launcher-soft-accent-teal;
+}
+
+.astra-theme-soft .astra-collapsible-header,
+.astra-theme-soft .button.astra-collapsible-header {
+    -fx-background-color: -launcher-soft-collapsible;
+    -fx-border-color: -launcher-soft-primary-border;
+}
+
+.astra-theme-soft .astra-collapsible-header:hover,
+.astra-theme-soft .button.astra-collapsible-header:hover {
+    -fx-background-color: -launcher-soft-collapsible-hover;
+    -fx-border-color: -launcher-soft-primary-border;
+}
+
+.astra-theme-soft .astra-collapsible-header:pressed,
+.astra-theme-soft .button.astra-collapsible-header:pressed {
+    -fx-background-color: -launcher-soft-collapsible-pressed;
+    -fx-border-color: -launcher-soft-primary-border;
+}
+
+.astra-theme-soft .astra-collapsible-title,
+.astra-theme-soft .astra-collapsible-arrow {
+    -fx-text-fill: -launcher-soft-ink;
+}
+
+.astra-theme-soft .astra-help-details-accent,
+.astra-theme-soft .astra-runtime-installer-progress .bar {
+    -fx-background-color: linear-gradient(
+        to bottom,
+        -launcher-soft-accent-blue,
+        -launcher-soft-accent-teal,
+        -launcher-soft-accent-rose);
+}
+
+.astra-theme-soft .astra-runtime-installer-header,
+.astra-theme-soft .astra-runtime-installer-status-card,
+.astra-theme-soft .astra-runtime-installer-log-pane,
+.astra-theme-soft .astra-help-details-shell,
+.astra-theme-soft .astra-help-details-scroll,
+.astra-theme-soft .astra-help-details-scroll > .viewport {
+    -fx-background-color: -launcher-soft-white;
+    -fx-border-color: -launcher-soft-border;
+}
+
+.astra-theme-soft .astra-header-title,
+.astra-theme-soft .astra-header-subtitle,
+.astra-theme-soft .astra-header-provenance,
+.astra-theme-soft .astra-workflow-arrow {
+    -fx-text-fill: -launcher-color-ink;
+}
+
+.astra-theme-soft .astra-workflow-chip-idle {
+    -fx-background-color: -launcher-soft-translucent-white-58;
+    -fx-border-color: -launcher-color-surface-border;
+}
+
+.astra-theme-soft .astra-workflow-chip-idle .astra-owned-panel-text,
+.astra-theme-soft .astra-header-action-page-title .astra-owned-panel-text,
+.astra-theme-soft .astra-header-action-page-subtitle .astra-owned-panel-text,
+.astra-theme-soft .astra-header-options-label .astra-owned-panel-text {
+    -fx-fill: -launcher-color-ink;
+}
+
+.astra-theme-soft .astra-output-status {
+    -fx-text-fill: -launcher-color-ink;
+}
+
+.astra-theme-soft .astra-output-status-warning {
+    -fx-text-fill: -launcher-color-warning-text;
+}
+
+.astra-theme-soft .astra-output-status-success {
+    -fx-text-fill: -launcher-color-success-text;
+}
+
+.astra-theme-soft .astra-output-status-error {
+    -fx-text-fill: -launcher-color-danger-text;
+}
+
+.astra-theme-soft .astra-log-scroll-top-fade {
+    -fx-background-color: linear-gradient(from 0% 0% to 0% 100%,
+        -launcher-soft-fade-strong 0%,
+        -launcher-soft-fade-mid 38%,
+        -launcher-soft-fade-clear 100%);
+}
+
+/*
+ * Slate uses the same component system with a quieter, low-saturation palette.
+ * Its contrast hierarchy comes from value and border weight rather than color.
+ */
+.astra-theme-slate {
+    -launcher-color-paper: -launcher-slate-paper;
+    -launcher-color-ink: -launcher-slate-ink;
+    -launcher-color-muted: -launcher-slate-muted;
+    -launcher-color-teal: -launcher-slate-primary;
+    -launcher-color-teal-dark: -launcher-slate-primary-dark;
+    -launcher-color-teal-border: -launcher-slate-primary-border;
+    -launcher-color-surface-soft: -launcher-slate-surface;
+    -launcher-color-control-border-soft: -launcher-slate-border;
+    -launcher-color-disabled-text: -launcher-slate-muted;
+    -launcher-color-neutral-control-surface: -launcher-slate-surface-alt;
+    -launcher-color-neutral-control-border: -launcher-slate-border;
+    -launcher-color-white-hex: -launcher-slate-white;
+    -launcher-color-surface-border: -launcher-slate-border;
+    -launcher-color-control-border: -launcher-slate-border-strong;
+    -launcher-color-pressed-surface: -launcher-slate-surface-blue;
+    -launcher-color-field-background: -launcher-slate-white;
+    -launcher-color-danger-surface: -launcher-slate-danger-surface;
+    -launcher-color-danger-text: -launcher-slate-danger-text;
+    -launcher-color-danger-border: -launcher-slate-danger-border;
+    -launcher-color-success-surface: -launcher-slate-surface-green;
+    -launcher-color-success-text: -launcher-slate-success-text;
+    -launcher-color-success-border: -launcher-slate-success-border;
+    -launcher-color-warning-surface: -launcher-slate-surface-warm;
+    -launcher-color-warning-text: -launcher-slate-warning-text;
+    -launcher-color-gold: -launcher-slate-gold;
+    -launcher-color-hex-dcefee: -launcher-slate-ink;
+    -launcher-color-hex-b8d4d6: -launcher-slate-muted;
+    -launcher-color-hex-bfd3d4: -launcher-slate-muted;
+    -launcher-color-hex-d9e7e8: -launcher-slate-muted;
+    -launcher-color-hex-e8f6f7: -launcher-slate-ink;
+    -launcher-color-hex-c4dadd: -launcher-slate-muted;
+    -launcher-color-hex-0d7f80: -launcher-slate-button-primary;
+    -launcher-color-hex-07595d: -launcher-slate-primary-border;
+    -launcher-color-hex-062938: -launcher-slate-surface-alt;
+    -launcher-color-hex-1f6071: -launcher-slate-border-strong;
+    -launcher-color-hex-0d2430: -launcher-slate-surface-alt;
+    -launcher-color-hex-375f6c: -launcher-slate-border;
+    -launcher-color-hex-061720: -launcher-slate-surface;
+    -launcher-color-hex-355b69: -launcher-slate-border;
+    -launcher-color-hex-ecfbf7: -launcher-slate-ink;
+    -launcher-color-hex-a9c8ce: -launcher-slate-muted;
+    -launcher-color-hex-0c2a2d: -launcher-slate-surface-green;
+    -launcher-color-hex-0d2235: -launcher-slate-surface-blue;
+    -launcher-color-hex-191f37: -launcher-slate-surface-alt;
+    -launcher-color-hex-2c2412: -launcher-slate-surface-warm;
+    -launcher-color-hex-172630: -launcher-slate-surface-alt;
+    -launcher-color-hex-102a1f: -launcher-slate-surface-green;
+    -launcher-color-hex-341a18: -launcher-slate-danger-surface;
+    -launcher-color-hex-163748: -launcher-slate-surface-alt;
+    -launcher-color-hex-eaf7f4: -launcher-slate-ink;
+    -launcher-color-hex-223846: -launcher-slate-surface-alt;
+    -launcher-color-hex-cfe2e6: -launcher-slate-ink;
+    -launcher-color-hex-eefaf6: -launcher-slate-ink;
+    -launcher-color-hex-bcd3d8: -launcher-slate-muted;
+    -launcher-color-hex-102733: -launcher-slate-surface-alt;
+    -launcher-color-hex-2f5360: -launcher-slate-border;
+    -launcher-color-hex-8fb8c0: -launcher-slate-muted;
+    -launcher-color-hex-dcebed: -launcher-slate-ink;
+    -launcher-color-hex-121d27: -launcher-slate-surface-alt;
+    -launcher-color-hex-586879: -launcher-slate-border;
+    -launcher-color-hex-b9c7cf: -launcher-slate-muted;
+    -launcher-color-hex-e6edf2: -launcher-slate-ink;
+    -launcher-color-hex-0e2a34: -launcher-slate-surface;
+    -launcher-color-hex-06202b: -launcher-slate-ink;
+    -launcher-color-rgba-6-28-39-0p26: -launcher-slate-shadow;
+    -launcher-color-rgba-255-255-255-0p18: -launcher-slate-translucent-18;
+    -launcher-color-rgba-255-255-255-0p22: -launcher-slate-translucent-22;
+    -launcher-header-settings-surface: -launcher-slate-settings-surface;
+    -launcher-header-project-surface: -launcher-slate-project-surface;
+    -launcher-header-view-surface: -launcher-slate-view-surface;
+    -launcher-header-settings-border: -launcher-slate-accent-blue;
+    -launcher-header-project-border: -launcher-slate-accent-warm;
+    -launcher-header-view-border: -launcher-slate-primary-border;
+    -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+.astra-theme-slate .astra-button-primary,
+.astra-theme-slate .astra-button-toggle-active,
+.astra-theme-slate .astra-button-secondary.astra-button-toggle-active,
+.astra-theme-slate .astra-button-header.astra-button-toggle-active {
+    -fx-background-color: -launcher-slate-button-primary;
+    -fx-border-color: -launcher-slate-primary-border;
+}
+
+.astra-theme-slate .astra-button-primary .astra-owned-control-text,
+.astra-theme-slate .astra-button-toggle-active .astra-owned-control-text {
+    -fx-fill: -launcher-slate-ink;
+}
+
+.astra-theme-slate .button.astra-button-primary.astra-header-home-button {
+    -fx-background-color: -launcher-slate-home-surface;
+    -fx-border-color: -launcher-slate-home-border;
+}
+
+.astra-theme-slate .astra-button-secondary,
+.astra-theme-slate .astra-button-small {
+    -fx-background-color: -launcher-slate-white;
+    -fx-border-color: -launcher-slate-border;
+}
+
+.astra-theme-slate .button.astra-settings-card-theme-teal {
+    -fx-background-color: -launcher-slate-surface-green;
+    -fx-border-color: -launcher-slate-accent-teal;
+}
+
+.astra-theme-slate .button.astra-settings-card-theme-bluegray {
+    -fx-background-color: -launcher-slate-surface-blue;
+    -fx-border-color: -launcher-slate-accent-blue;
+}
+
+.astra-theme-slate .button.astra-settings-card-theme-sage {
+    -fx-background-color: -launcher-slate-surface-green;
+    -fx-border-color: -launcher-slate-accent-sage;
+}
+
+.astra-theme-slate .button.astra-settings-card-theme-amber {
+    -fx-background-color: -launcher-slate-surface-warm;
+    -fx-border-color: -launcher-slate-accent-warm;
+}
+
+.astra-theme-slate .button.astra-settings-card-theme-gold {
+    -fx-background-color: -launcher-slate-surface-warm;
+    -fx-border-color: -launcher-slate-accent-gold;
+}
+
+.astra-theme-slate .astra-accent-teal {
+    -fx-fill: -launcher-slate-accent-teal;
+}
+
+.astra-theme-slate .astra-accent-bluegray {
+    -fx-fill: -launcher-slate-accent-blue;
+}
+
+.astra-theme-slate .astra-accent-sage {
+    -fx-fill: -launcher-slate-accent-sage;
+}
+
+.astra-theme-slate .astra-accent-amber {
+    -fx-fill: -launcher-slate-accent-warm;
+}
+
+.astra-theme-slate .astra-accent-gold {
+    -fx-fill: -launcher-slate-accent-gold;
+}
+
+.astra-theme-slate .astra-output-pane {
+    -fx-background-color: -launcher-slate-output-surface;
+    -fx-border-color: -launcher-slate-output-border;
+    -fx-effect: dropshadow(gaussian, -launcher-slate-shadow, 12, 0.2, 0, 2);
+}
+
+.astra-theme-slate .astra-output-log-shell,
+.astra-theme-slate .astra-log-scroll-frame,
+.astra-theme-slate .astra-log-scroll-frame > .viewport,
+.astra-theme-slate .astra-log-card,
+.astra-theme-slate .astra-log-message-card,
+.astra-theme-slate .astra-log-command-card {
+    -fx-background-color: -launcher-slate-output-inner;
+    -fx-border-color: -launcher-slate-border;
+}
+
+.astra-theme-slate .astra-output-pane .astra-log-status-card {
+    -fx-background-color: -launcher-slate-surface-green;
+    -fx-border-color: -launcher-slate-accent-teal;
+}
+
+.astra-theme-slate .astra-collapsible-header,
+.astra-theme-slate .button.astra-collapsible-header {
+    -fx-background-color: -launcher-slate-collapsible;
+    -fx-border-color: -launcher-slate-primary-border;
+}
+
+.astra-theme-slate .astra-collapsible-header:hover,
+.astra-theme-slate .button.astra-collapsible-header:hover {
+    -fx-background-color: -launcher-slate-collapsible-hover;
+}
+
+.astra-theme-slate .astra-collapsible-header:pressed,
+.astra-theme-slate .button.astra-collapsible-header:pressed {
+    -fx-background-color: -launcher-slate-collapsible-pressed;
+}
+
+.astra-theme-slate .astra-collapsible-title,
+.astra-theme-slate .astra-collapsible-arrow {
+    -fx-text-fill: -launcher-slate-ink;
+}
+
+.astra-theme-slate .astra-help-details-accent,
+.astra-theme-slate .astra-runtime-installer-progress .bar {
+    -fx-background-color: linear-gradient(
+        to bottom,
+        -launcher-slate-accent-blue,
+        -launcher-slate-accent-teal,
+        -launcher-slate-accent-sage);
+}
+
+.astra-theme-slate .astra-runtime-installer-header,
+.astra-theme-slate .astra-runtime-installer-status-card,
+.astra-theme-slate .astra-runtime-installer-log-pane,
+.astra-theme-slate .astra-help-details-shell,
+.astra-theme-slate .astra-help-details-scroll,
+.astra-theme-slate .astra-help-details-scroll > .viewport {
+    -fx-background-color: -launcher-slate-white;
+    -fx-border-color: -launcher-slate-border;
+}
+
+.astra-theme-slate .astra-header-title {
+    -fx-text-fill: -launcher-slate-header-ink;
+}
+
+.astra-theme-slate .astra-header-subtitle,
+.astra-theme-slate .astra-header-provenance,
+.astra-theme-slate .astra-workflow-arrow {
+    -fx-text-fill: -launcher-slate-header-muted;
+}
+
+.astra-theme-slate .astra-output-status {
+    -fx-text-fill: -launcher-slate-ink;
+}
+
+.astra-theme-slate .astra-workflow-chip-idle {
+    -fx-background-color: -launcher-slate-translucent-white-58;
+    -fx-border-color: -launcher-slate-border;
+}
+
+.astra-theme-slate .astra-workflow-chip-idle .astra-owned-panel-text,
+.astra-theme-slate .astra-header-action-page-title .astra-owned-panel-text,
+.astra-theme-slate .astra-header-action-page-subtitle .astra-owned-panel-text,
+.astra-theme-slate .astra-header-options-label .astra-owned-panel-text {
+    -fx-fill: -launcher-slate-ink;
+}
+
+.astra-theme-slate .astra-output-status-warning {
+    -fx-text-fill: -launcher-slate-warning-text;
+}
+
+.astra-theme-slate .astra-output-status-success {
+    -fx-text-fill: -launcher-slate-success-text;
+}
+
+.astra-theme-slate .astra-output-status-error {
+    -fx-text-fill: -launcher-slate-danger-text;
+}
+
+.astra-theme-slate .astra-log-scroll-top-fade {
+    -fx-background-color: linear-gradient(from 0% 0% to 0% 100%,
+        -launcher-slate-fade-strong 0%,
+        -launcher-slate-fade-mid 38%,
+        -launcher-slate-fade-clear 100%);
 }
 
 .astra-launcher-dialog-pane {
@@ -46,7 +595,7 @@
     -fx-fill: -launcher-color-ink;
     -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     -fx-font-size: 12px;
-    -fx-font-weight: bold;
+    -fx-font-weight: normal;
 }
 
 .astra-button:pressed {
@@ -433,15 +982,18 @@
 }
 
 .astra-header-menu-button-settings {
-    -fx-border-color: -launcher-color-rgba-191-226-228-0p86;
+    -fx-background-color: -launcher-header-settings-surface;
+    -fx-border-color: -launcher-header-settings-border;
 }
 
 .astra-header-menu-button-project {
-    -fx-border-color: -launcher-color-rgba-252-205-184-0p9;
+    -fx-background-color: -launcher-header-project-surface;
+    -fx-border-color: -launcher-header-project-border;
 }
 
 .astra-header-menu-button-view {
-    -fx-border-color: -launcher-color-rgba-219-235-238-0p86;
+    -fx-background-color: -launcher-header-view-surface;
+    -fx-border-color: -launcher-header-view-border;
 }
 
 .astra-header-menu-item-danger .label {
@@ -1303,7 +1855,7 @@
 
 .astra-help-subtitle {
     -fx-font-size: 11.5px;
-    -fx-font-weight: bold;
+    -fx-font-weight: normal;
     -fx-text-fill: -launcher-color-muted;
 }
 
@@ -1316,7 +1868,7 @@
 
 .astra-help-summary-label {
     -fx-font-size: 11px;
-    -fx-font-weight: bold;
+    -fx-font-weight: normal;
     -fx-text-fill: -launcher-color-hex-415866;
 }
 

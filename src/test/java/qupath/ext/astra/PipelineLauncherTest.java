@@ -273,7 +273,16 @@ class PipelineLauncherTest {
         String typographyInventory = typographyFamilyInventory();
 
         assertTrue(css.contains("-fx-font-family: " + LauncherTypographyTokens.PRIMARY_FONT_STACK + ";"));
+        assertTrue(css.contains("-fx-font-family: " + LauncherTypographyTokens.SOFT_FONT_STACK + ";"));
         assertTrue(css.contains("-fx-font-family: " + LauncherTypographyTokens.MONO_FONT_STACK + ";"));
+        assertTrue(cssBlock(css, ".astra-owned-dialog-text")
+                .contains("-fx-font-weight: " + LauncherTypographyTokens.FONT_WEIGHT_NORMAL + ";"));
+        assertTrue(cssBlock(css, ".astra-help-body")
+                .contains("-fx-text-fill: -launcher-color-ink;"));
+        assertFalse(cssBlock(css, ".astra-help-body")
+                .contains("-fx-font-weight: " + LauncherTypographyTokens.FONT_WEIGHT_BOLD + ";"));
+        assertFalse(cssBlock(css, ".astra-help-detail-card-body")
+                .contains("-fx-font-weight: " + LauncherTypographyTokens.FONT_WEIGHT_BOLD + ";"));
         assertTrue(css.contains("-fx-font-size: "
                 + LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_BODY) + ";"));
         assertTrue(css.contains("-fx-font-weight: " + LauncherTypographyTokens.FONT_WEIGHT_BOLD + ";"));
@@ -304,6 +313,7 @@ class PipelineLauncherTest {
         assertCssDeclarationsIn(css, "-fx-font-size", allowedFontSizes);
         assertCssDeclarationsIn(css, "-fx-font-family", Set.of(
                 LauncherTypographyTokens.PRIMARY_FONT_STACK,
+                LauncherTypographyTokens.SOFT_FONT_STACK,
                 LauncherTypographyTokens.MONO_FONT_STACK));
         assertCssDeclarationsIn(css, "-fx-font-weight", Set.of(
                 LauncherTypographyTokens.FONT_WEIGHT_NORMAL,
@@ -343,9 +353,36 @@ class PipelineLauncherTest {
         assertTrue(source.contains("LauncherThemeTokens.HEADER_MOTION_ROW_DISABLED_OPACITY"));
         assertTrue(source.contains("LauncherThemeTokens.CHANNEL_FALLBACK"));
         assertFalse(source.contains("rgba(212,167,44,0.42)"));
-        assertTrue(gradientSource.contains("LauncherThemeTokens.GRADIENT_OVERLAY_COLOR"));
-        assertTrue(gradientSource.contains("LauncherThemeTokens.GRADIENT_STOP_00"));
+        assertTrue(gradientSource.contains("LauncherThemeTokens.gradientOverlayColor(visualTheme)"));
+        assertTrue(gradientSource.contains("LauncherThemeTokens.gradientStops(visualTheme)"));
         assertFalse(gradientSource.contains("Color.web(\"#"));
+        assertTrue(css.contains(".astra-theme-soft"));
+        assertTrue(css.contains(".astra-theme-slate"));
+        assertTrue(css.contains("-launcher-color-paper: -launcher-soft-paper;"));
+        assertTrue(generatedTokens.contains("-launcher-soft-paper: #fbfaff;"));
+        assertTrue(generatedTokens.contains("-launcher-soft-button-primary:"));
+        assertTrue(generatedTokens.contains("-launcher-soft-settings-surface:"));
+        assertTrue(generatedTokens.contains("-launcher-soft-project-surface:"));
+        assertTrue(generatedTokens.contains("-launcher-soft-view-surface:"));
+        assertTrue(generatedTokens.contains("-launcher-slate-paper: #eef1f4;"));
+        assertTrue(generatedTokens.contains("-launcher-slate-button-primary:"));
+        assertTrue(generatedTokens.contains("-launcher-slate-output-surface:"));
+        assertTrue(css.contains("-launcher-header-settings-surface: -launcher-soft-settings-surface;"));
+        assertTrue(css.contains("-launcher-header-project-surface: -launcher-soft-project-surface;"));
+        assertTrue(css.contains("-launcher-header-view-surface: -launcher-soft-view-surface;"));
+        assertTrue(css.contains(".astra-theme-soft .button.astra-settings-card-theme-teal"));
+        assertTrue(css.contains(".astra-theme-soft .astra-output-pane"));
+        assertTrue(css.contains(".astra-theme-soft .astra-runtime-installer-progress .bar"));
+        assertTrue(css.contains(".astra-theme-slate .button.astra-settings-card-theme-teal"));
+        assertTrue(css.contains(".astra-theme-slate .astra-output-pane"));
+        assertTrue(css.contains(".astra-theme-slate .astra-runtime-installer-progress .bar"));
+        assertTrue(source.contains("ensurePopupThemeBridge();"));
+        assertTrue(source.contains("applyThemeToOwnedPopup(window)"));
+        assertTrue(Files.readString(Path.of("src/main/java/qupath/ext/astra/RuntimeInstaller.java"))
+                .contains("PipelineLauncher.applyCurrentVisualTheme(scene.getRoot())"));
+        assertEquals(LauncherVisualTheme.MODERN, LauncherVisualTheme.fromText(null));
+        assertEquals(LauncherVisualTheme.SOFT, LauncherVisualTheme.fromText("soft"));
+        assertEquals(LauncherVisualTheme.SLATE, LauncherVisualTheme.fromText("slate"));
 
         var opacityMatcher = Pattern.compile("-fx-opacity:\\s*([^;]+);").matcher(css);
         while (opacityMatcher.find()) {
@@ -1897,7 +1934,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("menuContent.setPadding(new Insets(HeaderGeometry.OPTIONS_PANEL_INSET));"));
         assertTrue(source.contains("wrapInGroup\n"
                 + "                ? createHeaderDropdownGroup(\"View\")"));
-        assertTrue(source.contains("menuContent.getChildren().addAll(outputRow, modeRow, motionRow, headerActionsRow);"));
+        assertTrue(source.contains("menuContent.getChildren().addAll(outputRow, lookRow, gradientRow, motionRow, headerActionsRow);"));
         assertTrue(source.contains("new HBox(HeaderGeometry.SEGMENT_ROW_GAP);"));
         assertTrue(source.contains("new HBox(HeaderGeometry.SEGMENT_CONTROL_GAP, buttons);"));
         assertTrue(source.contains("VBox root = new VBox(LauncherGeometry.FLUSH);"));

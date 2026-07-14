@@ -24,8 +24,8 @@ final class LauncherThemeTokens {
     static final String CHANNEL_FALLBACK = "#b7c0c7";
     static final String FIELD_BACKGROUND = "#fbfdff";
     static final String CHANGED_VALUE_SHADOW = "rgba(212, 167, 44, 0.42)";
-    private static final Color TAB_SHEEN_HIGHLIGHT = Color.rgb(255, 255, 255, 0.18d);
-    private static final Color TAB_SHEEN_BODY = Color.rgb(255, 255, 255, 0.11d);
+    private static final Color TAB_SHEEN_HIGHLIGHT = Color.rgb(255, 255, 255, 0.68d);
+    private static final Color TAB_SHEEN_BODY = Color.rgb(255, 255, 255, 0.46d);
     private static final Color TAB_SHEEN_TAIL = TAB_SHEEN_BODY;
 
     static final double ENABLED_OPACITY = 1.0d;
@@ -59,6 +59,26 @@ final class LauncherThemeTokens {
     static final String GRADIENT_STOP_09 = "#0d3548";
     static final String GRADIENT_STOP_10 = "#092937";
     static final String GRADIENT_STOP_11 = "#071d29";
+
+    private static final String[] MODERN_GRADIENT_STOPS = {
+            GRADIENT_STOP_00, GRADIENT_STOP_01, GRADIENT_STOP_02, GRADIENT_STOP_03,
+            GRADIENT_STOP_04, GRADIENT_STOP_05, GRADIENT_STOP_06, GRADIENT_STOP_07,
+            GRADIENT_STOP_08, GRADIENT_STOP_09, GRADIENT_STOP_10, GRADIENT_STOP_11
+    };
+    private static final String[] SOFT_GRADIENT_STOPS = {
+            "#d9ccff", "#cce6ff", "#c9efe7", "#ffd5e5",
+            "#e4d5ff", "#d2eaff", "#ccebdd", "#ffd8e8",
+            "#dfd2ff", "#cfe5ff", "#d1eee5", "#d9ccff"
+    };
+    private static final String[] SLATE_GRADIENT_STOPS = {
+            "#354755", "#405665", "#4d6473", "#587280",
+            "#637d88", "#6d8790", "#647d87", "#59727e",
+            "#4e6673", "#435a68", "#3b4f5d", "#354755"
+    };
+    private static final double[] GRADIENT_STOP_OFFSETS = {
+            0.00d, 0.08d, 0.16d, 0.24d, 0.32d, 0.42d,
+            0.52d, 0.62d, 0.72d, 0.82d, 0.92d, 1.00d
+    };
 
     static final List<CssToken> CSS_TOKENS = List.of(
             new CssToken("-launcher-color-paper", "#f4f7f8"),
@@ -314,6 +334,106 @@ final class LauncherThemeTokens {
             CSS_OPACITY_FULL_DECIMAL
     );
 
+    private static final List<CssToken> SOFT_CSS_TOKENS = List.of(
+            new CssToken("-launcher-soft-paper", "#fbfaff"),
+            new CssToken("-launcher-soft-white", "#ffffff"),
+            new CssToken("-launcher-soft-ink", "#40374f"),
+            new CssToken("-launcher-soft-muted", "#756b82"),
+            new CssToken("-launcher-soft-primary", "#8eb8dc"),
+            new CssToken("-launcher-soft-primary-dark", "#5e4f78"),
+            new CssToken("-launcher-soft-primary-border", "#76a5cf"),
+            new CssToken("-launcher-soft-border", "#ddd3e8"),
+            new CssToken("-launcher-soft-border-strong", "#b9a9cf"),
+            new CssToken("-launcher-soft-surface", "#fffaff"),
+            new CssToken("-launcher-soft-surface-alt", "#f5f0fa"),
+            new CssToken("-launcher-soft-surface-lavender", "#f0eafa"),
+            new CssToken("-launcher-soft-surface-blue", "#eef5ff"),
+            new CssToken("-launcher-soft-surface-mint", "#edf8f5"),
+            new CssToken("-launcher-soft-surface-rose", "#fff0f2"),
+            new CssToken("-launcher-soft-surface-gold", "#fff8e9"),
+            new CssToken("-launcher-soft-button-primary", "#b8d7ef"),
+            new CssToken("-launcher-soft-home-surface", "#d9efe9"),
+            new CssToken("-launcher-soft-home-border", "#70aa9c"),
+            new CssToken("-launcher-soft-settings-surface", "#cfe4f7"),
+            new CssToken("-launcher-soft-project-surface", "#f6d2de"),
+            new CssToken("-launcher-soft-view-surface", "#ded2ef"),
+            new CssToken("-launcher-soft-accent-teal", "#70c6be"),
+            new CssToken("-launcher-soft-accent-blue", "#91b8df"),
+            new CssToken("-launcher-soft-accent-sage", "#9bc995"),
+            new CssToken("-launcher-soft-accent-rose", "#e5aabd"),
+            new CssToken("-launcher-soft-accent-gold", "#d9bb78"),
+            new CssToken("-launcher-soft-accent-lavender", "#b8a2d8"),
+            new CssToken("-launcher-soft-output-surface", "#eef5ff"),
+            new CssToken("-launcher-soft-output-inner", "#fffaff"),
+            new CssToken("-launcher-soft-output-border", "#b5cee5"),
+            new CssToken("-launcher-soft-collapsible", "#dcefe9"),
+            new CssToken("-launcher-soft-collapsible-hover", "#cce7de"),
+            new CssToken("-launcher-soft-collapsible-pressed", "#b9dbd0"),
+            new CssToken("-launcher-soft-danger-text", "#8a4857"),
+            new CssToken("-launcher-soft-danger-border", "#e7b6c1"),
+            new CssToken("-launcher-soft-success-text", "#39705c"),
+            new CssToken("-launcher-soft-success-border", "#add7c6"),
+            new CssToken("-launcher-soft-warning-text", "#7e6439"),
+            new CssToken("-launcher-soft-gold", "#d8b56d"),
+            new CssToken("-launcher-soft-shadow", "rgba(97, 78, 118, 0.16)"),
+            new CssToken("-launcher-soft-translucent-18", "rgba(108, 90, 130, 0.18)"),
+            new CssToken("-launcher-soft-translucent-22", "rgba(108, 90, 130, 0.22)"),
+            new CssToken("-launcher-soft-translucent-white-58", "rgba(255, 255, 255, 0.58)"),
+            new CssToken("-launcher-soft-fade-strong", "rgba(255, 250, 255, 0.94)"),
+            new CssToken("-launcher-soft-fade-mid", "rgba(246, 239, 252, 0.42)"),
+            new CssToken("-launcher-soft-fade-clear", "rgba(255, 250, 255, 0.00)")
+    );
+
+    private static final List<CssToken> SLATE_CSS_TOKENS = List.of(
+            new CssToken("-launcher-slate-paper", "#eef1f4"),
+            new CssToken("-launcher-slate-white", "#f8fafb"),
+            new CssToken("-launcher-slate-ink", "#263540"),
+            new CssToken("-launcher-slate-muted", "#667783"),
+            new CssToken("-launcher-slate-header-ink", "#f5f8fa"),
+            new CssToken("-launcher-slate-header-muted", "#d7e0e5"),
+            new CssToken("-launcher-slate-primary", "#718b9d"),
+            new CssToken("-launcher-slate-primary-dark", "#3c5363"),
+            new CssToken("-launcher-slate-primary-border", "#8299a8"),
+            new CssToken("-launcher-slate-border", "#c6d0d7"),
+            new CssToken("-launcher-slate-border-strong", "#9eafb9"),
+            new CssToken("-launcher-slate-surface", "#f7f9fa"),
+            new CssToken("-launcher-slate-surface-alt", "#edf1f3"),
+            new CssToken("-launcher-slate-surface-blue", "#e7edf1"),
+            new CssToken("-launcher-slate-surface-green", "#e8eeec"),
+            new CssToken("-launcher-slate-surface-warm", "#f1eee8"),
+            new CssToken("-launcher-slate-button-primary", "#cbd8e0"),
+            new CssToken("-launcher-slate-home-surface", "#dbe5e7"),
+            new CssToken("-launcher-slate-home-border", "#7f9ba3"),
+            new CssToken("-launcher-slate-settings-surface", "#e5ebef"),
+            new CssToken("-launcher-slate-project-surface", "#ece9e6"),
+            new CssToken("-launcher-slate-view-surface", "#e7e9ed"),
+            new CssToken("-launcher-slate-accent-teal", "#6f9294"),
+            new CssToken("-launcher-slate-accent-blue", "#738da2"),
+            new CssToken("-launcher-slate-accent-sage", "#84988a"),
+            new CssToken("-launcher-slate-accent-warm", "#a08e78"),
+            new CssToken("-launcher-slate-accent-gold", "#a69672"),
+            new CssToken("-launcher-slate-output-surface", "#e8edf1"),
+            new CssToken("-launcher-slate-output-inner", "#f7f9fa"),
+            new CssToken("-launcher-slate-output-border", "#aebdc7"),
+            new CssToken("-launcher-slate-collapsible", "#dfe7e9"),
+            new CssToken("-launcher-slate-collapsible-hover", "#d3dfe2"),
+            new CssToken("-launcher-slate-collapsible-pressed", "#c6d5d9"),
+            new CssToken("-launcher-slate-danger-surface", "#f2e7e6"),
+            new CssToken("-launcher-slate-danger-text", "#80514d"),
+            new CssToken("-launcher-slate-danger-border", "#c8a19d"),
+            new CssToken("-launcher-slate-success-text", "#4e6f5f"),
+            new CssToken("-launcher-slate-success-border", "#a8beb2"),
+            new CssToken("-launcher-slate-warning-text", "#786a4f"),
+            new CssToken("-launcher-slate-gold", "#a69672"),
+            new CssToken("-launcher-slate-shadow", "rgba(47, 63, 74, 0.16)"),
+            new CssToken("-launcher-slate-translucent-18", "rgba(68, 86, 98, 0.18)"),
+            new CssToken("-launcher-slate-translucent-22", "rgba(68, 86, 98, 0.22)"),
+            new CssToken("-launcher-slate-translucent-white-58", "rgba(248, 250, 251, 0.58)"),
+            new CssToken("-launcher-slate-fade-strong", "rgba(247, 249, 250, 0.94)"),
+            new CssToken("-launcher-slate-fade-mid", "rgba(237, 241, 243, 0.42)"),
+            new CssToken("-launcher-slate-fade-clear", "rgba(247, 249, 250, 0.00)")
+    );
+
     private LauncherThemeTokens() {
     }
 
@@ -342,13 +462,40 @@ final class LauncherThemeTokens {
                 new Stop(end, TAB_SHEEN_TAIL));
     }
 
+    static Color gradientOverlayColor(LauncherVisualTheme theme) {
+        return switch (theme) {
+            case SOFT -> Color.web("#f8f4ff");
+            case SLATE -> Color.web("#263844");
+            case MODERN -> GRADIENT_OVERLAY_COLOR;
+        };
+    }
+
+    static Stop[] gradientStops(LauncherVisualTheme theme) {
+        String[] colors = switch (theme) {
+            case SOFT -> SOFT_GRADIENT_STOPS;
+            case SLATE -> SLATE_GRADIENT_STOPS;
+            case MODERN -> MODERN_GRADIENT_STOPS;
+        };
+        Stop[] stops = new Stop[colors.length];
+        for (int index = 0; index < colors.length; index++) {
+            stops[index] = new Stop(GRADIENT_STOP_OFFSETS[index], Color.web(colors[index]));
+        }
+        return stops;
+    }
+
     static String cssDeclarations() {
         StringBuilder builder = new StringBuilder();
-        for (CssToken token : CSS_TOKENS) {
+        appendCssDeclarations(builder, CSS_TOKENS);
+        appendCssDeclarations(builder, SOFT_CSS_TOKENS);
+        appendCssDeclarations(builder, SLATE_CSS_TOKENS);
+        return builder.toString();
+    }
+
+    private static void appendCssDeclarations(StringBuilder builder, List<CssToken> tokens) {
+        for (CssToken token : tokens) {
             builder.append("    ").append(token.name()).append(": ")
                     .append(token.value()).append(";\n");
         }
-        return builder.toString();
     }
 
     record CssToken(String name, String value) {

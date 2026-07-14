@@ -1744,5 +1744,6 @@ final class RuntimeInstaller {
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
+        PipelineLauncher.applyCurrentVisualTheme(scene.getRoot());
     }
 }

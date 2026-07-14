@@ -41,26 +41,12 @@ final class AnimatedGradientSurface extends Pane {
             LauncherMotionTokens.GRADIENT_DITHER_AMPLITUDE;
     private static final double OVERLAY_ALPHA =
             LauncherMotionTokens.GRADIENT_OVERLAY_ALPHA;
-    private static final Color OVERLAY_COLOR = LauncherThemeTokens.GRADIENT_OVERLAY_COLOR;
     private static final WritablePixelFormat<IntBuffer> ARGB_FORMAT =
             PixelFormat.getIntArgbInstance();
-    private static final Stop[] STOPS = {
-            new Stop(0.00d, Color.web(LauncherThemeTokens.GRADIENT_STOP_00)),
-            new Stop(0.08d, Color.web(LauncherThemeTokens.GRADIENT_STOP_01)),
-            new Stop(0.16d, Color.web(LauncherThemeTokens.GRADIENT_STOP_02)),
-            new Stop(0.24d, Color.web(LauncherThemeTokens.GRADIENT_STOP_03)),
-            new Stop(0.32d, Color.web(LauncherThemeTokens.GRADIENT_STOP_04)),
-            new Stop(0.42d, Color.web(LauncherThemeTokens.GRADIENT_STOP_05)),
-            new Stop(0.52d, Color.web(LauncherThemeTokens.GRADIENT_STOP_06)),
-            new Stop(0.62d, Color.web(LauncherThemeTokens.GRADIENT_STOP_07)),
-            new Stop(0.72d, Color.web(LauncherThemeTokens.GRADIENT_STOP_08)),
-            new Stop(0.82d, Color.web(LauncherThemeTokens.GRADIENT_STOP_09)),
-            new Stop(0.92d, Color.web(LauncherThemeTokens.GRADIENT_STOP_10)),
-            new Stop(1.00d, Color.web(LauncherThemeTokens.GRADIENT_STOP_11))
-    };
     private static final Set<AnimatedGradientSurface> SURFACES =
             Collections.newSetFromMap(new WeakHashMap<>());
     private static boolean sharedClockRunning;
+    private static LauncherVisualTheme sharedVisualTheme = LauncherVisualTheme.MODERN;
     private static final AnimationTimer SHARED_CLOCK = new AnimationTimer() {
         @Override
         public void handle(long now) {
@@ -79,6 +65,7 @@ final class AnimatedGradientSurface extends Pane {
     private AnimatedGradientHeader.MotionSpeed motionSpeed =
             AnimatedGradientHeader.MotionSpeed.SMOOTH;
     private Direction direction = Direction.HORIZONTAL;
+    private LauncherVisualTheme visualTheme = sharedVisualTheme;
     private double stripLogicalLength;
 
     AnimatedGradientSurface() {
@@ -126,6 +113,14 @@ final class AnimatedGradientSurface extends Pane {
         direction = resolved;
         publishStateProperties();
         rebuildGradientStrip();
+    }
+
+    static void setSharedVisualTheme(LauncherVisualTheme nextTheme) {
+        sharedVisualTheme = nextTheme == null ? LauncherVisualTheme.MODERN : nextTheme;
+        for (AnimatedGradientSurface surface : SURFACES) {
+            surface.visualTheme = sharedVisualTheme;
+            surface.rebuildGradientStrip();
+        }
     }
 
     private static void configureImageView(ImageView imageView) {
@@ -227,9 +222,9 @@ final class AnimatedGradientSurface extends Pane {
         return true;
     }
 
-    private static WritableImage createGradientTexture(double logicalWidth,
-                                                       double logicalHeight,
-                                                       Direction direction) {
+    private WritableImage createGradientTexture(double logicalWidth,
+                                                double logicalHeight,
+                                                Direction direction) {
         int pixelWidth = Math.max(LauncherMotionTokens.GRADIENT_MIN_TEXTURE_PIXELS,
                 (int) Math.ceil(logicalWidth * TEXTURE_SCALE));
         int pixelHeight = Math.max(LauncherMotionTokens.GRADIENT_MIN_TEXTURE_PIXELS,
@@ -238,15 +233,17 @@ final class AnimatedGradientSurface extends Pane {
         WritableImage texture = new WritableImage(pixelWidth, pixelHeight);
 
         int axisPixels = direction == Direction.VERTICAL ? pixelHeight : pixelWidth;
+        Stop[] stops = LauncherThemeTokens.gradientStops(visualTheme);
+        Color overlayColor = LauncherThemeTokens.gradientOverlayColor(visualTheme);
         double[] red = new double[axisPixels];
         double[] green = new double[axisPixels];
         double[] blue = new double[axisPixels];
         for (int axis = 0; axis < axisPixels; axis++) {
             double position = axis / (double) Math.max(1, axisPixels - 1);
-            Color base = colorAt(position);
-            red[axis] = overlay(base.getRed(), OVERLAY_COLOR.getRed());
-            green[axis] = overlay(base.getGreen(), OVERLAY_COLOR.getGreen());
-            blue[axis] = overlay(base.getBlue(), OVERLAY_COLOR.getBlue());
+            Color base = colorAt(position, stops);
+            red[axis] = overlay(base.getRed(), overlayColor.getRed());
+            green[axis] = overlay(base.getGreen(), overlayColor.getGreen());
+            blue[axis] = overlay(base.getBlue(), overlayColor.getBlue());
         }
 
         int[] row = new int[pixelWidth];
@@ -266,11 +263,11 @@ final class AnimatedGradientSurface extends Pane {
         return axis == 0 || axis == Math.max(0, axisPixels - 1);
     }
 
-    private static Color colorAt(double position) {
+    private static Color colorAt(double position, Stop[] stops) {
         double normalized = position - Math.floor(position);
-        Stop previous = STOPS[0];
-        for (int i = 1; i < STOPS.length; i++) {
-            Stop next = STOPS[i];
+        Stop previous = stops[0];
+        for (int i = 1; i < stops.length; i++) {
+            Stop next = stops[i];
             if (normalized <= next.getOffset()) {
                 double range = next.getOffset() - previous.getOffset();
                 double mix = range <= 0.0d ? 0.0d : (normalized - previous.getOffset()) / range;
@@ -278,7 +275,7 @@ final class AnimatedGradientSurface extends Pane {
             }
             previous = next;
         }
-        return STOPS[STOPS.length - 1].getColor();
+        return stops[stops.length - 1].getColor();
     }
 
     private static double overlay(double channel, double overlayChannel) {

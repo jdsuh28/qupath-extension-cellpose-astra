@@ -113,6 +113,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.WeakHashMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -770,11 +771,22 @@ final class PipelineLauncher {
     }
     private static final String HEADER_MODE_PREFERENCE_KEY = "qupath.ext.astra.headerMode";
     private static final String HEADER_MOTION_PREFERENCE_KEY = "qupath.ext.astra.headerMotion";
+    private static final String VISUAL_THEME_PREFERENCE_KEY = "qupath.ext.astra.visualTheme";
     private static final String RELEASE_PROPERTIES_RESOURCE = "qupath/ext/astra/release/runtime.properties";
     private static final StringProperty HEADER_MODE_PREFERENCE =
             PathPrefs.createPersistentPreference(HEADER_MODE_PREFERENCE_KEY, AnimatedGradientHeader.HeaderMode.DYNAMIC.name());
     private static final StringProperty HEADER_MOTION_PREFERENCE =
             PathPrefs.createPersistentPreference(HEADER_MOTION_PREFERENCE_KEY, AnimatedGradientHeader.MotionSpeed.SMOOTH.name());
+    private static final StringProperty VISUAL_THEME_PREFERENCE =
+            PathPrefs.createPersistentPreference(VISUAL_THEME_PREFERENCE_KEY, LauncherVisualTheme.MODERN.name());
+    private static final Set<Node> THEMED_ROOTS =
+            Collections.newSetFromMap(new WeakHashMap<>());
+    private static final AtomicBoolean POPUP_THEME_BRIDGE_INSTALLED = new AtomicBoolean(false);
+
+    static {
+        VISUAL_THEME_PREFERENCE.addListener((obs, oldValue, newValue) ->
+                applyVisualThemeToRegisteredRoots(LauncherVisualTheme.fromText(newValue)));
+    }
 
     private static Insets parameterGridPadding() {
         return new Insets(
@@ -2040,6 +2052,8 @@ final class PipelineLauncher {
         VBox root = new VBox(LauncherGeometry.FLUSH);
         root.setPadding(new Insets(LauncherGeometry.FLUSH));
         addStyleClass(root, "astra-launcher-root");
+        registerThemedRoot(root);
+        ensurePopupThemeBridge();
 
         VBox header = new VBox(HeaderGeometry.HEADER_STACK_GAP);
         header.setPadding(LauncherGeometry.uniformOuterMargin());
@@ -3798,17 +3812,131 @@ final class PipelineLauncher {
                                              HeaderActionMode headerActionMode,
                                              Consumer<HeaderActionMode> setHeaderActionMode,
                                              Runnable backAction) {
-        VBox page = createHeaderActionPageShell("View", "Run-log visibility and launcher motion.", backAction);
-        page.getChildren().add(createHeaderViewPanel(
-                outputVisible,
-                setOutputVisible,
-                animatedHeader,
-                runProgressLane,
-                inputFillPanel,
-                headerActionMode,
-                setHeaderActionMode,
-                false));
-        return page;
+        StackPane host = new StackPane();
+        AtomicReference<Runnable> showHome = new AtomicReference<>();
+        AtomicReference<Runnable> showLook = new AtomicReference<>();
+        AtomicReference<Runnable> showLog = new AtomicReference<>();
+        AtomicReference<Runnable> showMore = new AtomicReference<>();
+        AtomicReference<Runnable> showGradient = new AtomicReference<>();
+        AtomicReference<Runnable> showSpeed = new AtomicReference<>();
+        AtomicReference<Runnable> showActions = new AtomicReference<>();
+        AtomicBoolean outputVisibleState = new AtomicBoolean(outputVisible);
+        AtomicReference<HeaderActionMode> actionModeState = new AtomicReference<>(
+                headerActionMode == null ? HeaderActionMode.PAGES : headerActionMode);
+
+        showLook.set(() -> host.getChildren().setAll(createHeaderViewChoiceRow(
+                showHome.get(),
+                new HeaderViewChoice(LauncherVisualTheme.MODERN.label(),
+                        visualThemePreference() == LauncherVisualTheme.MODERN,
+                        () -> {
+                            VISUAL_THEME_PREFERENCE.set(LauncherVisualTheme.MODERN.name());
+                            showLook.get().run();
+                        }),
+                new HeaderViewChoice(LauncherVisualTheme.SOFT.label(),
+                        visualThemePreference() == LauncherVisualTheme.SOFT,
+                        () -> {
+                            VISUAL_THEME_PREFERENCE.set(LauncherVisualTheme.SOFT.name());
+                            showLook.get().run();
+                        }),
+                new HeaderViewChoice(LauncherVisualTheme.SLATE.label(),
+                        visualThemePreference() == LauncherVisualTheme.SLATE,
+                        () -> {
+                            VISUAL_THEME_PREFERENCE.set(LauncherVisualTheme.SLATE.name());
+                            showLook.get().run();
+                        }))));
+        showLog.set(() -> host.getChildren().setAll(createHeaderViewChoiceRow(
+                showHome.get(),
+                new HeaderViewChoice("Show", outputVisibleState.get(),
+                        () -> {
+                            outputVisibleState.set(true);
+                            setOutputVisible.accept(Boolean.TRUE);
+                            showLog.get().run();
+                        }),
+                new HeaderViewChoice("Hide", !outputVisibleState.get(),
+                        () -> {
+                            outputVisibleState.set(false);
+                            setOutputVisible.accept(Boolean.FALSE);
+                            showLog.get().run();
+                        }))));
+        showGradient.set(() -> host.getChildren().setAll(createHeaderViewChoiceRow(
+                showMore.get(),
+                new HeaderViewChoice("Static", headerModePreference() == AnimatedGradientHeader.HeaderMode.STATIC,
+                        () -> {
+                            applyGradientMode(AnimatedGradientHeader.HeaderMode.STATIC,
+                                    animatedHeader, runProgressLane, inputFillPanel);
+                            showGradient.get().run();
+                        }),
+                new HeaderViewChoice("Dynamic", headerModePreference() == AnimatedGradientHeader.HeaderMode.DYNAMIC,
+                        () -> {
+                            applyGradientMode(AnimatedGradientHeader.HeaderMode.DYNAMIC,
+                                    animatedHeader, runProgressLane, inputFillPanel);
+                            showGradient.get().run();
+                        }))));
+        showSpeed.set(() -> host.getChildren().setAll(createHeaderViewChoiceRow(
+                showMore.get(),
+                Arrays.stream(AnimatedGradientHeader.MotionSpeed.values())
+                        .map(speed -> new HeaderViewChoice(speed.label(), headerMotionPreference() == speed, () -> {
+                            applyGradientSpeed(speed, animatedHeader, runProgressLane, inputFillPanel);
+                            showSpeed.get().run();
+                        }))
+                        .toArray(HeaderViewChoice[]::new))));
+        showActions.set(() -> host.getChildren().setAll(createHeaderViewChoiceRow(
+                showMore.get(),
+                new HeaderViewChoice("Pages", actionModeState.get() != HeaderActionMode.DROPDOWNS,
+                        () -> {
+                            actionModeState.set(HeaderActionMode.PAGES);
+                            setHeaderActionMode.accept(HeaderActionMode.PAGES);
+                        }),
+                new HeaderViewChoice("Dropdowns", actionModeState.get() == HeaderActionMode.DROPDOWNS,
+                        () -> {
+                            actionModeState.set(HeaderActionMode.DROPDOWNS);
+                            setHeaderActionMode.accept(HeaderActionMode.DROPDOWNS);
+                        }))));
+        showMore.set(() -> host.getChildren().setAll(createHeaderViewChoiceRow(
+                showHome.get(),
+                new HeaderViewChoice("Gradient", false, showGradient.get()),
+                new HeaderViewChoice("Speed", false, showSpeed.get()),
+                new HeaderViewChoice("Actions", false, showActions.get()))));
+        showHome.set(() -> host.getChildren().setAll(createHeaderViewChoiceRow(
+                backAction,
+                new HeaderViewChoice("Look", false, showLook.get()),
+                new HeaderViewChoice("Run Log", false, showLog.get()),
+                new HeaderViewChoice("More", false, showMore.get()))));
+        showHome.get().run();
+        return host;
+    }
+
+    private static HBox createHeaderViewChoiceRow(Runnable backAction, HeaderViewChoice... choices) {
+        HBox row = createHeaderActionCluster();
+        addHeaderActionHomeButton(row, createHeaderPageHomeButton("Back", "home", backAction));
+        if (choices != null) {
+            for (HeaderViewChoice choice : choices) {
+                Button button = createHeaderPageHomeButton(choice.label(), "view-choice", choice.action());
+                setToggleActive(button, choice.active());
+                addHeaderActionHomeButton(row, button);
+            }
+        }
+        return row;
+    }
+
+    private static void applyGradientMode(AnimatedGradientHeader.HeaderMode mode,
+                                          AnimatedGradientHeader animatedHeader,
+                                          RunProgressLane runProgressLane,
+                                          InputGradientFillPanel inputFillPanel) {
+        HEADER_MODE_PREFERENCE.set(mode.name());
+        animatedHeader.setHeaderMode(mode);
+        runProgressLane.setGradientMode(mode);
+        inputFillPanel.setGradientMode(mode);
+    }
+
+    private static void applyGradientSpeed(AnimatedGradientHeader.MotionSpeed speed,
+                                           AnimatedGradientHeader animatedHeader,
+                                           RunProgressLane runProgressLane,
+                                           InputGradientFillPanel inputFillPanel) {
+        HEADER_MOTION_PREFERENCE.set(speed.name());
+        animatedHeader.setMotionSpeed(speed);
+        runProgressLane.setMotionSpeed(speed);
+        inputFillPanel.setMotionSpeed(speed);
     }
 
     private static HeaderActionMenu createHeaderMenuButton(String title, String token) {
@@ -4094,7 +4222,34 @@ final class PipelineLauncher {
         smooth.setUserData(AnimatedGradientHeader.MotionSpeed.SMOOTH);
         lively.setUserData(AnimatedGradientHeader.MotionSpeed.LIVELY);
 
-        HBox modeRow = headerSegmentRow("Header", staticMode, dynamicMode);
+        ToggleButton modernTheme = headerSegmentButton(LauncherVisualTheme.MODERN.label());
+        ToggleButton softTheme = headerSegmentButton(LauncherVisualTheme.SOFT.label());
+        ToggleButton slateTheme = headerSegmentButton(LauncherVisualTheme.SLATE.label());
+        ToggleGroup themeGroup = new ToggleGroup();
+        modernTheme.setToggleGroup(themeGroup);
+        softTheme.setToggleGroup(themeGroup);
+        slateTheme.setToggleGroup(themeGroup);
+        modernTheme.setUserData(LauncherVisualTheme.MODERN);
+        softTheme.setUserData(LauncherVisualTheme.SOFT);
+        slateTheme.setUserData(LauncherVisualTheme.SLATE);
+        LauncherVisualTheme initialTheme = visualThemePreference();
+        themeGroup.selectToggle(switch (initialTheme) {
+            case MODERN -> modernTheme;
+            case SOFT -> softTheme;
+            case SLATE -> slateTheme;
+        });
+        List.of(modernTheme, softTheme, slateTheme).forEach(button ->
+                button.selectedProperty().addListener((obs, wasSelected, isSelected) -> styleHeaderSegmentButton(button)));
+        List.of(modernTheme, softTheme, slateTheme).forEach(PipelineLauncher::styleHeaderSegmentButton);
+        themeGroup.selectedToggleProperty().addListener((obs, oldToggle, newToggle) -> {
+            if (newToggle == null) {
+                themeGroup.selectToggle(oldToggle == null ? modernTheme : oldToggle);
+                return;
+            }
+            VISUAL_THEME_PREFERENCE.set(((LauncherVisualTheme) newToggle.getUserData()).name());
+        });
+        HBox lookRow = headerSegmentRow("Look", modernTheme, softTheme, slateTheme);
+        HBox gradientRow = headerSegmentRow("Gradient", staticMode, dynamicMode);
         HBox motionRow = headerSegmentRow("Motion", slow, smooth, lively);
         HBox outputRow = headerSegmentRow("Run Log Pane", show, hide);
         ToggleButton pages = headerSegmentButton("Pages");
@@ -4124,7 +4279,7 @@ final class PipelineLauncher {
         if (!wrapInGroup) {
             addStyleClass(menuContent, "astra-header-action-page-controls");
         }
-        menuContent.getChildren().addAll(outputRow, modeRow, motionRow, headerActionsRow);
+        menuContent.getChildren().addAll(outputRow, lookRow, gradientRow, motionRow, headerActionsRow);
 
         AnimatedGradientHeader.HeaderMode initialMode = headerModePreference();
         AnimatedGradientHeader.MotionSpeed initialSpeed = headerMotionPreference();
@@ -4140,6 +4295,7 @@ final class PipelineLauncher {
         runProgressLane.setMotionSpeed(initialSpeed);
         inputFillPanel.setGradientMode(initialMode);
         inputFillPanel.setMotionSpeed(initialSpeed);
+        AnimatedGradientSurface.setSharedVisualTheme(initialTheme);
         setHeaderMotionRowEnabled(motionRow, initialMode == AnimatedGradientHeader.HeaderMode.DYNAMIC);
 
         modeGroup.selectedToggleProperty().addListener((obs, oldToggle, newToggle) -> {
@@ -4178,6 +4334,18 @@ final class PipelineLauncher {
             HEADER_MODE_PREFERENCE.set(AnimatedGradientHeader.HeaderMode.DYNAMIC.name());
             return AnimatedGradientHeader.HeaderMode.DYNAMIC;
         }
+    }
+
+    private static LauncherVisualTheme visualThemePreference() {
+        LauncherVisualTheme theme = LauncherVisualTheme.fromText(VISUAL_THEME_PREFERENCE.get());
+        if (!theme.name().equals(VISUAL_THEME_PREFERENCE.get())) {
+            VISUAL_THEME_PREFERENCE.set(theme.name());
+        }
+        return theme;
+    }
+
+    static void setVisualThemeForTesting(LauncherVisualTheme theme) {
+        VISUAL_THEME_PREFERENCE.set((theme == null ? LauncherVisualTheme.MODERN : theme).name());
     }
 
     private static AnimatedGradientHeader.MotionSpeed headerMotionPreference() {
@@ -5488,6 +5656,9 @@ final class PipelineLauncher {
     private record HeaderActionSpec(String label, ButtonRole role, Runnable action, ButtonBase actionButton) {
     }
 
+    private record HeaderViewChoice(String label, boolean active, Runnable action) {
+    }
+
     record HelpDetailSection(String title, String body) {
     }
 
@@ -5505,6 +5676,7 @@ final class PipelineLauncher {
         if (!pane.getStyleClass().contains("astra-dialog-pane")) {
             pane.getStyleClass().add("astra-dialog-pane");
         }
+        registerThemedRoot(pane);
     }
 
     private static void installAstraStyles(ContextMenu menu) {
@@ -5518,6 +5690,90 @@ final class PipelineLauncher {
                 menu.getScene().getStylesheets().add(css);
             }
         }
+        registerThemedRoot(menu.getScene().getRoot());
+    }
+
+    private static void registerThemedRoot(Node root) {
+        if (root == null) {
+            return;
+        }
+        THEMED_ROOTS.add(root);
+        applyVisualTheme(root, visualThemePreference());
+        AnimatedGradientSurface.setSharedVisualTheme(visualThemePreference());
+    }
+
+    private static void ensurePopupThemeBridge() {
+        if (!POPUP_THEME_BRIDGE_INSTALLED.compareAndSet(false, true)) {
+            return;
+        }
+        Window.getWindows().addListener((ListChangeListener<Window>) change -> {
+            while (change.next()) {
+                if (!change.wasAdded()) {
+                    continue;
+                }
+                for (Window window : change.getAddedSubList()) {
+                    Platform.runLater(() -> applyThemeToOwnedPopup(window));
+                }
+            }
+        });
+    }
+
+    private static void applyThemeToOwnedPopup(Window window) {
+        if (window == null || window.getScene() == null || !hasThemedOwner(window)) {
+            return;
+        }
+        var resource = PipelineLauncher.class.getResource(LAUNCHER_STYLESHEET_RESOURCE);
+        if (resource != null) {
+            String css = resource.toExternalForm();
+            if (!window.getScene().getStylesheets().contains(css)) {
+                window.getScene().getStylesheets().add(css);
+            }
+        }
+        registerThemedRoot(window.getScene().getRoot());
+    }
+
+    private static boolean hasThemedOwner(Window window) {
+        Window owner = ownerWindow(window);
+        while (owner != null) {
+            if (owner.getScene() != null && owner.getScene().getRoot() != null) {
+                Node root = owner.getScene().getRoot();
+                for (LauncherVisualTheme theme : LauncherVisualTheme.values()) {
+                    if (root.getStyleClass().contains(theme.styleClass())) {
+                        return true;
+                    }
+                }
+            }
+            owner = ownerWindow(owner);
+        }
+        return false;
+    }
+
+    private static Window ownerWindow(Window window) {
+        if (window instanceof PopupWindow popupWindow) {
+            return popupWindow.getOwnerWindow();
+        }
+        if (window instanceof Stage stage) {
+            return stage.getOwner();
+        }
+        return null;
+    }
+
+    static void applyCurrentVisualTheme(Node root) {
+        registerThemedRoot(root);
+    }
+
+    private static void applyVisualThemeToRegisteredRoots(LauncherVisualTheme theme) {
+        THEMED_ROOTS.removeIf(Objects::isNull);
+        THEMED_ROOTS.forEach(root -> applyVisualTheme(root, theme));
+        AnimatedGradientSurface.setSharedVisualTheme(theme);
+    }
+
+    private static void applyVisualTheme(Node root, LauncherVisualTheme theme) {
+        for (LauncherVisualTheme candidate : LauncherVisualTheme.values()) {
+            root.getStyleClass().remove(candidate.styleClass());
+        }
+        root.getStyleClass().add((theme == null ? LauncherVisualTheme.MODERN : theme).styleClass());
+        root.applyCss();
     }
 
     private static void addStyleClass(Node node, String styleClass) {
