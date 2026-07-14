@@ -483,10 +483,6 @@ final class PipelineLauncher {
             return ActionTrapezoidGeometry.slopeWidth(ACTION_SHELL_SLOPE_WIDTH, shellWidth);
         }
 
-        private static double actionShellVisibleWidth() {
-            return actionShellVisibleWidth(actionShellWidth());
-        }
-
         private static double actionShellVisibleWidth(double shellWidth) {
             return shellWidth + (actionShellSlopeWidth(shellWidth) * BILATERAL_EDGE_COUNT);
         }
@@ -6454,9 +6450,9 @@ final class PipelineLauncher {
             gradientLayer.setMouseTransparent(true);
             gradientLayer.setManaged(false);
             gradientLayer.setClip(clipPath);
-            gradientLayer.setMinWidth(FooterGeometry.actionShellVisibleWidth());
-            gradientLayer.setPrefWidth(FooterGeometry.actionShellVisibleWidth());
-            gradientLayer.setMaxWidth(FooterGeometry.actionShellVisibleWidth());
+            gradientLayer.setMinWidth(FooterGeometry.actionShellVisibleWidth(FooterGeometry.actionShellWidth()));
+            gradientLayer.setPrefWidth(FooterGeometry.actionShellVisibleWidth(FooterGeometry.actionShellWidth()));
+            gradientLayer.setMaxWidth(FooterGeometry.actionShellVisibleWidth(FooterGeometry.actionShellWidth()));
             gradientLayer.setMinHeight(FooterGeometry.actionShellHeight());
             gradientLayer.setPrefHeight(FooterGeometry.actionShellHeight());
             gradientLayer.setMaxHeight(FooterGeometry.actionShellHeight());

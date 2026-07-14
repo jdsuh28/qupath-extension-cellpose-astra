@@ -326,12 +326,14 @@
     -fx-background-color: -launcher-color-transparent;
 }
 
-.astra-header-action-shell-fill {
+.astra-header-action-shell-fill,
+.astra-footer-action-shell-fill {
     -fx-fill: -launcher-color-rgba-255-255-255-0p11;
     -fx-stroke: -launcher-color-transparent;
 }
 
-.astra-header-action-shell-border {
+.astra-header-action-shell-border,
+.astra-footer-action-shell-border {
     -fx-fill: -launcher-color-transparent;
     -fx-stroke: -launcher-color-rgba-255-255-255-0p18;
     -fx-stroke-width: 1px;
@@ -791,21 +793,6 @@
 
 .astra-footer-action-shell {
     -fx-background-color: -launcher-color-transparent;
-}
-
-.astra-footer-action-shell .astra-animated-gradient-surface {
-    -fx-opacity: 0.86;
-}
-
-.astra-footer-action-shell-fill {
-    -fx-fill: -launcher-color-rgba-255-255-255-0p10;
-    -fx-stroke: -launcher-color-transparent;
-}
-
-.astra-footer-action-shell-border {
-    -fx-fill: -launcher-color-transparent;
-    -fx-stroke: -launcher-color-rgba-31-122-122-0p28;
-    -fx-stroke-width: 1px;
 }
 
 .astra-footer-action-content {
