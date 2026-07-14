@@ -799,6 +799,8 @@ class PipelineLauncherTest {
                 + "                wallLength);"));
         assertTrue(source.contains("StackPane actionShell = new StackPane();"));
         assertTrue(source.contains("createHeaderRibbonPath(\"astra-header-action-shell-fill\")"));
+        assertTrue(source.contains("addStyleClass(actionShellFill, \"astra-tab-sheen-fill\")"));
+        assertTrue(source.contains("bindTabSheenPaint(actionShellFill)"));
         assertTrue(source.contains("createHeaderRibbonPath(\"astra-header-action-shell-border\")"));
         assertFalse(source.contains("createHeaderRibbonWingPolygon("));
         assertTrue(source.contains("private static final class FooterGeometry"));
@@ -862,8 +864,11 @@ class PipelineLauncherTest {
         assertFalse(css.contains(".astra-header-action-wing-border"));
         assertTrue(css.contains(".astra-header-home-button"));
         assertTrue(css.contains(".astra-footer-action-shell"));
-        assertTrue(css.contains(".astra-footer-action-shell .astra-animated-gradient-surface"));
-        assertTrue(css.contains(".astra-footer-action-shell-fill"));
+        assertFalse(css.contains(".astra-footer-action-shell .astra-animated-gradient-surface"));
+        assertTrue(css.contains(".astra-tab-sheen-fill"));
+        assertTrue(source.contains("addStyleClass(overlayPath, \"astra-tab-sheen-fill\")"));
+        assertTrue(source.contains("bindTabSheenPaint(overlayPath)"));
+        assertTrue(source.contains("path.fillProperty().bind(javafx.beans.binding.Bindings.createObjectBinding("));
         assertTrue(css.contains(".astra-footer-action-shell-border"));
         assertTrue(css.contains(".astra-footer-action-content"));
         assertTrue(source.contains("styleButton(button, homeButton ? ButtonRole.PRIMARY : ButtonRole.HEADER);"));

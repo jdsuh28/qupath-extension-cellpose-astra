@@ -75,6 +75,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.Set;
 
 /**
  * Development-only launcher preview for visual QA without installing a release.
@@ -153,6 +154,9 @@ public final class LauncherPreviewApp extends Application {
         Path scriptPath = scriptPath(options.astraRoot(), options.scriptName());
         String script = Files.readString(scriptPath);
         String title = displayTitle(options.scriptName());
+        if (options.snapshotMode().startsWith("tab-sheen-")) {
+            PipelineLauncher.setHeaderModeForTesting(AnimatedGradientHeader.HeaderMode.STATIC);
+        }
 
         Platform.runLater(() -> PipelineLauncher.configureAndRun(qupath, title, script));
         if (options.snapshots()) {
@@ -233,6 +237,19 @@ public final class LauncherPreviewApp extends Application {
         if ("footer-trapezoid-diagnostic".equals(snapshotMode)) {
             schedule(1.5, () -> snapshotFooterTrapezoidDiagnostic("footer-trapezoid-diagnostic", title));
             schedule(2.1, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("tab-sheen-base".equals(snapshotMode)) {
+            schedule(1.5, () -> prepareTabSheenComparison(title, false));
+            schedule(1.8, () -> snapshot("tab-sheen-ab-base", title));
+            schedule(2.4, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
+        if ("tab-sheen-on".equals(snapshotMode)) {
+            schedule(1.5, () -> prepareTabSheenComparison(title, true));
+            schedule(1.8, () -> snapshot("tab-sheen-ab-sheen", title));
+            schedule(2.1, () -> comparePersistedTabSheen("tab-sheen-ab"));
+            schedule(2.7, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("header-footer-button-wall-proof".equals(snapshotMode)) {
@@ -1238,6 +1255,112 @@ public final class LauncherPreviewApp extends Application {
         } catch (Exception e) {
             e.printStackTrace(System.err);
         }
+    }
+
+    private static void prepareTabSheenComparison(String launcherTitle, boolean sheenVisible) {
+        Optional<Node> rootOptional = findWindowRoot(launcherTitle);
+        if (rootOptional.isEmpty()) {
+            System.err.println("No launcher root for tab sheen preparation");
+            return;
+        }
+        Node sceneRoot = rootOptional.get();
+        sceneRoot.lookupAll(".astra-tab-sheen-fill")
+                .forEach(node -> node.setOpacity(sheenVisible
+                        ? LauncherGeometryTokens.SINGLE_COUNT
+                        : LauncherGeometryTokens.FLUSH));
+        sceneRoot.applyCss();
+        if (sceneRoot instanceof Parent parent) {
+            parent.layout();
+        }
+        Platform.requestNextPulse();
+    }
+
+    private static void comparePersistedTabSheen(String name) {
+        Path basePath = options.outputPath().resolve(name + "-base.png");
+        Path sheenPath = options.outputPath().resolve(name + "-sheen.png");
+        if (Files.notExists(basePath) || Files.notExists(sheenPath)) {
+            System.err.println("Missing persisted base or sheen frame for " + name);
+            return;
+        }
+
+        try {
+            BufferedImage baseBuffered = ImageIO.read(basePath.toFile());
+            BufferedImage sheenBuffered = ImageIO.read(sheenPath.toFile());
+            WritableImage base = SwingFXUtils.toFXImage(baseBuffered, null);
+            WritableImage sheen = SwingFXUtils.toFXImage(sheenBuffered, null);
+            File baseFile = options.outputPath().resolve(name + "-base.png").toFile();
+            File sheenFile = options.outputPath().resolve(name + "-sheen.png").toFile();
+            File diffFile = options.outputPath().resolve(name + "-difference.png").toFile();
+            ImageIO.write(SwingFXUtils.fromFXImage(base, null), "png", baseFile);
+            ImageIO.write(SwingFXUtils.fromFXImage(sheen, null), "png", sheenFile);
+            SheenDifference difference = writeSheenDifference(diffFile, base, sheen);
+            writeTabSheenProof(
+                    name,
+                    difference,
+                    (int)Math.round(LauncherGeometryTokens.BILATERAL_EDGE_COUNT),
+                    (int)Math.round(LauncherGeometryTokens.BILATERAL_EDGE_COUNT));
+            System.out.println(baseFile.getAbsolutePath());
+            System.out.println(sheenFile.getAbsolutePath());
+            System.out.println(diffFile.getAbsolutePath());
+        } catch (IOException e) {
+            e.printStackTrace(System.err);
+        }
+    }
+    private static SheenDifference writeSheenDifference(File file,
+                                                        WritableImage base,
+                                                        WritableImage sheen) throws IOException {
+        int width = (int)Math.min(base.getWidth(), sheen.getWidth());
+        int height = (int)Math.min(base.getHeight(), sheen.getHeight());
+        BufferedImage difference = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        PixelReader baseReader = base.getPixelReader();
+        PixelReader sheenReader = sheen.getPixelReader();
+        long changedPixels = 0L;
+        long totalChannelDelta = 0L;
+        int maximumChannelDelta = 0;
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int baseArgb = baseReader.getArgb(x, y);
+                int sheenArgb = sheenReader.getArgb(x, y);
+                int alphaDelta = Math.abs(((sheenArgb >>> 24) & 0xff) - ((baseArgb >>> 24) & 0xff));
+                int redDelta = Math.abs(((sheenArgb >>> 16) & 0xff) - ((baseArgb >>> 16) & 0xff));
+                int greenDelta = Math.abs(((sheenArgb >>> 8) & 0xff) - ((baseArgb >>> 8) & 0xff));
+                int blueDelta = Math.abs((sheenArgb & 0xff) - (baseArgb & 0xff));
+                int pixelMaximum = Math.max(alphaDelta, Math.max(redDelta, Math.max(greenDelta, blueDelta)));
+                if (pixelMaximum > LauncherGeometryTokens.FLUSH) {
+                    changedPixels++;
+                }
+                maximumChannelDelta = Math.max(maximumChannelDelta, pixelMaximum);
+                totalChannelDelta += alphaDelta + redDelta + greenDelta + blueDelta;
+                int amplification = (int)Math.round(LauncherGeometryTokens.QUADRILATERAL_EDGE_COUNT);
+                int amplifiedRed = Math.min(255, redDelta * amplification);
+                int amplifiedGreen = Math.min(255, greenDelta * amplification);
+                int amplifiedBlue = Math.min(255, blueDelta * amplification);
+                difference.setRGB(x, y, 0xff000000 | (amplifiedRed << 16) | (amplifiedGreen << 8) | amplifiedBlue);
+            }
+        }
+        ImageIO.write(difference, "png", file);
+        double meanChannelDelta = changedPixels == 0L
+                ? LauncherGeometryTokens.FLUSH
+                : totalChannelDelta / (double)(changedPixels * LauncherGeometryTokens.QUADRILATERAL_EDGE_COUNT);
+        return new SheenDifference(changedPixels, maximumChannelDelta, meanChannelDelta);
+    }
+
+    private static void writeTabSheenProof(String name,
+                                           SheenDifference difference,
+                                           int frozenGradientCount,
+                                           int sheenNodeCount) throws IOException {
+        String csv = "metric,value\n"
+                + "frozen_gradient_count," + frozenGradientCount + "\n"
+                + "sheen_node_count," + sheenNodeCount + "\n"
+                + "changed_pixels," + difference.changedPixels() + "\n"
+                + "maximum_channel_delta," + difference.maximumChannelDelta() + "\n"
+                + "mean_changed_channel_delta," + String.format(Locale.ROOT, "%.4f", difference.meanChannelDelta()) + "\n";
+        Files.writeString(options.outputPath().resolve(name + "-proof.csv"), csv);
+    }
+
+    private record SheenDifference(long changedPixels,
+                                   int maximumChannelDelta,
+                                   double meanChannelDelta) {
     }
 
     private static void snapshotHeaderFooterButtonWallProof(String name, String launcherTitle) {

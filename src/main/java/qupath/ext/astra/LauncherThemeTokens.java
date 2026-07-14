@@ -4,6 +4,10 @@ import java.util.List;
 import java.util.Set;
 
 import javafx.scene.paint.Color;
+import javafx.scene.paint.CycleMethod;
+import javafx.scene.paint.LinearGradient;
+import javafx.scene.paint.Paint;
+import javafx.scene.paint.Stop;
 
 final class LauncherThemeTokens {
 
@@ -20,6 +24,9 @@ final class LauncherThemeTokens {
     static final String CHANNEL_FALLBACK = "#b7c0c7";
     static final String FIELD_BACKGROUND = "#fbfdff";
     static final String CHANGED_VALUE_SHADOW = "rgba(212, 167, 44, 0.42)";
+    private static final Color TAB_SHEEN_HIGHLIGHT = Color.rgb(255, 255, 255, 0.18d);
+    private static final Color TAB_SHEEN_BODY = Color.rgb(255, 255, 255, 0.11d);
+    private static final Color TAB_SHEEN_TAIL = TAB_SHEEN_BODY;
 
     static final double ENABLED_OPACITY = 1.0d;
     static final double HEADER_MOTION_ROW_DISABLED_OPACITY = 0.48d;
@@ -317,6 +324,22 @@ final class LauncherThemeTokens {
             }
         }
         throw new IllegalArgumentException("No launcher theme token for " + value);
+    }
+
+    static Paint tabSheenPaint() {
+        double start = LauncherGeometryTokens.FLUSH;
+        double end = LauncherGeometryTokens.SINGLE_COUNT;
+        double midpoint = end / LauncherGeometryTokens.BILATERAL_EDGE_COUNT;
+        return new LinearGradient(
+                start,
+                start,
+                start,
+                end,
+                true,
+                CycleMethod.NO_CYCLE,
+                new Stop(start, TAB_SHEEN_HIGHLIGHT),
+                new Stop(midpoint, TAB_SHEEN_BODY),
+                new Stop(end, TAB_SHEEN_TAIL));
     }
 
     static String cssDeclarations() {

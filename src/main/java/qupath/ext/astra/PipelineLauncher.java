@@ -2079,6 +2079,8 @@ final class PipelineLauncher {
         actionShell.setMaxHeight(HeaderGeometry.actionRibbonHeight());
         addStyleClass(actionShell, "astra-header-action-shell");
         javafx.scene.shape.Path actionShellFill = createHeaderRibbonPath("astra-header-action-shell-fill");
+        addStyleClass(actionShellFill, "astra-tab-sheen-fill");
+        bindTabSheenPaint(actionShellFill);
         javafx.scene.shape.Path actionShellBorder = createHeaderRibbonPath("astra-header-action-shell-border");
         StackPane actionContent = new StackPane();
         actionContent.setMinWidth(HeaderGeometry.actionBoxWidth());
@@ -4185,6 +4187,12 @@ final class PipelineLauncher {
             HEADER_MOTION_PREFERENCE.set(AnimatedGradientHeader.MotionSpeed.SMOOTH.name());
             return AnimatedGradientHeader.MotionSpeed.SMOOTH;
         }
+    }
+
+    static void setHeaderModeForTesting(AnimatedGradientHeader.HeaderMode mode) {
+        HEADER_MODE_PREFERENCE.set((mode == null
+                ? AnimatedGradientHeader.HeaderMode.DYNAMIC
+                : mode).name());
     }
 
     private static HBox headerSegmentRow(String labelText, ToggleButton... buttons) {
@@ -6451,6 +6459,8 @@ final class PipelineLauncher {
             setPrefHeight(FooterGeometry.actionShellHeight());
             setMaxHeight(FooterGeometry.actionShellHeight());
             addStyleClass(this, "astra-footer-action-shell");
+            addStyleClass(overlayPath, "astra-tab-sheen-fill");
+            bindTabSheenPaint(overlayPath);
             gradientLayer.setMouseTransparent(true);
             gradientLayer.setManaged(false);
             gradientLayer.setClip(clipPath);
@@ -6515,6 +6525,11 @@ final class PipelineLauncher {
             path.setFill(javafx.scene.paint.Color.BLACK);
         }
         return path;
+    }
+
+    private static void bindTabSheenPaint(javafx.scene.shape.Path path) {
+        path.fillProperty().bind(javafx.beans.binding.Bindings.createObjectBinding(
+                LauncherThemeTokens::tabSheenPaint));
     }
 
     private static void updateFooterTrapezoidPath(javafx.scene.shape.Path path,
