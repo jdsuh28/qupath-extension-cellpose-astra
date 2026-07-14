@@ -463,11 +463,15 @@ final class PipelineLauncher {
         private static final double ACTION_BUTTON_OUTER_GAP =
                 LauncherGeometry.OUTER_MARGIN;
         private static final double ACTION_SHELL_PLACEMENT_GAP =
-                ACTION_BUTTON_OUTER_GAP - ACTION_SHELL_INSET;
+                ACTION_BUTTON_OUTER_GAP;
+        private static final double ACTION_SHELL_BOTTOM_PLACEMENT_GAP =
+                LauncherGeometry.FLUSH;
         private static final double ACTION_SHELL_TOP_PLACEMENT_GAP =
                 ACTION_BUTTON_OUTER_GAP
                         - LauncherGeometry.OUTER_MARGIN
                         - ACTION_SHELL_INSET;
+        private static final double ACTION_SHELL_CONTENT_RAIL_CORRECTION =
+                SURFACE_BORDER_WIDTH;
 
         private static double actionShellWidth() {
             return (LauncherGeometry.macroActionButtonWidth() * ACTION_SHELL_BUTTON_COUNT)
@@ -503,7 +507,7 @@ final class PipelineLauncher {
             return new Insets(
                     ACTION_SHELL_TOP_PLACEMENT_GAP,
                     ACTION_SHELL_PLACEMENT_GAP,
-                    ACTION_SHELL_PLACEMENT_GAP,
+                    ACTION_SHELL_BOTTOM_PLACEMENT_GAP,
                     LauncherGeometry.OUTER_MARGIN);
         }
 
@@ -704,7 +708,7 @@ final class PipelineLauncher {
     private static final double OUTPUT_PANE_MIN_WIDTH =
             LauncherGeometry.LAYOUT_UNIT * 15.0;
     private static final double OUTPUT_HEADER_GAP =
-            ADVANCED_UNLOCK_CONTROL_GAP;
+            OUTPUT_PANE_INSET;
     private static final double OUTPUT_PROGRESS_SIZE =
             PARAMETER_HELP_BUTTON_SIZE;
     private enum HeaderActionSlot {
@@ -909,10 +913,12 @@ final class PipelineLauncher {
         runButton.setFocusTraversable(false);
         styleButton(runButton, ButtonRole.PRIMARY);
         applyButtonFamilyGeometry(runButton, ButtonFamily.MACRO_ACTION);
+        addStyleClass(runButton, "astra-main-run-button");
         Button cancelButton = GuiText.button(GuiText.Role.CONTROL_TEXT, "Cancel");
         cancelButton.setFocusTraversable(false);
         styleButton(cancelButton, ButtonRole.SECONDARY);
         applyButtonFamilyGeometry(cancelButton, ButtonFamily.MACRO_ACTION);
+        addStyleClass(cancelButton, "astra-main-cancel-button");
         cancelButton.setOnAction(event -> {
             dialog.setResult(ButtonType.CANCEL);
             dialog.close();
@@ -6464,6 +6470,7 @@ final class PipelineLauncher {
             buttons.setMinHeight(FooterGeometry.actionShellHeight());
             buttons.setPrefHeight(FooterGeometry.actionShellHeight());
             buttons.setMaxHeight(FooterGeometry.actionShellHeight());
+            buttons.setTranslateX(-FooterGeometry.ACTION_SHELL_CONTENT_RAIL_CORRECTION);
             addStyleClass(buttons, "astra-footer-action-content");
             buttons.getChildren().addAll(cancelButton, runButton);
 

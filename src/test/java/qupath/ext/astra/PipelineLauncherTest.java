@@ -769,8 +769,8 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private static double folderCurveRun(double outerX, double innerX)"));
         assertTrue(source.contains("return Math.abs(outerX - innerX);"));
         assertTrue(source.contains("private static double folderCurveHandle(double run, double bevelRadius)"));
-        assertTrue(source.contains("private static final double QUARTER_CURVE_CONTROL ="));
-        assertTrue(source.contains("LauncherGeometryTokens.CUBIC_ARC_HANDLE_RATIO"));
+        assertTrue(source.contains("private static final double QUARTER_CURVE_CONTROL =\n"
+                + "                LauncherGeometryTokens.CUBIC_ARC_HANDLE_RATIO;"));
         assertTrue(source.contains("return Math.max(bevelRadius, run) * QUARTER_CURVE_CONTROL;"));
         assertTrue(source.contains("private static double bevelCurveHandle(double bevelRadius)"));
         assertTrue(source.contains("return bevelRadius * QUARTER_CURVE_CONTROL;"));
@@ -1823,11 +1823,16 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private static final double ACTION_BUTTON_OUTER_GAP =\n"
                 + "                LauncherGeometry.OUTER_MARGIN;"));
         assertTrue(source.contains("private static final double ACTION_SHELL_PLACEMENT_GAP =\n"
-                + "                ACTION_BUTTON_OUTER_GAP - ACTION_SHELL_INSET;"));
+                + "                ACTION_BUTTON_OUTER_GAP;"));
+        assertTrue(source.contains("private static final double ACTION_SHELL_BOTTOM_PLACEMENT_GAP =\n"
+                + "                LauncherGeometry.FLUSH;"));
         assertTrue(source.contains("private static final double ACTION_SHELL_TOP_PLACEMENT_GAP =\n"
                 + "                ACTION_BUTTON_OUTER_GAP\n"
                 + "                        - LauncherGeometry.OUTER_MARGIN\n"
                 + "                        - ACTION_SHELL_INSET;"));
+        assertTrue(source.contains("private static final double ACTION_SHELL_CONTENT_RAIL_CORRECTION =\n"
+                + "                SURFACE_BORDER_WIDTH;"));
+        assertTrue(source.contains("buttons.setTranslateX(-FooterGeometry.ACTION_SHELL_CONTENT_RAIL_CORRECTION);"));
         assertTrue(source.contains("private static Insets actionBarPadding()"));
         assertTrue(source.contains("return FooterGeometry.actionBarPadding();"));
         assertTrue(source.contains("private static Insets parameterRowPadding()"));

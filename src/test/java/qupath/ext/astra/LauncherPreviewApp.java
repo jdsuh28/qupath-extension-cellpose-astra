@@ -1153,11 +1153,17 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         Node sceneRoot = rootOptional.get();
-        Optional<Node> bodyOptional = firstNode(sceneRoot, ".astra-footer-action-content");
+        Optional<Node> bodyOptional = firstNode(sceneRoot, ".astra-footer-action-shell");
         Optional<Node> borderOptional = firstNode(sceneRoot, ".astra-footer-action-shell-border");
         Optional<Node> headerBodyOptional = firstNode(sceneRoot, ".astra-header-action-content");
         Optional<Node> headerBorderOptional = firstNode(sceneRoot, ".astra-header-action-shell-border");
         Optional<Node> outputOptional = firstNode(sceneRoot, ".astra-output-pane");
+        Optional<Node> headerProjectOptional = firstNode(sceneRoot, ".astra-header-menu-button-project");
+        Optional<Node> headerViewOptional = firstNode(sceneRoot, ".astra-header-menu-button-view");
+        Optional<Node> outputCopyOptional = firstNode(sceneRoot, ".astra-output-copy-button");
+        Optional<Node> outputKillOptional = firstNode(sceneRoot, ".astra-output-kill-button");
+        Optional<Node> footerCancelOptional = firstNode(sceneRoot, ".astra-main-cancel-button");
+        Optional<Node> footerRunOptional = firstNode(sceneRoot, ".astra-main-run-button");
         if (bodyOptional.isEmpty()
                 || borderOptional.isEmpty()
                 || headerBodyOptional.isEmpty()
@@ -1174,6 +1180,7 @@ public final class LauncherPreviewApp extends Application {
         Bounds sceneBounds = sceneRoot.localToScene(sceneRoot.getBoundsInLocal());
         double rootMinX = sceneBounds.getMinX();
         double rootMinY = sceneBounds.getMinY();
+        Bounds rootBounds = relativeBounds(sceneRoot, sceneRoot, rootMinX, rootMinY);
         Bounds bodyBounds = relativeBounds(sceneRoot, body, rootMinX, rootMinY);
         Bounds headerBodyBounds = relativeBounds(sceneRoot, headerBody, rootMinX, rootMinY);
         Bounds outputBounds = relativeBounds(sceneRoot, output, rootMinX, rootMinY);
@@ -1185,6 +1192,9 @@ public final class LauncherPreviewApp extends Application {
                 outputBounds,
                 points,
                 headerPoints);
+        addFooterMacroRailMeasurements(sceneRoot, rootMinX, rootMinY, rootBounds, bodyBounds, headerProjectOptional,
+                headerViewOptional, outputCopyOptional, outputKillOptional, footerCancelOptional, footerRunOptional,
+                measurements);
         SnapshotCapture capture = snapshotNode(sceneRoot);
         BufferedImage buffered = SwingFXUtils.fromFXImage(capture.normalized(), null);
         drawFooterTrapezoidDiagnostic(buffered, bodyBounds, outputBounds);
@@ -4482,7 +4492,10 @@ public final class LauncherPreviewApp extends Application {
         double curveRun = slopeWidth;
         double shoulderHandle = quarterCurveHandle(curveRun);
         double cornerHandle = quarterCurveHandle(bevelRadius);
-        double curveInset = folderCurveInset(height, bevelRadius);
+        double curveInset = folderCurveInset(
+                height,
+                bevelRadius,
+                nestedStaticField("HeaderGeometry", "ACTION_RIBBON_INSET"));
         List<GeometryMeasurement> measurements = new ArrayList<>();
         addMeasurement(measurements, "ribbon body left aligns with output pane",
                 outputBounds.getMinX(), shellBounds.getMinX(),
@@ -4565,15 +4578,15 @@ public final class LauncherPreviewApp extends Application {
     }
 
     private static RibbonPathPoints ribbonPathPoints(Node node) {
-        if (!(node instanceof javafx.scene.shape.Path path) || path.getElements().size() < 9) {
+        if (!(node instanceof javafx.scene.shape.Path path) || path.getElements().size() < 11) {
             return RibbonPathPoints.nan();
         }
         javafx.scene.shape.MoveTo topLeft = (javafx.scene.shape.MoveTo)path.getElements().get(0);
         javafx.scene.shape.LineTo topRight = (javafx.scene.shape.LineTo)path.getElements().get(1);
         javafx.scene.shape.CubicCurveTo rightShoulder = (javafx.scene.shape.CubicCurveTo)path.getElements().get(2);
-        javafx.scene.shape.CubicCurveTo rightCorner = (javafx.scene.shape.CubicCurveTo)path.getElements().get(4);
-        javafx.scene.shape.LineTo leftBottom = (javafx.scene.shape.LineTo)path.getElements().get(5);
-        javafx.scene.shape.CubicCurveTo leftShoulder = (javafx.scene.shape.CubicCurveTo)path.getElements().get(8);
+        javafx.scene.shape.CubicCurveTo rightCorner = (javafx.scene.shape.CubicCurveTo)path.getElements().get(5);
+        javafx.scene.shape.LineTo leftBottom = (javafx.scene.shape.LineTo)path.getElements().get(6);
+        javafx.scene.shape.CubicCurveTo leftShoulder = (javafx.scene.shape.CubicCurveTo)path.getElements().get(10);
         return new RibbonPathPoints(
                 topLeft.getX(), topLeft.getY(),
                 topRight.getX(), topRight.getY(),
@@ -4596,6 +4609,12 @@ public final class LauncherPreviewApp extends Application {
         return Math.max(Math.max(LauncherGeometryTokens.SURFACE_BORDER_WIDTH, bevelRadius), height * fraction);
     }
 
+    private static double folderCurveInset(double height, double bevelRadius, double targetInset) {
+        return Math.max(
+                Math.max(LauncherGeometryTokens.SURFACE_BORDER_WIDTH, bevelRadius),
+                Math.min(height, targetInset));
+    }
+
     private static List<GeometryMeasurement> footerTrapezoidMeasurements(Bounds shellBounds,
                                                                          Bounds headerShellBounds,
                                                                          Bounds outputBounds,
@@ -4611,7 +4630,10 @@ public final class LauncherPreviewApp extends Application {
         double curveRun = slopeWidth;
         double shoulderHandle = quarterCurveHandle(curveRun);
         double cornerHandle = quarterCurveHandle(bevelRadius);
-        double curveInset = folderCurveInset(height, bevelRadius);
+        double curveInset = folderCurveInset(
+                height,
+                bevelRadius,
+                nestedStaticField("FooterGeometry", "ACTION_SHELL_INSET"));
         List<GeometryMeasurement> measurements = new ArrayList<>();
         addMeasurement(measurements, "footer body right aligns with output pane",
                 outputBounds.getMaxX(), shellBounds.getMaxX(),
@@ -4623,6 +4645,9 @@ public final class LauncherPreviewApp extends Application {
         addMeasurement(measurements, "footer path bottom aligns with shell bottom",
                 shellBounds.getMinY() + bottomY, shellBounds.getMinY() + points.rightBottomY(),
                 "footer shell min y + footerPaintBottom(height)");
+        addMeasurement(measurements, "footer path bottom aligns with content bottom",
+                shellBounds.getMaxY(), shellBounds.getMinY() + points.rightBottomY(),
+                "footer rendered tab bottom equals footer shell bottom");
         addMeasurement(measurements, "footer body width",
                 footerActionShellWidth(), width,
                 "FooterGeometry.actionShellWidth()");
@@ -4691,22 +4716,70 @@ public final class LauncherPreviewApp extends Application {
         return measurements;
     }
 
+    private static void addFooterMacroRailMeasurements(Node sceneRoot,
+                                                       double rootMinX,
+                                                       double rootMinY,
+                                                       Bounds rootBounds,
+                                                       Bounds footerBodyBounds,
+                                                       Optional<Node> headerProjectOptional,
+                                                       Optional<Node> headerViewOptional,
+                                                       Optional<Node> outputCopyOptional,
+                                                       Optional<Node> outputKillOptional,
+                                                       Optional<Node> footerCancelOptional,
+                                                       Optional<Node> footerRunOptional,
+                                                       List<GeometryMeasurement> measurements) {
+        if (footerRunOptional.isPresent()) {
+            Bounds run = relativeBounds(sceneRoot, footerRunOptional.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "footer tab bottom to root bottom",
+                    rootBounds.getMaxY(),
+                    footerBodyBounds.getMaxY(),
+                    "footer action content max y == launcher root max y");
+            headerViewOptional.ifPresent(node -> {
+                Bounds headerView = relativeBounds(sceneRoot, node, rootMinX, rootMinY);
+                addMeasurement(measurements, "Run aligns with View right rail",
+                        headerView.getMaxX(), run.getMaxX(),
+                        "footer Run max x == header View max x");
+            });
+            outputKillOptional.ifPresent(node -> {
+                Bounds kill = relativeBounds(sceneRoot, node, rootMinX, rootMinY);
+                addMeasurement(measurements, "Run aligns with Kill Run right rail",
+                        kill.getMaxX(), run.getMaxX(),
+                        "footer Run max x == output Kill Run max x");
+            });
+        }
+        if (footerCancelOptional.isPresent()) {
+            Bounds cancel = relativeBounds(sceneRoot, footerCancelOptional.get(), rootMinX, rootMinY);
+            headerProjectOptional.ifPresent(node -> {
+                Bounds headerProject = relativeBounds(sceneRoot, node, rootMinX, rootMinY);
+                addMeasurement(measurements, "Cancel aligns with Project right rail",
+                        headerProject.getMaxX(), cancel.getMaxX(),
+                        "footer Cancel max x == header Project max x");
+            });
+            outputCopyOptional.ifPresent(node -> {
+                Bounds copy = relativeBounds(sceneRoot, node, rootMinX, rootMinY);
+                addMeasurement(measurements, "Cancel aligns with Copy All right rail",
+                        copy.getMaxX(), cancel.getMaxX(),
+                        "footer Cancel max x == output Copy All max x");
+            });
+        }
+    }
+
     private static FooterPathPoints footerPathPoints(Node node) {
-        if (!(node instanceof javafx.scene.shape.Path path) || path.getElements().size() < 9) {
+        if (!(node instanceof javafx.scene.shape.Path path) || path.getElements().size() < 12) {
             return FooterPathPoints.nan();
         }
         javafx.scene.shape.MoveTo topLeftTangent = (javafx.scene.shape.MoveTo)path.getElements().get(0);
         javafx.scene.shape.LineTo topRightTangent = (javafx.scene.shape.LineTo)path.getElements().get(1);
-        javafx.scene.shape.CubicCurveTo rightShoulder = (javafx.scene.shape.CubicCurveTo)path.getElements().get(2);
-        javafx.scene.shape.CubicCurveTo rightCorner = (javafx.scene.shape.CubicCurveTo)path.getElements().get(4);
-        javafx.scene.shape.LineTo leftBottom = (javafx.scene.shape.LineTo)path.getElements().get(5);
-        javafx.scene.shape.CubicCurveTo leftShoulder = (javafx.scene.shape.CubicCurveTo)path.getElements().get(6);
+        javafx.scene.shape.CubicCurveTo rightCorner = (javafx.scene.shape.CubicCurveTo)path.getElements().get(2);
+        javafx.scene.shape.CubicCurveTo rightShoulder = (javafx.scene.shape.CubicCurveTo)path.getElements().get(5);
+        javafx.scene.shape.LineTo leftBottom = (javafx.scene.shape.LineTo)path.getElements().get(6);
+        javafx.scene.shape.CubicCurveTo leftShoulder = (javafx.scene.shape.CubicCurveTo)path.getElements().get(7);
         return new FooterPathPoints(
                 topLeftTangent.getX(), topLeftTangent.getY(),
                 topRightTangent.getX(), topRightTangent.getY(),
-                rightShoulder.getControlX1(), rightShoulder.getControlY1(),
-                rightShoulder.getControlX2(), rightShoulder.getControlY2(),
-                rightCorner.getX(), rightCorner.getY(),
+                rightCorner.getControlX1(), rightCorner.getControlY1(),
+                rightCorner.getControlX2(), rightCorner.getControlY2(),
+                rightShoulder.getX(), rightShoulder.getY(),
                 leftBottom.getX(), leftBottom.getY(),
                 leftShoulder.getControlX1(), leftShoulder.getControlY1(),
                 leftShoulder.getControlX2(), leftShoulder.getControlY2(),
