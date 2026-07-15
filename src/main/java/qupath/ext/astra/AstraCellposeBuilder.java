@@ -20,11 +20,11 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- * Minimal ASTRA-owned builder surface required by the current training,
+ * Minimal extension-owned builder surface required by the current training,
  * tuning, and validation stacks.
  *
- * This builder preserves the fluent methods the ASTRA stacks call,
- * resolves ASTRA-owned directories deterministically, and rejects runtime
+ * This builder preserves the fluent methods the pipeline stacks call,
+ * resolves extension-owned directories deterministically, and rejects runtime
  * selectors that violate the single-runtime-path contract.
  *
  * Downstream Groovy stacks own MODEL_SOURCE / MODEL_NAME policy.
@@ -190,14 +190,14 @@ public class AstraCellposeBuilder extends CellposeBuilder {
     @Override
     public AstraCellposeBuilder useCellposeSAM() {
         throw new UnsupportedOperationException(
-                "ASTRA uses a single runtime path and does not support useCellposeSAM()."
+                "The extension uses a single runtime path and does not support useCellposeSAM()."
         );
     }
 
     @Override
     public AstraCellposeBuilder useOmnipose() {
         throw new UnsupportedOperationException(
-                "ASTRA uses a single runtime path and does not support Omnipose selection."
+                "The extension uses a single runtime path and does not support Omnipose selection."
         );
     }
 
@@ -207,7 +207,7 @@ public class AstraCellposeBuilder extends CellposeBuilder {
     }
 
     /**
-     * Configure the ASTRA validation input directory.
+     * Configure the validation input directory.
      */
     public AstraCellposeBuilder validationDirectory(File validationDir) {
         this.validationDirectory = validationDir;
@@ -215,7 +215,7 @@ public class AstraCellposeBuilder extends CellposeBuilder {
     }
 
     /**
-     * Configure the ASTRA results root directory.
+     * Configure the results root directory.
      */
     public AstraCellposeBuilder resultsDirectory(File resultsDir) {
         this.resultsDirectory = resultsDir;
@@ -283,7 +283,7 @@ public class AstraCellposeBuilder extends CellposeBuilder {
 
             return runtime;
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to prepare ASTRA builder directories.", e);
+            throw new IllegalStateException("Failed to prepare builder directories.", e);
         } finally {
             if (shouldSaveBuilder) {
                 writeBuilderField("saveBuilder", true);
@@ -294,10 +294,10 @@ public class AstraCellposeBuilder extends CellposeBuilder {
 
     private static File requireProjectDirectory() {
         if (QP.getProject() == null) {
-            throw new IllegalStateException("ASTRA builder requires an open QuPath project.");
+            throw new IllegalStateException("Builder requires an open QuPath project.");
         }
         if (QP.getProject().getPath() == null || QP.getProject().getPath().getParent() == null) {
-            throw new IllegalStateException("ASTRA builder could not resolve the project directory.");
+            throw new IllegalStateException("Builder could not resolve the project directory.");
         }
         return QP.getProject().getPath().getParent().toFile();
     }
@@ -307,12 +307,12 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         try (FileReader reader = new FileReader(builderFile)) {
             AstraCellposeBuilder loaded = gson.fromJson(reader, AstraCellposeBuilder.class);
             if (loaded == null) {
-                throw new IllegalStateException("Serialized ASTRA builder file produced no builder state: " + builderFile.getAbsolutePath());
+                throw new IllegalStateException("Serialized builder file produced no builder state: " + builderFile.getAbsolutePath());
             }
             copyBuilderState(loaded, this);
-            logger.info("ASTRA builder parameters loaded from {}", builderFile);
+            logger.info("builder parameters loaded from {}", builderFile);
         } catch (IOException e) {
-            throw new IllegalStateException("Could not load ASTRA builder from " + builderFile.getAbsolutePath(), e);
+            throw new IllegalStateException("Could not load builder from " + builderFile.getAbsolutePath(), e);
         }
     }
 
@@ -327,9 +327,9 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         try (FileWriter fw = new FileWriter(savePath)) {
             gson.toJson(this, AstraCellposeBuilder.class, fw);
             fw.flush();
-            logger.info("Serialized ASTRA builder saved to {}", savePath);
+            logger.info("Serialized builder saved to {}", savePath);
         } catch (IOException e) {
-            throw new IllegalStateException("Unable to save serialized ASTRA builder to " + savePath.getAbsolutePath(), e);
+            throw new IllegalStateException("Unable to save serialized builder to " + savePath.getAbsolutePath(), e);
         }
     }
 

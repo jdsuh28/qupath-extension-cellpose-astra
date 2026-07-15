@@ -15,7 +15,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.paint.Stop;
 
 /**
- * Shared animated ASTRA gradient paint used by header and run-progress surfaces.
+ * Shared animated launcher gradient paint used by header and run-progress surfaces.
  */
 final class AnimatedGradientSurface extends Pane {
 

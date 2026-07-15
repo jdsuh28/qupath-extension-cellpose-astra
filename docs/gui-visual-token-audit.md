@@ -92,7 +92,7 @@ Status: `Tentatively complete / awaiting manual visual review`.
 Implementation date: 2026-07-07.
 
 Source result:
-- ASTRA-owned controls now route same-family geometry through explicit control
+- extension-owned controls now route same-family geometry through explicit control
   geometry tokens/helpers.
 - Scrollbar thumb and side-padding formulas, hidden/probe controls, list dialog
   dimensions, multi-select summary limits, action-progress sizes, and JavaFX
@@ -570,7 +570,7 @@ Generated: 2026-07-03T15:52:00
 
 This closure layer answers a different question than the visual literal scan
 above. The visual-token inventory finds magic-number and source-of-truth
-candidates. The surface/state coverage matrix verifies that each ASTRA-owned
+candidates. The surface/state coverage matrix verifies that each extension-owned
 GUI surface and appearance-changing state maps to one or more visual-token
 families and a future proof method before implementation starts.
 
@@ -595,7 +595,7 @@ StyledLogView Java, preview diagnostics, tests, and launcher CSS for:
 
 The matrix intentionally treats header fallback menus, combo popups,
 tooltips, runtime windows, profile dialogs, selected-image dialogs, list cells,
-and dialog buttons as ASTRA-owned surfaces. The only native exemption is the
+and dialog buttons as extension-owned surfaces. The only native exemption is the
 settings-profile `FileChooser`.
 
 ### Coverage Counts
@@ -615,7 +615,7 @@ settings-profile `FileChooser`.
 ### Coverage Verdict
 
 The coverage artifact is ready to guide implementation. No discovered
-ASTRA-owned GUI surface is currently missing from the coverage matrix, and no
+extension-owned GUI surface is currently missing from the coverage matrix, and no
 surface/state row lacks a visual-token family.
 
 This does not mean the GUI is visually complete. It means the implementation
@@ -634,8 +634,8 @@ Implementation must still obey these blockers before any family can be closed:
 - Do not mark a family complete from JavaFX node bounds alone when rendered ink
   or alpha bounds are relevant.
 - Do not treat a QuPath/default-looking dialog as native-exempt merely because
-  JavaFX supplies the shell. If ASTRA owns the interaction, it remains
-  ASTRA-owned.
+  JavaFX supplies the shell. If the extension owns the interaction, it remains
+  extension-owned.
 - Do not add a new GUI surface without adding a corresponding
   `gui-visual-surface-state-coverage.csv` row.
 - Do not tune values from screenshots; screenshots are acceptance QA only.

@@ -24,12 +24,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * Focused tests for the generic ASTRA pipeline launcher contract.
+ * Focused tests for the generic pipeline launcher contract.
  */
 class PipelineLauncherTest {
 
-    private static final Path LOCAL_BASE_ASTRA_ROOT = Path.of("..", "astra");
-    private static final Path VENDORED_BASE_ASTRA_ROOT = Path.of("src", "main", "resources", "astra");
+    private static final Path LOCAL_BASE_REPOSITORY_ROOT = Path.of("..", "astra");
+    private static final Path VENDORED_BASE_REPOSITORY_ROOT = Path.of("src", "main", "resources", "astra");
 
     @Test
     void helpConstantsAttachToTargetVariables() {
@@ -123,7 +123,7 @@ class PipelineLauncherTest {
 
         assertFalse(source.contains("private static String helpFor"));
         assertFalse(source.contains("CELLPOSE_CELL_CHANNELS\" ->"));
-        assertTrue(source.contains("ASTRA did not provide help metadata for this script constant."));
+        assertTrue(source.contains("No help metadata for this script constant."));
     }
 
     @Test
@@ -177,7 +177,7 @@ class PipelineLauncherTest {
     }
 
     @Test
-    void settingsProfileNameDialogUsesAstraOwnedGeometry() throws Exception {
+    void settingsProfileNameDialogUsesOwnedGeometry() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
 
         assertFalse(source.contains("TextInputDialog"));
@@ -189,7 +189,7 @@ class PipelineLauncherTest {
     }
 
     @Test
-    void confirmationDialogsUseAstraOwnedGeometry() throws Exception {
+    void confirmationDialogsUseOwnedGeometry() throws Exception {
         String source = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
         String runtime = Files.readString(Path.of("src/main/java/qupath/ext/astra/RuntimeInstaller.java"));
 
@@ -200,18 +200,18 @@ class PipelineLauncherTest {
         assertFalse(runtime.contains("Dialogs.show"));
         assertTrue(source.contains("static Dialog<ButtonType> createResetConfirmationDialog(Window owner)"));
         assertTrue(source.contains("static Dialog<ButtonType> createProvisionalVascularConfirmationDialog(Window owner)"));
-        assertTrue(source.contains("static Dialog<ButtonType> createAstraSuccessConfirmationDialog(Window owner"));
-        assertTrue(source.contains("static void showAstraMessage(Window owner"));
+        assertTrue(source.contains("static Dialog<ButtonType> createSuccessConfirmationDialog(Window owner"));
+        assertTrue(source.contains("static void showMessage(Window owner"));
         assertTrue(source.contains("static Dialog<ButtonType> createRunFailureDialog(Window owner"));
-        assertTrue(source.contains("static Dialog<ButtonType> createAstraPreviewMessageDialog(Window owner"));
-        assertTrue(source.contains("private static Dialog<ButtonType> createAstraConfirmationDialog"));
-        assertTrue(source.contains("private static Dialog<ButtonType> createAstraMessageDialog"));
+        assertTrue(source.contains("static Dialog<ButtonType> createPreviewMessageDialog(Window owner"));
+        assertTrue(source.contains("private static Dialog<ButtonType> createConfirmationDialog"));
+        assertTrue(source.contains("private static Dialog<ButtonType> createMessageDialog"));
         assertTrue(source.contains("VBox content = new VBox(SelectionGeometry.DIALOG_CONTENT_GAP, title, body);"));
         assertTrue(source.contains("addStyleClass(content, \"astra-dialog-owned-content\")"));
-        assertTrue(runtime.contains("PipelineLauncher.createAstraSuccessConfirmationDialog"));
-        assertTrue(runtime.contains("PipelineLauncher.showAstraMessage"));
-        assertTrue(runtime.contains("PipelineLauncher.showAstraErrorMessage"));
-        assertTrue(source.contains("Platform.runLater(() -> showAstraMessage("));
+        assertTrue(runtime.contains("PipelineLauncher.createSuccessConfirmationDialog"));
+        assertTrue(runtime.contains("PipelineLauncher.showMessage"));
+        assertTrue(runtime.contains("PipelineLauncher.showErrorMessage"));
+        assertTrue(source.contains("Platform.runLater(() -> showMessage("));
     }
 
     @Test
@@ -262,7 +262,7 @@ class PipelineLauncherTest {
         String css = launcherCss();
 
         assertTrue(css.startsWith("@import \"launcher.tokens.css\";"));
-        assertTrue(resourceBasenamesWithInvalidAstraPrefix().isEmpty());
+        assertTrue(resourceBasenamesWithRedundantBrandPrefix().isEmpty());
         assertEquals(expectedLauncherTokenCss(), Files.readString(tokenPath));
         assertFalse(spacingFamilyInventory().contains(",css-semantic-spacing-mirror,"));
     }
@@ -650,7 +650,7 @@ class PipelineLauncherTest {
         String css = Files.readString(Path.of("src/main/resources/qupath/ext/astra/launcher.css"));
 
         assertTrue(source.contains("LAUNCHER_STYLESHEET_RESOURCE = \"/qupath/ext/astra/launcher.css\""));
-        assertTrue(source.contains("installAstraStyles(dialog.getDialogPane())"));
+        assertTrue(source.contains("installLauncherStyles(dialog.getDialogPane())"));
         assertTrue(source.contains("addStyleClass(root, \"astra-launcher-root\")"));
         assertTrue(source.contains("addStyleClass(grid, \"astra-section-content\")"));
         assertTrue(source.contains("addStyleClass(this, \"astra-collapsible-section\")"));
@@ -952,7 +952,7 @@ class PipelineLauncherTest {
     }
 
     @Test
-    void transientSurfaceAuditClassifiesAstraOwnedAndNativeSurfaces() throws Exception {
+    void transientSurfaceAuditClassifiesOwnedAndNativeSurfaces() throws Exception {
         Path auditPath = Path.of("src/test/resources/qupath/ext/astra/gui-transient-surface-audit.csv");
         assertTrue(Files.exists(auditPath), "Transient surface audit must be tracked.");
         String audit = Files.readString(auditPath);
@@ -977,12 +977,12 @@ class PipelineLauncherTest {
                 "runtime setup validation failure dialog",
                 "runtime setup repair/delete failure dialog",
                 "runtime setup cancelled dialog")) {
-            assertTrue(audit.contains(surface + ",ASTRA-owned,styled"), surface);
+            assertTrue(audit.contains(surface + ",extension-owned,styled"), surface);
         }
 
         assertTrue(audit.contains("settings profile load FileChooser,OS-native,native/out-of-scope"));
-        assertTrue(audit.contains("vendored Cellpose setup warning,vendored BIOP,not ASTRA launcher-owned"));
-        assertTrue(audit.contains("vendored Cellpose training chart,vendored BIOP,not ASTRA launcher-owned"));
+        assertTrue(audit.contains("vendored Cellpose setup warning,vendored BIOP,not launcher-owned"));
+        assertTrue(audit.contains("vendored Cellpose training chart,vendored BIOP,not launcher-owned"));
         assertFalse(audit.contains(",violation,"));
         assertFalse(audit.contains(",requires replacement"));
         assertFalse(audit.contains(",unstyled"));
@@ -1026,7 +1026,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("javafx.util.Duration.seconds(LauncherMotionTokens.RUN_LOG_ELAPSED_REFRESH_SECONDS)"));
         assertTrue(source.contains("createInstallProgressRoot(phase, detail, elapsed, stepList, resultTitle, resultBody,"));
         assertTrue(source.contains("progressBar.setMinHeight(InstallerGeometry.PROGRESS_BAR_HEIGHT);"));
-        assertTrue(source.contains("addAstraStylesheet(scene);"));
+        assertTrue(source.contains("addLauncherStylesheet(scene);"));
         assertFalse(source.contains("ProgressIndicator indicator = new ProgressIndicator();"));
         assertFalse(source.contains("new HBox(10"));
         assertFalse(source.contains("new VBox(10"));
@@ -2238,7 +2238,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private final Label progressText = GuiText.label(GuiText.Role.PANEL_TEXT, \"\");"));
         assertTrue(source.contains("setPrefHeight(LauncherGeometry.ACTION_PROGRESS_TOTAL_HEIGHT);"));
         assertTrue(source.contains("progressTextFor(state)"));
-        assertTrue(source.contains("Ready for the next ASTRA run."));
+        assertTrue(source.contains("Ready for the next run."));
         assertTrue(source.contains("runProgressLane.setGradientMode(initialMode);"));
         assertTrue(source.contains("runProgressLane.setMotionSpeed(initialSpeed);"));
         assertTrue(source.contains("inputFillPanel.setGradientMode(initialMode);"));
@@ -2461,7 +2461,7 @@ class PipelineLauncherTest {
     }
 
     @Test
-    void guiTextDefinesEveryTypographyRoleWithoutRedundantAstraPrefix() throws Exception {
+    void guiTextDefinesEveryTypographyRoleWithoutRedundantBrandPrefix() throws Exception {
         String guiText = Files.readString(Path.of("src/main/java/qupath/ext/astra/GuiText.java"));
         String launcher = Files.readString(Path.of("src/main/java/qupath/ext/astra/PipelineLauncher.java"));
         String runtime = Files.readString(Path.of("src/main/java/qupath/ext/astra/RuntimeInstaller.java"));
@@ -3000,7 +3000,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private final AtomicBoolean errorDialogShown = new AtomicBoolean(false);"));
         assertTrue(source.contains("errorDialogShown.set(false);"));
         assertTrue(source.contains("return errorDialogShown.compareAndSet(false, true);"));
-        assertTrue(source.contains("See the ASTRA run log for full details."));
+        assertTrue(source.contains("See the run log for full details."));
     }
 
     @Test
@@ -3073,7 +3073,7 @@ class PipelineLauncherTest {
         assertTrue(source.contains("private final MultiSelectListEditor selector;"));
         assertTrue(source.contains("new MultiSelectListEditor(\"\", orderedModes, EditableConstant.csvValues(rawValue)"));
         assertTrue(source.contains("installColocalizationRunModeEditor(scriptName, constants)"));
-        assertTrue(source.contains("Choose stages in ASTRA's fixed order. Reset and export are separate script actions."));
+        assertTrue(source.contains("Choose stages in the configured order. Reset and export are separate script actions."));
         assertTrue(source.contains("notifyListenersAfterModalClose(listeners);"));
         assertTrue(source.contains("GuiText.button(GuiText.Role.CONTROL_TEXT, \"Reset Image\")"));
         assertTrue(source.contains("GuiText.button(GuiText.Role.CONTROL_TEXT, \"Reset Project\")"));
@@ -3267,7 +3267,7 @@ class PipelineLauncherTest {
 
         assertTrue(source.contains("private static final class ProjectImageSelectionEditor extends VBox"));
         assertTrue(source.contains("Dialog<ButtonType> dialog = new Dialog<>()"));
-        assertTrue(source.contains("setTitle(\"ASTRA Project Image Selection\")"));
+        assertTrue(source.contains("setTitle(\"Project Image Selection\")"));
         assertTrue(source.contains("ListView<String> available"));
         assertTrue(source.contains("ListView<String> chosen"));
         assertTrue(source.contains("available.setPrefSize(\n"
@@ -3353,9 +3353,9 @@ class PipelineLauncherTest {
         // Unit tests exercise the run-scoped bridge deterministically; live QuPath
         // uses RunLogCapture.attach(...) to register the same bridge with LogManager.
         PipelineLauncher.RunLogCapture capture = PipelineLauncher.RunLogCapture.forTest(lines::add);
-        capture.appendText("INFO  astra test info\n");
-        capture.appendText("WARN  astra test warn\n");
-        capture.appendText("ERROR astra test error\n");
+        capture.appendText("INFO  pipeline test info\n");
+        capture.appendText("WARN  pipeline test warn\n");
+        capture.appendText("ERROR pipeline test error\n");
         capture.close();
         capture.appendText("INFO ignored\n");
 
@@ -3378,7 +3378,7 @@ class PipelineLauncherTest {
                 Traceback (most recent call last):
                 """, RunLogSource.QUPATH, RunLogSeverity.NEUTRAL);
 
-        assertEquals(RunLogSource.ASTRA, entries.get(0).source());
+        assertEquals(RunLogSource.PIPELINE, entries.get(0).source());
         assertEquals(RunLogSeverity.INFO, entries.get(0).severity());
         assertEquals(RunLogSeverity.WARNING, entries.get(1).severity());
         assertEquals(RunLogSource.QUPATH, entries.get(2).source());
@@ -3388,9 +3388,9 @@ class PipelineLauncherTest {
         assertTrue(entries.get(3).text().contains("--diam_mean"));
         assertEquals(RunLogSource.CELLPOSE, entries.get(4).source());
         assertFalse(entries.get(4).text().contains(">>>>"));
-        assertEquals(RunLogSource.ASTRA, entries.get(5).source());
+        assertEquals(RunLogSource.PIPELINE, entries.get(5).source());
         assertEquals(RunLogSeverity.INFO, entries.get(5).severity());
-        assertEquals(RunLogSource.ASTRA, entries.get(6).source());
+        assertEquals(RunLogSource.PIPELINE, entries.get(6).source());
         assertEquals(RunLogSeverity.ERROR, entries.get(6).severity());
         assertEquals(RunLogSource.PYTHON, entries.get(7).source());
         assertEquals(RunLogSeverity.ERROR, entries.get(7).severity());
@@ -3408,7 +3408,7 @@ class PipelineLauncherTest {
                 """, RunLogSource.QUPATH, RunLogSeverity.NEUTRAL);
 
         assertEquals(6, entries.size());
-        assertEquals(RunLogSource.ASTRA, entries.get(0).source());
+        assertEquals(RunLogSource.PIPELINE, entries.get(0).source());
         assertEquals(RunLogSeverity.INFO, entries.get(0).severity());
         assertEquals(RunLogSource.SCRIPT, entries.get(1).source());
         assertEquals(RunLogSeverity.NEUTRAL, entries.get(1).severity());
@@ -3448,7 +3448,7 @@ class PipelineLauncherTest {
     }
 
     @Test
-    void runLogParserDoesNotLetAstraObjectNamesChangeScriptSource() {
+    void runLogParserDoesNotLetBrandedObjectNamesChangeScriptSource() {
         List<RunLogEntry> entries = RunLogParser.parse("""
                 SMA-AF647  Region scored: [1/10] 'ASTRA SMA Media Search 4' | cells=200
                 SMA-AF647  Region scored: [2/10] 'ROI 3' | cells=123
@@ -3462,21 +3462,21 @@ class PipelineLauncherTest {
     @Test
     void runLogGrouperKeepsConsecutiveSameSourceEntriesInOneBlock() {
         List<RunLogEntry> entries = List.of(
-                new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.INFO, RunLogKind.MESSAGE, "start", "start"),
-                new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.WARNING, RunLogKind.MESSAGE, "warn", "warn"),
+                new RunLogEntry(RunLogSource.PIPELINE, RunLogSeverity.INFO, RunLogKind.MESSAGE, "start", "start"),
+                new RunLogEntry(RunLogSource.PIPELINE, RunLogSeverity.WARNING, RunLogKind.MESSAGE, "warn", "warn"),
                 new RunLogEntry(RunLogSource.CELLPOSE, RunLogSeverity.INFO, RunLogKind.MESSAGE, "gpu", "gpu"),
                 new RunLogEntry(RunLogSource.CELLPOSE, RunLogSeverity.ERROR, RunLogKind.MESSAGE, "failed", "failed"),
-                new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.SUCCESS, RunLogKind.MESSAGE, "done", "done")
+                new RunLogEntry(RunLogSource.PIPELINE, RunLogSeverity.SUCCESS, RunLogKind.MESSAGE, "done", "done")
         );
 
         List<RunLogBlock> blocks = RunLogGrouper.groupBySource(entries);
 
         assertEquals(3, blocks.size());
-        assertEquals(RunLogSource.ASTRA, blocks.get(0).source());
+        assertEquals(RunLogSource.PIPELINE, blocks.get(0).source());
         assertEquals(2, blocks.get(0).entries().size());
         assertEquals(RunLogSource.CELLPOSE, blocks.get(1).source());
         assertEquals(2, blocks.get(1).entries().size());
-        assertEquals(RunLogSource.ASTRA, blocks.get(2).source());
+        assertEquals(RunLogSource.PIPELINE, blocks.get(2).source());
     }
 
     @Test
@@ -3500,7 +3500,7 @@ class PipelineLauncherTest {
         assertTrue(blocks.get(0).keyValues().stream().anyMatch(kv -> kv.key().contains("Cells created") && kv.value().equals("125")));
         assertEquals("125", blocks.get(0).metrics().get("Cells"));
         assertEquals(RunLogKind.SEPARATOR, entries.get(0).kind());
-        assertEquals(RunLogSource.ASTRA, entries.get(0).source());
+        assertEquals(RunLogSource.PIPELINE, entries.get(0).source());
     }
 
     @Test
@@ -3581,7 +3581,7 @@ class PipelineLauncherTest {
         assertEquals(1, model.warningCount());
         assertEquals(RunTimelineOutcome.RUNNING, model.outcome());
 
-        RunLogEntry error = new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.ERROR, RunLogKind.MESSAGE, "Quantify: failed", "");
+        RunLogEntry error = new RunLogEntry(RunLogSource.PIPELINE, RunLogSeverity.ERROR, RunLogKind.MESSAGE, "Quantify: failed", "");
         model.accept(RunLogPresenter.eventFor(error));
         assertEquals(1, model.errorCount());
         assertEquals(RunTimelineOutcome.FAILED, model.outcome());
@@ -3604,11 +3604,11 @@ class PipelineLauncherTest {
 
     @Test
     void runLogPresenterRecognizesCardsCommandsAndMetrics() {
-        RunLogEntry summary = new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.SUCCESS, RunLogKind.MESSAGE, "DETECT_CELLS COMPLETE", "");
+        RunLogEntry summary = new RunLogEntry(RunLogSource.PIPELINE, RunLogSeverity.SUCCESS, RunLogKind.MESSAGE, "DETECT_CELLS COMPLETE", "");
         assertTrue(RunLogPresenter.isStageCard(summary));
         assertEquals(RunLogEventType.STAGE_COMPLETE, RunLogPresenter.eventFor(summary).type());
 
-        RunLogEntry kv = new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.INFO, RunLogKind.KEY_VALUE, "Cells quantified : 78", "");
+        RunLogEntry kv = new RunLogEntry(RunLogSource.PIPELINE, RunLogSeverity.INFO, RunLogKind.KEY_VALUE, "Cells quantified : 78", "");
         assertEquals("78", RunLogMetrics.badges(kv).get("Cells"));
 
         RunLogEntry command = new RunLogEntry(RunLogSource.SCRIPT, RunLogSeverity.NEUTRAL, RunLogKind.MESSAGE, "bash -c \"/env/bin/python -m cellpose --dir /tmp\"", "");
@@ -3623,11 +3623,11 @@ class PipelineLauncherTest {
     @Test
     void runProgressTrackerSummarizesImageRegionCellposeAndCellCounts() {
         RunProgressTracker tracker = new RunProgressTracker();
-        RunLogEntry image = new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.INFO, RunLogKind.MESSAGE,
+        RunLogEntry image = new RunLogEntry(RunLogSource.PIPELINE, RunLogSeverity.INFO, RunLogKind.MESSAGE,
                 "Image start : [3/20] 'slide'", "");
         tracker.accept(RunLogPresenter.eventFor(image));
 
-        RunLogEntry region = new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.INFO, RunLogKind.MESSAGE,
+        RunLogEntry region = new RunLogEntry(RunLogSource.PIPELINE, RunLogSeverity.INFO, RunLogKind.MESSAGE,
                 "Region detected: [2/5] 'Region' | nuclei=78 | cells=78", "");
         tracker.accept(RunLogPresenter.eventFor(region));
 
@@ -3635,7 +3635,7 @@ class PipelineLauncherTest {
                 "75%|#######5  | 3/4 [00:38<00:12, 12.72s/it]", "");
         tracker.accept(RunLogPresenter.eventFor(progress));
 
-        RunLogEntry cells = new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.INFO, RunLogKind.KEY_VALUE,
+        RunLogEntry cells = new RunLogEntry(RunLogSource.PIPELINE, RunLogSeverity.INFO, RunLogKind.KEY_VALUE,
                 "Cells quantified : 78", "");
         tracker.accept(RunLogPresenter.eventFor(cells));
 
@@ -3648,7 +3648,7 @@ class PipelineLauncherTest {
 
     @Test
     void runLogErrorAdvisorMapsKnownFailuresConservatively() {
-        RunLogEntry finite = new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.ERROR, RunLogKind.MESSAGE,
+        RunLogEntry finite = new RunLogEntry(RunLogSource.PIPELINE, RunLogSeverity.ERROR, RunLogKind.MESSAGE,
                 "Quantify: resolved threshold for AF647|Nucleus must be finite.", "");
         RunLogErrorAdvice finiteAdvice = RunLogErrorAdvisor.advise(RunLogPresenter.eventFor(finite));
         assertEquals("Non-finite measurement or threshold", finiteAdvice.family());
@@ -3999,7 +3999,7 @@ class PipelineLauncherTest {
                 LauncherThemeTokens.cssDeclarations());
     }
 
-    private static Set<String> resourceBasenamesWithInvalidAstraPrefix() throws Exception {
+    private static Set<String> resourceBasenamesWithRedundantBrandPrefix() throws Exception {
         Path resourceRoot = Path.of("src/main/resources/qupath/ext/astra");
         try (var stream = Files.walk(resourceRoot)) {
             return stream
@@ -4069,11 +4069,11 @@ class PipelineLauncherTest {
     }
 
     private static Path currentBaseScriptPath(String relativePath) {
-        Path localPath = LOCAL_BASE_ASTRA_ROOT.resolve(relativePath).normalize();
+        Path localPath = LOCAL_BASE_REPOSITORY_ROOT.resolve(relativePath).normalize();
         if (Files.isRegularFile(localPath)) {
             return localPath;
         }
-        Path vendoredPath = VENDORED_BASE_ASTRA_ROOT.resolve(relativePath).normalize();
+        Path vendoredPath = VENDORED_BASE_REPOSITORY_ROOT.resolve(relativePath).normalize();
         if (Files.isRegularFile(vendoredPath)) {
             return vendoredPath;
         }

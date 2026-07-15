@@ -10,7 +10,7 @@
     {
       "name": "Run Setup",
       "label": "Run Setup",
-      "description": "Choose the workflow path before ASTRA touches data.",
+      "description": "Choose the workflow path before processing data.",
       "order": 1,
       "importance": "Essential",
       "accentTheme": "teal"
@@ -18,7 +18,7 @@
     {
       "name": "Images & Scope",
       "label": "Images & Scope",
-      "description": "Tell ASTRA which images or regions are in play.",
+      "description": "Choose which images or regions are in play.",
       "order": 2,
       "importance": "Essential",
       "accentTheme": "bluegray"

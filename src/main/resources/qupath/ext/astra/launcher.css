@@ -102,7 +102,7 @@
 /*
  * Soft is a complete component palette, not a header-only recolor. These
  * semantic overrides keep shared geometry and interaction mechanics intact
- * while giving every ASTRA-owned surface family the same pastel language.
+ * while giving every launcher-owned surface family the same pastel language.
  */
 .astra-theme-soft .astra-button-primary,
 .astra-theme-soft .astra-button-toggle-active {

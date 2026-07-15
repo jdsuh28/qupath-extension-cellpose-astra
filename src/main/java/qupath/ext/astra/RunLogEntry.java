@@ -74,7 +74,7 @@ enum RunLogSeverity {
 }
 
 enum RunLogSource {
-    ASTRA("ASTRA"),
+    PIPELINE("Pipeline"),
     QUPATH("QuPath"),
     CELLPOSE("Cellpose"),
     PYTHON("Python"),

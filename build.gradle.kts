@@ -59,7 +59,7 @@ tasks.withType<Test>().configureEach {
 
 tasks.register<JavaExec>("previewLauncher") {
     group = "ASTRA development"
-    description = "Open an ASTRA launcher dialog from working-tree classes."
+    description = "Open the launcher dialog from working-tree classes."
 
     dependsOn("testClasses")
     val quPathAppPath = providers.gradleProperty("astraQuPathAppPath")

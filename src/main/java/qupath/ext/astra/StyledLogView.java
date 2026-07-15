@@ -66,7 +66,7 @@ final class StyledLogView extends VBox {
     private final RunLogBlockAccumulator blockAccumulator = new RunLogBlockAccumulator();
     private final Button copyButton = GuiText.button(GuiText.Role.CONTROL_TEXT, "Copy All");
     private final Label statusTitle = GuiText.label(GuiText.Role.LOG_TEXT, "Ready");
-    private final Label statusDetail = GuiText.label(GuiText.Role.LOG_TEXT, "Waiting for an ASTRA run.");
+    private final Label statusDetail = GuiText.label(GuiText.Role.LOG_TEXT, "Waiting for a run.");
     private final VBox failureSummary = new VBox(LOG_TIGHT_GAP);
     private final HBox timelineRail = new HBox(LOG_TIGHT_GAP + LauncherGeometryTokens.SURFACE_BORDER_WIDTH);
     private RunLogSource currentSource;
@@ -257,7 +257,7 @@ final class StyledLogView extends VBox {
                 appendStandalone(createCommandBlock(entry), entry);
                 continue;
             }
-            if (entry.source() == RunLogSource.ASTRA || blockAccumulator.isCapturing()) {
+            if (entry.source() == RunLogSource.PIPELINE || blockAccumulator.isCapturing()) {
                 var renderedBlock = blockAccumulator.accept(entry);
                 if (renderedBlock.isPresent()) {
                     appendRenderedBlock(renderedBlock.get());
@@ -278,7 +278,7 @@ final class StyledLogView extends VBox {
                 appendStandalone(createStageCard(entry, event), entry);
                 continue;
             }
-            if (entry.kind() == RunLogKind.KEY_VALUE && entry.source() == RunLogSource.ASTRA) {
+            if (entry.kind() == RunLogKind.KEY_VALUE && entry.source() == RunLogSource.PIPELINE) {
                 appendStandalone(createKeyValueCard(entry), entry);
                 continue;
             }

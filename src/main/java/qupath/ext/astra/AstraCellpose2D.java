@@ -79,11 +79,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
- * ASTRA-owned Cellpose2D subclass.
+ * Extension-owned Cellpose2D subclass.
  *
- * This class owns the ASTRA runtime contract for training image export,
+ * This class owns the runtime contract for training image export,
  * training-result handling, validation evaluation, and batch inference.
- * ASTRA policy remains explicit and fail-fast: downstream stacks resolve
+ * Runtime policy remains explicit and fail-fast: downstream stacks resolve
  * model-selection policy before invoking this runtime.
  */
 public class AstraCellpose2D extends Cellpose2D {
@@ -93,7 +93,7 @@ public class AstraCellpose2D extends Cellpose2D {
     private static final String RUNTIME_PYTHON_PATH_KEY = "qupath.ext.astra.runtimePythonPath";
     private static final String RUNTIME_PYTHON_PATH_NAME =
             "Automated Structural Tissue Research and Analysis (ASTRA) > Cellpose Runtime Python Executable";
-    private static final String ASTRA_CELLPOSE_MODULE = "cellpose.astra";
+    private static final String CELLPOSE_MODULE = "cellpose.astra";
 
     private static final String VALIDATION_METRICS_HELPER_RESOURCE = "qupath/ext/astra/qc/run-cellpose-qc.py";
     private static final List<String> CELLPOSE_INPUT_EXTENSIONS = List.of(
@@ -197,7 +197,7 @@ public class AstraCellpose2D extends Cellpose2D {
                     if (resolvedPixelSize != null && Double.isFinite(resolvedPixelSize) && resolvedPixelSize > 0) {
                         pixelSize = resolvedPixelSize;
                         restorePixelSize = true;
-                        logger.info("ASTRA training auto-resolved canonical working pixel size to {} um/px.", resolvedPixelSize);
+                        logger.info("Training auto-resolved canonical working pixel size to {} um/px.", resolvedPixelSize);
                     }
                 }
 
@@ -208,7 +208,7 @@ public class AstraCellpose2D extends Cellpose2D {
 
             if (trainingAnnotationClass == null || trainingAnnotationClass.isBlank()) {
                 throw new IllegalStateException(
-                        "ASTRA training image export requires trainingAnnotationClass to be set explicitly."
+                        "Training image export requires trainingAnnotationClass to be set explicitly."
                 );
             }
 
@@ -233,7 +233,7 @@ public class AstraCellpose2D extends Cellpose2D {
 
         var qupath = QPEx.getQuPath();
         if (qupath == null || qupath.getProject() == null) {
-            throw new IllegalStateException("ASTRA training image export requires an open QuPath project.");
+            throw new IllegalStateException("Training image export requires an open QuPath project.");
         }
 
         for (var entry : qupath.getProject().getImageList()) {
@@ -288,7 +288,7 @@ public class AstraCellpose2D extends Cellpose2D {
                 saveTrainingImagePairs(validationAnnotations, imageName, processed, labelServer, validationDirectory);
             } catch (Exception ex) {
                 throw new IllegalStateException(
-                        "ASTRA training image export failed for project entry '" + entryName + "'.",
+                        "Training image export failed for project entry '" + entryName + "'.",
                         ex
                 );
             }
@@ -346,7 +346,7 @@ public class AstraCellpose2D extends Cellpose2D {
             RegionRequest request = RegionRequest.createInstance(originalServer.getPath(), downsample, annotation.getROI());
             if (request.getWidth() < 10 || request.getHeight() < 10) {
                 throw new IllegalStateException(
-                        "ASTRA training image export produced a tile that is too small to be valid: " + request
+                        "Training image export produced a tile that is too small to be valid: " + request
                 );
             }
 
@@ -358,7 +358,7 @@ public class AstraCellpose2D extends Cellpose2D {
                 logger.info("Saved image pair: {} | {}", imageFile.getName(), maskFile.getName());
             } catch (IOException ex) {
                 throw new IllegalStateException(
-                        "ASTRA training image export failed while writing '" + imageFile.getName() + "' and '" + maskFile.getName() + "'. " +
+                        "Training image export failed while writing '" + imageFile.getName() + "' and '" + maskFile.getName() + "'. " +
                                 "Please verify channel names and preprocessing configuration.",
                         ex
                 );
@@ -395,9 +395,9 @@ public class AstraCellpose2D extends Cellpose2D {
             return trainingArtifactReturnValue(this.groundTruthDirectory);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("ASTRA training was interrupted.", e);
+            throw new IllegalStateException("Training was interrupted.", e);
         } catch (IOException e) {
-            throw new IllegalStateException("ASTRA training failed.", e);
+            throw new IllegalStateException("Training failed.", e);
         }
     }
 
@@ -414,25 +414,25 @@ public class AstraCellpose2D extends Cellpose2D {
     @Override
     public void showTrainingGraph(boolean show, boolean save) {
         throw new UnsupportedOperationException(
-                "ASTRA does not expose public training-graph display hooks. Training graph export is handled internally during train()."
+                "This extension does not expose public training-graph display hooks. Training graph export is handled internally during train()."
         );
     }
 
     @Override
     public void showTrainingGraph() {
         throw new UnsupportedOperationException(
-                "ASTRA does not expose public training-graph display hooks. Training graph export is handled internally during train()."
+                "This extension does not expose public training-graph display hooks. Training graph export is handled internally during train()."
         );
     }
 
     /**
-     * Run ASTRA batch inference across multiple image entries using a single
+     * Run batch inference across multiple image entries using a single
      * Cellpose invocation for the whole staged corpus.
      * <p>
-     * This mirrors the high-level ASTRA training architecture: stage first,
+     * This mirrors the high-level training architecture: stage first,
      * execute the Python backend once, then map results back deterministically.
      * The method deliberately does not mutate any image hierarchy; it returns
-     * detections grouped by the original parent objects so that ASTRA-side
+     * detections grouped by the original parent objects so that downstream
      * pipelines such as tuning, analysis, or future corpus-level workflows can
      * score or persist results without side effects.
      */
@@ -441,7 +441,7 @@ public class AstraCellpose2D extends Cellpose2D {
         requireExecutionModelReference(this);
         Objects.requireNonNull(requests, "requests");
         if (!batchInferenceEnabled) {
-            throw new IllegalStateException("ASTRA batch inference was requested while batchInferenceEnabled=false.");
+            throw new IllegalStateException("Batch inference was requested while batchInferenceEnabled=false.");
         }
         clearLastCanonicalPixelSizeUsed();
         if (requests.isEmpty()) {
@@ -478,7 +478,7 @@ public class AstraCellpose2D extends Cellpose2D {
         try {
             runCellposeInDirectory(getValidationDirectory(), executionModelReference, null);
         } catch (IOException | InterruptedException e) {
-            throw new IllegalStateException("ASTRA validation prediction on validation images failed.", e);
+            throw new IllegalStateException("Validation prediction on validation images failed.", e);
         }
     }
 
@@ -488,7 +488,7 @@ public class AstraCellpose2D extends Cellpose2D {
 
         File validationMetricsHelperFile = extractValidationMetricsHelperFile();
         if (!validationMetricsHelperFile.isFile()) {
-            throw new IOException("ASTRA validation metrics helper script was not found: " + validationMetricsHelperFile.getAbsolutePath());
+            throw new IOException("Validation metrics helper script was not found: " + validationMetricsHelperFile.getAbsolutePath());
         }
 
         VirtualEnvironmentRunner validationRunner = createRuntimeRunner();
@@ -503,11 +503,11 @@ public class AstraCellpose2D extends Cellpose2D {
 
         validationRunner.setArguments(validationArguments);
         validationRunner.runCommand(true);
-        requireSuccessfulProcessExit(validationRunner, "ASTRA validation metrics helper");
+        requireSuccessfulProcessExit(validationRunner, "Validation metrics helper");
 
         File validationResultsFile = resolveValidationResultsFile(validationResultsDirectory);
         if (!validationResultsFile.isFile()) {
-            throw new IOException("ASTRA validation results file was not produced: " + validationResultsFile.getAbsolutePath());
+            throw new IOException("Validation results file was not produced: " + validationResultsFile.getAbsolutePath());
         }
 
         return ResultsTable.open(validationResultsFile.getAbsolutePath());
@@ -657,7 +657,7 @@ public class AstraCellpose2D extends Cellpose2D {
 
                 ImageDataOp opWithPreprocessing = buildPreprocessingOp(imageData, paddedParent, request);
 
-                logger.info("ASTRA batch inference staging {} tiles for {} / {}", tiles.size(), context.key(), realParent);
+                logger.info("Batch inference staging {} tiles for {} / {}", tiles.size(), context.key(), realParent);
                 for (RegionRequest tile : tiles) {
                     TileFile savedTile = saveBatchTileImage(opWithPreprocessing, imageData, tile, realParent, context.index(), tileSequence++, batchTempDirectory);
                     if (savedTile != null) {
@@ -725,7 +725,7 @@ public class AstraCellpose2D extends Cellpose2D {
             File batchTempDirectory
     ) throws IOException {
         Mat mat = opWithPreprocessing.apply(imageData, request);
-        ImagePlus imp = OpenCVTools.matToImagePlus("ASTRA-Batch", mat);
+        ImagePlus imp = OpenCVTools.matToImagePlus("Cellpose Batch", mat);
 
         try {
             String fileName = String.format(
@@ -738,15 +738,15 @@ public class AstraCellpose2D extends Cellpose2D {
                     request.getT()
             );
             File tempFile = new File(batchTempDirectory, fileName);
-            logger.info("ASTRA batch inference saving tile to {}", tempFile);
+            logger.info("Batch inference saving tile to {}", tempFile);
 
             if (imp.getWidth() < 10 || imp.getHeight() < 10) {
-                logger.warn("ASTRA batch inference tile {} will not be saved because it is too small: {}", tempFile, imp);
+                logger.warn("Batch inference tile {} will not be saved because it is too small: {}", tempFile, imp);
                 return null;
             }
 
             IJ.save(imp, tempFile.getAbsolutePath());
-            requireReadableInputImage(tempFile, "ASTRA batch inference tile export");
+            requireReadableInputImage(tempFile, "Batch inference tile export");
             return new TileFile(request, tempFile, parent);
         } finally {
             imp.close();
@@ -798,12 +798,12 @@ public class AstraCellpose2D extends Cellpose2D {
                     finalObjects.add(pathObject);
                 }
             } catch (RuntimeException e) {
-                logger.warn("ASTRA batch inference failed to convert a candidate object for parent {}: {}", parent, e.getLocalizedMessage(), e);
+                logger.warn("Batch inference failed to convert a candidate object for parent {}: {}", parent, e.getLocalizedMessage(), e);
             }
         }
 
         if (context.expansion() > 0 && !ignoreCellOverlaps) {
-            logger.info("ASTRA batch inference resolving cell overlaps for {}", parent);
+            logger.info("Batch inference resolving cell overlaps for {}", parent);
             if (creatorFun != null) {
                 List<PathObject> cells = finalObjects.stream()
                         .map(AstraCellpose2D::convertObjectToCell)
@@ -824,7 +824,7 @@ public class AstraCellpose2D extends Cellpose2D {
         }
 
         if (!finalObjects.isEmpty() && measurements != null && !measurements.isEmpty()) {
-            logger.info("ASTRA batch inference making measurements for {}", parent);
+            logger.info("Batch inference making measurements for {}", parent);
             var stains = context.imageData().getColorDeconvolutionStains();
             var builder = new TransformedServerBuilder(context.server());
             if (stains != null) {
@@ -842,7 +842,7 @@ public class AstraCellpose2D extends Cellpose2D {
                 try {
                     ObjectMeasurements.addIntensityMeasurements(server2, cell, context.finalDownsample(), measurements, compartments);
                 } catch (IOException e) {
-                    logger.info("ASTRA batch inference error adding intensity measurement: {}", e.getLocalizedMessage(), e);
+                    logger.info("Batch inference error adding intensity measurement: {}", e.getLocalizedMessage(), e);
                 }
             }
         }
@@ -886,7 +886,7 @@ public class AstraCellpose2D extends Cellpose2D {
             } catch (RuntimeException e) {
                 throw e;
             } catch (Exception e) {
-                throw new IllegalStateException("ASTRA training failed to resolve a canonical working pixel size from the project.", e);
+                throw new IllegalStateException("Training failed to resolve a canonical working pixel size from the project.", e);
             }
         }
 
@@ -912,7 +912,7 @@ public class AstraCellpose2D extends Cellpose2D {
                 lastCanonicalPixelSizeUsed = workingPixelSize;
             } else if (!approximatelyEqual(lastCanonicalPixelSizeUsed, workingPixelSize)) {
                 throw new IllegalStateException(
-                        "ASTRA batch inference resolved inconsistent canonical pixel sizes across the same batch run. " +
+                        "Batch inference resolved inconsistent canonical pixel sizes across the same batch run. " +
                                 "Previous=" + lastCanonicalPixelSizeUsed + ", current=" + workingPixelSize + "."
                 );
             }
@@ -924,7 +924,7 @@ public class AstraCellpose2D extends Cellpose2D {
     private double requireCanonicalBatchPixelSize() {
         if (!Double.isFinite(pixelSize) || pixelSize <= 0) {
             throw new IllegalStateException(
-                    "ASTRA batch inference requires builder.pixelSize(...) to be set explicitly. " +
+                    "Batch inference requires builder.pixelSize(...) to be set explicitly. " +
                             "That value is the canonical working um/px for the staged batch corpus."
             );
         }
@@ -942,13 +942,13 @@ public class AstraCellpose2D extends Cellpose2D {
 
         if (!Double.isFinite(actualDownsample) || actualDownsample <= 0) {
             throw new IllegalStateException(
-                    "ASTRA batch inference staging produced a non-finite downsample for '" + key + "': " + actualDownsample
+                    "Batch inference staging produced a non-finite downsample for '" + key + "': " + actualDownsample
             );
         }
 
         if (!approximatelyEqual(actualDownsample, expectedDownsample)) {
             throw new IllegalStateException(
-                    "ASTRA batch inference staging produced the wrong downsample for '" + key + "'. " +
+                    "Batch inference staging produced the wrong downsample for '" + key + "'. " +
                             "Expected=" + expectedDownsample + ", actual=" + actualDownsample +
                             ", native um/px=" + nativePixelSize + ", canonical um/px=" + canonicalPixelSize + '.'
             );
@@ -957,13 +957,13 @@ public class AstraCellpose2D extends Cellpose2D {
         double realizedPixelSize = nativePixelSize * actualDownsample;
         if (!Double.isFinite(realizedPixelSize) || realizedPixelSize <= 0) {
             throw new IllegalStateException(
-                    "ASTRA batch inference staging produced a non-finite realized pixel size for '" + key + "': " + realizedPixelSize
+                    "Batch inference staging produced a non-finite realized pixel size for '" + key + "': " + realizedPixelSize
             );
         }
 
         if (!approximatelyEqual(realizedPixelSize, canonicalPixelSize)) {
             throw new IllegalStateException(
-                    "ASTRA batch inference staging produced the wrong realized effective pixel size for '" + key + "'. " +
+                    "Batch inference staging produced the wrong realized effective pixel size for '" + key + "'. " +
                             "Expected canonical um/px=" + canonicalPixelSize + ", realized um/px=" + realizedPixelSize +
                             ", native um/px=" + nativePixelSize + ", downsample=" + actualDownsample + '.'
             );
@@ -1039,7 +1039,7 @@ public class AstraCellpose2D extends Cellpose2D {
     private void runTrainingCommand() throws IOException, InterruptedException {
         VirtualEnvironmentRunner veRunner = createRuntimeRunner();
 
-        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", ASTRA_CELLPOSE_MODULE));
+        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", CELLPOSE_MODULE));
         cellposeArguments.add("--train");
         cellposeArguments.add("--dir");
         cellposeArguments.add(getTrainingDirectory().getAbsolutePath());
@@ -1069,7 +1069,7 @@ public class AstraCellpose2D extends Cellpose2D {
 
         veRunner.setArguments(cellposeArguments);
         veRunner.runCommand(true);
-        requireSuccessfulProcessExit(veRunner, "ASTRA training process");
+        requireSuccessfulProcessExit(veRunner, "Training process");
         writeCellpose2DField("theLog", veRunner.getProcessLog());
     }
 
@@ -1129,12 +1129,12 @@ public class AstraCellpose2D extends Cellpose2D {
     private void requireSupportedRuntimeConfiguration() {
         if (useCellposeSAM) {
             throw new IllegalStateException(
-                    "ASTRA does not support useCellposeSAM(). Remove that selector and use the single ASTRA runtime path."
+                    "This extension does not support useCellposeSAM(). Remove that selector and use the single runtime path."
             );
         }
         if (parameters.containsKey("omni")) {
             throw new IllegalStateException(
-                    "ASTRA does not support Omnipose runtime selection. Remove useOmnipose() or the '--omni' parameter."
+                    "This extension does not support Omnipose runtime selection. Remove useOmnipose() or the '--omni' parameter."
             );
         }
     }
@@ -1147,7 +1147,7 @@ public class AstraCellpose2D extends Cellpose2D {
         requireCellposeInputDirectory(inputDirectory, "Cellpose --dir input");
         VirtualEnvironmentRunner veRunner = createRuntimeRunner();
 
-        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", ASTRA_CELLPOSE_MODULE));
+        List<String> cellposeArguments = new ArrayList<>(Arrays.asList("-Xutf8", "-W", "ignore", "-m", CELLPOSE_MODULE));
         cellposeArguments.add("--dir");
         cellposeArguments.add(inputDirectory.getAbsolutePath());
         cellposeArguments.add("--pretrained_model");
@@ -1195,7 +1195,7 @@ public class AstraCellpose2D extends Cellpose2D {
             throw new IOException(
                     label + " contains no Cellpose-readable input images before launching Cellpose: "
                             + directory.getAbsolutePath()
-                            + " (entries=" + files.length + "). ASTRA tile staging failed before the Python runtime was invoked."
+                            + " (entries=" + files.length + "). Tile staging failed before the Python runtime was invoked."
             );
         }
     }
@@ -1511,7 +1511,7 @@ public class AstraCellpose2D extends Cellpose2D {
     private File requireConfiguredTempDirectory() throws IOException {
         File directory = (File)readCellpose2DField("tempDirectory");
         if (directory == null) {
-            throw new IOException("ASTRA batch inference requires tempDirectory to be configured on the builder.");
+            throw new IOException("Batch inference requires tempDirectory to be configured on the builder.");
         }
         return ensureDirectoryExists(directory);
     }
@@ -1759,10 +1759,10 @@ public class AstraCellpose2D extends Cellpose2D {
 
     private void requireValidationInputDirectory() throws IOException {
         if (validationDirectory == null) {
-            throw new IOException("ASTRA validation requires the validation input directory to be set by the ASTRA builder.");
+            throw new IOException("Validation requires the validation input directory to be set by the builder.");
         }
         if (!validationDirectory.exists() || !validationDirectory.isDirectory()) {
-            throw new IOException("ASTRA validation requires the validation input directory to exist as a directory: " + validationDirectory.getAbsolutePath());
+            throw new IOException("Validation requires the validation input directory to exist as a directory: " + validationDirectory.getAbsolutePath());
         }
     }
 
@@ -1899,7 +1899,7 @@ public class AstraCellpose2D extends Cellpose2D {
     static File resolveValidationResultsFolder(File resultsDirectory) {
         File root = requireNonNullDirectory(
                 resultsDirectory,
-                "ASTRA validation-results routing requires resultsDirectory."
+                "Validation-results routing requires resultsDirectory."
         );
         return ensureSubdirectoryExists(root, "validation");
     }
@@ -1907,7 +1907,7 @@ public class AstraCellpose2D extends Cellpose2D {
     static File resolveTrainingResultsFolder(File resultsDirectory) {
         File root = requireNonNullDirectory(
                 resultsDirectory,
-                "ASTRA training-results routing requires resultsDirectory."
+                "Training-results routing requires resultsDirectory."
         );
         return ensureSubdirectoryExists(root, "training");
     }
@@ -1916,9 +1916,9 @@ public class AstraCellpose2D extends Cellpose2D {
         ClassLoader loader = AstraCellpose2D.class.getClassLoader();
         try (InputStream input = loader.getResourceAsStream(VALIDATION_METRICS_HELPER_RESOURCE)) {
             if (input == null) {
-                throw new IOException("ASTRA validation metrics helper resource was not found: " + VALIDATION_METRICS_HELPER_RESOURCE);
+                throw new IOException("Validation metrics helper resource was not found: " + VALIDATION_METRICS_HELPER_RESOURCE);
             }
-            File helperFile = File.createTempFile("astra-validation-metrics-", ".py");
+            File helperFile = File.createTempFile("validation-metrics-", ".py");
             helperFile.deleteOnExit();
             Files.copy(input, helperFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
             return helperFile;
@@ -1989,7 +1989,7 @@ public class AstraCellpose2D extends Cellpose2D {
         String executionModelReference = explicitExecutionModelReference(cp);
         if (executionModelReference == null) {
             throw new IllegalStateException(
-                    "ASTRA methods require an explicit execution model reference passed to the builder. " +
+                    "Extension methods require an explicit execution model reference passed to the builder. " +
                             "That reference may be either a promoted model path or a shipped model name. modelFile is not used."
             );
         }

@@ -16,10 +16,10 @@ JavaFX inline style strings had been flagged for ownership cleanup.
   inline-style reset.
 - `clearInlineStyle(Node)` is the only approved reset helper for renderer-owned
   JavaFX subnodes, list cells, selected combo cells, check boxes, and similar
-  nodes where ASTRA must clear renderer residue before style classes can own
+  nodes where the launcher must clear renderer residue before style classes can own
   the visible state.
 - `BASE_INLINE_STYLE_PROPERTY` is the named property key for preserving a
-  control's pre-existing inline style before ASTRA applies changed-from-default
+  control's pre-existing inline style before the launcher applies changed-from-default
   state.
 - `rememberBaseInlineStyle(Node)` owns base inline-style capture.
 - `restoreBaseInlineStyle(Node)` owns base inline-style restoration.

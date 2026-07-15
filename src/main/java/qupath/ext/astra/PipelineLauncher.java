@@ -124,10 +124,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Presents a lightweight ASTRA configuration dialog and executes the selected
+ * Presents a lightweight configuration dialog and executes the selected
  * bundled pipeline script with the user's edited constants.
  *
- * <p>The launcher deliberately treats the base ASTRA Groovy script as the
+ * <p>The launcher deliberately treats the base Groovy script as the
  * source of truth.  It extracts editable top-level {@code final} declarations,
  * edits only those declaration values, and then executes the resulting script
  * through QuPath's Groovy scripting runtime.  This keeps the extension-side GUI
@@ -896,9 +896,9 @@ final class PipelineLauncher {
 
         List<EditableConstant> constants = editableConstantsForScript(scriptName, scriptText);
         if (constants.isEmpty()) {
-            showAstraErrorMessage(qupath.getStage(),
-                    "ASTRA " + scriptName,
-                    "No editable ASTRA configuration constants were found.");
+            showErrorMessage(qupath.getStage(),
+                    scriptName,
+                    "No editable configuration settings were found.");
             return;
         }
         String schemaId = schemaIdentity(constants);
@@ -941,7 +941,7 @@ final class PipelineLauncher {
             try {
                 configuredScript = applyConstants(scriptText, constants, profileState, Map.of("SCRIPT_ACTION", "\"EXPORT\""));
             } catch (RuntimeException e) {
-                showAstraErrorMessage(qupath.getStage(), "ASTRA " + scriptName, e.getMessage());
+                showErrorMessage(qupath.getStage(), scriptName, e.getMessage());
                 return;
             }
             feedback.info(finalConfigSummary(scriptName, schemaId, constants, profileState));
@@ -957,7 +957,7 @@ final class PipelineLauncher {
             runHeaderReset(qupath, scriptName, scriptText, constants, profileState, schemaId, feedback, runButtonRef.get(), resetProjectButtonRef.get(), "RESET_PROJECT", true);
         };
         dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants, true, feedback, schemaId, sourceScriptSha256, profileState, exportAction, exportButtonRef::set, resetImageAction, resetImageButtonRef::set, resetProjectAction, resetProjectButtonRef::set, cancelButton, runButton));
-        installAstraStyles(dialog.getDialogPane());
+        installLauncherStyles(dialog.getDialogPane());
         addStyleClass(dialog.getDialogPane(), "astra-launcher-dialog-pane");
         dialog.setResizable(true);
         runButton.setOnAction(event -> {
@@ -966,7 +966,7 @@ final class PipelineLauncher {
             try {
                 configuredScript = applyConstants(scriptText, constants, profileState);
             } catch (RuntimeException e) {
-                showAstraErrorMessage(qupath.getStage(), "ASTRA " + scriptName, e.getMessage());
+                showErrorMessage(qupath.getStage(), scriptName, e.getMessage());
                 return;
             }
             if (requiresProvisionalVascularConfirmation(constants) && !confirmProvisionalVascularAutomation(qupath, scriptName)) {
@@ -1286,7 +1286,7 @@ final class PipelineLauncher {
         Pattern pattern = Pattern.compile("(?m)^(\\s*final\\s+(?:String|Object|List|Map|boolean|int|double)\\s+" + Pattern.quote(name) + "\\s*=\\s*)([^\\r\\n]*?)(\\s*(?://.*)?$)");
         Matcher matcher = pattern.matcher(out);
         if (!matcher.find()) {
-            throw new IllegalArgumentException("Could not apply override for hidden ASTRA constant: " + name);
+            throw new IllegalArgumentException("Could not apply override for hidden constant: " + name);
         }
         out.replace(matcher.start(), matcher.end(), matcher.group(1) + renderedValue + matcher.group(3));
     }
@@ -1315,7 +1315,7 @@ final class PipelineLauncher {
 
         List<String> missing = missingProvenanceConstants(scriptText, provenance.keySet());
         if (!missing.isEmpty()) {
-            throw new IllegalStateException("ASTRA settings provenance injection failed; script is missing required constant(s): " + String.join(", ", missing));
+            throw new IllegalStateException("Settings provenance injection failed; script is missing required constant(s): " + String.join(", ", missing));
         }
 
         String configured = scriptText;
@@ -1362,7 +1362,7 @@ final class PipelineLauncher {
         Pattern pattern = Pattern.compile("(?s)final\\s+Map\\s+USER_OVERRIDES\\s*=\\s*\\[.*?\\]\\s*(?=\\s*final\\s+ClassLoader)");
         Matcher matcher = pattern.matcher(scriptText);
         if (!matcher.find()) {
-            throw new IllegalArgumentException("Could not apply ASTRA overrides; compact script is missing USER_OVERRIDES before the class loader bootstrap.");
+            throw new IllegalArgumentException("Could not apply launcher overrides; compact script is missing USER_OVERRIDES before the class loader bootstrap.");
         }
         return matcher.replaceFirst(Matcher.quoteReplacement(rendered.toString()));
     }
@@ -1395,7 +1395,7 @@ final class PipelineLauncher {
         Pattern pattern = Pattern.compile("(?m)^final\\s+(String|boolean)\\s+" + Pattern.quote(name) + "\\s*=\\s*[^\\r\\n]*(\\R?)");
         Matcher matcher = pattern.matcher(scriptText);
         if (!matcher.find()) {
-            throw new IllegalStateException("ASTRA settings provenance injection failed; script is missing required constant: " + name);
+            throw new IllegalStateException("Settings provenance injection failed; script is missing required constant: " + name);
         }
         String type = matcher.group(1);
         String newline = matcher.group(2);
@@ -1420,7 +1420,7 @@ final class PipelineLauncher {
             }
             return out.toString();
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is unavailable for ASTRA GUI schema identity.", e);
+            throw new IllegalStateException("SHA-256 is unavailable for GUI schema identity.", e);
         }
     }
 
@@ -1495,7 +1495,7 @@ final class PipelineLauncher {
     static void writeAutosaveSettings(File file, String scriptName, String schemaId, String sourceScriptSha256,
                                       List<EditableConstant> constants) throws IOException {
         SettingsProfile profile = createSettingsProfile(scriptName, schemaId, sourceScriptSha256, constants);
-        profile.notes = "ASTRA automatic last-working-settings autosave.";
+        profile.notes = "Automatic last-working-settings autosave.";
         writeSettingsProfile(file, profile);
     }
 
@@ -1510,12 +1510,12 @@ final class PipelineLauncher {
             applySettingsProfile(profile, scriptName, schemaId, sourceScriptSha256, constants);
             profileState.loadedAutosave(file.getName(), file.getAbsolutePath(), sha256File(file));
             if (info != null) {
-                info.accept("Restored ASTRA autosave: " + file.getAbsolutePath());
+                info.accept("Restored autosave: " + file.getAbsolutePath());
             }
             return true;
         } catch (IOException | RuntimeException e) {
             if (warn != null) {
-                warn.accept("Ignoring ASTRA autosave at " + file.getAbsolutePath() + ": " + e.getMessage());
+                warn.accept("Ignoring autosave at " + file.getAbsolutePath() + ": " + e.getMessage());
             }
             return false;
         }
@@ -1542,7 +1542,7 @@ final class PipelineLauncher {
     static void applySettingsProfile(SettingsProfile profile, String scriptName, String schemaId, String sourceScriptSha256, List<EditableConstant> constants) {
         Objects.requireNonNull(profile, "profile");
         if (profile.schema_version != SETTINGS_PROFILE_SCHEMA_VERSION) {
-            throw new IllegalArgumentException("Unsupported ASTRA settings profile schema version: " + profile.schema_version);
+            throw new IllegalArgumentException("Unsupported settings profile schema version: " + profile.schema_version);
         }
         if (!Objects.equals(profile.pipeline_name, settingsPipelineName(scriptName))) {
             throw new IllegalArgumentException("Settings profile is for pipeline '" + profile.pipeline_name + "', not '" + settingsPipelineName(scriptName) + "'.");
@@ -1557,7 +1557,7 @@ final class PipelineLauncher {
         constants.forEach(c -> byName.put(c.name, c));
         for (String key : profile.constants.keySet()) {
             if (!byName.containsKey(key)) {
-                throw new IllegalArgumentException("Settings profile contains unknown ASTRA constant: " + key);
+                throw new IllegalArgumentException("Settings profile contains unknown setting: " + key);
             }
         }
         for (Map.Entry<String, String> entry : profile.constants.entrySet()) {
@@ -1771,8 +1771,8 @@ final class PipelineLauncher {
         if (projectReset) {
             List<String> names = projectImageNames(qupath);
             if (names.isEmpty()) {
-                showAstraErrorMessage(qupath.getStage(),
-                        "ASTRA " + scriptName,
+                showErrorMessage(qupath.getStage(),
+                        scriptName,
                         "Project reset requires an open project with image entries.");
                 return;
             }
@@ -1785,25 +1785,25 @@ final class PipelineLauncher {
         try {
             configuredScript = applyConstants(scriptText, constants, profileState, overrides);
         } catch (RuntimeException e) {
-            showAstraErrorMessage(qupath.getStage(), "ASTRA " + scriptName, e.getMessage());
+            showErrorMessage(qupath.getStage(), scriptName, e.getMessage());
             return;
         }
         feedback.info(finalConfigSummary(scriptName, schemaId, constants, profileState));
-        feedback.warn((projectReset ? "Project" : "Image") + " reset requested from the launcher header. ASTRA will remove only ledger-recorded object IDs and measurement keys; exported files are not deleted.");
+        feedback.warn((projectReset ? "Project" : "Image") + " reset requested from the launcher header. The launcher will remove only ledger-recorded object IDs and measurement keys; exported files are not deleted.");
         executeAsync(qupath, scriptName, configuredScript, feedback, runButton, actionButton);
     }
 
     private static boolean confirmAnalysisReset(QuPathGUI qupath, String scriptName, boolean projectReset) {
-        Dialog<ButtonType> dialog = createAstraConfirmationDialog(
+        Dialog<ButtonType> dialog = createConfirmationDialog(
                 qupath.getStage(),
-                "ASTRA " + scriptName,
+                scriptName,
                 projectReset
-                        ? "Reset recorded ASTRA state for the project?"
-                        : "Reset recorded ASTRA state for the current image?",
+                        ? "Reset recorded analysis state for the project?"
+                        : "Reset recorded analysis state for the current image?",
                 """
-                This is destructive for ASTRA-generated hierarchy state.
+                This is destructive for generated hierarchy state.
 
-                ASTRA will delete only objects recorded by QuPath object ID in the analysis ledger and remove only recorded ASTRA measurement keys.
+                The launcher will delete only objects recorded by QuPath object ID in the analysis ledger and remove only recorded measurement keys.
                 User ROI, Trace, analysis-region annotations, unledgered objects, and exported CSV/QC files are preserved.
                 """,
                 ButtonRole.DANGER);
@@ -1915,7 +1915,7 @@ final class PipelineLauncher {
                     .sorted(Comparator.comparing(File::getAbsolutePath, String.CASE_INSENSITIVE_ORDER))
                     .forEach(file -> labels.put(file.getAbsolutePath(), projectRelativeLabel(projectBase, file)));
         } catch (IOException e) {
-            logger.warn("Unable to discover ASTRA assets under {}", root, e);
+            logger.warn("Unable to discover assets under {}", root, e);
         }
         return new AssetDiscovery(labels);
     }
@@ -2012,9 +2012,9 @@ final class PipelineLauncher {
     }
 
     private static boolean confirmProvisionalVascularAutomation(QuPathGUI qupath, String scriptName) {
-        Dialog<ButtonType> dialog = createAstraConfirmationDialog(
+        Dialog<ButtonType> dialog = createConfirmationDialog(
                 qupath.getStage(),
-                "ASTRA " + scriptName,
+                scriptName,
                 "Run provisional vascular automation?",
                 """
                 These vascular automation modes are provisional and review-required.
@@ -2148,7 +2148,7 @@ final class PipelineLauncher {
             Button resetImage = GuiText.button(GuiText.Role.CONTROL_TEXT, "Reset Image");
             resetImage.setFocusTraversable(false);
             styleButton(resetImage, ButtonRole.DANGER);
-            resetImage.setTooltip(new Tooltip("Analysis action: delete only ASTRA objects and measurements recorded for the current image in the analysis ledger."));
+            resetImage.setTooltip(new Tooltip("Analysis action: delete only objects and measurements recorded for the current image in the analysis ledger."));
             resetImage.setOnAction(resetImageAction::accept);
             if (resetImageButtonSink != null) {
                 resetImageButtonSink.accept(resetImage);
@@ -2156,7 +2156,7 @@ final class PipelineLauncher {
             Button resetProject = GuiText.button(GuiText.Role.CONTROL_TEXT, "Reset Project");
             resetProject.setFocusTraversable(false);
             styleButton(resetProject, ButtonRole.DANGER);
-            resetProject.setTooltip(new Tooltip("Analysis action: delete only ASTRA objects and measurements recorded for every project image in the analysis ledger."));
+            resetProject.setTooltip(new Tooltip("Analysis action: delete only objects and measurements recorded for every project image in the analysis ledger."));
             resetProject.setOnAction(resetProjectAction::accept);
             if (resetProjectButtonSink != null) {
                 resetProjectButtonSink.accept(resetProject);
@@ -2368,9 +2368,9 @@ final class PipelineLauncher {
             profileDir = settingsProfileDirectory(projectBaseDirectory(qupath), scriptName);
             Files.createDirectories(profileDir.toPath());
         } catch (RuntimeException | IOException e) {
-            showAstraErrorMessage(qupath.getStage(),
-                    "ASTRA Settings Profile",
-                    "Unable to resolve ASTRA project settings directory:\n" + e.getMessage());
+            showErrorMessage(qupath.getStage(),
+                    "Settings Profile",
+                    "Unable to resolve project settings directory:\n" + e.getMessage());
             return;
         }
         String profileName = showSettingsProfileNameDialog(qupath.getStage())
@@ -2388,10 +2388,10 @@ final class PipelineLauncher {
             String hash = sha256File(target);
             profileState.loadedProfile(target.getName(), target.getAbsolutePath(), hash);
             autosave.saveCurrent();
-            feedback.info("Saved ASTRA settings profile: " + target.getAbsolutePath());
+            feedback.info("Saved settings profile: " + target.getAbsolutePath());
         } catch (IOException | RuntimeException e) {
-            showAstraErrorMessage(qupath.getStage(),
-                    "ASTRA Settings Profile",
+            showErrorMessage(qupath.getStage(),
+                    "Settings Profile",
                     "Unable to save settings profile:\n" + e.getMessage());
         }
     }
@@ -2405,10 +2405,10 @@ final class PipelineLauncher {
         if (owner != null) {
             dialog.initOwner(owner);
         }
-        dialog.setTitle("Save ASTRA Settings Profile");
+        dialog.setTitle("Save Settings Profile");
         dialog.setHeaderText(null);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-        installAstraStyles(dialog.getDialogPane());
+        installLauncherStyles(dialog.getDialogPane());
 
         Label title = GuiText.label(GuiText.Role.DIALOG_TEXT, "Profile name");
         addStyleClass(title, "astra-dialog-section-title");
@@ -2439,23 +2439,23 @@ final class PipelineLauncher {
     }
 
     static Dialog<ButtonType> createResetConfirmationDialog(Window owner) {
-        return createAstraConfirmationDialog(
+        return createConfirmationDialog(
                 owner,
-                "ASTRA Reset Confirmation",
-                "Reset recorded ASTRA state for the current image?",
+                "Reset Confirmation",
+                "Reset recorded analysis state for the current image?",
                 """
-                This is destructive for ASTRA-generated hierarchy state.
+                This is destructive for generated hierarchy state.
 
-                ASTRA will delete only objects recorded by QuPath object ID in the analysis ledger and remove only recorded ASTRA measurement keys.
+                The launcher will delete only objects recorded by QuPath object ID in the analysis ledger and remove only recorded measurement keys.
                 User ROI, Trace, analysis-region annotations, unledgered objects, and exported CSV/QC files are preserved.
                 """,
                 ButtonRole.DANGER);
     }
 
     static Dialog<ButtonType> createProvisionalVascularConfirmationDialog(Window owner) {
-        return createAstraConfirmationDialog(
+        return createConfirmationDialog(
                 owner,
-                "ASTRA Vascular",
+                "Vascular",
                 "Run provisional vascular automation?",
                 """
                 These vascular automation modes are provisional and review-required.
@@ -2464,11 +2464,11 @@ final class PipelineLauncher {
                 ButtonRole.SUCCESS);
     }
 
-    static Dialog<ButtonType> createAstraSuccessConfirmationDialog(Window owner,
+    static Dialog<ButtonType> createSuccessConfirmationDialog(Window owner,
                                                                    String titleText,
                                                                    String headingText,
                                                                    String bodyText) {
-        return createAstraConfirmationDialog(
+        return createConfirmationDialog(
                 owner,
                 titleText,
                 headingText,
@@ -2476,8 +2476,8 @@ final class PipelineLauncher {
                 ButtonRole.SUCCESS);
     }
 
-    static void showAstraMessage(Window owner, String titleText, String headingText, String bodyText) {
-        createAstraMessageDialog(
+    static void showMessage(Window owner, String titleText, String headingText, String bodyText) {
+        createMessageDialog(
                 owner,
                 titleText,
                 headingText,
@@ -2485,17 +2485,17 @@ final class PipelineLauncher {
                 ButtonRole.SECONDARY).showAndWait();
     }
 
-    static void showAstraErrorMessage(Window owner, String titleText, String bodyText) {
-        createAstraMessageDialog(
+    static void showErrorMessage(Window owner, String titleText, String bodyText) {
+        createMessageDialog(
                 owner,
                 titleText,
-                "ASTRA could not complete the request.",
+                "The request could not be completed.",
                 bodyText,
                 ButtonRole.SECONDARY).showAndWait();
     }
 
     static Dialog<ButtonType> createRunFailureDialog(Window owner, String titleText, String bodyText) {
-        return createAstraMessageDialog(
+        return createMessageDialog(
                 owner,
                 titleText,
                 "Run failed.",
@@ -2503,12 +2503,12 @@ final class PipelineLauncher {
                 ButtonRole.SECONDARY);
     }
 
-    static Dialog<ButtonType> createAstraPreviewMessageDialog(Window owner,
+    static Dialog<ButtonType> createPreviewMessageDialog(Window owner,
                                                               String titleText,
                                                               String headingText,
                                                               String bodyText,
                                                               boolean error) {
-        return createAstraMessageDialog(
+        return createMessageDialog(
                 owner,
                 titleText,
                 headingText,
@@ -2516,7 +2516,7 @@ final class PipelineLauncher {
                 error ? ButtonRole.DANGER : ButtonRole.SECONDARY);
     }
 
-    private static Dialog<ButtonType> createAstraConfirmationDialog(Window owner,
+    private static Dialog<ButtonType> createConfirmationDialog(Window owner,
                                                                     String titleText,
                                                                     String headingText,
                                                                     String bodyText,
@@ -2528,7 +2528,7 @@ final class PipelineLauncher {
         dialog.setTitle(titleText);
         dialog.setHeaderText(null);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-        installAstraStyles(dialog.getDialogPane());
+        installLauncherStyles(dialog.getDialogPane());
 
         Label title = GuiText.label(GuiText.Role.DIALOG_TEXT, headingText);
         title.setWrapText(true);
@@ -2555,7 +2555,7 @@ final class PipelineLauncher {
         return dialog;
     }
 
-    private static Dialog<ButtonType> createAstraMessageDialog(Window owner,
+    private static Dialog<ButtonType> createMessageDialog(Window owner,
                                                                String titleText,
                                                                String headingText,
                                                                String bodyText,
@@ -2567,7 +2567,7 @@ final class PipelineLauncher {
         dialog.setTitle(titleText);
         dialog.setHeaderText(null);
         dialog.getDialogPane().getButtonTypes().add(ButtonType.OK);
-        installAstraStyles(dialog.getDialogPane());
+        installLauncherStyles(dialog.getDialogPane());
 
         Label title = GuiText.label(GuiText.Role.DIALOG_TEXT, headingText);
         title.setWrapText(true);
@@ -2598,15 +2598,15 @@ final class PipelineLauncher {
             profileDir = settingsProfileDirectory(projectBaseDirectory(qupath), scriptName);
             Files.createDirectories(profileDir.toPath());
         } catch (RuntimeException | IOException e) {
-            showAstraErrorMessage(qupath.getStage(),
-                    "ASTRA Settings Profile",
-                    "Unable to resolve ASTRA project settings directory:\n" + e.getMessage());
+            showErrorMessage(qupath.getStage(),
+                    "Settings Profile",
+                    "Unable to resolve project settings directory:\n" + e.getMessage());
             return;
         }
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Load ASTRA Settings Profile");
+        chooser.setTitle("Load Settings Profile");
         chooser.setInitialDirectory(profileDir);
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("ASTRA settings profiles", "*.json"));
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Settings profiles", "*.json"));
         File selected = chooser.showOpenDialog(qupath.getStage());
         if (selected == null) {
             return;
@@ -2617,26 +2617,26 @@ final class PipelineLauncher {
             constants.forEach(EditableConstant::syncEditorFromValue);
             profileState.loadedProfile(selected.getName(), selected.getAbsolutePath(), sha256File(selected));
             autosave.saveCurrent();
-            feedback.info("Loaded ASTRA settings profile: " + selected.getAbsolutePath());
+            feedback.info("Loaded settings profile: " + selected.getAbsolutePath());
             List<String> missingChannels = missingProfileChannels(profile, imageChannels(qupath).stream().map(ImageChannel::getName).filter(Objects::nonNull).toList());
             if (!missingChannels.isEmpty()) {
                 feedback.warn("Loaded profile references channels not present in the open image: " + missingChannels);
             }
         } catch (IOException | RuntimeException e) {
-            showAstraErrorMessage(qupath.getStage(),
-                    "ASTRA Settings Profile",
+            showErrorMessage(qupath.getStage(),
+                    "Settings Profile",
                     "Unable to load settings profile:\n" + e.getMessage());
         }
     }
 
     private static File projectBaseDirectory(QuPathGUI qupath) {
         if (qupath.getProject() == null || qupath.getProject().getPath() == null) {
-            throw new IllegalStateException("Open a QuPath project before saving or loading ASTRA settings profiles.");
+            throw new IllegalStateException("Open a QuPath project before saving or loading Settings profiles.");
         }
         Path projectPath = qupath.getProject().getPath();
         Path base = Files.isDirectory(projectPath) ? projectPath : projectPath.getParent();
         if (base == null) {
-            throw new IllegalStateException("Unable to resolve the QuPath project directory for ASTRA settings profiles.");
+            throw new IllegalStateException("Unable to resolve the QuPath project directory for Settings profiles.");
         }
         return base.toFile();
     }
@@ -3145,7 +3145,7 @@ final class PipelineLauncher {
         Node editor = constant.createEditor();
         constant.addChangeListener(autosave::markManualEditAndSave);
         if (constant.name.contains("MATCH_") && constant.name.contains("_AGAINST_ORIGINAL")) {
-            Tooltip.install(editor, new Tooltip("Use this when QuPath display names were renamed after import and ASTRA should match against the original imported image names."));
+            Tooltip.install(editor, new Tooltip("Use this when QuPath display names were renamed after import and the launcher should match against the original imported image names."));
         }
         Node row = editor instanceof MarkerKeyMapEditor || editor instanceof ProjectImageSelectionEditor
                 ? labeledVariableBlock(label, editor)
@@ -4002,7 +4002,7 @@ final class PipelineLauncher {
                 visualBounds.getMaxX() - HeaderGeometry.MENU_RENDERED_POPUP_WIDTH - HeaderGeometry.MENU_EDGE_MARGIN);
         y = Math.min(y, visualBounds.getMaxY() - HeaderGeometry.MENU_MIN_VISIBLE_HEIGHT);
         menu.show(button, x + HeaderGeometry.MENU_ANCHOR_TO_WINDOW_OFFSET, y);
-        installAstraStyles(menu);
+        installLauncherStyles(menu);
         Platform.runLater(() -> {
             Window popupWindow = menu.getScene() == null ? null : menu.getScene().getWindow();
             double width = popupWindow == null
@@ -4924,7 +4924,7 @@ final class PipelineLauncher {
         Label logBadge = GuiText.label(GuiText.Role.LOG_TEXT, "WARNING");
         addStyleClass(logBadge, "astra-log-severity-badge");
         addStyleClass(logBadge, "astra-log-severity-warning");
-        Label sourceTab = GuiText.label(GuiText.Role.LOG_TEXT, "ASTRA");
+        Label sourceTab = GuiText.label(GuiText.Role.LOG_TEXT, "Pipeline");
         addStyleClass(sourceTab, "astra-log-source-tab");
         addStyleClass(sourceTab, "astra-log-source-astra");
         Label dialogSample = GuiText.label(GuiText.Role.DIALOG_TEXT, "Dialog text");
@@ -5121,7 +5121,7 @@ final class PipelineLauncher {
             new DependencyPanel(
                     "failure-recovery",
                     "Failure recovery",
-                    "Rollback applies only when ASTRA stops on a failed region.",
+                    "Rollback applies only when the run stops on a failed region.",
                     "STOP_ON_REGION_FAILURE",
                     Set.of("ROLLBACK_SUCCESSFUL_REGIONS_ON_FAILURE")
             ),
@@ -5178,7 +5178,7 @@ final class PipelineLauncher {
 
     private static void showParameterHelpDialog(EditableConstant constant) {
         Dialog<ButtonType> dialog = new Dialog<>();
-        dialog.setTitle("ASTRA Parameter Help");
+        dialog.setTitle("Parameter Help");
         dialog.setHeaderText(null);
 
         VBox content = new VBox(HELP_DIALOG_SECTION_GAP);
@@ -5187,7 +5187,7 @@ final class PipelineLauncher {
 
         Label title = GuiText.label(GuiText.Role.DIALOG_TEXT, displayLabel(constant.name));
         addStyleClass(title, "astra-help-title");
-        Label subtitle = GuiText.label(GuiText.Role.DIALOG_TEXT, "ASTRA parameter reference");
+        Label subtitle = GuiText.label(GuiText.Role.DIALOG_TEXT, "Parameter reference");
         addStyleClass(subtitle, "astra-help-subtitle");
         VBox titleBlock = new VBox(HELP_DIALOG_TIGHT_GAP, title, subtitle);
 
@@ -5236,7 +5236,7 @@ final class PipelineLauncher {
         dialog.getDialogPane().setContent(content);
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
         dialog.getDialogPane().setPrefWidth(HELP_DIALOG_WIDTH);
-        installAstraStyles(dialog.getDialogPane());
+        installLauncherStyles(dialog.getDialogPane());
         Node close = dialog.getDialogPane().lookupButton(ButtonType.CLOSE);
         if (close instanceof ButtonBase button) {
             styleButton(button, ButtonRole.SECONDARY);
@@ -5662,7 +5662,7 @@ final class PipelineLauncher {
     record HelpDetailSection(String title, String body) {
     }
 
-    private static void installAstraStyles(DialogPane pane) {
+    private static void installLauncherStyles(DialogPane pane) {
         if (pane == null) {
             return;
         }
@@ -5679,7 +5679,7 @@ final class PipelineLauncher {
         registerThemedRoot(pane);
     }
 
-    private static void installAstraStyles(ContextMenu menu) {
+    private static void installLauncherStyles(ContextMenu menu) {
         if (menu == null || menu.getScene() == null) {
             return;
         }
@@ -6218,7 +6218,7 @@ final class PipelineLauncher {
             String previousGuiRunActive = System.getProperty(GUI_RUN_ACTIVE_PROPERTY);
             System.setProperty(GUI_RUN_ACTIVE_PROPERTY, "true");
             try (RunLogCapture ignored = RunLogCapture.attach(feedback::appendLogText)) {
-                logger.info("ASTRA {} started from configuration dialog.", scriptName);
+                logger.info("{} started from configuration dialog.", scriptName);
                 feedback.info("Started " + scriptName + ".");
                 ScriptParameters params = ScriptParameters.builder()
                         .setScript(configuredScript)
@@ -6231,24 +6231,24 @@ final class PipelineLauncher {
                         .build();
                 Object result = GroovyLanguage.getInstance().execute(params);
                 if (result != null) {
-                    logger.info("ASTRA {} result: {}", scriptName, result);
+                    logger.info("{} result: {}", scriptName, result);
                     feedback.info("Result: " + result);
                 }
                 if (feedback.isCancellationRequested()) {
                     feedback.cancelled("Run cancellation was requested.");
                 } else {
                     feedback.success("Run completed.");
-                    Platform.runLater(() -> showAstraMessage(
+                    Platform.runLater(() -> showMessage(
                             null,
-                            "ASTRA " + scriptName,
+                            scriptName,
                             "Run completed.",
-                            "ASTRA finished the run. See the run log pane for source-labeled messages and timing."));
+                            "The run finished. See the run log pane for source-labeled messages and timing."));
                 }
             } catch (CancellationException e) {
-                logger.warn("ASTRA {} cancelled.", scriptName);
+                logger.warn("{} cancelled.", scriptName);
                 feedback.cancelled("Run cancelled.");
             } catch (ScriptException e) {
-                logger.error("ASTRA {} failed.", scriptName, e);
+                logger.error("{} failed.", scriptName, e);
                 if (feedback.isCancellationRequested()) {
                     feedback.cancelled("Run cancellation was requested before the script stopped.");
                 } else {
@@ -6256,7 +6256,7 @@ final class PipelineLauncher {
                     showRunFailureDialog(scriptName, feedback, String.valueOf(e.getMessage()));
                 }
             } catch (Throwable t) {
-                logger.error("ASTRA {} failed.", scriptName, t);
+                logger.error("{} failed.", scriptName, t);
                 if (feedback.isCancellationRequested()) {
                     feedback.cancelled("Run cancellation was requested before the script stopped.");
                 } else {
@@ -6288,8 +6288,8 @@ final class PipelineLauncher {
         }
         Platform.runLater(() -> createRunFailureDialog(
                 null,
-                "ASTRA " + scriptName,
-                String.valueOf(message) + "\n\nSee the ASTRA run log for full details."
+                scriptName,
+                String.valueOf(message) + "\n\nSee the run log for full details."
         ).showAndWait());
     }
 
@@ -6391,8 +6391,8 @@ final class PipelineLauncher {
                     ? "Run vascular region generation, detection, and quantification workflows."
                     : scriptName.toLowerCase(Locale.ROOT).contains("colocalization")
                     ? "Detect cells, measure channels, and call marker colocalization with explicit thresholds."
-                    : "Run downstream ASTRA analysis utilities.";
-            default -> "Configure and run an ASTRA pipeline.";
+                    : "Run downstream analysis utilities.";
+            default -> "Configure and run a pipeline.";
         };
     }
 
@@ -6660,8 +6660,8 @@ final class PipelineLauncher {
 
         private static String progressTextFor(RunProgressState state) {
             return switch (state) {
-                case IDLE -> "Ready for the next ASTRA run.";
-                case RUNNING -> "ASTRA is running. Watch the run log for details.";
+                case IDLE -> "Ready for the next run.";
+                case RUNNING -> "The pipeline is running. Watch the run log for details.";
                 case SUCCESS -> "Run completed.";
                 case ERROR -> "Run failed. Review the run log.";
                 case CANCELLED -> "Cancellation requested.";
@@ -6997,7 +6997,7 @@ final class PipelineLauncher {
                 killButton.setDisable(false);
                 cancellationRequested.set(false);
                 errorDialogShown.set(false);
-                appendMessage(RunLogSource.ASTRA, RunLogSeverity.INFO, "ASTRA run started.");
+                appendMessage(RunLogSource.PIPELINE, RunLogSeverity.INFO, "Run started.");
                 elapsedHeartbeat.playFromStart();
             });
         }
@@ -7035,11 +7035,11 @@ final class PipelineLauncher {
         }
 
         private void info(String message) {
-            appendMessage(RunLogSource.ASTRA, RunLogSeverity.INFO, message);
+            appendMessage(RunLogSource.PIPELINE, RunLogSeverity.INFO, message);
         }
 
         private void warn(String message) {
-            appendMessage(RunLogSource.ASTRA, RunLogSeverity.WARNING, message);
+            appendMessage(RunLogSource.PIPELINE, RunLogSeverity.WARNING, message);
         }
 
         private void success(String message) {
@@ -7054,7 +7054,7 @@ final class PipelineLauncher {
                     runProgressLane.succeeded();
                 }
                 killButton.setDisable(true);
-                output.appendMessage(RunLogSource.ASTRA, RunLogSeverity.SUCCESS, message);
+                output.appendMessage(RunLogSource.PIPELINE, RunLogSeverity.SUCCESS, message);
             });
         }
 
@@ -7070,7 +7070,7 @@ final class PipelineLauncher {
                     runProgressLane.failed();
                 }
                 killButton.setDisable(true);
-                output.appendMessage(RunLogSource.ASTRA, RunLogSeverity.ERROR, message);
+                output.appendMessage(RunLogSource.PIPELINE, RunLogSeverity.ERROR, message);
             });
         }
 
@@ -7086,7 +7086,7 @@ final class PipelineLauncher {
                     runProgressLane.cancelled();
                 }
                 killButton.setDisable(true);
-                output.appendMessage(RunLogSource.ASTRA, RunLogSeverity.CANCELLED, message);
+                output.appendMessage(RunLogSource.PIPELINE, RunLogSeverity.CANCELLED, message);
             });
         }
 
@@ -7330,7 +7330,7 @@ final class PipelineLauncher {
                     PROFILE_GSON.toJson(profile, writer);
                 }
             } catch (IOException | RuntimeException e) {
-                logger.debug("Unable to save ASTRA launcher view state at {}", file, e);
+                logger.debug("Unable to save launcher view state at {}", file, e);
             }
         }
 
@@ -7353,7 +7353,7 @@ final class PipelineLauncher {
                 outputVisible = profile.output_visible;
                 headerActionMode = HeaderActionMode.fromText(profile.header_action_mode);
             } catch (IOException | RuntimeException e) {
-                logger.debug("Ignoring invalid ASTRA launcher view state at {}", file, e);
+                logger.debug("Ignoring invalid launcher view state at {}", file, e);
             }
         }
     }
@@ -7398,7 +7398,7 @@ final class PipelineLauncher {
                 autosaveFile = autosaveSettingsFile(projectBaseDirectory(qupath), scriptName);
             } catch (RuntimeException e) {
                 if (feedback != null) {
-                    feedback.warn("ASTRA settings autosave disabled: " + e.getMessage());
+                    feedback.warn("settings autosave disabled: " + e.getMessage());
                 }
             }
             return new SettingsAutosave(autosaveFile, scriptName, schemaId, sourceScriptSha256, constants, profileState, feedback);
@@ -7434,7 +7434,7 @@ final class PipelineLauncher {
             if (file == null) {
                 if (!warnedDisabled && feedback != null) {
                     warnedDisabled = true;
-                    feedback.warn("ASTRA settings autosave skipped because no project-local settings path is available.");
+                    feedback.warn("settings autosave skipped because no project-local settings path is available.");
                 }
                 return;
             }
@@ -7445,7 +7445,7 @@ final class PipelineLauncher {
                     return;
                 }
                 if (feedback != null) {
-                    feedback.warn("Unable to write ASTRA autosave at " + file.getAbsolutePath() + ": " + e.getMessage());
+                    feedback.warn("Unable to write autosave at " + file.getAbsolutePath() + ": " + e.getMessage());
                 }
             }
         }
@@ -7467,7 +7467,7 @@ final class PipelineLauncher {
                 clearAutosaveSettings(file);
             } catch (IOException e) {
                 if (feedback != null) {
-                    feedback.warn("Unable to clear ASTRA autosave at " + file.getAbsolutePath() + ": " + e.getMessage());
+                    feedback.warn("Unable to clear autosave at " + file.getAbsolutePath() + ": " + e.getMessage());
                 }
             }
         }
@@ -7717,9 +7717,9 @@ final class PipelineLauncher {
                 return;
             }
             Dialog<ButtonType> dialog = new Dialog<>();
-            dialog.setTitle(titleText.isBlank() ? "ASTRA Selection" : "ASTRA " + titleText);
+            dialog.setTitle(titleText.isBlank() ? "Selection" : titleText);
             dialog.getDialogPane().getButtonTypes().addAll(ButtonType.APPLY, ButtonType.CANCEL);
-            installAstraStyles(dialog.getDialogPane());
+            installLauncherStyles(dialog.getDialogPane());
 
             LinkedHashSet<String> working = new LinkedHashSet<>(selected);
             TextField filter = new TextField();
@@ -8143,9 +8143,9 @@ final class PipelineLauncher {
 
         private void openSelectionDialog() {
             Dialog<ButtonType> dialog = new Dialog<>();
-            dialog.setTitle("ASTRA Project Image Selection");
+            dialog.setTitle("Project Image Selection");
             dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-            installAstraStyles(dialog.getDialogPane());
+            installLauncherStyles(dialog.getDialogPane());
 
             LinkedHashSet<String> working = new LinkedHashSet<>(selected);
             TextField filter = new TextField();
@@ -8307,7 +8307,7 @@ final class PipelineLauncher {
             selector = new MultiSelectListEditor("", orderedModes, EditableConstant.csvValues(rawValue),
                     "No stages available.", StageModeEditor::displayMode);
             selector.addChangeListener(this::notifyListeners);
-            Label hint = GuiText.label(GuiText.Role.PANEL_TEXT, "Choose stages in ASTRA's fixed order. Reset and export are separate script actions.");
+            Label hint = GuiText.label(GuiText.Role.PANEL_TEXT, "Choose stages in the configured order. Reset and export are separate script actions.");
             hint.setWrapText(true);
             addStyleClass(hint, "astra-dialog-muted");
             getChildren().addAll(selector, hint);
@@ -8352,7 +8352,7 @@ final class PipelineLauncher {
             field.setPrefColumnCount(48);
             addStyleClass(field, "astra-input");
             addStyleClass(field, "astra-list-editor-field");
-            Label hint = GuiText.label(GuiText.Role.PANEL_TEXT, "Enter plain values separated by commas. ASTRA will write the required Groovy list syntax.");
+            Label hint = GuiText.label(GuiText.Role.PANEL_TEXT, "Enter plain values separated by commas. The launcher will write the required Groovy list syntax.");
             hint.setWrapText(true);
             addStyleClass(hint, "astra-dialog-muted");
             addStyleClass(hint, "astra-list-editor-hint");
@@ -8449,7 +8449,7 @@ final class PipelineLauncher {
             this.uiOrder = uiOrder;
             this.options = options == null ? List.of() : List.copyOf(options);
             this.help = help == null || help.isBlank()
-                    ? "ASTRA did not provide help metadata for this script constant."
+                    ? "No help metadata for this script constant."
                     : help;
             this.details = details == null || details.isBlank() ? this.help : details;
             this.editor = null;

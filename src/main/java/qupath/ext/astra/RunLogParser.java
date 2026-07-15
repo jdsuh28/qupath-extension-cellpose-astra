@@ -16,7 +16,7 @@ final class RunLogParser {
     private static final Pattern CELLPOSE_TIMESTAMP = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2},\\d{3}\\s+\\[(INFO|WARNING|WARN|ERROR|DEBUG|TRACE)]\\s*(.*)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern PIPELINE_STAGE = Pattern.compile("^(?:(INFO|WARN|WARNING|ERROR|DEBUG|TRACE):?\\s*)?(COLOCALIZATION|VASCULAR|TRAINING|TUNING|VALIDATION|TOOLS?)\\s+\\[([^\\]]+)]\\s*(.*)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern PIPELINE_MESSAGE = Pattern.compile("^(?:(INFO|WARN|WARNING|ERROR|DEBUG|TRACE):?\\s*)?(COLOCALIZATION|VASCULAR|TRAINING|TUNING|VALIDATION|TOOLS?)\\s+(.*)$", Pattern.CASE_INSENSITIVE);
-    private static final Pattern ASTRA_STAGE_PREFIX = Pattern.compile("^(Detect cells|Quantify|Export|Reset|Training|Tuning|Validation|Generate regions|Auto select ROIs|Auto build classifiers)\\s*:\\s*(.+)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PIPELINE_STAGE_PREFIX = Pattern.compile("^(Detect cells|Quantify|Export|Reset|Training|Tuning|Validation|Generate regions|Auto select ROIs|Auto build classifiers)\\s*:\\s*(.+)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern QUPATH_CLASS_LOG = Pattern.compile("^(INFO|WARN|WARNING|ERROR|DEBUG|TRACE)\\s+[^-]+-\\s*(.*)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern PREFIXED_CLASS_LOG = Pattern.compile("^(INFO|WARN|WARNING|ERROR|DEBUG|TRACE):\\s+([^:]+):\\s*(.*)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern SIMPLE_SEVERITY_PREFIX = Pattern.compile("^(INFO|WARN|WARNING|ERROR|DEBUG|TRACE):\\s*(.*)$", Pattern.CASE_INSENSITIVE);
@@ -75,7 +75,7 @@ final class RunLogParser {
 
         line = line.replaceFirst("^\\[LOG]\\s*", "");
         if (line.matches("^-{8,}$") || line.matches("^={8,}$")) {
-            return new RunLogEntry(RunLogSource.ASTRA, RunLogSeverity.NEUTRAL, RunLogKind.SEPARATOR, line, raw);
+            return new RunLogEntry(RunLogSource.PIPELINE, RunLogSeverity.NEUTRAL, RunLogKind.SEPARATOR, line, raw);
         }
 
         Matcher explicit = BRACKET_SOURCE_SEVERITY.matcher(line);
@@ -94,7 +94,7 @@ final class RunLogParser {
 
         Matcher bracket = BRACKET_SEVERITY.matcher(line);
         if (bracket.matches()) {
-            source = RunLogSource.ASTRA;
+            source = RunLogSource.PIPELINE;
             severity = RunLogSeverity.fromToken(bracket.group(1), severity);
             line = bracket.group(2).trim();
         }
@@ -124,7 +124,7 @@ final class RunLogParser {
 
         Matcher pipelineStage = PIPELINE_STAGE.matcher(collapseRepeatedPipelineNames(line));
         if (pipelineStage.matches()) {
-            source = RunLogSource.ASTRA;
+            source = RunLogSource.PIPELINE;
             severity = RunLogSeverity.fromToken(pipelineStage.group(1), severity == RunLogSeverity.NEUTRAL ? RunLogSeverity.INFO : severity);
             String stage = titleCaseToken(pipelineStage.group(3).replace('_', ' '));
             String message = pipelineStage.group(4) == null ? "" : pipelineStage.group(4).trim();
@@ -134,7 +134,7 @@ final class RunLogParser {
 
         Matcher pipelineMessage = PIPELINE_MESSAGE.matcher(collapseRepeatedPipelineNames(line));
         if (pipelineMessage.matches()) {
-            source = RunLogSource.ASTRA;
+            source = RunLogSource.PIPELINE;
             severity = RunLogSeverity.fromToken(pipelineMessage.group(1), severity == RunLogSeverity.NEUTRAL ? RunLogSeverity.INFO : severity);
             line = pipelineMessage.group(3).trim();
             return finalizeEntry(source, severity, kind, line, raw);
@@ -153,7 +153,7 @@ final class RunLogParser {
             severity = RunLogSeverity.fromToken(prefixedClass.group(1), severity);
             String className = prefixedClass.group(2).trim();
             line = prefixedClass.group(3).trim();
-            source = isPipelineStageOrMessage(className) ? RunLogSource.ASTRA : RunLogSource.QUPATH;
+            source = isPipelineStageOrMessage(className) ? RunLogSource.PIPELINE : RunLogSource.QUPATH;
             return finalizeEntry(source, severity, kind, line, raw);
         }
 
@@ -166,12 +166,12 @@ final class RunLogParser {
         }
 
         if (isPipelineStageOrMessage(line)) {
-            source = RunLogSource.ASTRA;
+            source = RunLogSource.PIPELINE;
         }
 
-        Matcher pipelineStagePrefix = ASTRA_STAGE_PREFIX.matcher(line);
+        Matcher pipelineStagePrefix = PIPELINE_STAGE_PREFIX.matcher(line);
         if (pipelineStagePrefix.matches()) {
-            source = RunLogSource.ASTRA;
+            source = RunLogSource.PIPELINE;
             line = pipelineStagePrefix.group(2).trim();
         }
 
@@ -195,7 +195,7 @@ final class RunLogParser {
             return fallback == null ? RunLogSource.SYSTEM : fallback;
         }
         return switch (token.trim().toUpperCase(Locale.ROOT)) {
-            case "ASTRA" -> RunLogSource.ASTRA;
+            case "ASTRA" -> RunLogSource.PIPELINE;
             case "SCRIPT" -> RunLogSource.SCRIPT;
             case "QUPATH" -> RunLogSource.QUPATH;
             case "CELLPOSE" -> RunLogSource.CELLPOSE;
@@ -275,7 +275,7 @@ final class RunLogParser {
     private static RunLogSource inferSourceFromMessage(String line, RunLogSource fallback) {
         String upper = line == null ? "" : line.toUpperCase(Locale.ROOT);
         if (upper.startsWith("ASTRA") || isPipelineStageOrMessage(line)) {
-            return RunLogSource.ASTRA;
+            return RunLogSource.PIPELINE;
         }
         if (upper.startsWith("CELLPOS") || upper.contains("ASTRACELLPOSE2D")) {
             return RunLogSource.CELLPOSE;

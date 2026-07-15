@@ -130,15 +130,15 @@ public final class LauncherPreviewApp extends Application {
     public void start(Stage primaryStage) throws Exception {
         Files.createDirectories(options.userPath());
         Files.createDirectories(options.outputPath());
-        primaryStage.setTitle("ASTRA Preview Bootstrap");
+        primaryStage.setTitle("Preview Bootstrap");
         primaryStage.setScene(new Scene(new Pane(),
                 PREVIEW_BOOTSTRAP_STAGE_SIZE,
                 PREVIEW_BOOTSTRAP_STAGE_SIZE));
         primaryStage.show();
-        System.out.println("ASTRA preview start: screens=" + Screen.getScreens().size()
+        System.out.println("Launcher preview start: screens=" + Screen.getScreens().size()
                 + ", mode=" + options.snapshotMode());
         if (Screen.getScreens().isEmpty()) {
-            String message = "ASTRA preview cannot run because JavaFX reports zero screens after showing the bootstrap stage. "
+            String message = "Launcher preview cannot run because JavaFX reports zero screens after showing the bootstrap stage. "
                     + "Use the documented x64 QuPath/x64 Temurin route from a window-server session.";
             Files.writeString(options.outputPath().resolve("preview-failure.txt"), message + System.lineSeparator());
             throw new IllegalStateException(message);
@@ -189,7 +189,7 @@ public final class LauncherPreviewApp extends Application {
             writePreviewProjectImage(imagePath, index);
             try (ImageServer<BufferedImage> server = ImageServers.buildServer(imagePath.toUri())) {
                 var entry = project.addImage(server.getBuilder());
-                entry.setImageName("ASTRA Preview Image " + (index + 1));
+                entry.setImageName("Preview Image " + (index + 1));
             }
         }
         project.syncChanges();
@@ -284,7 +284,7 @@ public final class LauncherPreviewApp extends Application {
             schedule(1.5, LauncherPreviewApp::openAssetBackedComboDiagnosticWindow);
             schedule(2.2, LauncherPreviewApp::showAssetComboPopup);
             schedule(3.0, () -> snapshotSurfaceGeometry(
-                    snapshotMode, "ASTRA Asset Combo Diagnostic", Surface.ASSET_COMBO_POPUP, true));
+                    snapshotMode, "Asset Combo Diagnostic", Surface.ASSET_COMBO_POPUP, true));
             schedule(3.6, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -298,7 +298,7 @@ public final class LauncherPreviewApp extends Application {
         }
         if (isVisualThemeSurface(snapshotMode, "runtime")) {
             schedule(1.5, LauncherPreviewApp::openRuntimeInstallerDiagnosticWindow);
-            schedule(2.4, () -> snapshot(snapshotMode, "ASTRA Runtime Installer Diagnostic"));
+            schedule(2.4, () -> snapshot(snapshotMode, "Runtime Installer Diagnostic"));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -381,7 +381,7 @@ public final class LauncherPreviewApp extends Application {
             schedule(1.5, () -> fireButton(title, "Run Setup"));
             schedule(2.6, () -> fireFirstHelpButton(title));
             schedule(4.6, () -> snapshotSurfaceGeometry("help-dialog-geometry",
-                    "ASTRA Parameter Help", Surface.DIALOG, false));
+                    "Parameter Help", Surface.DIALOG, false));
             schedule(5.4, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -425,7 +425,7 @@ public final class LauncherPreviewApp extends Application {
             schedule(7.8, () -> fireButton(title, "Segmentation"));
             schedule(8.5, () -> snapshotGeometryOverlay("segmentation-geometry-overlay", title));
             schedule(9.1, () -> fireFirstHelpButton(title));
-            schedule(10.1, () -> snapshotGeometryOverlay("help-dialog-geometry-overlay", "ASTRA Parameter Help"));
+            schedule(10.1, () -> snapshotGeometryOverlay("help-dialog-geometry-overlay", "Parameter Help"));
             schedule(10.8, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -446,9 +446,9 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         if ("header-menu-placement-geometry".equals(snapshotMode)) {
-            String leftTitle = "ASTRA Header Placement Left";
-            String rightTitle = "ASTRA Header Placement Right";
-            String clampTitle = "ASTRA Header Placement Clamp";
+            String leftTitle = "Header Placement Left";
+            String rightTitle = "Header Placement Right";
+            String clampTitle = "Header Placement Clamp";
             schedule(1.5, () -> openHeaderPlacementDiagnosticWindow(leftTitle, HeaderPlacementState.LEFT_DEFAULT));
             schedule(2.2, () -> showHeaderPlacementMenu(leftTitle));
             schedule(2.9, () -> snapshotSurfaceGeometry("header-menu-left-default-geometry",
@@ -467,7 +467,7 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         if ("header-menu-clamp-geometry".equals(snapshotMode)) {
-            String clampTitle = "ASTRA Header Placement Clamp";
+            String clampTitle = "Header Placement Clamp";
             schedule(1.5, () -> openHeaderPlacementDiagnosticWindow(clampTitle, HeaderPlacementState.CLAMP_TOO_NARROW));
             schedule(2.2, () -> showHeaderPlacementMenu(clampTitle));
             schedule(2.9, () -> snapshotSurfaceGeometry("header-menu-clamp-too-narrow-geometry",
@@ -487,14 +487,14 @@ public final class LauncherPreviewApp extends Application {
         if ("tooltip-geometry".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openTooltipDiagnosticWindow);
             schedule(2.4, () -> snapshotSurfaceGeometry("tooltip-geometry",
-                    "ASTRA Tooltip Diagnostic", Surface.TOOLTIP, true));
+                    "Tooltip Diagnostic", Surface.TOOLTIP, true));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("runtime-installer-geometry".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openRuntimeInstallerDiagnosticWindow);
             schedule(2.4, () -> snapshotSurfaceGeometry("runtime-installer-geometry",
-                    "ASTRA Runtime Installer Diagnostic", Surface.RUNTIME_INSTALLER, false));
+                    "Runtime Installer Diagnostic", Surface.RUNTIME_INSTALLER, false));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -536,10 +536,10 @@ public final class LauncherPreviewApp extends Application {
         if ("asset-backed-combo-geometry".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openAssetBackedComboDiagnosticWindow);
             schedule(2.4, () -> snapshotSurfaceGeometry("asset-backed-combo-geometry",
-                    "ASTRA Asset Combo Diagnostic", Surface.ASSET_COMBO, false));
+                    "Asset Combo Diagnostic", Surface.ASSET_COMBO, false));
             schedule(2.8, LauncherPreviewApp::showAssetComboPopup);
             schedule(3.5, () -> snapshotSurfaceGeometry("asset-backed-combo-popup-geometry",
-                    "ASTRA Asset Combo Diagnostic", Surface.ASSET_COMBO_POPUP, true));
+                    "Asset Combo Diagnostic", Surface.ASSET_COMBO_POPUP, true));
             schedule(4.1, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -551,29 +551,29 @@ public final class LauncherPreviewApp extends Application {
         if ("button-states-geometry".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openButtonStateDiagnosticWindow);
             schedule(2.4, () -> snapshotSurfaceGeometry("button-states-geometry",
-                    "ASTRA Button State Geometry", Surface.BUTTON_STATES, false));
+                    "Button State Geometry", Surface.BUTTON_STATES, false));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("run-progress-geometry".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openRunProgressDiagnosticWindow);
             schedule(2.4, () -> snapshotSurfaceGeometry("run-progress-geometry",
-                    "ASTRA Run Progress Geometry", Surface.RUN_PROGRESS, false));
+                    "Run Progress Geometry", Surface.RUN_PROGRESS, false));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("styled-log-geometry".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openStyledLogDiagnosticWindow);
             schedule(2.4, () -> snapshotSurfaceGeometry("styled-log-geometry",
-                    "ASTRA Styled Log Diagnostic", Surface.STYLED_LOG, false));
+                    "Styled Log Diagnostic", Surface.STYLED_LOG, false));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("styled-log-expanded-geometry".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openStyledLogDiagnosticWindow);
-            schedule(2.2, () -> fireButton("ASTRA Styled Log Diagnostic", "Show Cellpose details"));
+            schedule(2.2, () -> fireButton("Styled Log Diagnostic", "Show Cellpose details"));
             schedule(3.0, () -> snapshotSurfaceGeometry("styled-log-expanded-geometry",
-                    "ASTRA Styled Log Diagnostic", Surface.STYLED_LOG, false));
+                    "Styled Log Diagnostic", Surface.STYLED_LOG, false));
             schedule(3.6, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -585,7 +585,7 @@ public final class LauncherPreviewApp extends Application {
         if ("channel-panel-populated-geometry".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openPopulatedChannelPanelDiagnosticWindow);
             schedule(2.4, () -> snapshotSurfaceGeometry("channel-panel-populated-geometry",
-                    "ASTRA Channel Panel Diagnostic", Surface.CHANNEL_PANEL, false));
+                    "Channel Panel Diagnostic", Surface.CHANNEL_PANEL, false));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -629,42 +629,42 @@ public final class LauncherPreviewApp extends Application {
         if ("marker-key-map-geometry".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openMarkerKeyMapDiagnosticWindow);
             schedule(2.4, () -> snapshotSurfaceGeometry("marker-key-map-geometry",
-                    "ASTRA Marker Key Map Diagnostic", Surface.MARKER_KEY_MAP, false));
+                    "Marker Key Map Diagnostic", Surface.MARKER_KEY_MAP, false));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("dependency-matrix-geometry".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openDependencyMatrixDiagnosticWindow);
             schedule(2.5, () -> snapshotSurfaceGeometry("dependency-matrix-geometry",
-                    "ASTRA Dependency Matrix Diagnostic", Surface.DEPENDENCY_MATRIX, false));
+                    "Dependency Matrix Diagnostic", Surface.DEPENDENCY_MATRIX, false));
             schedule(3.1, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("row-state-geometry".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openRowStateDiagnosticWindow);
             schedule(2.4, () -> snapshotSurfaceGeometry("row-state-geometry",
-                    "ASTRA Row State Diagnostic", Surface.ROW_STATE, false));
+                    "Row State Diagnostic", Surface.ROW_STATE, false));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("list-code-editor-geometry".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openListCodeEditorDiagnosticWindow);
             schedule(2.4, () -> snapshotSurfaceGeometry("list-code-editor-geometry",
-                    "ASTRA List And Code Editor Diagnostic", Surface.LIST_CODE_EDITOR, false));
+                    "List And Code Editor Diagnostic", Surface.LIST_CODE_EDITOR, false));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("channel-multi-select-geometry".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openChannelMultiSelectDiagnosticWindow);
             schedule(2.4, () -> snapshotSurfaceGeometry("channel-multi-select-geometry",
-                    "ASTRA Channel Multi-Select Diagnostic", Surface.CHANNEL_MULTI_SELECT, false));
+                    "Channel Multi-Select Diagnostic", Surface.CHANNEL_MULTI_SELECT, false));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("typography-optical-review".equals(snapshotMode)) {
             schedule(1.5, LauncherPreviewApp::openTypographyDiagnosticWindow);
             schedule(2.4, () -> snapshotSurfaceGeometry("typography-optical-review",
-                    "ASTRA Typography Optical QA", Surface.TYPOGRAPHY, false));
+                    "Typography Optical QA", Surface.TYPOGRAPHY, false));
             schedule(3.0, LauncherPreviewApp::closeAllWindows);
             return;
         }
@@ -833,26 +833,26 @@ public final class LauncherPreviewApp extends Application {
         schedule(16.0, () -> collectTransientContractSurface("Combo popup", title));
         schedule(16.2, () -> hideTransientWindows(title));
         schedule(16.8, () -> fireFirstHelpButton(title));
-        schedule(17.8, () -> collectWindowContractSurface("Help dialog", "ASTRA Parameter Help"));
+        schedule(17.8, () -> collectWindowContractSurface("Help dialog", "Parameter Help"));
         schedule(18.2, LauncherPreviewApp::openRuntimeInstallerDiagnosticWindow);
         schedule(18.9, () -> collectWindowContractSurface("Runtime setup panel",
-                "ASTRA Runtime Installer Diagnostic"));
+                "Runtime Installer Diagnostic"));
         schedule(19.1, LauncherPreviewApp::openRuntimeConfirmationDialog);
         schedule(19.8, () -> collectTransientContractSurface("Runtime confirmation dialog", title));
         schedule(20.0, LauncherPreviewApp::openRuntimeResultDialog);
         schedule(20.7, () -> collectTransientContractSurface("Runtime result dialog", title));
         schedule(20.9, LauncherPreviewApp::openListCodeEditorDiagnosticWindow);
         schedule(21.6, () -> collectWindowContractSurface("List/code editor diagnostic",
-                "ASTRA List And Code Editor Diagnostic"));
+                "List And Code Editor Diagnostic"));
         schedule(21.8, LauncherPreviewApp::openRunProgressDiagnosticWindow);
         schedule(22.5, () -> collectWindowContractSurface("Run progress diagnostic",
-                "ASTRA Run Progress Geometry"));
+                "Run Progress Geometry"));
         schedule(22.7, LauncherPreviewApp::openMarkerKeyMapDiagnosticWindow);
         schedule(23.4, () -> collectWindowContractSurface("Marker key map diagnostic",
-                "ASTRA Marker Key Map Diagnostic"));
+                "Marker Key Map Diagnostic"));
         schedule(23.6, LauncherPreviewApp::openChannelMultiSelectDiagnosticWindow);
         schedule(24.3, () -> collectWindowContractSurface("Channel multi-select diagnostic",
-                "ASTRA Channel Multi-Select Diagnostic"));
+                "Channel Multi-Select Diagnostic"));
         schedule(24.8, () -> {
             writeTextContractSweep();
             closeAllWindows();
@@ -863,12 +863,12 @@ public final class LauncherPreviewApp extends Application {
         String key = scriptName.toLowerCase(Locale.ROOT);
         String relative = SCRIPT_PATHS.get(key);
         if (relative == null) {
-            throw new IllegalArgumentException("Unknown ASTRA preview script: " + scriptName
+            throw new IllegalArgumentException("Unknown Launcher preview script: " + scriptName
                     + ". Allowed values: " + SCRIPT_PATHS.keySet());
         }
         Path path = astraRoot.resolve(relative).normalize();
         if (!Files.isRegularFile(path)) {
-            throw new IllegalArgumentException("ASTRA script not found: " + path);
+            throw new IllegalArgumentException("Preview script not found: " + path);
         }
         return path;
     }
@@ -935,7 +935,7 @@ public final class LauncherPreviewApp extends Application {
                 target.get().fire();
             });
         } else {
-            System.err.println("No visible enabled ASTRA help button in " + title);
+            System.err.println("No visible enabled help button in " + title);
         }
     }
 
@@ -1179,7 +1179,7 @@ public final class LauncherPreviewApp extends Application {
     private static void snapshot(String name, String launcherTitle) {
         Window target = Window.getWindows().stream()
                 .filter(Window::isShowing)
-                .filter(window -> "ASTRA Parameter Help".equals(windowTitle(window)))
+                .filter(window -> "Parameter Help".equals(windowTitle(window)))
                 .findFirst()
                 .orElseGet(() -> Window.getWindows().stream()
                         .filter(Window::isShowing)
@@ -1648,7 +1648,7 @@ public final class LauncherPreviewApp extends Application {
         Window target = Window.getWindows().stream()
                 .filter(Window::isShowing)
                 .filter(window -> !launcherTitle.equals(windowTitle(window)))
-                .filter(window -> !"ASTRA Parameter Help".equals(windowTitle(window)))
+                .filter(window -> !"Parameter Help".equals(windowTitle(window)))
                 .filter(window -> window.getScene() != null)
                 .reduce((first, second) -> second)
                 .orElse(null);
@@ -1724,7 +1724,7 @@ public final class LauncherPreviewApp extends Application {
                                                 boolean transientWindow) {
         Optional<Node> rootOptional = surface == Surface.TOOLTIP
                 ? activeTooltipRoot()
-                : surface == Surface.DIALOG && "ASTRA Parameter Help".equals(launcherTitle)
+                : surface == Surface.DIALOG && "Parameter Help".equals(launcherTitle)
                         ? findHelpDialogRoot()
                 : transientWindow
                         ? findTransientWindowRoot(launcherTitle)
@@ -1771,7 +1771,7 @@ public final class LauncherPreviewApp extends Application {
         return Window.getWindows().stream()
                 .filter(Window::isShowing)
                 .filter(window -> !launcherTitle.equals(windowTitle(window)))
-                .filter(window -> !"ASTRA Parameter Help".equals(windowTitle(window)))
+                .filter(window -> !"Parameter Help".equals(windowTitle(window)))
                 .filter(window -> window.getScene() != null)
                 .reduce((first, second) -> second)
                 .map(Window::getScene)
@@ -6046,7 +6046,7 @@ public final class LauncherPreviewApp extends Application {
             long textFailed = TEXT_CONTRACT_ROWS.stream().filter(row -> "FAIL".equals(row.status())).count();
             long gradientPassed = GRADIENT_SURFACE_ROWS.stream().filter(row -> "PASS".equals(row.status())).count();
             long gradientFailed = GRADIENT_SURFACE_ROWS.stream().filter(row -> "FAIL".equals(row.status())).count();
-            mdText.append("# ASTRA Text Contract Sweep\n\n");
+            mdText.append("# Text Contract Sweep\n\n");
             mdText.append("- Text rows: ").append(TEXT_CONTRACT_ROWS.size())
                     .append(" (passed ").append(textPassed)
                     .append(", failed ").append(textFailed).append(")\n");
@@ -7120,7 +7120,7 @@ public final class LauncherPreviewApp extends Application {
     private static void openStyledLogDiagnosticWindow() {
         StyledLogView log = new StyledLogView();
         log.beginRun("Vascular", "diagnostic");
-        log.appendMessage(RunLogSource.ASTRA, RunLogSeverity.INFO,
+        log.appendMessage(RunLogSource.PIPELINE, RunLogSeverity.INFO,
                 "PROJECT RUN START");
         log.appendText("""
                 [ASTRA][INFO] Image start : [1/2] 'diagnostic.czi - ScanRegion0'.
@@ -7145,13 +7145,13 @@ public final class LauncherPreviewApp extends Application {
                 [Cellpose][INFO] diagnostic detail line 08
                 [Cellpose][INFO] diagnostic detail line 09
                 [Cellpose][INFO] diagnostic detail line 10
-                [Script][NEUTRAL] Diagnostic script line mentioning ASTRA.
+                [Script][NEUTRAL] Diagnostic script line for layout coverage.
                 [ASTRA][ERROR] Synthetic diagnostic error for failure-summary geometry.
-                """, RunLogSource.ASTRA, RunLogSeverity.INFO);
-        log.appendMessage(RunLogSource.ASTRA, RunLogSeverity.SUCCESS,
+                """, RunLogSource.PIPELINE, RunLogSeverity.INFO);
+        log.appendMessage(RunLogSource.PIPELINE, RunLogSeverity.SUCCESS,
                 "Run completed.");
         Stage stage = new Stage();
-        stage.setTitle("ASTRA Styled Log Diagnostic");
+        stage.setTitle("Styled Log Diagnostic");
         Scene scene = new Scene(log, 520.0, 620.0);
         var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
@@ -7168,7 +7168,7 @@ public final class LauncherPreviewApp extends Application {
                 ImageChannel.getInstance("AF555", ImageChannel.getDefaultChannelColor(1)),
                 ImageChannel.getInstance("AF647", ImageChannel.getDefaultChannelColor(2))));
         Stage stage = new Stage();
-        stage.setTitle("ASTRA Channel Panel Diagnostic");
+        stage.setTitle("Channel Panel Diagnostic");
         Scene scene = new Scene((Parent) panel, 560.0, 140.0);
         var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
@@ -7202,7 +7202,7 @@ public final class LauncherPreviewApp extends Application {
         VBox.setVgrow(populated, Priority.NEVER);
 
         Stage stage = new Stage();
-        stage.setTitle("ASTRA Asset Combo Diagnostic");
+        stage.setTitle("Asset Combo Diagnostic");
         double inset = staticField("NESTED_PANEL_INSET");
         double width = nestedStaticField("HeaderGeometry", "MENU_WIDTH");
         double height = (staticField("PARAMETER_ROW_HEIGHT") * LauncherGeometryTokens.BILATERAL_EDGE_COUNT)
@@ -7222,11 +7222,11 @@ public final class LauncherPreviewApp extends Application {
         Button target = GuiText.button(GuiText.Role.DIAGNOSTIC_TEXT, "Tooltip target");
         target.getStyleClass().add("astra-button");
         target.getStyleClass().add("astra-button-small");
-        activeDiagnosticTooltip = new Tooltip("ASTRA tooltip diagnostic text.");
+        activeDiagnosticTooltip = new Tooltip("Tooltip diagnostic text.");
         activeDiagnosticTooltip.setAutoHide(false);
         activeDiagnosticTooltip.setAutoFix(false);
         target.setTooltip(activeDiagnosticTooltip);
-        Label popupLabel = GuiText.label(GuiText.Role.DIAGNOSTIC_TEXT, "ASTRA tooltip diagnostic text.");
+        Label popupLabel = GuiText.label(GuiText.Role.DIAGNOSTIC_TEXT, "Tooltip diagnostic text.");
         popupLabel.getStyleClass().add("tooltip");
         activeDiagnosticTooltipNode = popupLabel;
         var tooltipResource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
@@ -7240,7 +7240,7 @@ public final class LauncherPreviewApp extends Application {
         VBox root = new VBox(LauncherGeometryTokens.INTRA_PANEL_MARGIN, target);
         root.setPadding(LauncherGeometryTokens.intraPanelPadding());
         Stage stage = new Stage();
-        stage.setTitle("ASTRA Tooltip Diagnostic");
+        stage.setTitle("Tooltip Diagnostic");
         double width = LauncherGeometryTokens.LAYOUT_UNIT * 10.0d;
         double height = LauncherGeometryTokens.LAYOUT_UNIT * 4.0d;
         Scene scene = new Scene(root, width, height);
@@ -7266,7 +7266,7 @@ public final class LauncherPreviewApp extends Application {
     private static void openRuntimeInstallerDiagnosticWindow() {
         Parent root = RuntimeInstaller.createInstallProgressRootForTesting();
         Stage stage = new Stage();
-        stage.setTitle("ASTRA Runtime Installer Diagnostic");
+        stage.setTitle("Runtime Installer Diagnostic");
         Scene scene = new Scene(
                 root,
                 RuntimeInstaller.installerWindowWidthForTesting(),
@@ -7281,12 +7281,12 @@ public final class LauncherPreviewApp extends Application {
     }
 
     private static void openRuntimeConfirmationDialog() {
-        Dialog<ButtonType> dialog = PipelineLauncher.createAstraSuccessConfirmationDialog(
+        Dialog<ButtonType> dialog = PipelineLauncher.createSuccessConfirmationDialog(
                 null,
-                "ASTRA Runtime Setup",
-                "Create or repair the ASTRA Cellpose runtime?",
+                "Runtime Setup",
+                "Create or repair the Cellpose runtime?",
                 """
-                ASTRA will validate the managed Cellpose runtime, repair it only if needed,
+                The installer will validate the managed Cellpose runtime, repair it only if needed,
                 install release-pinned packages, and register the validated Python path.
 
                 Manual external Python environments are not modified.
@@ -7295,14 +7295,14 @@ public final class LauncherPreviewApp extends Application {
     }
 
     private static void openRuntimeResultDialog() {
-        Dialog<ButtonType> dialog = PipelineLauncher.createAstraPreviewMessageDialog(
+        Dialog<ButtonType> dialog = PipelineLauncher.createPreviewMessageDialog(
                 null,
-                "ASTRA Runtime Setup",
+                "Runtime Setup",
                 "Runtime ready",
                 """
-                The existing ASTRA-managed runtime passed validation.
+                The existing managed runtime passed validation.
 
-                ASTRA registered the managed runtime. You can run Cellpose workflows now.
+                The installer registered the managed runtime. You can run Cellpose workflows now.
 
                 Install log:
                 /Users/example/.astra/logs/install/cellpose-astra-install-preview.log
@@ -7312,17 +7312,17 @@ public final class LauncherPreviewApp extends Application {
     }
 
     private static void openRuntimeFailureDialog() {
-        Dialog<ButtonType> dialog = PipelineLauncher.createAstraPreviewMessageDialog(
+        Dialog<ButtonType> dialog = PipelineLauncher.createPreviewMessageDialog(
                 null,
-                "ASTRA Runtime Setup",
+                "Runtime Setup",
                 "Runtime validation failed",
                 """
-                The managed runtime did not match ASTRA's pinned Python/package requirements.
+                The managed runtime did not match release-pinned Python/package requirements.
 
-                Detected NumPy 2.x, but ASTRA requires NumPy 1.26.4 for the pinned Torch runtime.
+                Detected NumPy 2.x, but The runtime requires NumPy 1.26.4 for the pinned Torch runtime.
 
                 Next action:
-                Run ASTRA Runtime Setup again to recreate the managed runtime.
+                Run Runtime Setup again to recreate the managed runtime.
 
                 Install log:
                 /Users/example/.astra/logs/install/cellpose-astra-install-preview.log
@@ -7332,12 +7332,12 @@ public final class LauncherPreviewApp extends Application {
     }
 
     private static void openRuntimeRepairFailureDialog() {
-        Dialog<ButtonType> dialog = PipelineLauncher.createAstraPreviewMessageDialog(
+        Dialog<ButtonType> dialog = PipelineLauncher.createPreviewMessageDialog(
                 null,
-                "ASTRA Runtime Setup",
+                "Runtime Setup",
                 "Runtime repair needs file access",
                 """
-                ASTRA could not remove the broken managed runtime directory.
+                The installer could not remove the broken managed runtime directory.
 
                 Next action:
                 Close tools using ~/.astra/cellpose-astra, check file permissions, then run repair again.
@@ -7350,15 +7350,15 @@ public final class LauncherPreviewApp extends Application {
     }
 
     private static void openRuntimeCancelledDialog() {
-        Dialog<ButtonType> dialog = PipelineLauncher.createAstraPreviewMessageDialog(
+        Dialog<ButtonType> dialog = PipelineLauncher.createPreviewMessageDialog(
                 null,
-                "ASTRA Runtime Setup",
+                "Runtime Setup",
                 "Runtime setup cancelled",
                 """
-                ASTRA stopped the active runtime setup command.
+                The installer stopped the active runtime setup command.
 
                 Next action:
-                Run ASTRA Runtime Setup again when you are ready.
+                Run Runtime Setup again when you are ready.
 
                 Install log:
                 /Users/example/.astra/logs/install/cellpose-astra-install-preview.log
@@ -7368,7 +7368,7 @@ public final class LauncherPreviewApp extends Application {
     }
 
     private static void showAssetComboPopup() {
-        findWindowRoot("ASTRA Asset Combo Diagnostic")
+        findWindowRoot("Asset Combo Diagnostic")
                 .flatMap(root -> firstNode(root, ".astra-asset-populated-combo"))
                 .filter(ComboBox.class::isInstance)
                 .map(ComboBox.class::cast)
@@ -7383,7 +7383,7 @@ public final class LauncherPreviewApp extends Application {
         editor.refresh(List.of("SMA|DAPI", "CD31|DAPI"));
 
         Stage stage = new Stage();
-        stage.setTitle("ASTRA Marker Key Map Diagnostic");
+        stage.setTitle("Marker Key Map Diagnostic");
         double inset = staticField("NESTED_PANEL_INSET");
         double width = nestedStaticField("HeaderGeometry", "MENU_WIDTH");
         double height = (staticField("PARAMETER_ROW_HEIGHT") * LauncherGeometryTokens.BILATERAL_EDGE_COUNT)
@@ -7413,7 +7413,7 @@ public final class LauncherPreviewApp extends Application {
                 + LauncherGeometryTokens.SINGLE_COUNT));
         double height = caseHeight * caseCount;
         Stage stage = new Stage();
-        stage.setTitle("ASTRA Dependency Matrix Diagnostic");
+        stage.setTitle("Dependency Matrix Diagnostic");
         Scene scene = new Scene(panel, width, height);
         var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
@@ -7434,7 +7434,7 @@ public final class LauncherPreviewApp extends Application {
                 * LauncherGeometryTokens.BILATERAL_EDGE_COUNT)
                 + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
         Stage stage = new Stage();
-        stage.setTitle("ASTRA Row State Diagnostic");
+        stage.setTitle("Row State Diagnostic");
         Scene scene = new Scene(panel, width, height);
         var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
@@ -7458,7 +7458,7 @@ public final class LauncherPreviewApp extends Application {
                 + staticField("PARAMETER_ROW_GAP")
                 + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
         Stage stage = new Stage();
-        stage.setTitle("ASTRA List And Code Editor Diagnostic");
+        stage.setTitle("List And Code Editor Diagnostic");
         Scene scene = new Scene(panel, width, height);
         var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
@@ -7482,7 +7482,7 @@ public final class LauncherPreviewApp extends Application {
                 * LauncherGeometryTokens.BILATERAL_EDGE_COUNT)
                 + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
         Stage stage = new Stage();
-        stage.setTitle("ASTRA Channel Multi-Select Diagnostic");
+        stage.setTitle("Channel Multi-Select Diagnostic");
         Scene scene = new Scene(panel, width, height);
         var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
@@ -7505,7 +7505,7 @@ public final class LauncherPreviewApp extends Application {
                 + LauncherGeometryTokens.BILATERAL_EDGE_COUNT))
                 + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
         Stage stage = new Stage();
-        stage.setTitle("ASTRA Typography Optical QA");
+        stage.setTitle("Typography Optical QA");
         Scene scene = new Scene(panel, width, height);
         var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
@@ -7518,7 +7518,7 @@ public final class LauncherPreviewApp extends Application {
     private static void openButtonStateDiagnosticWindow() {
         Parent panel = (Parent) PipelineLauncher.createButtonStateDiagnosticPanel();
         Stage stage = new Stage();
-        stage.setTitle("ASTRA Button State Geometry");
+        stage.setTitle("Button State Geometry");
         Scene scene = new Scene(panel);
         var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
@@ -7542,7 +7542,7 @@ public final class LauncherPreviewApp extends Application {
                 + (staticField("PARAMETER_ROW_GAP") * gapCount)
                 + (inset * LauncherGeometryTokens.BILATERAL_EDGE_COUNT);
         Stage stage = new Stage();
-        stage.setTitle("ASTRA Run Progress Geometry");
+        stage.setTitle("Run Progress Geometry");
         Scene scene = new Scene(panel, width, height);
         var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
@@ -7611,8 +7611,8 @@ public final class LauncherPreviewApp extends Application {
     private static void openRunFailureDialog() {
         Dialog<ButtonType> dialog = PipelineLauncher.createRunFailureDialog(
                 null,
-                "ASTRA Vascular",
-                "Synthetic failure for run-failure dialog geometry.\n\nSee the ASTRA run log for full details.");
+                "Vascular",
+                "Synthetic failure for run-failure dialog geometry.\n\nSee the run log for full details.");
         dialog.show();
     }
 
@@ -7620,7 +7620,7 @@ public final class LauncherPreviewApp extends Application {
         List.copyOf(Window.getWindows()).stream()
                 .filter(Window::isShowing)
                 .filter(window -> !launcherTitle.equals(windowTitle(window)))
-                .filter(window -> !"ASTRA Parameter Help".equals(windowTitle(window)))
+                .filter(window -> !"Parameter Help".equals(windowTitle(window)))
                 .forEach(Window::hide);
     }
 

@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Central presentation contract between ASTRA script constants and the JavaFX
+ * Central presentation contract between script constants and the JavaFX
  * launcher.  Scientific behavior belongs in the base Groovy scripts; this
  * adapter owns user-facing labels, option display, and GUI-only routing.
  */
@@ -163,10 +163,10 @@ final class GuiPresentation {
     private static List<StandardGroup> fallbackStandardGroups() {
         return List.of(
                 new StandardGroup("Run Setup", "Run Setup",
-                        "Choose the workflow path before ASTRA touches data.",
+                        "Choose the workflow path before processing data.",
                         1, "Essential", "teal"),
                 new StandardGroup("Images & Scope", "Images & Scope",
-                        "Tell ASTRA which images or regions are in play.",
+                        "Choose which images or regions are in play.",
                         2, "Essential", "bluegray"),
                 new StandardGroup("Classes & Regions", "Classes & Regions",
                         "Map QuPath annotations and output classes to the analysis.",
@@ -217,7 +217,7 @@ final class GuiPresentation {
             return new StandardGroup(
                     name,
                     label.isBlank() ? name : label,
-                    description.isBlank() ? "Review related ASTRA settings." : description,
+                    description.isBlank() ? "Review related settings." : description,
                     order,
                     importance.isBlank() ? "Routine" : importance,
                     accentTheme.isBlank() ? "bluegray" : accentTheme
@@ -228,7 +228,7 @@ final class GuiPresentation {
             return new StandardGroup(
                     name,
                     name == null || name.isBlank() ? "Settings" : name,
-                    "Review related ASTRA settings.",
+                    "Review related settings.",
                     Integer.MAX_VALUE,
                     "Routine",
                     "bluegray"

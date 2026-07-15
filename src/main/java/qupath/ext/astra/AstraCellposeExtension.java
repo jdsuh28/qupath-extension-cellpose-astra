@@ -20,10 +20,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * ASTRA extension entry point.
+ * QuPath extension entry point.
  *
- * <p>This extension exposes ASTRA scripts and registers the single runtime
- * Python executable used by all ASTRA Cellpose workflows.
+ * <p>This extension exposes pipeline scripts and registers the single runtime
+ * Python executable used by all Cellpose workflows.
  * Downstream script stacks resolve {@code MODEL_SOURCE}/{@code MODEL_NAME}
  * selection before handing one explicit execution model reference to the Java
  * runtime.</p>
@@ -37,7 +37,7 @@ public class AstraCellposeExtension extends CellposeExtension {
     private static final String RUNTIME_PYTHON_PATH_NAME = "Cellpose Runtime Python Executable";
     private static final String RUNTIME_PYTHON_PATH_DESCRIPTION =
             "Enter the full path to the Python executable used for Cellpose runtime operations.\n" +
-            "This is the only runtime environment used by Automated Structural Tissue Research and Analysis (ASTRA).\n" +
+            "This is the only runtime environment used by this extension.\n" +
             "Do not include quotes (') or double quotes (\") around the path.";
 
     private static final Map<String, String> SCRIPT_RESOURCES = createScriptResources();
@@ -89,7 +89,7 @@ public class AstraCellposeExtension extends CellposeExtension {
 
                 scriptTexts.put(commandName, new String(stream.readAllBytes(), StandardCharsets.UTF_8));
             } catch (Exception e) {
-                logger.error("Failed to register ASTRA script '{}' from {}.", commandName, resourcePath, e);
+                logger.error("Failed to register pipeline script '{}' from {}.", commandName, resourcePath, e);
             }
         });
 
