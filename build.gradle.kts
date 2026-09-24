@@ -6,6 +6,9 @@ plugins {
     id("qupath-conventions") version "0.2.1"
 }
 
+// Build products stay beside the source project without entering iCloud sync.
+layout.buildDirectory = layout.projectDirectory.dir("build.nosync")
+
 /*
  * ASTRA-specific extension toolchain.
  */

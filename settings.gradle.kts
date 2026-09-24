@@ -33,4 +33,7 @@ dependencyResolutionManagement {
     }
 }
 
+// Keep Gradle's recreated project cache local to iCloud but excluded from sync.
+gradle.startParameter.projectCacheDir = file(".gradle.nosync")
+
 rootProject.name = "qupath-extension-cellpose-astra"
