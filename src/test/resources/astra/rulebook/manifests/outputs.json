@@ -46,7 +46,7 @@
         "threshold QC PNG files"
       ]
     },
-    "sma-af647-oneshot": {
+    "marker-rescue": {
       "resultRoot": "astra/results/sma_af647_oneshot",
       "auditArtifacts": [
         "technical CSV",
@@ -89,6 +89,26 @@
       "resultRoot": "QuPath project hierarchy",
       "auditArtifacts": [
         "generated training region annotations"
+      ]
+    },
+    "count-nuclei": {
+      "resultRoot": "QuPath project hierarchy",
+      "auditArtifacts": ["segmented nucleus objects", "nucleus count"]
+    },
+    "count-cells": {
+      "resultRoot": "QuPath project hierarchy",
+      "auditArtifacts": ["segmented cell objects", "cell count"]
+    },
+    "summarize-objects": {
+      "resultRoot": "QuPath script output",
+      "auditArtifacts": [
+        "current-image object counts"
+      ]
+    },
+    "save-current-image": {
+      "resultRoot": "QuPath project entry",
+      "auditArtifacts": [
+        "saved current image data"
       ]
     }
   }

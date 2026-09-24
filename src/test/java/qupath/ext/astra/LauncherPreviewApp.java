@@ -69,6 +69,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -88,7 +89,7 @@ public final class LauncherPreviewApp extends Application {
             "validation", "modules/pipelines/cellpose/validation/src/main/groovy/validation.groovy",
             "vascular", "modules/pipelines/analysis/vascular/src/main/groovy/vascular.groovy",
             "colocalization", "modules/pipelines/analysis/colocalization/src/main/groovy/colocalization.groovy",
-            "oneshot", "modules/tools/sma-af647-oneshot/src/main/groovy/smaAf647Oneshot.groovy",
+            "oneshot", "modules/tools/marker-rescue/src/main/groovy/smaAf647Oneshot.groovy",
             "generate-regions", "modules/pipelines/analysis/generate-regions/src/main/groovy/generateRegions.groovy"
     );
 
@@ -146,6 +147,22 @@ public final class LauncherPreviewApp extends Application {
         PathPrefs.userPathProperty().set(options.userPath().toString());
 
         QuPathGUI qupath = QuPathGUI.createHiddenInstance();
+        if ("workflow-builder".equals(options.snapshotMode())
+                || "workflow-builder-failure".equals(options.snapshotMode())) {
+            ManifestSet previewManifests = ManifestSet.load(
+                    Path.of("src/test/resources/astra/rulebook/manifests"));
+            Platform.runLater(() -> {
+                if ("workflow-builder-failure".equals(options.snapshotMode())) {
+                    WorkflowBuilder.showFailurePreview(qupath, previewManifests);
+                } else {
+                    WorkflowBuilder.showPreview(qupath, previewManifests);
+                }
+            });
+            if (options.snapshots()) {
+                scheduleSnapshots("Workflow Builder", options.snapshotMode());
+            }
+            return;
+        }
         if (requiresPreviewProject(options.snapshotMode())) {
             PipelineLauncher.setProjectImageNamesForTesting(createPreviewProjectImageNames(options.outputPath()));
         } else {
@@ -166,7 +183,6 @@ public final class LauncherPreviewApp extends Application {
                 || options.snapshotMode().startsWith("visual-theme-slate-")) {
             PipelineLauncher.setVisualThemeForTesting(LauncherVisualTheme.SLATE);
         }
-
         Platform.runLater(() -> PipelineLauncher.configureAndRun(qupath, title, script));
         if (options.snapshots()) {
             scheduleSnapshots(title, options.snapshotMode());
@@ -228,6 +244,12 @@ public final class LauncherPreviewApp extends Application {
     }
 
     private static void scheduleSnapshots(String title, String snapshotMode) {
+        if ("workflow-builder".equals(snapshotMode)
+                || "workflow-builder-failure".equals(snapshotMode)) {
+            schedule(1.8, () -> snapshot(snapshotMode, title));
+            schedule(2.4, LauncherPreviewApp::closeAllWindows);
+            return;
+        }
         if ("dashboard".equals(snapshotMode)) {
             schedule(1.5, () -> snapshot("dashboard", title));
             schedule(2.1, LauncherPreviewApp::closeAllWindows);
@@ -275,7 +297,7 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         if (isVisualThemeSurface(snapshotMode, "run-setup")) {
-            schedule(1.5, () -> fireButton(title, "Run Setup"));
+            schedule(1.5, () -> fireButton(title, "Workflow"));
             schedule(2.2, () -> snapshot(snapshotMode, title));
             schedule(2.8, LauncherPreviewApp::closeAllWindows);
             return;
@@ -289,7 +311,7 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         if (isVisualThemeSurface(snapshotMode, "help")) {
-            schedule(1.5, () -> fireButton(title, "Run Setup"));
+            schedule(1.5, () -> fireButton(title, "Workflow"));
             schedule(2.6, () -> fireFirstHelpButton(title, () -> {
                 snapshot(snapshotMode, title);
                 closeAllWindows();
@@ -341,13 +363,13 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         if ("run-setup".equals(snapshotMode)) {
-            schedule(1.5, () -> fireButton(title, "Run Setup"));
+            schedule(1.5, () -> fireButton(title, "Workflow"));
             schedule(2.2, () -> snapshot("run-setup", title));
             schedule(2.8, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("images-scope".equals(snapshotMode)) {
-            schedule(1.5, () -> fireButton(title, "Images & Scope"));
+            schedule(1.5, () -> fireButton(title, "Images & Regions"));
             schedule(2.2, () -> snapshot("images-scope", title));
             schedule(2.8, LauncherPreviewApp::closeAllWindows);
             return;
@@ -371,14 +393,14 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         if ("help-dialog".equals(snapshotMode)) {
-            schedule(1.5, () -> fireButton(title, "Run Setup"));
+            schedule(1.5, () -> fireButton(title, "Workflow"));
             schedule(2.6, () -> fireFirstHelpButton(title));
             schedule(3.6, () -> snapshot("help-dialog", title));
             schedule(4.4, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("help-dialog-geometry".equals(snapshotMode)) {
-            schedule(1.5, () -> fireButton(title, "Run Setup"));
+            schedule(1.5, () -> fireButton(title, "Workflow"));
             schedule(2.6, () -> fireFirstHelpButton(title));
             schedule(4.6, () -> snapshotSurfaceGeometry("help-dialog-geometry",
                     "Parameter Help", Surface.DIALOG, false));
@@ -391,16 +413,16 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         if ("focused-panel-diagnostic".equals(snapshotMode)) {
-            schedule(1.5, () -> fireButton(title, "Run Setup"));
+            schedule(1.5, () -> fireButton(title, "Workflow"));
             schedule(2.2, () -> snapshotFocusedPanelDiagnostic("run-setup-focused-panel-diagnostic", title));
             schedule(2.8, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("focused-panel-diagnostic-all".equals(snapshotMode)) {
-            schedule(1.5, () -> fireButton(title, "Run Setup"));
+            schedule(1.5, () -> fireButton(title, "Workflow"));
             schedule(2.2, () -> snapshotFocusedPanelDiagnostic("run-setup-focused-panel-diagnostic", title));
             schedule(2.8, () -> fireButton(title, "Back to Dashboard"));
-            schedule(3.3, () -> fireButton(title, "Images & Scope"));
+            schedule(3.3, () -> fireButton(title, "Images & Regions"));
             schedule(4.0, () -> snapshotFocusedPanelDiagnostic("images-scope-focused-panel-diagnostic", title));
             schedule(4.6, () -> fireButton(title, "Back to Dashboard"));
             schedule(5.1, () -> fireButton(title, "Models"));
@@ -413,10 +435,10 @@ public final class LauncherPreviewApp extends Application {
         }
         if ("geometry-overlay".equals(snapshotMode)) {
             schedule(1.5, () -> snapshotGeometryOverlay("dashboard-geometry-overlay", title));
-            schedule(2.1, () -> fireButton(title, "Run Setup"));
+            schedule(2.1, () -> fireButton(title, "Workflow"));
             schedule(2.8, () -> snapshotGeometryOverlay("run-setup-geometry-overlay", title));
             schedule(3.4, () -> fireButton(title, "Back to Dashboard"));
-            schedule(4.0, () -> fireButton(title, "Images & Scope"));
+            schedule(4.0, () -> fireButton(title, "Images & Regions"));
             schedule(4.7, () -> snapshotGeometryOverlay("images-scope-geometry-overlay", title));
             schedule(5.3, () -> fireButton(title, "Back to Dashboard"));
             schedule(5.9, () -> fireButton(title, "Models"));
@@ -590,14 +612,14 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         if ("all-settings-geometry".equals(snapshotMode)) {
-            schedule(1.5, () -> fireButton(title, "All Settings"));
+            schedule(1.5, () -> fireButton(title, "Parameter List"));
             schedule(2.2, () -> snapshotSurfaceGeometry("all-settings-geometry", title, Surface.ALL_SETTINGS, false));
             schedule(2.8, LauncherPreviewApp::closeAllWindows);
             return;
         }
         if ("advanced-geometry".equals(snapshotMode)) {
             schedule(1.5, () -> unlockAdvanced(title));
-            schedule(2.1, () -> fireAdvancedViewButton(title, "All Settings"));
+            schedule(2.1, () -> fireAdvancedViewButton(title, "Parameter List"));
             schedule(2.6, () -> fireFirstAdvancedSectionHeader(title));
             schedule(3.1, () -> scrollSettingsPane(title, 1.0d));
             schedule(3.8, () -> snapshotSurfaceGeometry("advanced-geometry", title, Surface.ADVANCED, false));
@@ -605,7 +627,7 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         if ("custom-controls-geometry".equals(snapshotMode)) {
-            schedule(1.5, () -> fireButton(title, "Images & Scope"));
+            schedule(1.5, () -> fireButton(title, "Images & Regions"));
             schedule(2.2, () -> selectFirstComboValue(title, "PROJECT_IMAGE_SELECTION"));
             schedule(CUSTOM_CONTROL_CAPTURE_DELAY_SECONDS,
                     () -> snapshotSurfaceGeometry("custom-controls-geometry", title, Surface.CUSTOM_CONTROLS, false));
@@ -613,7 +635,7 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         if ("colocalization-custom-geometry".equals(snapshotMode)) {
-            schedule(1.5, () -> fireButton(title, "Colocalization Setup"));
+            schedule(1.5, () -> fireButton(title, "Channels & Markers"));
             schedule(2.2, () -> fireButton(title, "Add check"));
             schedule(2.9, () -> snapshotSurfaceGeometry("colocalization-custom-geometry",
                     title, Surface.COLOCALIZATION_CUSTOM, false));
@@ -675,7 +697,7 @@ public final class LauncherPreviewApp extends Application {
         }
         if ("dialogs-geometry".equals(snapshotMode)
                 || "selected-images-dialog-geometry".equals(snapshotMode)) {
-            schedule(1.5, () -> fireButton(title, "Images & Scope"));
+            schedule(1.5, () -> fireButton(title, "Images & Regions"));
             schedule(2.2, () -> selectFirstComboValue(title, "PROJECT_IMAGE_SELECTION"));
             schedule(2.9, () -> Platform.runLater(() -> fireButton(title, "Choose Images...")));
             schedule(SELECTED_IMAGES_DIALOG_CAPTURE_SECONDS,
@@ -684,7 +706,7 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         if ("multi-select-dialog-geometry".equals(snapshotMode)) {
-            schedule(1.5, () -> fireButton(title, "Run Setup"));
+            schedule(1.5, () -> fireButton(title, "Workflow"));
             schedule(2.4, () -> Platform.runLater(() -> fireButton(title, "Generate Regions, Detect Cells, Quantify")));
             schedule(MULTI_SELECT_DIALOG_CAPTURE_SECONDS,
                     () -> snapshotSurfaceGeometry("multi-select-dialog-geometry", title, Surface.DIALOG, true));
@@ -748,7 +770,7 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         if ("selected-images-dialog".equals(snapshotMode)) {
-            schedule(1.5, () -> fireButton(title, "Images & Scope"));
+            schedule(1.5, () -> fireButton(title, "Images & Regions"));
             schedule(2.2, () -> selectFirstComboValue(title, "PROJECT_IMAGE_SELECTION"));
             schedule(2.9, () -> Platform.runLater(() -> fireButton(title, "Choose Images...")));
             schedule(SELECTED_IMAGES_DIALOG_CAPTURE_SECONDS,
@@ -768,10 +790,10 @@ public final class LauncherPreviewApp extends Application {
         schedule(6.6, () -> showHeaderMenu(title, "View"));
         schedule(7.6, () -> snapshotTransientWindow("04-view-menu", title));
         schedule(7.9, () -> hideTransientWindows(title));
-        schedule(8.3, () -> fireButton(title, "Run Setup"));
+        schedule(8.3, () -> fireButton(title, "Workflow"));
         schedule(8.9, () -> snapshot("05-run-setup", title));
         schedule(9.5, () -> fireButton(title, "Back to Dashboard"));
-        schedule(10.0, () -> fireButton(title, "Images & Scope"));
+        schedule(10.0, () -> fireButton(title, "Images & Regions"));
         schedule(10.6, () -> snapshot("06-images-scope", title));
         schedule(11.2, () -> fireButton(title, "Back to Dashboard"));
         schedule(11.7, () -> fireButton(title, "Models"));
@@ -803,10 +825,10 @@ public final class LauncherPreviewApp extends Application {
         TEXT_CONTRACT_ROWS.clear();
         GRADIENT_SURFACE_ROWS.clear();
         schedule(1.5, () -> collectLauncherContractSurface("Dashboard cards", title));
-        schedule(2.1, () -> fireButton(title, "Run Setup"));
+        schedule(2.1, () -> fireButton(title, "Workflow"));
         schedule(2.8, () -> collectLauncherContractSurface("Focused Run Setup", title));
         schedule(3.2, () -> fireButton(title, "Back to Dashboard"));
-        schedule(3.7, () -> fireButton(title, "Images & Scope"));
+        schedule(3.7, () -> fireButton(title, "Images & Regions"));
         schedule(4.4, () -> collectLauncherContractSurface("Focused Images & Scope", title));
         schedule(4.8, () -> fireButton(title, "Back to Dashboard"));
         schedule(5.3, () -> fireButton(title, "Models"));
@@ -814,8 +836,8 @@ public final class LauncherPreviewApp extends Application {
         schedule(6.4, () -> fireButton(title, "Back to Dashboard"));
         schedule(6.9, () -> fireButton(title, "Segmentation"));
         schedule(7.6, () -> collectLauncherContractSurface("Focused Segmentation", title));
-        schedule(8.0, () -> fireButton(title, "All Settings"));
-        schedule(8.7, () -> collectLauncherContractSurface("All Settings", title));
+        schedule(8.0, () -> fireButton(title, "Parameter List"));
+        schedule(8.7, () -> collectLauncherContractSurface("Parameter List", title));
         schedule(9.1, () -> unlockAdvanced(title));
         schedule(9.8, () -> collectLauncherContractSurface("Advanced unlocked", title));
         schedule(10.2, () -> enterHeaderDropdownFallback(title));
@@ -959,21 +981,12 @@ public final class LauncherPreviewApp extends Application {
             return;
         }
         Node root = rootOptional.get();
-        root.lookupAll(".astra-input").stream()
-                .filter(TextField.class::isInstance)
-                .map(TextField.class::cast)
-                .filter(field -> "Unlock phrase".equals(field.getPromptText()))
+        root.lookupAll(".astra-combo").stream()
+                .filter(ComboBox.class::isInstance)
+                .map(ComboBox.class::cast)
+                .filter(combo -> combo.getItems().contains("Advanced"))
                 .findFirst()
-                .ifPresent(field -> {
-                    field.setText(GuiPresentation.advancedUnlockPhrase());
-                    field.fireEvent(new javafx.event.ActionEvent(field, field));
-                });
-        root.lookupAll(".button").stream()
-                .filter(Button.class::isInstance)
-                .map(Button.class::cast)
-                .filter(button -> "Unlock advanced".equals(button.getText()))
-                .findFirst()
-                .ifPresent(Button::fire);
+                .ifPresent(combo -> combo.setValue("Advanced"));
     }
 
     private static void showHeaderMenu(String title, String menuText) {
@@ -1003,19 +1016,12 @@ public final class LauncherPreviewApp extends Application {
     }
 
     private static void fireAdvancedViewButton(String title, String buttonText) {
-        findWindowRoot(title)
-                .flatMap(root -> firstNode(root, ".astra-advanced-settings-panel"))
-                .flatMap(panel -> panel.lookupAll(".button").stream()
-                        .filter(Button.class::isInstance)
-                        .map(Button.class::cast)
-                        .filter(button -> buttonText.equals(button.getText()))
-                        .findFirst())
-                .ifPresent(Button::fire);
+        fireButton(title, buttonText);
     }
 
     private static void fireFirstAdvancedSectionHeader(String title) {
         findWindowRoot(title)
-                .flatMap(root -> firstNode(root, ".astra-advanced-settings-panel"))
+                .flatMap(root -> firstNode(root, ".astra-routine-settings-panel"))
                 .flatMap(panel -> panel.lookupAll(".astra-collapsible-header").stream()
                         .filter(Node::isManaged)
                         .findFirst())
@@ -1849,11 +1855,13 @@ public final class LauncherPreviewApp extends Application {
         SnapshotCapture capture = snapshotNode(sceneRoot);
         BufferedImage buffered = SwingFXUtils.fromFXImage(capture.normalized(), null);
         List<DistanceMarker> markers = marginMarkers(sceneRoot);
+        List<GeometryMeasurement> measurements = geometryMeasurements(sceneRoot);
         drawDistanceMarkers(buffered, markers);
         File file = options.outputPath().resolve(name + ".png").toFile();
         try {
             ImageIO.write(buffered, "png", file);
             writeEdgeAudit(name, capture);
+            writeGeometryTables(name, measurements);
             System.out.println(file.getAbsolutePath());
             printLayoutDiagnostics(sceneRoot);
             markers.forEach(marker -> System.out.printf(
@@ -4373,6 +4381,55 @@ public final class LauncherPreviewApp extends Application {
             addMeasurement(measurements, "channel panel to settings panel", outerMargin,
                     settings.getMinY() - channel.getMaxY(), "INPUT_STACK_GAP");
         }
+        if (inputNode.isPresent() && settingsPanel.isPresent()) {
+            Bounds input = relativeBounds(sceneRoot, inputNode.get(), rootMinX, rootMinY);
+            Bounds settings = relativeBounds(sceneRoot, settingsPanel.get(), rootMinX, rootMinY);
+            addMeasurement(measurements, "dashboard panel bottom to input pane bottom",
+                    0.0,
+                    input.getMaxY() - settings.getMaxY(),
+                    "dashboard panel fills remaining input viewport height");
+        }
+        if (settingsPanel.isPresent() && dashboardFrame.isPresent()) {
+            Bounds settings = relativeBounds(sceneRoot, settingsPanel.get(), rootMinX, rootMinY);
+            Bounds frame = relativeBounds(sceneRoot, dashboardFrame.get(), rootMinX, rootMinY);
+            double leftInset = frame.getMinX() - settings.getMinX();
+            double rightInset = settings.getMaxX() - frame.getMaxX();
+            addMeasurement(measurements, "dashboard frame horizontal inset symmetry",
+                    0.0,
+                    leftInset - rightInset,
+                    "left inset equals right inset");
+        }
+        if (dashboardGrid.isPresent()) {
+            List<Bounds> cardBounds = dashboardGrid.get().lookupAll(".astra-settings-card").stream()
+                    .filter(Node::isManaged)
+                    .map(node -> relativeBounds(sceneRoot, node, rootMinX, rootMinY))
+                    .sorted(Comparator.comparingDouble(Bounds::getMinY)
+                            .thenComparingDouble(Bounds::getMinX))
+                    .toList();
+            int columns = (int) LauncherGeometryTokens.TRILATERAL_EDGE_COUNT;
+            if (cardBounds.size() == GuiPresentation.dashboardCards().size()) {
+                double minWidth = cardBounds.stream().mapToDouble(Bounds::getWidth).min().orElse(Double.NaN);
+                double maxWidth = cardBounds.stream().mapToDouble(Bounds::getWidth).max().orElse(Double.NaN);
+                double minHeight = cardBounds.stream().mapToDouble(Bounds::getHeight).min().orElse(Double.NaN);
+                double maxHeight = cardBounds.stream().mapToDouble(Bounds::getHeight).max().orElse(Double.NaN);
+                addMeasurement(measurements, "dashboard card width equality",
+                        0.0, maxWidth - minWidth, "maximum width - minimum width");
+                addMeasurement(measurements, "dashboard card height equality",
+                        0.0, maxHeight - minHeight, "maximum height - minimum height");
+                double firstHorizontalGap = cardBounds.get(1).getMinX() - cardBounds.get(0).getMaxX();
+                double secondHorizontalGap = cardBounds.get(columns - 1).getMinX()
+                        - cardBounds.get(columns - 2).getMaxX();
+                double firstVerticalGap = cardBounds.get(columns).getMinY() - cardBounds.get(0).getMaxY();
+                double secondVerticalGap = cardBounds.get(columns * 2).getMinY()
+                        - cardBounds.get(columns).getMaxY();
+                addMeasurement(measurements, "dashboard horizontal gap equality",
+                        0.0, firstHorizontalGap - secondHorizontalGap,
+                        "first column gap - second column gap");
+                addMeasurement(measurements, "dashboard vertical gap equality",
+                        0.0, firstVerticalGap - secondVerticalGap,
+                        "first row gap - second row gap");
+            }
+        }
         if (settingsPanel.isPresent() && advancedPanel.isPresent()) {
             Bounds settings = relativeBounds(sceneRoot, settingsPanel.get(), rootMinX, rootMinY);
             Bounds advanced = relativeBounds(sceneRoot, advancedPanel.get(), rootMinX, rootMinY);
@@ -5250,6 +5307,19 @@ public final class LauncherPreviewApp extends Application {
         firstNode(sceneRoot, ".astra-output-pane").ifPresent(output -> printNodeMetric(sceneRoot, "output pane", output));
         firstNode(sceneRoot, ".astra-main-action-bar").ifPresent(bar -> printNodeMetric(sceneRoot, "main action bar", bar));
         buttonByText(sceneRoot, "Run").ifPresent(run -> printNodeMetric(sceneRoot, "run button", run));
+        firstNode(sceneRoot, ".astra-routine-settings-panel").ifPresent(panel ->
+                printNodeMetric(sceneRoot, "settings panel", panel));
+        firstNode(sceneRoot, ".astra-card-dashboard-frame").ifPresent(frame ->
+                printNodeMetric(sceneRoot, "dashboard frame", frame));
+        firstNode(sceneRoot, ".astra-card-dashboard").ifPresent(grid -> {
+            printNodeMetric(sceneRoot, "dashboard grid", grid);
+            grid.lookupAll(".astra-settings-card").stream()
+                    .sorted(Comparator.comparingDouble((Node node) ->
+                                    node.localToScene(node.getBoundsInLocal()).getMinY())
+                            .thenComparingDouble(node ->
+                                    node.localToScene(node.getBoundsInLocal()).getMinX()))
+                    .forEach(card -> printNodeMetric(sceneRoot, "dashboard card", card));
+        });
     }
 
     private static void printNodeMetric(Node sceneRoot, String label, Node node) {

@@ -4419,8 +4419,8 @@
         }
       ]
     },
-    "sma-af647-oneshot": {
-      "id": "sma-af647-oneshot",
+    "marker-rescue": {
+      "id": "marker-rescue",
       "targets": [
         "NUCLEUS"
       ],
@@ -5341,6 +5341,88 @@
           "detailsMarkdown": "What it does: Reserved diagnostic flag recorded in cfg for future region-generation troubleshooting.\n\nWhen to change: Change this when auditing a run or investigating a failure.\n\nAnalysis consequence: This changes audit verbosity or diagnostic artifacts without changing intended analysis logic.\n\nDefault value: false."
         }
       ]
+    },
+    "count-nuclei": {
+      "id": "count-nuclei",
+      "targets": ["NUCLEUS"],
+      "runtimePreflight": {"requiresPython": false},
+      "visibleStages": [],
+      "scriptActions": ["RUN"],
+      "headerActions": [],
+      "imageScopes": ["CURRENT_IMAGE"],
+      "thresholdScopes": [],
+      "parameters": [
+        {"name":"DETECTION_CHANNEL","type":"String","defaultGroovy":"\"DAPI\"","helpGroovy":"\"Fluorescence channel used for nuclear segmentation; brightfield uses Hematoxylin OD.\"","editable":true,"internal":false,"group":"Channels & Markers","advanced":false,"uiOrder":3010,"detailsMarkdown":"Fluorescence nuclear channel. Brightfield images use QuPath hematoxylin color deconvolution."},
+        {"name":"REQUESTED_PIXEL_SIZE_UM","type":"double","defaultGroovy":"0.5d","helpGroovy":"\"Analysis pixel size in microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6010,"detailsMarkdown":"Requested segmentation resolution in microns per pixel."},
+        {"name":"BACKGROUND_RADIUS_UM","type":"double","defaultGroovy":"8.0d","helpGroovy":"\"Background subtraction radius in microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6020,"detailsMarkdown":"Local background subtraction radius used by QuPath watershed detection."},
+        {"name":"MEDIAN_RADIUS_UM","type":"double","defaultGroovy":"0.0d","helpGroovy":"\"Median-filter radius in microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":true,"uiOrder":6030,"detailsMarkdown":"Median-filter radius before segmentation; zero disables it."},
+        {"name":"SIGMA_UM","type":"double","defaultGroovy":"1.5d","helpGroovy":"\"Gaussian smoothing sigma in microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6040,"detailsMarkdown":"Gaussian smoothing scale before watershed segmentation."},
+        {"name":"MIN_NUCLEUS_AREA_UM2","type":"double","defaultGroovy":"10.0d","helpGroovy":"\"Minimum accepted nuclear area in square microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6050,"detailsMarkdown":"Minimum nuclear area retained after segmentation."},
+        {"name":"MAX_NUCLEUS_AREA_UM2","type":"double","defaultGroovy":"400.0d","helpGroovy":"\"Maximum accepted nuclear area in square microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6060,"detailsMarkdown":"Maximum nuclear area retained after segmentation."},
+        {"name":"INTENSITY_THRESHOLD","type":"double","defaultGroovy":"0.1d","helpGroovy":"\"Watershed detection intensity threshold.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6070,"detailsMarkdown":"QuPath watershed intensity threshold after modality-specific preprocessing."},
+        {"name":"CELL_EXPANSION_UM","type":"double","defaultGroovy":"0.0d","helpGroovy":"\"Cell expansion is zero for nucleus-only counting.\"","editable":false,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6080,"detailsMarkdown":"Zero preserves nucleus-only objects."},
+        {"name":"WATERSHED_POST_PROCESS","type":"boolean","defaultGroovy":"true","helpGroovy":"\"Apply QuPath watershed post-processing.\"","editable":true,"internal":false,"group":"Segmentation","advanced":true,"uiOrder":6090,"detailsMarkdown":"Separates touching candidate nuclei after thresholding."},
+        {"name":"SMOOTH_BOUNDARIES","type":"boolean","defaultGroovy":"true","helpGroovy":"\"Smooth detected object boundaries.\"","editable":true,"internal":false,"group":"Segmentation","advanced":true,"uiOrder":6100,"detailsMarkdown":"Applies QuPath boundary smoothing to detected objects."},
+        {"name":"MAKE_MEASUREMENTS","type":"boolean","defaultGroovy":"true","helpGroovy":"\"Add standard QuPath measurements to detected objects.\"","editable":true,"internal":false,"group":"Output & Export","advanced":false,"uiOrder":10010,"detailsMarkdown":"Adds standard shape and intensity measurements to created objects."}
+      ]
+    },
+    "count-cells": {
+      "id": "count-cells",
+      "targets": ["CELL"],
+      "runtimePreflight": {"requiresPython": false},
+      "visibleStages": [],
+      "scriptActions": ["RUN"],
+      "headerActions": [],
+      "imageScopes": ["CURRENT_IMAGE"],
+      "thresholdScopes": [],
+      "parameters": [
+        {"name":"DETECTION_CHANNEL","type":"String","defaultGroovy":"\"DAPI\"","helpGroovy":"\"Fluorescence channel used for nuclear segmentation; brightfield uses Hematoxylin OD.\"","editable":true,"internal":false,"group":"Channels & Markers","advanced":false,"uiOrder":3010,"detailsMarkdown":"Fluorescence nuclear channel. Brightfield images use QuPath hematoxylin color deconvolution."},
+        {"name":"REQUESTED_PIXEL_SIZE_UM","type":"double","defaultGroovy":"0.5d","helpGroovy":"\"Analysis pixel size in microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6010,"detailsMarkdown":"Requested segmentation resolution in microns per pixel."},
+        {"name":"BACKGROUND_RADIUS_UM","type":"double","defaultGroovy":"8.0d","helpGroovy":"\"Background subtraction radius in microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6020,"detailsMarkdown":"Local background subtraction radius used by QuPath watershed detection."},
+        {"name":"MEDIAN_RADIUS_UM","type":"double","defaultGroovy":"0.0d","helpGroovy":"\"Median-filter radius in microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":true,"uiOrder":6030,"detailsMarkdown":"Median-filter radius before segmentation; zero disables it."},
+        {"name":"SIGMA_UM","type":"double","defaultGroovy":"1.5d","helpGroovy":"\"Gaussian smoothing sigma in microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6040,"detailsMarkdown":"Gaussian smoothing scale before watershed segmentation."},
+        {"name":"MIN_NUCLEUS_AREA_UM2","type":"double","defaultGroovy":"10.0d","helpGroovy":"\"Minimum accepted nuclear area in square microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6050,"detailsMarkdown":"Minimum nuclear area retained after segmentation."},
+        {"name":"MAX_NUCLEUS_AREA_UM2","type":"double","defaultGroovy":"400.0d","helpGroovy":"\"Maximum accepted nuclear area in square microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6060,"detailsMarkdown":"Maximum nuclear area retained after segmentation."},
+        {"name":"INTENSITY_THRESHOLD","type":"double","defaultGroovy":"0.1d","helpGroovy":"\"Watershed detection intensity threshold.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6070,"detailsMarkdown":"QuPath watershed intensity threshold after modality-specific preprocessing."},
+        {"name":"CELL_EXPANSION_UM","type":"double","defaultGroovy":"5.0d","helpGroovy":"\"Distance in microns used to estimate each cell boundary from its nucleus.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6080,"detailsMarkdown":"Expands each segmented nucleus to estimate a cell boundary while resolving overlaps."},
+        {"name":"WATERSHED_POST_PROCESS","type":"boolean","defaultGroovy":"true","helpGroovy":"\"Apply QuPath watershed post-processing.\"","editable":true,"internal":false,"group":"Segmentation","advanced":true,"uiOrder":6090,"detailsMarkdown":"Separates touching candidate nuclei after thresholding."},
+        {"name":"SMOOTH_BOUNDARIES","type":"boolean","defaultGroovy":"true","helpGroovy":"\"Smooth detected object boundaries.\"","editable":true,"internal":false,"group":"Segmentation","advanced":true,"uiOrder":6100,"detailsMarkdown":"Applies QuPath boundary smoothing to detected objects."},
+        {"name":"MAKE_MEASUREMENTS","type":"boolean","defaultGroovy":"true","helpGroovy":"\"Add standard QuPath measurements to detected objects.\"","editable":true,"internal":false,"group":"Output & Export","advanced":false,"uiOrder":10010,"detailsMarkdown":"Adds standard shape and intensity measurements to created cells."}
+      ]
+    },
+    "summarize-objects": {
+      "id": "summarize-objects",
+      "targets": [],
+      "runtimePreflight": {
+        "requiresPython": false
+      },
+      "visibleStages": [],
+      "scriptActions": [
+        "RUN"
+      ],
+      "headerActions": [],
+      "imageScopes": [
+        "CURRENT_IMAGE"
+      ],
+      "thresholdScopes": [],
+      "parameters": []
+    },
+    "save-current-image": {
+      "id": "save-current-image",
+      "targets": [],
+      "runtimePreflight": {
+        "requiresPython": false
+      },
+      "visibleStages": [],
+      "scriptActions": [
+        "RUN"
+      ],
+      "headerActions": [],
+      "imageScopes": [
+        "CURRENT_IMAGE"
+      ],
+      "thresholdScopes": [],
+      "parameters": []
     }
   }
 }

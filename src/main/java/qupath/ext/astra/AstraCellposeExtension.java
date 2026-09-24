@@ -168,6 +168,10 @@ public class AstraCellposeExtension extends CellposeExtension {
     }
 
     private void installSetupActions(QuPathGUI qupath) {
+        Action workflowBuilder = new Action("Workflow Builder", event ->
+                WorkflowBuilder.show(qupath));
+        MenuTools.addMenuItems(qupath.getMenu("Extensions>ASTRA", true), workflowBuilder);
+
         Action installRuntime = new Action("Install/Repair Python Runtime", event ->
                 RuntimeInstaller.installOrRepairAsync(runtimePythonPath));
         MenuTools.addMenuItems(qupath.getMenu("Extensions>ASTRA", true), installRuntime);

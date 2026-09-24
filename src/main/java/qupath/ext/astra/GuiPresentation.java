@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Central presentation contract between script constants and the JavaFX
@@ -16,6 +17,8 @@ final class GuiPresentation {
 
     private static final ManifestSet MANIFESTS = ManifestSet.load();
     private static final List<StandardGroup> STANDARD_GROUPS = loadStandardGroups();
+    private static final List<DashboardCard> DASHBOARD_CARDS = loadDashboardCards();
+    private static final ParameterModeConfig PARAMETER_MODES = loadParameterModes();
 
     private GuiPresentation() {
         throw new AssertionError("No instances");
@@ -69,23 +72,23 @@ final class GuiPresentation {
         return MANIFESTS.description(pipelineName);
     }
 
-    static boolean advancedControlsLockedByDefault() {
-        Object raw = MANIFESTS.advancedControls().get("lockedByDefault");
-        return raw instanceof Boolean locked ? locked : true;
+    static String extensionReleaseTag() {
+        return MANIFESTS.extensionReleaseTag();
     }
 
-    static String advancedUnlockPhrase() {
-        Object raw = MANIFESTS.advancedControls().get("unlockPhrase");
-        String phrase = raw == null ? "" : String.valueOf(raw).trim();
-        return phrase.isBlank() ? "ADVANCED" : phrase;
+    static String defaultParameterMode() {
+        return PARAMETER_MODES.defaultMode();
     }
 
-    static String advancedControlsDescription() {
-        Object raw = MANIFESTS.advancedControls().get("description");
-        String description = raw == null ? "" : String.valueOf(raw).trim();
-        return description.isBlank()
-                ? "Reveal the complete developer-oriented pipeline controls."
-                : description;
+    static String parameterMode(String group, boolean advanced) {
+        if (PARAMETER_MODES.advancedOnlyGroups().contains(group)) {
+            return "ADVANCED";
+        }
+        return advanced ? "STANDARD" : "BASIC";
+    }
+
+    static List<DashboardCard> dashboardCards() {
+        return DASHBOARD_CARDS;
     }
 
     static List<StandardGroup> standardGroups() {
@@ -158,6 +161,39 @@ final class GuiPresentation {
                 .sorted(Comparator.comparingInt(StandardGroup::order))
                 .toList();
         return groups.isEmpty() ? fallbackStandardGroups() : groups;
+    }
+
+    private static List<DashboardCard> loadDashboardCards() {
+        List<DashboardCard> cards = MANIFESTS.dashboardCards().stream()
+                .map(DashboardCard::fromManifest)
+                .filter(card -> !card.name().isBlank() && !card.groups().isEmpty())
+                .sorted(Comparator.comparingInt(DashboardCard::order))
+                .toList();
+        return cards.isEmpty() ? fallbackDashboardCards() : cards;
+    }
+
+    private static ParameterModeConfig loadParameterModes() {
+        Map<String, Object> map = MANIFESTS.parameterModes();
+        String defaultMode = StandardGroup.text(map.get("default"));
+        Set<String> advancedOnlyGroups = map.get("advancedOnlyGroups") instanceof List<?> values
+                ? values.stream().map(StandardGroup::text).filter(value -> !value.isBlank()).collect(java.util.stream.Collectors.toUnmodifiableSet())
+                : Set.of();
+        return new ParameterModeConfig(defaultMode.isBlank() ? "BASIC" : defaultMode,
+                advancedOnlyGroups);
+    }
+
+    private static List<DashboardCard> fallbackDashboardCards() {
+        return List.of(
+                new DashboardCard("workflow", "Workflow", "Choose what to run and how to stage it.", 1, "Essential", "teal", List.of("Run Setup")),
+                new DashboardCard("images-regions", "Images & Regions", "Choose images, regions, and QuPath classes.", 2, "Essential", "bluegray", List.of("Images & Scope", "Classes & Regions")),
+                new DashboardCard("channels-markers", "Channels & Markers", "Map biological stains to image channels.", 3, "Essential", "teal", List.of("Channels & Markers")),
+                new DashboardCard("models", "Models", "Choose model sources and saved assets.", 4, "Routine", "bluegray", List.of("Models")),
+                new DashboardCard("segmentation", "Segmentation", "Control object detection and mask recovery.", 5, "Routine", "teal", List.of("Segmentation")),
+                new DashboardCard("classification", "Classification", "Define biological identities and inclusion rules.", 6, "Essential", "sage", List.of("Biological Classification")),
+                new DashboardCard("thresholds", "Thresholds & Background", "Resolve positivity and background correction.", 7, "Routine", "amber", List.of("Thresholds & Background")),
+                new DashboardCard("runtime-diagnostics", "Runtime & Diagnostics", "Tune execution and inspect troubleshooting controls.", 8, "Optional", "gold", List.of("Runtime & Performance", "Diagnostics", "Developer Overrides", "Advanced")),
+                new DashboardCard("output", "Output & Export", "Choose result writing and export behavior.", 9, "Routine", "bluegray", List.of("Output & Export"))
+        );
     }
 
     private static List<StandardGroup> fallbackStandardGroups() {
@@ -249,5 +285,33 @@ final class GuiPresentation {
                 return fallback;
             }
         }
+    }
+
+    record DashboardCard(String name, String label, String description, int order,
+                         String importance, String accentTheme, List<String> groups) {
+
+        static DashboardCard fromManifest(Map<String, Object> map) {
+            String name = StandardGroup.text(map.get("name"));
+            String label = StandardGroup.text(map.get("label"));
+            String description = StandardGroup.text(map.get("description"));
+            String importance = StandardGroup.text(map.get("importance"));
+            String accentTheme = StandardGroup.text(map.get("accentTheme"));
+            int order = StandardGroup.number(map.get("order"), Integer.MAX_VALUE);
+            List<String> groups = map.get("groups") instanceof List<?> values
+                    ? values.stream().map(StandardGroup::text).filter(value -> !value.isBlank()).toList()
+                    : List.of();
+            return new DashboardCard(
+                    name,
+                    label.isBlank() ? name : label,
+                    description.isBlank() ? "Review related settings." : description,
+                    order,
+                    importance.isBlank() ? "Routine" : importance,
+                    accentTheme.isBlank() ? "bluegray" : accentTheme,
+                    List.copyOf(groups)
+            );
+        }
+    }
+
+    private record ParameterModeConfig(String defaultMode, Set<String> advancedOnlyGroups) {
     }
 }

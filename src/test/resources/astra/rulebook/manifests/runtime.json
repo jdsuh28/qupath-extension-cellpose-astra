@@ -20,8 +20,12 @@
     "pipeline-cellpose-validation": "modules/pipelines/cellpose/validation/src/main/groovy",
     "pipeline-vascular": "modules/pipelines/analysis/vascular/src/main/groovy",
     "pipeline-colocalization": "modules/pipelines/analysis/colocalization/src/main/groovy",
-    "tool-sma-af647-oneshot": "modules/tools/sma-af647-oneshot/src/main/groovy",
-    "tool-generate-regions": "modules/tools/generate-regions/src/main/groovy"
+    "tool-marker-rescue": "modules/tools/marker-rescue/src/main/groovy",
+    "tool-generate-regions": "modules/tools/generate-regions/src/main/groovy",
+    "tool-count-nuclei": "modules/tools/count-nuclei/src/main/groovy",
+    "tool-count-cells": "modules/tools/count-cells/src/main/groovy",
+    "tool-summarize-objects": "modules/tools/summarize-objects/src/main/groovy",
+    "tool-save-current-image": "modules/tools/save-current-image/src/main/groovy"
   },
   "runnables": {
     "training": {
@@ -664,8 +668,8 @@
       "entrypointPath": "modules/pipelines/analysis/colocalization/src/main/groovy/colocalization.groovy",
       "runnerPath": "modules/pipelines/analysis/colocalization/src/main/groovy/ColocalizationRunner.groovy"
     },
-    "sma-af647-oneshot": {
-      "moduleId": "tool-sma-af647-oneshot",
+    "marker-rescue": {
+      "moduleId": "tool-marker-rescue",
       "entrypoint": "smaAf647Oneshot.groovy",
       "runner": "SmaAf647OneshotRunner.groovy",
       "classLoadPhases": {
@@ -743,14 +747,14 @@
             "alias": "AnalysisStageTransaction"
           },
           {
-            "root": "tool-sma-af647-oneshot",
+            "root": "tool-marker-rescue",
             "file": "SmaAf647OneshotTool.groovy",
             "alias": "SmaAf647OneshotTool"
           }
         ]
       },
-      "entrypointPath": "modules/tools/sma-af647-oneshot/src/main/groovy/smaAf647Oneshot.groovy",
-      "runnerPath": "modules/tools/sma-af647-oneshot/src/main/groovy/SmaAf647OneshotRunner.groovy"
+      "entrypointPath": "modules/tools/marker-rescue/src/main/groovy/smaAf647Oneshot.groovy",
+      "runnerPath": "modules/tools/marker-rescue/src/main/groovy/SmaAf647OneshotRunner.groovy"
     },
     "generate-regions": {
       "moduleId": "tool-generate-regions",
@@ -762,6 +766,62 @@
       },
       "entrypointPath": "modules/tools/generate-regions/src/main/groovy/generateRegions.groovy",
       "runnerPath": "modules/tools/generate-regions/src/main/groovy/GenerateRegionsRunner.groovy"
+    },
+    "count-nuclei": {
+      "moduleId": "tool-count-nuclei",
+      "entrypoint": "countNuclei.groovy",
+      "runner": "CountNucleiRunner.groovy",
+      "classLoadPhases": {
+        "preflight": [],
+        "main": [
+          {
+            "root": "shared-core",
+            "file": "ObjectCountingSegmentation.groovy",
+            "alias": "ObjectCountingSegmentation"
+          }
+        ]
+      },
+      "entrypointPath": "modules/tools/count-nuclei/src/main/groovy/countNuclei.groovy",
+      "runnerPath": "modules/tools/count-nuclei/src/main/groovy/CountNucleiRunner.groovy"
+    },
+    "count-cells": {
+      "moduleId": "tool-count-cells",
+      "entrypoint": "countCells.groovy",
+      "runner": "CountCellsRunner.groovy",
+      "classLoadPhases": {
+        "preflight": [],
+        "main": [
+          {
+            "root": "shared-core",
+            "file": "ObjectCountingSegmentation.groovy",
+            "alias": "ObjectCountingSegmentation"
+          }
+        ]
+      },
+      "entrypointPath": "modules/tools/count-cells/src/main/groovy/countCells.groovy",
+      "runnerPath": "modules/tools/count-cells/src/main/groovy/CountCellsRunner.groovy"
+    },
+    "summarize-objects": {
+      "moduleId": "tool-summarize-objects",
+      "entrypoint": "summarizeObjects.groovy",
+      "runner": "SummarizeObjectsRunner.groovy",
+      "classLoadPhases": {
+        "preflight": [],
+        "main": []
+      },
+      "entrypointPath": "modules/tools/summarize-objects/src/main/groovy/summarizeObjects.groovy",
+      "runnerPath": "modules/tools/summarize-objects/src/main/groovy/SummarizeObjectsRunner.groovy"
+    },
+    "save-current-image": {
+      "moduleId": "tool-save-current-image",
+      "entrypoint": "saveCurrentImage.groovy",
+      "runner": "SaveCurrentImageRunner.groovy",
+      "classLoadPhases": {
+        "preflight": [],
+        "main": []
+      },
+      "entrypointPath": "modules/tools/save-current-image/src/main/groovy/saveCurrentImage.groovy",
+      "runnerPath": "modules/tools/save-current-image/src/main/groovy/SaveCurrentImageRunner.groovy"
     }
   }
 }

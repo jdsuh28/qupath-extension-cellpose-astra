@@ -23,13 +23,13 @@ final class LauncherTypographyTokens {
     static final double FONT_SIZE_BODY = 12.0;
     static final double FONT_SIZE_LARGE_BODY = 12.5;
     static final double FONT_SIZE_CARD_LABEL = 13.0;
-    static final double FONT_SIZE_HEADER_SUBTITLE = 13.5;
     static final double FONT_SIZE_CARD_TITLE = 14.0;
     static final double FONT_SIZE_FOCUSED_TITLE = 16.0;
     static final double FONT_SIZE_SECTION_TITLE = 18.0;
     static final double FONT_SIZE_DIALOG_TITLE = 20.0;
     static final double FONT_SIZE_HELP_TITLE = 22.0;
-    static final double FONT_SIZE_HEADER_TITLE = 28.0;
+    static final double FONT_SIZE_HEADER_SUBTITLE = FONT_SIZE_BODY * 2.0;
+    static final double FONT_SIZE_HEADER_TITLE = FONT_SIZE_HEADER_SUBTITLE * 2.0;
 
     static final double TEXT_OPTICAL_INSET_CORRECTION =
             LauncherGeometryTokens.FLUSH;

@@ -265,21 +265,30 @@
 
 .astra-theme-soft .astra-header-title,
 .astra-theme-soft .astra-header-subtitle,
-.astra-theme-soft .astra-header-provenance,
-.astra-theme-soft .astra-workflow-arrow {
+.astra-theme-soft .astra-header-identity-kind,
+.astra-theme-soft .astra-header-provenance {
     -fx-text-fill: -launcher-color-ink;
 }
 
-.astra-theme-soft .astra-workflow-chip-idle {
-    -fx-background-color: -launcher-soft-translucent-white-58;
-    -fx-border-color: -launcher-color-surface-border;
+.astra-theme-soft .astra-workflow-step-idle {
+    -fx-text-fill: -launcher-color-muted;
 }
 
-.astra-theme-soft .astra-workflow-chip-idle .astra-owned-panel-text,
+.astra-theme-soft .astra-workflow-step-idle .astra-owned-panel-text,
 .astra-theme-soft .astra-header-action-page-title .astra-owned-panel-text,
 .astra-theme-soft .astra-header-action-page-subtitle .astra-owned-panel-text,
 .astra-theme-soft .astra-header-options-label .astra-owned-panel-text {
     -fx-fill: -launcher-color-ink;
+}
+
+.astra-theme-soft .astra-workflow-step-active,
+.astra-theme-soft .astra-workflow-step-active .astra-owned-panel-text {
+    -fx-text-fill: -launcher-color-teal-dark;
+    -fx-fill: -launcher-color-teal-dark;
+}
+
+.astra-theme-soft .astra-workflow-chevron {
+    -fx-stroke: -launcher-color-muted;
 }
 
 .astra-theme-soft .astra-output-status {
@@ -521,8 +530,8 @@
 }
 
 .astra-theme-slate .astra-header-subtitle,
-.astra-theme-slate .astra-header-provenance,
-.astra-theme-slate .astra-workflow-arrow {
+.astra-theme-slate .astra-header-identity-kind,
+.astra-theme-slate .astra-header-provenance {
     -fx-text-fill: -launcher-slate-header-muted;
 }
 
@@ -530,16 +539,21 @@
     -fx-text-fill: -launcher-slate-ink;
 }
 
-.astra-theme-slate .astra-workflow-chip-idle {
-    -fx-background-color: -launcher-slate-translucent-white-58;
-    -fx-border-color: -launcher-slate-border;
-}
-
-.astra-theme-slate .astra-workflow-chip-idle .astra-owned-panel-text,
+.astra-theme-slate .astra-workflow-step-idle .astra-owned-panel-text,
 .astra-theme-slate .astra-header-action-page-title .astra-owned-panel-text,
 .astra-theme-slate .astra-header-action-page-subtitle .astra-owned-panel-text,
 .astra-theme-slate .astra-header-options-label .astra-owned-panel-text {
     -fx-fill: -launcher-slate-ink;
+}
+
+.astra-theme-slate .astra-workflow-step-active,
+.astra-theme-slate .astra-workflow-step-active .astra-owned-panel-text {
+    -fx-text-fill: -launcher-slate-header-ink;
+    -fx-fill: -launcher-slate-header-ink;
+}
+
+.astra-theme-slate .astra-workflow-chevron {
+    -fx-stroke: -launcher-slate-header-muted;
 }
 
 .astra-theme-slate .astra-output-status-warning {
@@ -775,8 +789,7 @@
 }
 
 .astra-badge .astra-owned-panel-text,
-.astra-badge-advanced .astra-owned-panel-text,
-.astra-workflow-chip .astra-owned-panel-text {
+.astra-badge-advanced .astra-owned-panel-text {
     -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     -fx-font-size: 10.5px;
     -fx-font-weight: bold;
@@ -803,30 +816,35 @@
 }
 
 .astra-header-title {
-    -fx-font-size: 28px;
+    -fx-font-size: 48px;
     -fx-font-weight: bold;
     -fx-text-fill: -launcher-color-white;
 }
 
-.astra-header-subtitle {
-    -fx-font-size: 13.5px;
+.astra-header-identity {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.astra-header-identity-kind {
+    -fx-font-size: 10.5px;
     -fx-font-weight: bold;
+    -fx-text-fill: -launcher-color-hex-b8d4d6;
+}
+
+.astra-header-subtitle {
+    -fx-font-size: 24px;
+    -fx-font-weight: normal;
     -fx-text-fill: -launcher-color-hex-dcefee;
     -fx-line-spacing: 2px;
 }
 
 .astra-header-provenance {
     -fx-font-size: 11px;
-    -fx-font-weight: bold;
+    -fx-font-weight: normal;
     -fx-text-fill: -launcher-color-hex-b8d4d6;
-}
-
-.astra-workflow-chip {
-    -fx-font-size: 12px;
-    -fx-font-weight: bold;
-    -fx-padding: 7px 12px;
-    -fx-background-radius: 16px;
-    -fx-border-radius: 16px;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
 }
 
 .astra-workflow-strip {
@@ -835,36 +853,46 @@
     -fx-border-color: -launcher-color-transparent;
 }
 
-.astra-workflow-chip .astra-owned-panel-text {
+.astra-workflow-step .astra-owned-panel-text {
     -fx-font-family: "Inter", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-    -fx-font-size: 12px;
-    -fx-font-weight: bold;
+    -fx-font-size: 10.5px;
+    -fx-font-weight: normal;
 }
 
-.astra-workflow-chip-active {
-    -fx-background-color: -launcher-color-white;
+.astra-workflow-step {
+    -fx-padding: 0px;
+    -fx-background-color: -launcher-color-rgba-255-255-255-0p18;
+    -fx-border-color: -launcher-color-rgba-255-255-255-0p22;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-border-width: 1px;
+}
+
+.astra-workflow-step-active {
     -fx-text-fill: -launcher-color-teal-dark;
+    -fx-background-color: -launcher-color-white;
     -fx-border-color: -launcher-color-white;
 }
 
-.astra-workflow-chip-active .astra-owned-panel-text {
+.astra-workflow-step-active .astra-owned-panel-text {
     -fx-fill: -launcher-color-teal-dark;
+    -fx-font-weight: bold;
 }
 
-.astra-workflow-chip-idle {
-    -fx-background-color: -launcher-color-rgba-255-255-255-0p18;
+.astra-workflow-step-idle {
     -fx-text-fill: -launcher-color-hex-bfd3d4;
-    -fx-border-color: -launcher-color-rgba-255-255-255-0p22;
 }
 
-.astra-workflow-chip-idle .astra-owned-panel-text {
+.astra-workflow-step-idle .astra-owned-panel-text {
     -fx-fill: -launcher-color-hex-bfd3d4;
 }
 
-.astra-workflow-arrow {
-    -fx-font-size: 14px;
-    -fx-font-weight: bold;
-    -fx-text-fill: -launcher-color-hex-d9e7e8;
+.astra-workflow-chevron {
+    -fx-fill: transparent;
+    -fx-stroke: -launcher-color-hex-d9e7e8;
+    -fx-stroke-width: 1px;
+    -fx-stroke-line-cap: round;
+    -fx-stroke-line-join: round;
 }
 
 .astra-header-action-rail {
@@ -1123,10 +1151,6 @@
     -fx-font-weight: bold;
     -fx-text-fill: -launcher-color-muted;
     -fx-line-spacing: 2px;
-}
-
-.astra-card-dashboard {
-    -fx-padding: 2px 6px 2px 6px;
 }
 
 .astra-card-dashboard-frame {
@@ -2686,4 +2710,223 @@
     -fx-font-size: 11px;
     -fx-text-fill: -launcher-color-ink;
     -fx-control-inner-background: -launcher-color-hex-fbfdfe;
+}
+
+/* Workflow Builder */
+
+.astra-workflow-builder {
+    -fx-background-color: -launcher-color-paper;
+}
+
+.astra-workflow-builder-title {
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -launcher-color-white;
+}
+
+.astra-workflow-builder-subtitle {
+    -fx-font-size: 12px;
+    -fx-text-fill: -launcher-color-hex-dcefee;
+}
+
+.astra-workflow-catalog,
+.astra-workflow-lane-panel {
+    -fx-background-color: -launcher-color-white-hex;
+    -fx-border-color: -launcher-color-surface-border;
+    -fx-border-width: 1px;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+}
+
+.astra-workflow-panel-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -launcher-color-ink;
+}
+
+.astra-workflow-panel-description,
+.astra-workflow-tool-description,
+.astra-workflow-empty,
+.astra-workflow-status,
+.astra-workflow-validation {
+    -fx-font-size: 12px;
+    -fx-text-fill: -launcher-color-muted;
+}
+
+.astra-workflow-scroll {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.astra-workflow-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.astra-workflow-tool-card,
+.astra-workflow-lane-card {
+    -fx-background-color: -launcher-color-surface-soft;
+    -fx-border-color: -launcher-color-control-border-soft;
+    -fx-border-width: 1px;
+    -fx-background-radius: 7px;
+    -fx-border-radius: 7px;
+}
+
+.astra-workflow-tool-card:hover {
+    -fx-border-color: -launcher-color-teal;
+}
+
+.astra-workflow-step-success {
+    -fx-background-color: -launcher-color-success-surface;
+    -fx-border-color: -launcher-color-success-border;
+}
+
+.astra-workflow-step-failed {
+    -fx-background-color: -launcher-color-danger-surface;
+    -fx-border-color: -launcher-color-danger-border;
+}
+
+.astra-workflow-step-running {
+    -fx-border-color: -launcher-color-teal;
+}
+
+.astra-workflow-step-cancelled {
+    -fx-background-color: -launcher-color-warning-surface;
+}
+
+.astra-workflow-step-skipped {
+    -fx-background-color: -launcher-color-paper;
+}
+
+.astra-workflow-tool-category,
+.astra-workflow-mode-badge {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -launcher-color-teal-dark;
+}
+
+.astra-workflow-tool-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -launcher-color-ink;
+}
+
+.astra-workflow-empty-lane {
+    -fx-background-color: -launcher-color-surface-soft;
+    -fx-border-color: -launcher-color-control-border-soft;
+    -fx-border-style: segments(6px, 6px);
+    -fx-border-width: 1px;
+    -fx-background-radius: 7px;
+    -fx-border-radius: 7px;
+}
+
+.astra-workflow-drop-slot {
+    -fx-background-color: transparent;
+    -fx-background-radius: 5px;
+}
+
+.astra-workflow-drop-slot-active {
+    -fx-background-color: -launcher-color-success-surface;
+    -fx-border-color: -launcher-color-success-border;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+}
+
+.astra-workflow-step-number {
+    -fx-alignment: center;
+    -fx-min-width: 32px;
+    -fx-min-height: 32px;
+    -fx-background-color: -launcher-color-teal;
+    -fx-background-radius: 16px;
+    -fx-text-fill: -launcher-color-white;
+    -fx-font-weight: bold;
+}
+
+.astra-workflow-step-number-success {
+    -fx-background-color: -launcher-color-success-text;
+}
+
+.astra-workflow-step-number-failed {
+    -fx-background-color: -launcher-color-danger-text;
+}
+
+.astra-workflow-step-number-skipped {
+    -fx-background-color: -launcher-color-muted;
+}
+
+.astra-workflow-step-number-cancelled {
+    -fx-background-color: -launcher-color-warning-text;
+}
+
+.astra-workflow-step-result {
+    -fx-alignment: center-left;
+}
+
+.astra-workflow-step-message {
+    -fx-font-size: 12px;
+}
+
+.astra-workflow-step-message-running {
+    -fx-text-fill: -launcher-color-teal-dark;
+}
+
+.astra-workflow-step-message-success {
+    -fx-text-fill: -launcher-color-success-text;
+    -fx-font-weight: bold;
+}
+
+.astra-workflow-step-message-failed {
+    -fx-text-fill: -launcher-color-danger-text;
+    -fx-font-weight: bold;
+}
+
+.astra-workflow-step-message-skipped {
+    -fx-text-fill: -launcher-color-muted;
+}
+
+.astra-workflow-step-message-cancelled {
+    -fx-text-fill: -launcher-color-warning-text;
+}
+
+.astra-workflow-resume-button {
+    -fx-background-color: -launcher-color-white-hex;
+    -fx-border-color: -launcher-color-danger-border;
+    -fx-text-fill: -launcher-color-danger-text;
+}
+
+.astra-workflow-validation-valid,
+.astra-workflow-status-success {
+    -fx-text-fill: -launcher-color-success-text;
+}
+
+.astra-workflow-validation-invalid,
+.astra-workflow-status-warning {
+    -fx-text-fill: -launcher-color-warning-text;
+}
+
+.astra-workflow-status-error {
+    -fx-text-fill: -launcher-color-danger-text;
+}
+
+.astra-workflow-status-running {
+    -fx-text-fill: -launcher-color-teal-dark;
+    -fx-font-weight: bold;
+}
+
+.astra-workflow-progress {
+    -fx-accent: -launcher-color-teal;
+}
+
+.astra-workflow-log-disclosure {
+    -fx-background-color: -launcher-color-white-hex;
+    -fx-border-color: -launcher-color-surface-border;
+    -fx-border-width: 1px;
+    -fx-background-radius: 7px;
+    -fx-border-radius: 7px;
+}
+
+.astra-workflow-log {
+    -fx-font-family: -launcher-font-stack-mono;
+    -fx-font-size: 11px;
+    -fx-text-fill: -launcher-color-ink;
+    -fx-control-inner-background: -launcher-color-field-background;
 }

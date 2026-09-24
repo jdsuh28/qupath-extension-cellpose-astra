@@ -1,11 +1,25 @@
 {
   "schemaVersion": 1,
   "sourcePath": "rulebook/manifests/gui.json",
-  "advancedControls": {
-    "lockedByDefault": true,
-    "unlockPhrase": "ADVANCED",
-    "description": "Reveals complete developer-oriented pipeline controls in the GUI. This is intentional friction, not security."
+  "parameterModes": {
+    "default": "BASIC",
+    "advancedOnlyGroups": [
+      "Diagnostics",
+      "Developer Overrides",
+      "Advanced"
+    ]
   },
+  "dashboardCards": [
+    {"name": "workflow", "label": "Workflow", "description": "Choose what to run and how to stage it.", "order": 1, "importance": "Essential", "accentTheme": "teal", "groups": ["Run Setup"]},
+    {"name": "images-regions", "label": "Images & Regions", "description": "Choose images, regions, and QuPath classes.", "order": 2, "importance": "Essential", "accentTheme": "bluegray", "groups": ["Images & Scope", "Classes & Regions"]},
+    {"name": "channels-markers", "label": "Channels & Markers", "description": "Map biological stains to image channels.", "order": 3, "importance": "Essential", "accentTheme": "teal", "groups": ["Channels & Markers"]},
+    {"name": "models", "label": "Models", "description": "Choose model sources and saved assets.", "order": 4, "importance": "Routine", "accentTheme": "bluegray", "groups": ["Models"]},
+    {"name": "segmentation", "label": "Segmentation", "description": "Control object detection and mask recovery.", "order": 5, "importance": "Routine", "accentTheme": "teal", "groups": ["Segmentation"]},
+    {"name": "classification", "label": "Classification", "description": "Define biological identities and inclusion rules.", "order": 6, "importance": "Essential", "accentTheme": "sage", "groups": ["Biological Classification"]},
+    {"name": "thresholds", "label": "Thresholds & Background", "description": "Resolve positivity and background correction.", "order": 7, "importance": "Routine", "accentTheme": "amber", "groups": ["Thresholds & Background"]},
+    {"name": "runtime-diagnostics", "label": "Runtime & Diagnostics", "description": "Tune execution and inspect troubleshooting controls.", "order": 8, "importance": "Optional", "accentTheme": "gold", "groups": ["Runtime & Performance", "Diagnostics", "Developer Overrides", "Advanced"]},
+    {"name": "output", "label": "Output & Export", "description": "Choose result writing and export behavior.", "order": 9, "importance": "Routine", "accentTheme": "bluegray", "groups": ["Output & Export"]}
+  ],
   "standardGroups": [
     {
       "name": "Run Setup",
@@ -411,8 +425,12 @@
     "validation",
     "vascular",
     "colocalization",
-    "sma-af647-oneshot",
-    "generate-regions"
+    "marker-rescue",
+    "generate-regions",
+    "count-nuclei",
+    "count-cells",
+    "summarize-objects",
+    "save-current-image"
   ],
   "runnables": {
     "training": {
@@ -498,8 +516,8 @@
         "RESET_PROJECT"
       ]
     },
-    "sma-af647-oneshot": {
-      "id": "sma-af647-oneshot",
+    "marker-rescue": {
+      "id": "marker-rescue",
       "displayName": "SMA-Gated Nuclear Marker Rescue",
       "menuPath": "Analysis>SMA-Gated Nuclear Marker Rescue",
       "kind": "tool",
@@ -525,6 +543,50 @@
         "Generate Regions"
       ],
       "workflowActiveLabel": "Generate Regions",
+      "headerActions": []
+    },
+    "count-nuclei": {
+      "id": "count-nuclei",
+      "displayName": "Count Nuclei",
+      "menuPath": "Tools>Count Nuclei",
+      "kind": "tool",
+      "description": "Segment and count nuclei using a fluorescence channel or brightfield hematoxylin deconvolution.",
+      "workflowSequence": ["Count Nuclei"],
+      "workflowActiveLabel": "Count Nuclei",
+      "headerActions": []
+    },
+    "count-cells": {
+      "id": "count-cells",
+      "displayName": "Count Cells",
+      "menuPath": "Tools>Count Cells",
+      "kind": "tool",
+      "description": "Segment nuclei, expand cell boundaries, and count cells.",
+      "workflowSequence": ["Count Cells"],
+      "workflowActiveLabel": "Count Cells",
+      "headerActions": []
+    },
+    "summarize-objects": {
+      "id": "summarize-objects",
+      "displayName": "Summarize Image Objects",
+      "menuPath": "Tools>Summarize Image Objects",
+      "kind": "tool",
+      "description": "Count objects in the current QuPath image without modifying them.",
+      "workflowSequence": [
+        "Summarize Image Objects"
+      ],
+      "workflowActiveLabel": "Summarize Image Objects",
+      "headerActions": []
+    },
+    "save-current-image": {
+      "id": "save-current-image",
+      "displayName": "Save Current Image",
+      "menuPath": "Tools>Save Current Image",
+      "kind": "tool",
+      "description": "Save the active image data to its current QuPath project entry.",
+      "workflowSequence": [
+        "Save Current Image"
+      ],
+      "workflowActiveLabel": "Save Current Image",
       "headerActions": []
     }
   }

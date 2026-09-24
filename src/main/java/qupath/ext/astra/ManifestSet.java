@@ -108,12 +108,41 @@ final class ManifestSet {
         return stringMap(gui().get("optionLabels"));
     }
 
-    Map<String, Object> advancedControls() {
-        return mapValue(gui().get("advancedControls"));
+    Map<String, Object> parameterModes() {
+        return mapValue(gui().get("parameterModes"));
     }
 
     List<Map<String, Object>> standardGroups() {
         return mapList(gui().get("standardGroups"));
+    }
+
+    List<Map<String, Object>> dashboardCards() {
+        return mapList(gui().get("dashboardCards"));
+    }
+
+    List<Map<String, Object>> workflowBuilderTools() {
+        Map<String, Object> moduleRecords = mapValue(modules().get("modules"));
+        Map<String, Object> runnableModules = mapValue(modules().get("runnableModules"));
+        java.util.ArrayList<Map<String, Object>> tools = new java.util.ArrayList<>();
+        for (String runnableId : runnableOrder()) {
+            Map<String, Object> runnableModule = mapValue(runnableModules.get(runnableId));
+            Map<String, Object> module = mapValue(moduleRecords.get(stringValue(runnableModule.get("moduleId"))));
+            Map<String, Object> builder = mapValue(module.get("builder"));
+            if (!"tool".equals(stringValue(module.get("kind")))
+                    || !booleanValue(builder.get("enabled"))) {
+                continue;
+            }
+            LinkedHashMap<String, Object> record = new LinkedHashMap<>(builder);
+            record.put("id", stringValue(module.get("id")));
+            record.put("runnableId", runnableId);
+            record.put("menuPath", stringValue(runnableGui(runnableId).get("menuPath")));
+            String entrypointPath =
+                    stringValue(runnableRuntime(runnableId).get("entrypointPath"));
+            record.put("scriptResource",
+                    entrypointPath.isBlank() ? "" : "astra/" + entrypointPath);
+            tools.add(Map.copyOf(record));
+        }
+        return List.copyOf(tools);
     }
 
     List<String> visibleStages(String pipelineName) {
@@ -152,6 +181,10 @@ final class ManifestSet {
                 .map(p -> stringValue(mapValue(p.get("gui")).get("description")))
                 .filter(s -> !s.isBlank())
                 .orElse("");
+    }
+
+    String extensionReleaseTag() {
+        return stringValue(mapValue(release().get("extension")).get("releaseTag"));
     }
 
     private Map<String, Object> composedRunnable(String id) {
@@ -274,6 +307,10 @@ final class ManifestSet {
         return mapValue(manifests.get("gui"));
     }
 
+    private Map<String, Object> release() {
+        return mapValue(manifests.get("release"));
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> mapValue(Object raw) {
         if (raw instanceof Map<?, ?> map) {
@@ -314,6 +351,12 @@ final class ManifestSet {
 
     private static String stringValue(Object raw) {
         return raw == null ? "" : String.valueOf(raw);
+    }
+
+    private static boolean booleanValue(Object raw) {
+        return raw instanceof Boolean value
+                ? value
+                : Boolean.parseBoolean(stringValue(raw));
     }
 
     private static String normalize(String value) {
