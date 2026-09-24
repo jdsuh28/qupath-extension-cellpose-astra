@@ -71,7 +71,7 @@ final class RunLogPresenter {
     }
 
     static boolean isStageCard(RunLogEntry entry) {
-        if (entry == null || entry.source() != RunLogSource.ASTRA) {
+        if (entry == null || entry.source() != RunLogSource.PIPELINE) {
             return false;
         }
         String upper = entry.text().toUpperCase(Locale.ROOT);
@@ -109,7 +109,7 @@ final class RunLogPresenter {
 
     private static boolean isStageHeader(RunLogEntry entry) {
         return entry != null
-                && entry.source() == RunLogSource.ASTRA
+                && entry.source() == RunLogSource.PIPELINE
                 && STAGE_HINT.matcher(entry.text()).find();
     }
 

@@ -80,17 +80,17 @@
       "sourceRoot": "modules/pipelines/analysis/colocalization/src/main/groovy",
       "testRoot": "modules/pipelines/analysis/colocalization/src/test/groovy"
     },
-    "tool-sma-af647-oneshot": {
-      "id": "tool-sma-af647-oneshot",
+    "tool-marker-rescue": {
+      "id": "tool-marker-rescue",
       "kind": "tool",
       "category": "tools",
       "functionalGroup": "tool",
       "structuralCategory": "tools",
-      "gradleProject": ":tool-sma-af647-oneshot",
+      "gradleProject": ":tool-marker-rescue",
       "runnable": true,
-      "runnableId": "sma-af647-oneshot",
-      "sourceRoot": "modules/tools/sma-af647-oneshot/src/main/groovy",
-      "testRoot": "modules/tools/sma-af647-oneshot/src/test/groovy"
+      "runnableId": "marker-rescue",
+      "sourceRoot": "modules/tools/marker-rescue/src/main/groovy",
+      "testRoot": "modules/tools/marker-rescue/src/test/groovy"
     },
     "tool-generate-regions": {
       "id": "tool-generate-regions",
@@ -102,7 +102,119 @@
       "runnable": true,
       "runnableId": "generate-regions",
       "sourceRoot": "modules/tools/generate-regions/src/main/groovy",
-      "testRoot": "modules/tools/generate-regions/src/test/groovy"
+      "testRoot": "modules/tools/generate-regions/src/test/groovy",
+      "builder": {
+        "enabled": true,
+        "label": "Generate Training Regions",
+        "description": "Create candidate QuPath regions for model training and review.",
+        "category": "Regions",
+        "inputType": "PROJECT_CONTEXT",
+        "outputType": "PROJECT_CONTEXT",
+        "keywords": [
+          "regions",
+          "annotations",
+          "training",
+          "roi",
+          "generate"
+        ]
+      }
+    },
+    "tool-count-nuclei": {
+      "id": "tool-count-nuclei",
+      "kind": "tool",
+      "category": "tools",
+      "functionalGroup": "tool",
+      "structuralCategory": "tools",
+      "gradleProject": ":tool-count-nuclei",
+      "runnable": true,
+      "runnableId": "count-nuclei",
+      "sourceRoot": "modules/tools/count-nuclei/src/main/groovy",
+      "testRoot": "modules/tools/count-nuclei/src/test/groovy",
+      "builder": {
+        "enabled": true,
+        "label": "Count Nuclei",
+        "description": "Segment and count nuclei in the current image.",
+        "category": "Count",
+        "inputType": "PROJECT_CONTEXT",
+        "outputType": "PROJECT_CONTEXT",
+        "keywords": ["count", "nuclei", "nucleus", "segmentation", "DAPI", "hematoxylin"]
+      }
+    },
+    "tool-count-cells": {
+      "id": "tool-count-cells",
+      "kind": "tool",
+      "category": "tools",
+      "functionalGroup": "tool",
+      "structuralCategory": "tools",
+      "gradleProject": ":tool-count-cells",
+      "runnable": true,
+      "runnableId": "count-cells",
+      "sourceRoot": "modules/tools/count-cells/src/main/groovy",
+      "testRoot": "modules/tools/count-cells/src/test/groovy",
+      "builder": {
+        "enabled": true,
+        "label": "Count Cells",
+        "description": "Segment nuclei, expand cell boundaries, and count cells.",
+        "category": "Count",
+        "inputType": "PROJECT_CONTEXT",
+        "outputType": "PROJECT_CONTEXT",
+        "keywords": ["count", "cells", "segmentation", "DAPI", "hematoxylin", "watershed"]
+      }
+    },
+    "tool-summarize-objects": {
+      "id": "tool-summarize-objects",
+      "kind": "tool",
+      "category": "tools",
+      "functionalGroup": "tool",
+      "structuralCategory": "tools",
+      "gradleProject": ":tool-summarize-objects",
+      "runnable": true,
+      "runnableId": "summarize-objects",
+      "sourceRoot": "modules/tools/summarize-objects/src/main/groovy",
+      "testRoot": "modules/tools/summarize-objects/src/test/groovy",
+      "builder": {
+        "enabled": true,
+        "label": "Summarize Image Objects",
+        "description": "Count annotations, detections, cells, and tiles in the current image.",
+        "category": "Inspect",
+        "inputType": "PROJECT_CONTEXT",
+        "outputType": "PROJECT_CONTEXT",
+        "keywords": [
+          "count",
+          "objects",
+          "cells",
+          "annotations",
+          "detections",
+          "summary"
+        ]
+      }
+    },
+    "tool-save-current-image": {
+      "id": "tool-save-current-image",
+      "kind": "tool",
+      "category": "tools",
+      "functionalGroup": "tool",
+      "structuralCategory": "tools",
+      "gradleProject": ":tool-save-current-image",
+      "runnable": true,
+      "runnableId": "save-current-image",
+      "sourceRoot": "modules/tools/save-current-image/src/main/groovy",
+      "testRoot": "modules/tools/save-current-image/src/test/groovy",
+      "builder": {
+        "enabled": true,
+        "label": "Save Current Image",
+        "description": "Save the active image data to its current QuPath project entry.",
+        "category": "Project",
+        "inputType": "PROJECT_CONTEXT",
+        "outputType": "PROJECT_CONTEXT",
+        "keywords": [
+          "save",
+          "project",
+          "image",
+          "persist",
+          "write"
+        ]
+      }
     }
   },
   "functionalGroups": {
@@ -128,8 +240,12 @@
     "validation",
     "vascular",
     "colocalization",
-    "sma-af647-oneshot",
-    "generate-regions"
+    "marker-rescue",
+    "generate-regions",
+    "count-nuclei",
+    "count-cells",
+    "summarize-objects",
+    "save-current-image"
   ],
   "runnableModules": {
     "training": {
@@ -180,9 +296,9 @@
         "cellpose"
       ]
     },
-    "sma-af647-oneshot": {
-      "id": "sma-af647-oneshot",
-      "moduleId": "tool-sma-af647-oneshot",
+    "marker-rescue": {
+      "id": "marker-rescue",
+      "moduleId": "tool-marker-rescue",
       "runnable": true,
       "kind": "tool",
       "functionalGroup": "tool",
@@ -193,6 +309,38 @@
     "generate-regions": {
       "id": "generate-regions",
       "moduleId": "tool-generate-regions",
+      "runnable": true,
+      "kind": "tool",
+      "functionalGroup": "tool",
+      "upstreamFunctionalGroups": []
+    },
+    "count-nuclei": {
+      "id": "count-nuclei",
+      "moduleId": "tool-count-nuclei",
+      "runnable": true,
+      "kind": "tool",
+      "functionalGroup": "tool",
+      "upstreamFunctionalGroups": []
+    },
+    "count-cells": {
+      "id": "count-cells",
+      "moduleId": "tool-count-cells",
+      "runnable": true,
+      "kind": "tool",
+      "functionalGroup": "tool",
+      "upstreamFunctionalGroups": []
+    },
+    "summarize-objects": {
+      "id": "summarize-objects",
+      "moduleId": "tool-summarize-objects",
+      "runnable": true,
+      "kind": "tool",
+      "functionalGroup": "tool",
+      "upstreamFunctionalGroups": []
+    },
+    "save-current-image": {
+      "id": "save-current-image",
+      "moduleId": "tool-save-current-image",
       "runnable": true,
       "kind": "tool",
       "functionalGroup": "tool",

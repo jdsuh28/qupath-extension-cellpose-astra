@@ -36,8 +36,8 @@ final class RunLogErrorAdvisor {
         }
         if (upper.contains("NO SUCH PROPERTY") || upper.contains("UNABLE TO RESOLVE CLASS") || upper.contains("MISSINGPROPERTY") || upper.contains("CLASSNOTFOUND")) {
             return advice("Missing runtime class/property", text,
-                    "The runtime script could not resolve a bundled ASTRA helper, class, or property.",
-                    "Install the latest extension JAR and confirm the bundled ASTRA resources match the release.", source, stage);
+                    "The runtime script could not resolve a bundled helper, class, or property.",
+                    "Install the latest extension JAR and confirm the bundled resources match the release.", source, stage);
         }
         if (upper.contains("CELLPOS") || upper.contains("VIRTUAL ENVIRONMENT RUNNER") || upper.contains("SUBPROCESS") || upper.contains("EXIT CODE")) {
             return advice("Cellpose runtime failure", text,
@@ -60,7 +60,7 @@ final class RunLogErrorAdvisor {
                     "Check the path shown in the error and reinstall or regenerate the missing resource.", source, stage);
         }
         return advice("Run failed", text,
-                "ASTRA reported an error that does not match a known advisory pattern.",
+                "The pipeline reported an error that does not match a known advisory pattern.",
                 "Review the original error line and nearby log context.", source, stage);
     }
 

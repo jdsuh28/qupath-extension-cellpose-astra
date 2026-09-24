@@ -76,7 +76,7 @@ final class RunTimelineModel {
 
     String statusTitle() {
         return switch (outcome) {
-            case RUNNING -> "Running " + (pipelineName.isBlank() ? "ASTRA" : pipelineName);
+            case RUNNING -> "Running " + (pipelineName.isBlank() ? "Pipeline" : pipelineName);
             case COMPLETED -> "Run Completed";
             case FAILED -> "Run Failed";
             case CANCELLED -> "Run Cancelled";
@@ -228,7 +228,7 @@ final class RunTimelineModel {
 
     private static String displayPipelineName(String id) {
         if (id == null || id.isBlank()) {
-            return "ASTRA";
+            return "Pipeline";
         }
         return RunLogPresenter.titleCase(id.replace('-', ' ').replace('_', ' '));
     }

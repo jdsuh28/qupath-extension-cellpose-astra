@@ -68,7 +68,7 @@
           "group": "Channels & Markers",
           "advanced": false,
           "uiOrder": 4010,
-          "detailsMarkdown": "What it does: Exact image channel names used to train the nucleus target. Change only to match project channel names or an explicitly documented training design.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [\"DAPI\"].\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
+          "detailsMarkdown": "What it does: Exact image channel names used to train the nucleus target. Change only to match project channel names or an explicitly documented training design.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [\"DAPI\"].\n\nExample: rename this when the image channel label differs from the workflow default, not when the biology is unchanged."
         },
         {
           "name": "CHANNELS_FOR_CELL",
@@ -80,7 +80,7 @@
           "group": "Channels & Markers",
           "advanced": false,
           "uiOrder": 4020,
-          "detailsMarkdown": "What it does: Exact image channel names used to train the whole-cell target, in Cellpose channel order. Keep this auditable because channel order changes the trained model.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [\"AF555\", \"AF488\", \"DAPI\"].\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
+          "detailsMarkdown": "What it does: Exact image channel names used to train the whole-cell target, in Cellpose channel order. Keep this auditable because channel order changes the trained model.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [\"AF555\", \"AF488\", \"DAPI\"].\n\nExample: rename this when the image channel label differs from the workflow default, not when the biology is unchanged."
         },
         {
           "name": "NUC_MIN_MASK_EQUIVALENT_DIAMETER_UM",
@@ -92,7 +92,7 @@
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6010,
-          "detailsMarkdown": "What it does: Sets the smallest nucleus mask ASTRA keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny specks or fragmented nuclear debris. Decrease it only if true nuclei are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream classification.\n\nDefault value: 1.0 um."
+          "detailsMarkdown": "What it does: Sets the smallest nucleus mask the pipeline keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny specks or fragmented nuclear debris. Decrease it only if true nuclei are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream classification.\n\nDefault value: 1.0 um."
         },
         {
           "name": "CELL_MIN_MASK_EQUIVALENT_DIAMETER_UM",
@@ -104,7 +104,7 @@
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6020,
-          "detailsMarkdown": "What it does: Sets the smallest whole-cell mask ASTRA keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny debris or fragmented cell masks. Decrease it only if true cells are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream quantification.\n\nDefault value: 1.0 um."
+          "detailsMarkdown": "What it does: Sets the smallest whole-cell mask the pipeline keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny debris or fragmented cell masks. Decrease it only if true cells are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream quantification.\n\nDefault value: 1.0 um."
         },
         {
           "name": "USE_BATCH_MODE",
@@ -116,7 +116,7 @@
           "group": "Runtime & Performance",
           "advanced": false,
           "uiOrder": 9010,
-          "detailsMarkdown": "What it does: Enables ASTRA's batch-oriented Cellpose training runtime behavior. Leave enabled for normal training unless diagnosing runtime behavior.\n\nWhen to change: Change this when moving between workstations or diagnosing runtime behavior.\n\nAnalysis consequence: This changes execution speed or hardware use. It should not change intended biology when calibration stays enabled.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: Enables the batch-oriented Cellpose training runtime behavior. Leave enabled for normal training unless diagnosing runtime behavior.\n\nWhen to change: Change this when moving between workstations or diagnosing runtime behavior.\n\nAnalysis consequence: This changes execution speed or hardware use. It should not change intended biology when calibration stays enabled.\n\nDefault value: true."
         },
         {
           "name": "USE_PIXEL_SCALING",
@@ -261,7 +261,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3010,
-          "detailsMarkdown": "What it does: Exact QuPath class name for whole-cell ground-truth annotations. A mismatch fails training-region validation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"Cell\"."
+          "detailsMarkdown": "What it does: Exact QuPath class name for whole-cell ground-truth annotations. A mismatch fails training-region validation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"Cell\"."
         },
         {
           "name": "REGION_CLASS_TRAINING",
@@ -273,7 +273,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3020,
-          "detailsMarkdown": "What it does: Exact QuPath class name for training regions. Only ground truth inside these regions contributes to training.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"Training\"."
+          "detailsMarkdown": "What it does: Exact QuPath class name for training regions. Only ground truth inside these regions contributes to training.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"Training\"."
         },
         {
           "name": "REGION_CLASS_VALIDATION",
@@ -285,14 +285,14 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3030,
-          "detailsMarkdown": "What it does: Exact QuPath class name for validation regions. Non-TEST training requires usable validation regions for best-epoch selection.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"Validation\"."
+          "detailsMarkdown": "What it does: Exact QuPath class name for validation regions. Non-TEST training requires usable validation regions for best-epoch selection.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"Validation\"."
         },
         {
           "name": "NUC_MODEL_SOURCE",
           "type": "String",
           "defaultGroovy": "\"MODEL_NAME\"",
           "optionsGroovy": "[\"MODEL_NAME\", \"SAVED\", \"FILE\"]",
-          "helpGroovy": "\"Choose how ASTRA resolves nucleus model.\"",
+          "helpGroovy": "\"Choose how the pipeline resolves nucleus model.\"",
           "editable": true,
           "internal": false,
           "group": "Models",
@@ -339,7 +339,7 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5040,
-          "detailsMarkdown": "What it does: Explicit saved nucleus model ID used when NUC_MODEL_SOURCE is SAVED. ASTRA never chooses a saved model automatically at runtime.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "detailsMarkdown": "What it does: Explicit saved nucleus model ID used when NUC_MODEL_SOURCE is SAVED. The pipeline never chooses a saved model automatically at runtime.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
           "assetDiscovery": {
             "kind": "savedModelId",
             "root": "astra/models/nucleus",
@@ -351,7 +351,7 @@
           "type": "String",
           "defaultGroovy": "\"MODEL_NAME\"",
           "optionsGroovy": "[\"MODEL_NAME\", \"SAVED\", \"FILE\"]",
-          "helpGroovy": "\"Choose how ASTRA resolves cell model.\"",
+          "helpGroovy": "\"Choose how the pipeline resolves cell model.\"",
           "editable": true,
           "internal": false,
           "group": "Models",
@@ -398,7 +398,7 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5080,
-          "detailsMarkdown": "What it does: Explicit saved cell model ID used when CELL_MODEL_SOURCE is SAVED. ASTRA never chooses a saved model automatically at runtime.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "detailsMarkdown": "What it does: Explicit saved cell model ID used when CELL_MODEL_SOURCE is SAVED. The pipeline never chooses a saved model automatically at runtime.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
           "assetDiscovery": {
             "kind": "savedModelId",
             "root": "astra/models/cell",
@@ -409,13 +409,13 @@
           "name": "CELLPOSE_FORK_MARKER",
           "type": "String",
           "defaultGroovy": "\"astra\"",
-          "helpGroovy": "\"Required marker checked during runtime preflight to confirm the configured Cellpose installation appears to be the ASTRA fork.\"",
+          "helpGroovy": "\"Required marker checked during runtime preflight to confirm the configured Cellpose installation appears to be the Cellpose-ASTRA fork.\"",
           "editable": true,
           "internal": false,
           "group": "Run Setup",
           "advanced": true,
           "uiOrder": 1060,
-          "detailsMarkdown": "What it does: Required marker checked during runtime preflight to confirm the configured Cellpose installation appears to be the ASTRA fork.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: \"astra\"."
+          "detailsMarkdown": "What it does: Required marker checked during runtime preflight to confirm the configured Cellpose installation appears to be the Cellpose-ASTRA fork.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: \"astra\"."
         },
         {
           "name": "PRINT_VERDICT_BLOCK",
@@ -433,25 +433,25 @@
           "name": "EXPORT_LOSS_CURVES_CSV",
           "type": "boolean",
           "defaultGroovy": "false",
-          "helpGroovy": "\"Control whether ASTRA writes export loss curves csv.\"",
+          "helpGroovy": "\"Control whether the pipeline writes export loss curves csv.\"",
           "editable": true,
           "internal": false,
           "group": "Output & Export",
           "advanced": false,
           "uiOrder": 10010,
-          "detailsMarkdown": "What it does: Retired. Leave false. Training loss curves are written only as promoted-model evidence after non-TEST promotion.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by ASTRA.\n\nDefault value: false."
+          "detailsMarkdown": "What it does: Retired. Leave false. Training loss curves are written only as promoted-model evidence after non-TEST promotion.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by the pipeline.\n\nDefault value: false."
         },
         {
           "name": "EXPORT_SUMMARY_JSON",
           "type": "boolean",
           "defaultGroovy": "false",
-          "helpGroovy": "\"Control whether ASTRA writes export summary json.\"",
+          "helpGroovy": "\"Control whether the pipeline writes export summary json.\"",
           "editable": true,
           "internal": false,
           "group": "Output & Export",
           "advanced": false,
           "uiOrder": 10020,
-          "detailsMarkdown": "What it does: Retired. Leave false. Training summaries are written only as promoted-model evidence after non-TEST promotion.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by ASTRA.\n\nDefault value: false."
+          "detailsMarkdown": "What it does: Retired. Leave false. Training summaries are written only as promoted-model evidence after non-TEST promotion.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by the pipeline.\n\nDefault value: false."
         },
         {
           "name": "OVERLAP_PX",
@@ -667,7 +667,7 @@
           "group": "Channels & Markers",
           "advanced": false,
           "uiOrder": 4010,
-          "detailsMarkdown": "What it does: Ordered image channels passed to Cellpose for nucleus tuning. Names must exactly match the QuPath image channel labels.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [\"DAPI\"].\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
+          "detailsMarkdown": "What it does: Ordered image channels passed to Cellpose for nucleus tuning. Names must exactly match the QuPath image channel labels.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [\"DAPI\"].\n\nExample: rename this when the image channel label differs from the workflow default, not when the biology is unchanged."
         },
         {
           "name": "CHANNELS_FOR_CELL",
@@ -679,7 +679,7 @@
           "group": "Channels & Markers",
           "advanced": false,
           "uiOrder": 4020,
-          "detailsMarkdown": "What it does: Ordered image channels passed to Cellpose for whole-cell tuning. Include only channels intended to inform the cell detector.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [\"AF555\", \"AF488\", \"DAPI\"].\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
+          "detailsMarkdown": "What it does: Ordered image channels passed to Cellpose for whole-cell tuning. Include only channels intended to inform the cell detector.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [\"AF555\", \"AF488\", \"DAPI\"].\n\nExample: rename this when the image channel label differs from the workflow default, not when the biology is unchanged."
         },
         {
           "name": "USE_BATCH_MODE",
@@ -691,7 +691,7 @@
           "group": "Runtime & Performance",
           "advanced": false,
           "uiOrder": 9010,
-          "detailsMarkdown": "What it does: Runs each tuning parameter set through ASTRA's batch-oriented Cellpose path across eligible images. Leave enabled for normal tuning unless diagnosing runtime behavior.\n\nWhen to change: Change this when moving between workstations or diagnosing runtime behavior.\n\nAnalysis consequence: This changes execution speed or hardware use. It should not change intended biology when calibration stays enabled.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: Runs each tuning parameter set through the batch-oriented Cellpose path across eligible images. Leave enabled for normal tuning unless diagnosing runtime behavior.\n\nWhen to change: Change this when moving between workstations or diagnosing runtime behavior.\n\nAnalysis consequence: This changes execution speed or hardware use. It should not change intended biology when calibration stays enabled.\n\nDefault value: true."
         },
         {
           "name": "USE_PIXEL_SCALING",
@@ -776,7 +776,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3010,
-          "detailsMarkdown": "What it does: QuPath annotation class containing whole-cell ground truth. The class name must match exactly or tuning fails before search.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"Cell\"."
+          "detailsMarkdown": "What it does: QuPath annotation class containing whole-cell ground truth. The class name must match exactly or tuning fails before search.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"Cell\"."
         },
         {
           "name": "REGION_CLASS_VALIDATION",
@@ -788,14 +788,14 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3020,
-          "detailsMarkdown": "What it does: QuPath annotation class marking validation regions used for tuning. Each region must contain target-specific ground truth.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"Validation\"."
+          "detailsMarkdown": "What it does: QuPath annotation class marking validation regions used for tuning. Each region must contain target-specific ground truth.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"Validation\"."
         },
         {
           "name": "NUC_MODEL_SOURCE",
           "type": "String",
           "defaultGroovy": "\"MODEL_NAME\"",
           "optionsGroovy": "[\"MODEL_NAME\", \"SAVED\", \"FILE\"]",
-          "helpGroovy": "\"Choose how ASTRA resolves nucleus model.\"",
+          "helpGroovy": "\"Choose how the pipeline resolves nucleus model.\"",
           "editable": true,
           "internal": false,
           "group": "Models",
@@ -854,7 +854,7 @@
           "type": "String",
           "defaultGroovy": "\"MODEL_NAME\"",
           "optionsGroovy": "[\"MODEL_NAME\", \"SAVED\", \"FILE\"]",
-          "helpGroovy": "\"Choose how ASTRA resolves cell model.\"",
+          "helpGroovy": "\"Choose how the pipeline resolves cell model.\"",
           "editable": true,
           "internal": false,
           "group": "Models",
@@ -1184,7 +1184,7 @@
           "group": "Run Setup",
           "advanced": false,
           "uiOrder": 1220,
-          "detailsMarkdown": "What it does: Legacy compatibility flag retained for schema stability. Temporary ASTRA tuning detections are always cleaned after each evaluation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: Legacy compatibility flag retained for schema stability. Temporary tuning detections are always cleaned after each evaluation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: true."
         },
         {
           "name": "VALIDATION_SUBSET_CAP_TEST",
@@ -1400,7 +1400,7 @@
           "group": "Channels & Markers",
           "advanced": false,
           "uiOrder": 4010,
-          "detailsMarkdown": "What it does: Image channels passed to Cellpose for nucleus validation. Names must match the project image channels exactly and should include only segmentation-relevant channels.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [\"DAPI\"].\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
+          "detailsMarkdown": "What it does: Image channels passed to Cellpose for nucleus validation. Names must match the project image channels exactly and should include only segmentation-relevant channels.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [\"DAPI\"].\n\nExample: rename this when the image channel label differs from the workflow default, not when the biology is unchanged."
         },
         {
           "name": "CHANNELS_FOR_CELL",
@@ -1412,7 +1412,7 @@
           "group": "Channels & Markers",
           "advanced": false,
           "uiOrder": 4020,
-          "detailsMarkdown": "What it does: Image channels passed to Cellpose for whole-cell validation. Names must match the project image channels exactly and should include only cell-boundary or morphology-relevant channels.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [\"AF555\", \"AF488\", \"DAPI\"].\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
+          "detailsMarkdown": "What it does: Image channels passed to Cellpose for whole-cell validation. Names must match the project image channels exactly and should include only cell-boundary or morphology-relevant channels.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [\"AF555\", \"AF488\", \"DAPI\"].\n\nExample: rename this when the image channel label differs from the workflow default, not when the biology is unchanged."
         },
         {
           "name": "USE_BATCH_MODE",
@@ -1424,7 +1424,7 @@
           "group": "Runtime & Performance",
           "advanced": false,
           "uiOrder": 9010,
-          "detailsMarkdown": "What it does: Runs validation detections through ASTRA's batch-oriented Cellpose path for the selected parameter set. Leave enabled for normal validation unless diagnosing runtime behavior.\n\nWhen to change: Change this when moving between workstations or diagnosing runtime behavior.\n\nAnalysis consequence: This changes execution speed or hardware use. It should not change intended biology when calibration stays enabled.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: Runs validation detections through the batch-oriented Cellpose path for the selected parameter set. Leave enabled for normal validation unless diagnosing runtime behavior.\n\nWhen to change: Change this when moving between workstations or diagnosing runtime behavior.\n\nAnalysis consequence: This changes execution speed or hardware use. It should not change intended biology when calibration stays enabled.\n\nDefault value: true."
         },
         {
           "name": "USE_PIXEL_SCALING",
@@ -1509,7 +1509,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3010,
-          "detailsMarkdown": "What it does: Exact QuPath class for whole-cell ground-truth annotations. These objects define the reference masks for cell validation scoring.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"Cell\"."
+          "detailsMarkdown": "What it does: Exact QuPath class for whole-cell ground-truth annotations. These objects define the reference masks for cell validation scoring.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"Cell\"."
         },
         {
           "name": "REGION_CLASS_VALIDATION",
@@ -1521,14 +1521,14 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3020,
-          "detailsMarkdown": "What it does: Exact QuPath class for validation-region annotations. Validation only scores ground truth and predictions inside these regions.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"Validation\"."
+          "detailsMarkdown": "What it does: Exact QuPath class for validation-region annotations. Validation only scores ground truth and predictions inside these regions.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"Validation\"."
         },
         {
           "name": "NUC_MODEL_SOURCE",
           "type": "String",
           "defaultGroovy": "\"MODEL_NAME\"",
           "optionsGroovy": "[\"MODEL_NAME\", \"SAVED\", \"FILE\"]",
-          "helpGroovy": "\"Choose how ASTRA resolves nucleus model.\"",
+          "helpGroovy": "\"Choose how the pipeline resolves nucleus model.\"",
           "editable": true,
           "internal": false,
           "group": "Models",
@@ -1587,7 +1587,7 @@
           "type": "String",
           "defaultGroovy": "\"MODEL_NAME\"",
           "optionsGroovy": "[\"MODEL_NAME\", \"SAVED\", \"FILE\"]",
-          "helpGroovy": "\"Choose how ASTRA resolves cell model.\"",
+          "helpGroovy": "\"Choose how the pipeline resolves cell model.\"",
           "editable": true,
           "internal": false,
           "group": "Models",
@@ -1705,13 +1705,13 @@
           "name": "CELLPOSE_FORK_MARKER",
           "type": "String",
           "defaultGroovy": "\"astra\"",
-          "helpGroovy": "\"Text marker expected from the configured Cellpose runtime to confirm the ASTRA fork.\"",
+          "helpGroovy": "\"Text marker expected from the configured Cellpose runtime to confirm the Cellpose-ASTRA fork.\"",
           "editable": true,
           "internal": false,
           "group": "Run Setup",
           "advanced": true,
           "uiOrder": 1050,
-          "detailsMarkdown": "What it does: Text marker expected from the configured Cellpose runtime to confirm the ASTRA fork. Leave as astra unless validating a deliberately different audited runtime.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: \"astra\"."
+          "detailsMarkdown": "What it does: Text marker expected from the configured Cellpose runtime to confirm the Cellpose-ASTRA fork. Leave as astra unless validating a deliberately different audited runtime.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: \"astra\"."
         },
         {
           "name": "ALLOW_PER_TARGET_OVERRIDES",
@@ -1899,25 +1899,25 @@
           "name": "CLEAR_DETECTIONS_BEFORE_EVAL",
           "type": "boolean",
           "defaultGroovy": "true",
-          "helpGroovy": "\"Retains ASTRA's internal pre-evaluation cleanup switch.\"",
+          "helpGroovy": "\"Retains the internal pre-evaluation cleanup switch.\"",
           "editable": true,
           "internal": false,
           "group": "Run Setup",
           "advanced": false,
           "uiOrder": 1140,
-          "detailsMarkdown": "What it does: Retains ASTRA's internal pre-evaluation cleanup switch. Validation refuses to run when pre-existing detections are present; remove or archive unrelated detections before validation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: Retains the internal pre-evaluation cleanup switch. Validation refuses to run when pre-existing detections are present; remove or archive unrelated detections before validation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: true."
         },
         {
           "name": "CLEAR_DETECTIONS_AFTER_EVAL",
           "type": "boolean",
           "defaultGroovy": "true",
-          "helpGroovy": "\"Clears temporary ASTRA validation detections after scoring.\"",
+          "helpGroovy": "\"Clears temporary validation detections after scoring.\"",
           "editable": true,
           "internal": false,
           "group": "Run Setup",
           "advanced": false,
           "uiOrder": 1150,
-          "detailsMarkdown": "What it does: Clears temporary ASTRA validation detections after scoring. This does not permit clearing unrelated pre-existing detections, which block validation before inference.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: Clears temporary validation detections after scoring. This does not permit clearing unrelated pre-existing detections, which block validation before inference.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which workflow branch executes. Review the selected mode before publication runs.\n\nDefault value: true."
         },
         {
           "name": "VALIDATION_SUBSET_CAP_TEST",
@@ -2030,7 +2030,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3010,
-          "detailsMarkdown": "What it does: Name of the reviewed QuPath pixel classifier used to identify lumen/background space during GENERATE_REGIONS.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"lumen\".",
+          "detailsMarkdown": "What it does: Name of the reviewed QuPath pixel classifier used to identify lumen/background space during GENERATE_REGIONS.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"lumen\".",
           "assetDiscovery": {
             "kind": "pixelClassifier",
             "root": "classifiers/pixel_classifiers"
@@ -2046,7 +2046,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3020,
-          "detailsMarkdown": "What it does: Name of the reviewed QuPath pixel classifier used to define the smooth-muscle wall region for vascular quantification.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"smooth_muscle\".",
+          "detailsMarkdown": "What it does: Name of the reviewed QuPath pixel classifier used to define the smooth-muscle wall region for vascular quantification.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"smooth_muscle\".",
           "assetDiscovery": {
             "kind": "pixelClassifier",
             "root": "classifiers/pixel_classifiers"
@@ -2078,7 +2078,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3030,
-          "detailsMarkdown": "What it does: Exact QuPath class for manually reviewed vessel parent regions. Vascular stages mutate only within these ROI annotations.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"ROI\"."
+          "detailsMarkdown": "What it does: Exact QuPath class for manually reviewed vessel parent regions. Vascular stages mutate only within these ROI annotations.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"ROI\"."
         },
         {
           "name": "CLASS_TRACE",
@@ -2090,7 +2090,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3040,
-          "detailsMarkdown": "What it does: Exact QuPath class for manually drawn lumen trace annotations inside each vessel ROI.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"Trace\"."
+          "detailsMarkdown": "What it does: Exact QuPath class for manually drawn lumen trace annotations inside each vessel ROI.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"Trace\"."
         },
         {
           "name": "CLASS_LUMEN_OUTPUT",
@@ -2102,7 +2102,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3050,
-          "detailsMarkdown": "What it does: QuPath class assigned to ASTRA-generated lumen annotations during region generation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"Lumen\"."
+          "detailsMarkdown": "What it does: QuPath class assigned to pipeline-generated lumen annotations during region generation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"Lumen\"."
         },
         {
           "name": "CLASS_SMOOTH_MUSCLE_OUTPUT",
@@ -2114,7 +2114,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3060,
-          "detailsMarkdown": "What it does: QuPath class assigned to ASTRA-generated smooth-muscle wall annotations during region generation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"Smooth muscle\"."
+          "detailsMarkdown": "What it does: QuPath class assigned to pipeline-generated smooth-muscle wall annotations during region generation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"Smooth muscle\"."
         },
         {
           "name": "CLASS_ENDOTHELIUM_OUTPUT",
@@ -2126,7 +2126,7 @@
           "group": "Biological Classification",
           "advanced": false,
           "uiOrder": 7020,
-          "detailsMarkdown": "What it does: QuPath class assigned to ASTRA-generated endothelial annotations during region generation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes how detected objects are assigned to biological classes.\n\nDefault value: \"Endothelium\"."
+          "detailsMarkdown": "What it does: QuPath class assigned to pipeline-generated endothelial annotations during region generation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes how detected objects are assigned to biological classes.\n\nDefault value: \"Endothelium\"."
         },
         {
           "name": "CLASS_WALL_SEARCH_ZONE",
@@ -2138,7 +2138,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3070,
-          "detailsMarkdown": "What it does: QuPath class for the ASTRA-generated wall search zone used while resolving vessel topology.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"Wall Search Zone\"."
+          "detailsMarkdown": "What it does: QuPath class for the pipeline-generated wall search zone used while resolving vessel topology.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"Wall Search Zone\"."
         },
         {
           "name": "CLASS_ENDOTHELIUM_SEARCH_ZONE",
@@ -2150,7 +2150,7 @@
           "group": "Biological Classification",
           "advanced": false,
           "uiOrder": 7030,
-          "detailsMarkdown": "What it does: QuPath class for the ASTRA-generated endothelial search zone used while resolving vessel topology.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes how detected objects are assigned to biological classes.\n\nDefault value: \"Endothelium Search Zone\"."
+          "detailsMarkdown": "What it does: QuPath class for the pipeline-generated endothelial search zone used while resolving vessel topology.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes how detected objects are assigned to biological classes.\n\nDefault value: \"Endothelium Search Zone\"."
         },
         {
           "name": "CLASS_TRAINING_BACKGROUND",
@@ -2162,7 +2162,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3080,
-          "detailsMarkdown": "What it does: Training annotation class used as background when AUTO_BUILD_CLASSIFIERS is deliberately run.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"Training Background\"."
+          "detailsMarkdown": "What it does: Training annotation class used as background when AUTO_BUILD_CLASSIFIERS is deliberately run.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"Training Background\"."
         },
         {
           "name": "CLASS_TRAINING_LUMEN",
@@ -2174,7 +2174,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3090,
-          "detailsMarkdown": "What it does: Training annotation class used as lumen positive examples when AUTO_BUILD_CLASSIFIERS is deliberately run.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"Training Lumen\"."
+          "detailsMarkdown": "What it does: Training annotation class used as lumen positive examples when AUTO_BUILD_CLASSIFIERS is deliberately run.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"Training Lumen\"."
         },
         {
           "name": "CLASS_TRAINING_SMOOTH_MUSCLE",
@@ -2186,7 +2186,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3100,
-          "detailsMarkdown": "What it does: Training annotation class used as smooth-muscle positive examples when AUTO_BUILD_CLASSIFIERS is deliberately run.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"Training Smooth muscle\"."
+          "detailsMarkdown": "What it does: Training annotation class used as smooth-muscle positive examples when AUTO_BUILD_CLASSIFIERS is deliberately run.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"Training Smooth muscle\"."
         },
         {
           "name": "CLASS_TRAINING_ENDOTHELIUM",
@@ -2210,7 +2210,7 @@
           "group": "Channels & Markers",
           "advanced": false,
           "uiOrder": 4010,
-          "detailsMarkdown": "What it does: Image channel containing nuclear signal for vascular cell detection and nucleus-dependent exclusion rules.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: \"DAPI\".\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
+          "detailsMarkdown": "What it does: Image channel containing nuclear signal for vascular cell detection and nucleus-dependent exclusion rules.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: \"DAPI\".\n\nExample: rename this when the image channel label differs from the workflow default, not when the biology is unchanged."
         },
         {
           "name": "CHANNEL_WGA",
@@ -2222,7 +2222,7 @@
           "group": "Channels & Markers",
           "advanced": false,
           "uiOrder": 4020,
-          "detailsMarkdown": "What it does: Image channel used as the membrane/boundary signal for whole-cell segmentation and vascular topology support.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: \"AF488\".\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
+          "detailsMarkdown": "What it does: Image channel used as the membrane/boundary signal for whole-cell segmentation and vascular topology support.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: \"AF488\".\n\nExample: rename this when the image channel label differs from the workflow default, not when the biology is unchanged."
         },
         {
           "name": "CHANNEL_ASMA",
@@ -2234,7 +2234,7 @@
           "group": "Channels & Markers",
           "advanced": false,
           "uiOrder": 4030,
-          "detailsMarkdown": "What it does: Image channel used as the smooth-muscle marker for wall classification and VSMC calls.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: \"AF555\".\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
+          "detailsMarkdown": "What it does: Image channel used as the smooth-muscle marker for wall classification and VSMC calls.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: \"AF555\".\n\nExample: rename this when the image channel label differs from the workflow default, not when the biology is unchanged."
         },
         {
           "name": "CHANNEL_CD31",
@@ -2246,7 +2246,7 @@
           "group": "Channels & Markers",
           "advanced": false,
           "uiOrder": 4040,
-          "detailsMarkdown": "What it does: Image channel used as the endothelial marker for endothelial classification and exclusion logic.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: \"AF647\".\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
+          "detailsMarkdown": "What it does: Image channel used as the endothelial marker for endothelial classification and exclusion logic.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: \"AF647\".\n\nExample: rename this when the image channel label differs from the workflow default, not when the biology is unchanged."
         },
         {
           "name": "CELLPOSE_CELL_CHANNELS",
@@ -2258,7 +2258,7 @@
           "group": "Channels & Markers",
           "advanced": true,
           "uiOrder": 4050,
-          "detailsMarkdown": "What it does: Channels passed to whole-cell detection. These are segmentation channels, not all available image channels; include only channels intentionally used for cell segmentation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [CHANNEL_ASMA, CHANNEL_WGA, CHANNEL_DAPI].\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
+          "detailsMarkdown": "What it does: Channels passed to whole-cell detection. These are segmentation channels, not all available image channels; include only channels intentionally used for cell segmentation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [CHANNEL_ASMA, CHANNEL_WGA, CHANNEL_DAPI].\n\nExample: rename this when the image channel label differs from the workflow default, not when the biology is unchanged."
         },
         {
           "name": "LUMEN_MIN_AREA_CAL_INIT",
@@ -2270,7 +2270,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3110,
-          "detailsMarkdown": "What it does: Initial minimum lumen area in square microns for classifier-derived lumen search. Raising this rejects smaller lumen candidates.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 50.0d."
+          "detailsMarkdown": "What it does: Initial minimum lumen area in square microns for classifier-derived lumen search. Raising this rejects smaller lumen candidates.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 50.0d."
         },
         {
           "name": "LUMEN_MIN_HOLE_AREA_CAL_INIT",
@@ -2282,7 +2282,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3120,
-          "detailsMarkdown": "What it does: Initial minimum hole area in square microns used while resolving lumen topology from classifier output.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 50.0d."
+          "detailsMarkdown": "What it does: Initial minimum hole area in square microns used while resolving lumen topology from classifier output.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 50.0d."
         },
         {
           "name": "LUMEN_MAX_ATTEMPTS_EXPAND",
@@ -2294,7 +2294,7 @@
           "group": "Classes & Regions",
           "advanced": true,
           "uiOrder": 3130,
-          "detailsMarkdown": "What it does: Maximum expansion attempts when the lumen search must grow from the manual trace to find a valid lumen candidate.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 8."
+          "detailsMarkdown": "What it does: Maximum expansion attempts when the lumen search must grow from the manual trace to find a valid lumen candidate.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 8."
         },
         {
           "name": "LUMEN_MAX_ATTEMPTS_BISECT",
@@ -2306,7 +2306,7 @@
           "group": "Classes & Regions",
           "advanced": true,
           "uiOrder": 3140,
-          "detailsMarkdown": "What it does: Maximum bisection attempts used to refine lumen search boundaries after expansion.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 10."
+          "detailsMarkdown": "What it does: Maximum bisection attempts used to refine lumen search boundaries after expansion.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 10."
         },
         {
           "name": "LUMEN_AREA_LOWER_BOUND_CAL",
@@ -2318,7 +2318,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3150,
-          "detailsMarkdown": "What it does: Lower calibrated lumen-area bound used during lumen convergence; keep at zero unless intentionally excluding tiny lumen candidates.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 0.0d."
+          "detailsMarkdown": "What it does: Lower calibrated lumen-area bound used during lumen convergence; keep at zero unless intentionally excluding tiny lumen candidates.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 0.0d."
         },
         {
           "name": "LUMEN_AREA_EPS_CAL",
@@ -2330,20 +2330,20 @@
           "group": "Classes & Regions",
           "advanced": true,
           "uiOrder": 3160,
-          "detailsMarkdown": "What it does: Calibrated lumen-area tolerance used when convergence compares candidate lumen sizes.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 0.5d."
+          "detailsMarkdown": "What it does: Calibrated lumen-area tolerance used when convergence compares candidate lumen sizes.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 0.5d."
         },
         {
           "name": "NUC_MODEL_SOURCE",
           "type": "String",
           "defaultGroovy": "\"MODEL_NAME\"",
           "optionsGroovy": "[\"MODEL_NAME\", \"SAVED\", \"FILE\"]",
-          "helpGroovy": "\"Choose how ASTRA resolves nucleus model.\"",
+          "helpGroovy": "\"Choose how the pipeline resolves nucleus model.\"",
           "editable": true,
           "internal": false,
           "group": "Models",
           "advanced": false,
           "uiOrder": 5010,
-          "detailsMarkdown": "What it does: Nucleus model selector. MODEL_NAME uses a named Cellpose initializer, SAVED uses the promoted ASTRA nucleus model, and FILE uses an explicit nucleus model file.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nAllowed values are controlled by NUC_MODEL_SOURCE_OPTIONS in the manifest/script contract.\n\nDefault value: \"MODEL_NAME\"."
+          "detailsMarkdown": "What it does: Nucleus model selector. MODEL_NAME uses a named Cellpose initializer, SAVED uses the promoted nucleus model, and FILE uses an explicit nucleus model file.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nAllowed values are controlled by NUC_MODEL_SOURCE_OPTIONS in the manifest/script contract.\n\nDefault value: \"MODEL_NAME\"."
         },
         {
           "name": "NUC_MODEL_NAME",
@@ -2384,7 +2384,7 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5040,
-          "detailsMarkdown": "What it does: Explicit saved nucleus model ID used when NUC_MODEL_SOURCE is SAVED. ASTRA resolves this under projectRoot/astra/models/nucleus/<model_id>/ and records model metadata plus SHA-256.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "detailsMarkdown": "What it does: Explicit saved nucleus model ID used when NUC_MODEL_SOURCE is SAVED. The pipeline resolves this under projectRoot/astra/models/nucleus/<model_id>/ and records model metadata plus SHA-256.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
           "assetDiscovery": {
             "kind": "savedModelId",
             "root": "astra/models/nucleus",
@@ -2396,13 +2396,13 @@
           "type": "String",
           "defaultGroovy": "\"MODEL_NAME\"",
           "optionsGroovy": "[\"MODEL_NAME\", \"SAVED\", \"FILE\"]",
-          "helpGroovy": "\"Choose how ASTRA resolves cell model.\"",
+          "helpGroovy": "\"Choose how the pipeline resolves cell model.\"",
           "editable": true,
           "internal": false,
           "group": "Models",
           "advanced": false,
           "uiOrder": 5050,
-          "detailsMarkdown": "What it does: Whole-cell model selector. MODEL_NAME uses a named Cellpose initializer, SAVED uses the promoted ASTRA cell model, and FILE uses an explicit cell model file.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nAllowed values are controlled by CELL_MODEL_SOURCE_OPTIONS in the manifest/script contract.\n\nDefault value: \"MODEL_NAME\"."
+          "detailsMarkdown": "What it does: Whole-cell model selector. MODEL_NAME uses a named Cellpose initializer, SAVED uses the promoted cell model, and FILE uses an explicit cell model file.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nAllowed values are controlled by CELL_MODEL_SOURCE_OPTIONS in the manifest/script contract.\n\nDefault value: \"MODEL_NAME\"."
         },
         {
           "name": "CELL_MODEL_NAME",
@@ -2443,7 +2443,7 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5080,
-          "detailsMarkdown": "What it does: Explicit saved cell model ID used when CELL_MODEL_SOURCE is SAVED. ASTRA resolves this under projectRoot/astra/models/cell/<model_id>/ and records model metadata plus SHA-256.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "detailsMarkdown": "What it does: Explicit saved cell model ID used when CELL_MODEL_SOURCE is SAVED. The pipeline resolves this under projectRoot/astra/models/cell/<model_id>/ and records model metadata plus SHA-256.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
           "assetDiscovery": {
             "kind": "savedModelId",
             "root": "astra/models/cell",
@@ -2544,7 +2544,7 @@
           "group": "Runtime & Performance",
           "advanced": false,
           "uiOrder": 9020,
-          "detailsMarkdown": "What it does: Enables ASTRA's batch-oriented Cellpose runtime behavior for project-scale vascular runs. Leave enabled for normal analysis unless diagnosing runtime behavior.\n\nWhen to change: Change this when moving between workstations or diagnosing runtime behavior.\n\nAnalysis consequence: This changes execution speed or hardware use. It should not change intended biology when calibration stays enabled.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: Enables the batch-oriented Cellpose runtime behavior for project-scale vascular runs. Leave enabled for normal analysis unless diagnosing runtime behavior.\n\nWhen to change: Change this when moving between workstations or diagnosing runtime behavior.\n\nAnalysis consequence: This changes execution speed or hardware use. It should not change intended biology when calibration stays enabled.\n\nDefault value: true."
         },
         {
           "name": "USE_PIXEL_SCALING",
@@ -2628,7 +2628,7 @@
           "group": "Classes & Regions",
           "advanced": true,
           "uiOrder": 3170,
-          "detailsMarkdown": "What it does: Moves the viewer to each vessel ROI as vascular processing advances when viewer progress is enabled.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: Moves the viewer to each vessel ROI as vascular processing advances when viewer progress is enabled.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: true."
         },
         {
           "name": "VIEWER_FOCUS_PADDING",
@@ -2707,13 +2707,13 @@
           "name": "RESULTS_FOLDER",
           "type": "String",
           "defaultGroovy": "\"vascular\"",
-          "helpGroovy": "\"Choose the project-relative ASTRA results folder.\"",
+          "helpGroovy": "\"Choose the project-relative results folder.\"",
           "editable": true,
           "internal": false,
           "group": "Output & Export",
           "advanced": false,
           "uiOrder": 10010,
-          "detailsMarkdown": "What it does: Analysis results subfolder under projectRoot/astra/results. Vascular defaults to astra/results/vascular.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by ASTRA.\n\nDefault value: \"vascular\"."
+          "detailsMarkdown": "What it does: Analysis results subfolder under projectRoot/astra/results. Vascular defaults to astra/results/vascular.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by the pipeline.\n\nDefault value: \"vascular\"."
         },
         {
           "name": "RESULTS_BASENAME",
@@ -2725,19 +2725,19 @@
           "group": "Output & Export",
           "advanced": false,
           "uiOrder": 10020,
-          "detailsMarkdown": "What it does: Optional CSV basename. Leave blank to let ASTRA derive a deterministic name from the image or project context.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by ASTRA.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Optional CSV basename. Leave blank to derive a deterministic name from the image or project context.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by the pipeline.\n\nDefault value: \"\"."
         },
         {
           "name": "EXPORT_DIAGNOSTIC_COLUMNS",
           "type": "boolean",
           "defaultGroovy": "false",
-          "helpGroovy": "\"Control whether ASTRA writes export diagnostic columns.\"",
+          "helpGroovy": "\"Control whether the pipeline writes export diagnostic columns.\"",
           "editable": true,
           "internal": false,
           "group": "Output & Export",
           "advanced": false,
           "uiOrder": 10030,
-          "detailsMarkdown": "What it does: Adds ASTRA-internal per-cell audit columns to vascular exports. Leave disabled for publication-facing CSVs unless debugging segmentation or multinucleated-cell handling.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by ASTRA.\n\nDefault value: false."
+          "detailsMarkdown": "What it does: Adds pipeline-internal per-cell audit columns to vascular exports. Leave disabled for publication-facing CSVs unless debugging segmentation or multinucleated-cell handling.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by the pipeline.\n\nDefault value: false."
         },
         {
           "name": "USE_NUCLEI",
@@ -2762,7 +2762,7 @@
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6020,
-          "detailsMarkdown": "What it does: GUI-friendly Cellpose-SAM inference preset. BALANCED matches ASTRA's previous defaults, STRICT reduces weak detections, SENSITIVE recovers weaker objects, and CUSTOM uses the explicit advanced detector knobs.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nAllowed values are controlled by SEGMENTATION_PRESET_OPTIONS in the manifest/script contract.\n\nDefault value: Balanced.\n\nExample: use BALANCED for routine runs, STRICT for fewer weak detections, SENSITIVE for weak-object recovery, and CUSTOM only after deliberate tuning."
+          "detailsMarkdown": "What it does: GUI-friendly Cellpose-SAM inference preset. BALANCED matches the previous defaults, STRICT reduces weak detections, SENSITIVE recovers weaker objects, and CUSTOM uses the explicit advanced detector knobs.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nAllowed values are controlled by SEGMENTATION_PRESET_OPTIONS in the manifest/script contract.\n\nDefault value: Balanced.\n\nExample: use BALANCED for routine runs, STRICT for fewer weak detections, SENSITIVE for weak-object recovery, and CUSTOM only after deliberate tuning."
         },
         {
           "name": "NUC_DIAMETER_UM",
@@ -2822,7 +2822,7 @@
           "group": "Segmentation",
           "advanced": true,
           "uiOrder": 6070,
-          "detailsMarkdown": "What it does: Sets the smallest nucleus mask ASTRA keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny specks or fragmented nuclear debris. Decrease it only if true nuclei are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream classification.\n\nDefault value: 1.0 um."
+          "detailsMarkdown": "What it does: Sets the smallest nucleus mask the pipeline keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny specks or fragmented nuclear debris. Decrease it only if true nuclei are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream classification.\n\nDefault value: 1.0 um."
         },
         {
           "name": "CELL_DIAMETER_UM",
@@ -2882,7 +2882,7 @@
           "group": "Segmentation",
           "advanced": true,
           "uiOrder": 6120,
-          "detailsMarkdown": "What it does: Sets the smallest whole-cell mask ASTRA keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny debris or fragmented cell masks. Decrease it only if true cells are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream quantification.\n\nDefault value: 1.0 um."
+          "detailsMarkdown": "What it does: Sets the smallest whole-cell mask the pipeline keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny debris or fragmented cell masks. Decrease it only if true cells are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream quantification.\n\nDefault value: 1.0 um."
         },
         {
           "name": "SAM_SIMPLIFY_DISTANCE_PX",
@@ -2906,7 +2906,7 @@
           "group": "Segmentation",
           "advanced": true,
           "uiOrder": 6140,
-          "detailsMarkdown": "What it does: Lower percentile for Cellpose-SAM image normalization. The ASTRA default is 1.0; change only after image-intensity review because it affects detector input scaling and segmentation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nDefault value: CellposeInferenceDefaults.SAM_NORM_PMIN."
+          "detailsMarkdown": "What it does: Lower percentile for Cellpose-SAM image normalization. The workflow default is 1.0; change only after image-intensity review because it affects detector input scaling and segmentation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nDefault value: CellposeInferenceDefaults.SAM_NORM_PMIN."
         },
         {
           "name": "SAM_NORM_PMAX",
@@ -2918,7 +2918,7 @@
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6150,
-          "detailsMarkdown": "What it does: Upper percentile for Cellpose-SAM image normalization. The ASTRA default is 99.0; change only after image-intensity review because it affects detector input scaling and segmentation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nDefault value: CellposeInferenceDefaults.SAM_NORM_PMAX."
+          "detailsMarkdown": "What it does: Upper percentile for Cellpose-SAM image normalization. The workflow default is 99.0; change only after image-intensity review because it affects detector input scaling and segmentation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nDefault value: CellposeInferenceDefaults.SAM_NORM_PMAX."
         },
         {
           "name": "SAM_NTHREADS",
@@ -3102,7 +3102,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3180,
-          "detailsMarkdown": "What it does: Minimum angular support fraction required for accepting a wall boundary candidate.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 0.25d."
+          "detailsMarkdown": "What it does: Minimum angular support fraction required for accepting a wall boundary candidate.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 0.25d."
         },
         {
           "name": "WALL_MIN_RADIAL_SUPPORT_DENSITY",
@@ -3114,7 +3114,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3190,
-          "detailsMarkdown": "What it does: Minimum radial support density required for accepting a wall boundary candidate.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 0.25d."
+          "detailsMarkdown": "What it does: Minimum radial support density required for accepting a wall boundary candidate.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 0.25d."
         },
         {
           "name": "WALL_OUTLIER_MAD_MULTIPLIER",
@@ -3126,7 +3126,7 @@
           "group": "Classes & Regions",
           "advanced": true,
           "uiOrder": 3200,
-          "detailsMarkdown": "What it does: Median-absolute-deviation multiplier used to reject outlier wall-boundary samples.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 3.0d."
+          "detailsMarkdown": "What it does: Median-absolute-deviation multiplier used to reject outlier wall-boundary samples.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 3.0d."
         },
         {
           "name": "USE_IGNORE_ZONES",
@@ -3150,19 +3150,19 @@
           "group": "Classes & Regions",
           "advanced": true,
           "uiOrder": 3210,
-          "detailsMarkdown": "What it does: Pixel tolerance used when converting classifier-derived regions into QuPath geometry.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 0.51d."
+          "detailsMarkdown": "What it does: Pixel tolerance used when converting classifier-derived regions into QuPath geometry.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 0.51d."
         },
         {
           "name": "AUTO_ROI_OVERWRITE_EXISTING",
           "type": "boolean",
           "defaultGroovy": "false",
-          "helpGroovy": "\"Control whether ASTRA writes auto roi overwrite existing.\"",
+          "helpGroovy": "\"Control whether the pipeline writes auto roi overwrite existing.\"",
           "editable": true,
           "internal": false,
           "group": "Classes & Regions",
           "advanced": true,
           "uiOrder": 3220,
-          "detailsMarkdown": "What it does: Allows AUTO_SELECT_ROIS to replace ASTRA-generated candidate ROI/Trace annotations. Manual reviewed ROI/Trace annotations are not silently replaced.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: false."
+          "detailsMarkdown": "What it does: Allows AUTO_SELECT_ROIS to replace pipeline-generated candidate ROI/Trace annotations. Manual reviewed ROI/Trace annotations are not silently replaced.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: false."
         },
         {
           "name": "AUTO_ROI_MIN_SMA_AREA_UM2",
@@ -3174,7 +3174,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3230,
-          "detailsMarkdown": "What it does: Minimum smooth-muscle candidate area in square microns for provisional automatic ROI selection.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 25.0d."
+          "detailsMarkdown": "What it does: Minimum smooth-muscle candidate area in square microns for provisional automatic ROI selection.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 25.0d."
         },
         {
           "name": "AUTO_ROI_MAX_SMA_AREA_UM2",
@@ -3186,7 +3186,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3240,
-          "detailsMarkdown": "What it does: Maximum smooth-muscle candidate area in square microns for provisional automatic ROI selection.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 5000.0d."
+          "detailsMarkdown": "What it does: Maximum smooth-muscle candidate area in square microns for provisional automatic ROI selection.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 5000.0d."
         },
         {
           "name": "AUTO_ROI_MIN_EQUIVALENT_DIAMETER_UM",
@@ -3222,7 +3222,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3250,
-          "detailsMarkdown": "What it does: Minimum circularity for provisional automatic ROI candidates; lower values allow more elongated objects.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 0.35d."
+          "detailsMarkdown": "What it does: Minimum circularity for provisional automatic ROI candidates; lower values allow more elongated objects.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 0.35d."
         },
         {
           "name": "AUTO_ROI_MAX_ASPECT_RATIO",
@@ -3234,7 +3234,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3260,
-          "detailsMarkdown": "What it does: Maximum major/minor-axis ratio for provisional automatic ROI candidates.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 3.0d."
+          "detailsMarkdown": "What it does: Maximum major/minor-axis ratio for provisional automatic ROI candidates.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 3.0d."
         },
         {
           "name": "AUTO_ROI_EXPAND_FACTOR",
@@ -3246,7 +3246,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3270,
-          "detailsMarkdown": "What it does: Expansion factor applied to provisional auto-selected vessel ROI candidates.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 1.50d."
+          "detailsMarkdown": "What it does: Expansion factor applied to provisional auto-selected vessel ROI candidates.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 1.50d."
         },
         {
           "name": "AUTO_TRACE_EXPAND_FACTOR",
@@ -3258,7 +3258,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3280,
-          "detailsMarkdown": "What it does: Expansion factor applied when deriving provisional Trace annotations for auto-selected ROI candidates.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 1.05d."
+          "detailsMarkdown": "What it does: Expansion factor applied when deriving provisional Trace annotations for auto-selected ROI candidates.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 1.05d."
         },
         {
           "name": "AUTO_ROI_MIN_SPACING_UM",
@@ -3270,7 +3270,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3290,
-          "detailsMarkdown": "What it does: Minimum spacing in microns between provisional automatic ROI candidates after ranking.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 10.0d."
+          "detailsMarkdown": "What it does: Minimum spacing in microns between provisional automatic ROI candidates after ranking.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 10.0d."
         },
         {
           "name": "AUTO_ROI_MAX_COUNT",
@@ -3282,7 +3282,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3300,
-          "detailsMarkdown": "What it does: Maximum number of provisional automatic ROI/Trace candidate pairs to create per image.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 250."
+          "detailsMarkdown": "What it does: Maximum number of provisional automatic ROI/Trace candidate pairs to create per image.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 250."
         },
         {
           "name": "AUTO_CLASSIFIER_OVERWRITE_EXISTING",
@@ -3294,7 +3294,7 @@
           "group": "Classes & Regions",
           "advanced": true,
           "uiOrder": 3310,
-          "detailsMarkdown": "What it does: Allows AUTO_BUILD_CLASSIFIERS to replace existing classifier files with the same names. Use only after deliberately reviewing the training annotations.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: false."
+          "detailsMarkdown": "What it does: Allows AUTO_BUILD_CLASSIFIERS to replace existing classifier files with the same names. Use only after deliberately reviewing the training annotations.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: false."
         },
         {
           "name": "AUTO_CLASSIFIER_LOCAL_MEAN_SIGMA_PX",
@@ -3306,7 +3306,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3320,
-          "detailsMarkdown": "What it does: Sigma in pixels for local-mean features used by provisional ANN pixel classifiers.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 8.0d."
+          "detailsMarkdown": "What it does: Sigma in pixels for local-mean features used by provisional ANN pixel classifiers.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 8.0d."
         },
         {
           "name": "AUTO_CLASSIFIER_FEATURES",
@@ -3318,7 +3318,7 @@
           "group": "Classes & Regions",
           "advanced": true,
           "uiOrder": 3330,
-          "detailsMarkdown": "What it does: Texture/intensity feature families used when AUTO_BUILD_CLASSIFIERS trains provisional QuPath ANN pixel classifiers.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: [\"GAUSSIAN\", \"WEIGHTED_STD_DEV\", \"GRADIENT_MAGNITUDE\"]."
+          "detailsMarkdown": "What it does: Texture/intensity feature families used when AUTO_BUILD_CLASSIFIERS trains provisional QuPath ANN pixel classifiers.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: [\"GAUSSIAN\", \"WEIGHTED_STD_DEV\", \"GRADIENT_MAGNITUDE\"]."
         },
         {
           "name": "AUTO_CLASSIFIER_FEATURE_SIGMA_PX",
@@ -3330,7 +3330,7 @@
           "group": "Classes & Regions",
           "advanced": true,
           "uiOrder": 3340,
-          "detailsMarkdown": "What it does: Feature sigma in pixels used for provisional ANN pixel classifier feature extraction.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 1.0d."
+          "detailsMarkdown": "What it does: Feature sigma in pixels used for provisional ANN pixel classifier feature extraction.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 1.0d."
         },
         {
           "name": "AUTO_CLASSIFIER_SPECS",
@@ -3342,7 +3342,7 @@
           "group": "Classes & Regions",
           "advanced": true,
           "uiOrder": 3350,
-          "detailsMarkdown": "What it does: Classifier training specification map for AUTO_BUILD_CLASSIFIERS. Each entry binds training class, output class, and channel set for one provisional classifier.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: [\n        (CLASSIFIER_LUMEN)        : [\n                POSITIVE_CLASS: CLASS_TRAINING_LUMEN,\n                OUTPUT_CLASS  : CLASS_LUMEN_OUTPUT,\n                CHANNELS      : [CHANNEL_WGA, CHANNEL_DAPI]\n        ],\n        (CLASSIFIER_SMOOTH_MUSCLE): [\n                POSITIVE_CLASS: CLASS_TRAINING_SMOOTH_MUSCLE,\n                OUTPUT_CLASS  : CLASS_SMOOTH_MUSCLE_OUTPUT,\n                CHANNELS      : [CHANNEL_ASMA, CHANNEL_WGA]\n        ],\n        (CLASSIFIER_ENDOTHELIUM)  : [\n                POSITIVE_CLASS: CLASS_TRAINING_ENDOTHELIUM,\n                OUTPUT_CLASS  : CLASS_ENDOTHELIUM_OUTPUT,\n                CHANNELS      : [CHANNEL_CD31, CHANNEL_WGA]\n        ]\n]."
+          "detailsMarkdown": "What it does: Classifier training specification map for AUTO_BUILD_CLASSIFIERS. Each entry binds training class, output class, and channel set for one provisional classifier.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: [\n        (CLASSIFIER_LUMEN)        : [\n                POSITIVE_CLASS: CLASS_TRAINING_LUMEN,\n                OUTPUT_CLASS  : CLASS_LUMEN_OUTPUT,\n                CHANNELS      : [CHANNEL_WGA, CHANNEL_DAPI]\n        ],\n        (CLASSIFIER_SMOOTH_MUSCLE): [\n                POSITIVE_CLASS: CLASS_TRAINING_SMOOTH_MUSCLE,\n                OUTPUT_CLASS  : CLASS_SMOOTH_MUSCLE_OUTPUT,\n                CHANNELS      : [CHANNEL_ASMA, CHANNEL_WGA]\n        ],\n        (CLASSIFIER_ENDOTHELIUM)  : [\n                POSITIVE_CLASS: CLASS_TRAINING_ENDOTHELIUM,\n                OUTPUT_CLASS  : CLASS_ENDOTHELIUM_OUTPUT,\n                CHANNELS      : [CHANNEL_CD31, CHANNEL_WGA]\n        ]\n]."
         }
       ]
     },
@@ -3401,19 +3401,19 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3010,
-          "detailsMarkdown": "What it does: Parent annotation class used as the analysis region. Change only when your project uses a different class for manual analysis boundaries; this controls which hierarchy objects are analyzed.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"ROI\"."
+          "detailsMarkdown": "What it does: Parent annotation class used as the analysis region. Change only when your project uses a different class for manual analysis boundaries; this controls which hierarchy objects are analyzed.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"ROI\"."
         },
         {
           "name": "USE_WHOLE_IMAGE_IF_NO_REGION",
           "type": "boolean",
           "defaultGroovy": "true",
-          "helpGroovy": "\"Allows ASTRA to create a whole-image analysis region when no parent region is found.\"",
+          "helpGroovy": "\"Allows the pipeline to create a whole-image analysis region when no parent region is found.\"",
           "editable": true,
           "internal": false,
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3020,
-          "detailsMarkdown": "What it does: Allows ASTRA to create a whole-image analysis region when no parent region is found. Disable when every run must require explicit manual ROI annotations.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: Allows the pipeline to create a whole-image analysis region when no parent region is found. Disable when every run must require explicit manual ROI annotations.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: true."
         },
         {
           "name": "WHOLE_IMAGE_REGION_CLASS",
@@ -3425,7 +3425,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3030,
-          "detailsMarkdown": "What it does: Class name assigned to automatically created whole-image regions. Change only to match a project-specific audit naming convention.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"ASTRA Whole Image\"."
+          "detailsMarkdown": "What it does: Class name assigned to automatically created whole-image regions. Change only to match a project-specific audit naming convention.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"ASTRA Whole Image\"."
         },
         {
           "name": "MODES_TO_RUN",
@@ -3455,13 +3455,13 @@
           "type": "String",
           "defaultGroovy": "\"MODEL_NAME\"",
           "optionsGroovy": "[\"MODEL_NAME\", \"SAVED\", \"FILE\"]",
-          "helpGroovy": "\"Choose how ASTRA resolves nucleus model.\"",
+          "helpGroovy": "\"Choose how the pipeline resolves nucleus model.\"",
           "editable": true,
           "internal": false,
           "group": "Models",
           "advanced": false,
           "uiOrder": 5010,
-          "detailsMarkdown": "What it does: Nucleus segmentation model source. MODEL_NAME uses a named Cellpose initializer, SAVED uses the promoted ASTRA nucleus model, and FILE uses an audited nucleus model file.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nAllowed values are controlled by NUC_MODEL_SOURCE_OPTIONS in the manifest/script contract.\n\nDefault value: \"MODEL_NAME\"."
+          "detailsMarkdown": "What it does: Nucleus segmentation model source. MODEL_NAME uses a named Cellpose initializer, SAVED uses the promoted nucleus model, and FILE uses an audited nucleus model file.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nAllowed values are controlled by NUC_MODEL_SOURCE_OPTIONS in the manifest/script contract.\n\nDefault value: \"MODEL_NAME\"."
         },
         {
           "name": "NUC_MODEL_NAME",
@@ -3502,7 +3502,7 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5040,
-          "detailsMarkdown": "What it does: Explicit saved nucleus model ID used when NUC_MODEL_SOURCE is SAVED. ASTRA resolves this under projectRoot/astra/models/nucleus/<model_id>/ and records the model metadata and SHA-256.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "detailsMarkdown": "What it does: Explicit saved nucleus model ID used when NUC_MODEL_SOURCE is SAVED. The pipeline resolves this under projectRoot/astra/models/nucleus/<model_id>/ and records the model metadata and SHA-256.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
           "assetDiscovery": {
             "kind": "savedModelId",
             "root": "astra/models/nucleus",
@@ -3514,13 +3514,13 @@
           "type": "String",
           "defaultGroovy": "\"MODEL_NAME\"",
           "optionsGroovy": "[\"MODEL_NAME\", \"SAVED\", \"FILE\"]",
-          "helpGroovy": "\"Choose how ASTRA resolves cell model.\"",
+          "helpGroovy": "\"Choose how the pipeline resolves cell model.\"",
           "editable": true,
           "internal": false,
           "group": "Models",
           "advanced": false,
           "uiOrder": 5050,
-          "detailsMarkdown": "What it does: Whole-cell segmentation model source. MODEL_NAME uses a named Cellpose initializer, SAVED uses the promoted ASTRA cell model, and FILE uses an audited cell model file.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nAllowed values are controlled by CELL_MODEL_SOURCE_OPTIONS in the manifest/script contract.\n\nDefault value: \"MODEL_NAME\"."
+          "detailsMarkdown": "What it does: Whole-cell segmentation model source. MODEL_NAME uses a named Cellpose initializer, SAVED uses the promoted cell model, and FILE uses an audited cell model file.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nAllowed values are controlled by CELL_MODEL_SOURCE_OPTIONS in the manifest/script contract.\n\nDefault value: \"MODEL_NAME\"."
         },
         {
           "name": "CELL_MODEL_NAME",
@@ -3561,7 +3561,7 @@
           "group": "Models",
           "advanced": false,
           "uiOrder": 5080,
-          "detailsMarkdown": "What it does: Explicit saved cell model ID used when CELL_MODEL_SOURCE is SAVED. ASTRA resolves this under projectRoot/astra/models/cell/<model_id>/ and records the model metadata and SHA-256.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
+          "detailsMarkdown": "What it does: Explicit saved cell model ID used when CELL_MODEL_SOURCE is SAVED. The pipeline resolves this under projectRoot/astra/models/cell/<model_id>/ and records the model metadata and SHA-256.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes the Cellpose model or saved parameter source used for segmentation.\n\nDefault value: \"\".",
           "assetDiscovery": {
             "kind": "savedModelId",
             "root": "astra/models/cell",
@@ -3662,7 +3662,7 @@
           "group": "Runtime & Performance",
           "advanced": false,
           "uiOrder": 9020,
-          "detailsMarkdown": "What it does: Enables ASTRA's batch-oriented Cellpose runtime behavior. Leave enabled for normal project runs unless diagnosing runtime behavior.\n\nWhen to change: Change this when moving between workstations or diagnosing runtime behavior.\n\nAnalysis consequence: This changes execution speed or hardware use. It should not change intended biology when calibration stays enabled.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: Enables the batch-oriented Cellpose runtime behavior. Leave enabled for normal project runs unless diagnosing runtime behavior.\n\nWhen to change: Change this when moving between workstations or diagnosing runtime behavior.\n\nAnalysis consequence: This changes execution speed or hardware use. It should not change intended biology when calibration stays enabled.\n\nDefault value: true."
         },
         {
           "name": "USE_PIXEL_SCALING",
@@ -3746,7 +3746,7 @@
           "group": "Classes & Regions",
           "advanced": true,
           "uiOrder": 3040,
-          "detailsMarkdown": "What it does: Centers the viewer around the active analysis ROI during progress updates. This is display-only and does not alter object hierarchy state.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: Centers the viewer around the active analysis ROI during progress updates. This is display-only and does not alter object hierarchy state.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: true."
         },
         {
           "name": "VIEWER_FOCUS_PADDING",
@@ -3845,7 +3845,7 @@
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6020,
-          "detailsMarkdown": "What it does: GUI-friendly Cellpose-SAM inference preset. BALANCED matches ASTRA's previous defaults, STRICT reduces weak detections, SENSITIVE recovers weaker objects, and CUSTOM uses the explicit advanced detector knobs.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nAllowed values are controlled by SEGMENTATION_PRESET_OPTIONS in the manifest/script contract.\n\nDefault value: Balanced.\n\nExample: use BALANCED for routine runs, STRICT for fewer weak detections, SENSITIVE for weak-object recovery, and CUSTOM only after deliberate tuning."
+          "detailsMarkdown": "What it does: GUI-friendly Cellpose-SAM inference preset. BALANCED matches the previous defaults, STRICT reduces weak detections, SENSITIVE recovers weaker objects, and CUSTOM uses the explicit advanced detector knobs.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nAllowed values are controlled by SEGMENTATION_PRESET_OPTIONS in the manifest/script contract.\n\nDefault value: Balanced.\n\nExample: use BALANCED for routine runs, STRICT for fewer weak detections, SENSITIVE for weak-object recovery, and CUSTOM only after deliberate tuning."
         },
         {
           "name": "NUCLEUS_SEGMENTATION_CHANNELS",
@@ -3857,7 +3857,7 @@
           "group": "Channels & Markers",
           "advanced": false,
           "uiOrder": 4010,
-          "detailsMarkdown": "What it does: Image channels used only for nucleus segmentation. Change this when the nuclear marker is not the first image channel or when the nucleus detector should use multiple channels; these channels do not define colocalization positivity by themselves.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [\"DAPI\"].\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
+          "detailsMarkdown": "What it does: Image channels used only for nucleus segmentation. Change this when the nuclear marker is not the first image channel or when the nucleus detector should use multiple channels; these channels do not define colocalization positivity by themselves.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [\"DAPI\"].\n\nExample: rename this when the image channel label differs from the workflow default, not when the biology is unchanged."
         },
         {
           "name": "NUC_DIAMETER_UM",
@@ -3917,7 +3917,7 @@
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6070,
-          "detailsMarkdown": "What it does: Sets the smallest nucleus mask ASTRA keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny specks or fragmented nuclear debris. Decrease it only if true nuclei are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream classification.\n\nDefault value: 1.0 um."
+          "detailsMarkdown": "What it does: Sets the smallest nucleus mask the pipeline keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny specks or fragmented nuclear debris. Decrease it only if true nuclei are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream classification.\n\nDefault value: 1.0 um."
         },
         {
           "name": "CELL_SEGMENTATION_CHANNELS",
@@ -3929,7 +3929,7 @@
           "group": "Channels & Markers",
           "advanced": false,
           "uiOrder": 4020,
-          "detailsMarkdown": "What it does: Image channels used only for whole-cell segmentation. Change this to the membrane/cytoplasm channels that define cell boundaries; do not include nuclear channels unless they are intentionally part of the cell-boundary model.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [].\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
+          "detailsMarkdown": "What it does: Image channels used only for whole-cell segmentation. Change this to the membrane/cytoplasm channels that define cell boundaries; do not include nuclear channels unless they are intentionally part of the cell-boundary model.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [].\n\nExample: rename this when the image channel label differs from the workflow default, not when the biology is unchanged."
         },
         {
           "name": "CELL_DIAMETER_UM",
@@ -3989,7 +3989,7 @@
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6120,
-          "detailsMarkdown": "What it does: Sets the smallest whole-cell mask ASTRA keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny debris or fragmented cell masks. Decrease it only if true cells are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream quantification.\n\nDefault value: 1.0 um."
+          "detailsMarkdown": "What it does: Sets the smallest whole-cell mask the pipeline keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny debris or fragmented cell masks. Decrease it only if true cells are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream quantification.\n\nDefault value: 1.0 um."
         },
         {
           "name": "SAM_SIMPLIFY_DISTANCE_PX",
@@ -4013,7 +4013,7 @@
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6140,
-          "detailsMarkdown": "What it does: Lower percentile for Cellpose-SAM image normalization. The ASTRA default is 1.0; change only after image-intensity review because it affects detector input scaling and segmentation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nDefault value: CellposeInferenceDefaults.SAM_NORM_PMIN."
+          "detailsMarkdown": "What it does: Lower percentile for Cellpose-SAM image normalization. The workflow default is 1.0; change only after image-intensity review because it affects detector input scaling and segmentation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nDefault value: CellposeInferenceDefaults.SAM_NORM_PMIN."
         },
         {
           "name": "SAM_NORM_PMAX",
@@ -4025,7 +4025,7 @@
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6150,
-          "detailsMarkdown": "What it does: Upper percentile for Cellpose-SAM image normalization. The ASTRA default is 99.0; change only after image-intensity review because it affects detector input scaling and segmentation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nDefault value: CellposeInferenceDefaults.SAM_NORM_PMAX."
+          "detailsMarkdown": "What it does: Upper percentile for Cellpose-SAM image normalization. The workflow default is 99.0; change only after image-intensity review because it affects detector input scaling and segmentation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nDefault value: CellposeInferenceDefaults.SAM_NORM_PMAX."
         },
         {
           "name": "SAM_NTHREADS",
@@ -4109,7 +4109,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3050,
-          "detailsMarkdown": "What it does: Text prepended to positive colocalization classes. Keep a clear ASTRA prefix so generated visual classes are distinguishable from manual classes.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"ASTRA \"."
+          "detailsMarkdown": "What it does: Text prepended to positive colocalization classes. Keep a clear generated-class prefix so generated visual classes are distinguishable from manual classes.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"ASTRA \"."
         },
         {
           "name": "COLOCALIZATION_NEGATIVE_CLASS",
@@ -4245,7 +4245,7 @@
           "group": "Classes & Regions",
           "advanced": true,
           "uiOrder": 3060,
-          "detailsMarkdown": "What it does: Number of ordinal classes used by AUTO_OTSU_PER_CHANNEL boundary inference.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 2."
+          "detailsMarkdown": "What it does: Number of ordinal classes used by AUTO_OTSU_PER_CHANNEL boundary inference.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 2."
         },
         {
           "name": "THRESHOLD_SCOPE",
@@ -4379,19 +4379,19 @@
           "group": "Channels & Markers",
           "advanced": false,
           "uiOrder": 4040,
-          "detailsMarkdown": "What it does: Manual per-marker intensity offsets used only when BACKGROUND_MODE is MANUAL_OFFSET. Each Channel|Compartment value is subtracted from that marker's measured mean before thresholding and positivity calls; keys must match COLOCALIZATION_CHECKS.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [:].\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
+          "detailsMarkdown": "What it does: Manual per-marker intensity offsets used only when BACKGROUND_MODE is MANUAL_OFFSET. Each Channel|Compartment value is subtracted from that marker's measured mean before thresholding and positivity calls; keys must match COLOCALIZATION_CHECKS.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: [:].\n\nExample: rename this when the image channel label differs from the workflow default, not when the biology is unchanged."
         },
         {
           "name": "EXPORT_QC_FIGURES",
           "type": "boolean",
           "defaultGroovy": "true",
-          "helpGroovy": "\"Control whether ASTRA writes export qc figures.\"",
+          "helpGroovy": "\"Control whether the pipeline writes export qc figures.\"",
           "editable": true,
           "internal": false,
           "group": "Output & Export",
           "advanced": false,
           "uiOrder": 10010,
-          "detailsMarkdown": "What it does: Exports threshold QC figures for non-excluded markers. Disable only when plots are intentionally unnecessary; requested export failures are not hidden.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by ASTRA.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: Exports threshold QC figures for non-excluded markers. Disable only when plots are intentionally unnecessary; requested export failures are not hidden.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by the pipeline.\n\nDefault value: true."
         },
         {
           "name": "RESULTS_FOLDER",
@@ -4403,7 +4403,7 @@
           "group": "Output & Export",
           "advanced": false,
           "uiOrder": 10020,
-          "detailsMarkdown": "What it does: Project-relative analysis results folder under projectRoot/astra/results. Colocalization defaults to astra/results/colocalization.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by ASTRA.\n\nDefault value: \"colocalization\"."
+          "detailsMarkdown": "What it does: Project-relative analysis results folder under projectRoot/astra/results. Colocalization defaults to astra/results/colocalization.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by the pipeline.\n\nDefault value: \"colocalization\"."
         },
         {
           "name": "RESULTS_BASENAME",
@@ -4415,12 +4415,12 @@
           "group": "Output & Export",
           "advanced": false,
           "uiOrder": 10030,
-          "detailsMarkdown": "What it does: Optional filename prefix for exported results. Leave blank to derive names from the slide/project entry; set for publication-specific naming.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by ASTRA.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Optional filename prefix for exported results. Leave blank to derive names from the slide/project entry; set for publication-specific naming.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by the pipeline.\n\nDefault value: \"\"."
         }
       ]
     },
-    "sma-af647-oneshot": {
-      "id": "sma-af647-oneshot",
+    "marker-rescue": {
+      "id": "marker-rescue",
       "targets": [
         "NUCLEUS"
       ],
@@ -4452,7 +4452,7 @@
           "group": "Channels & Markers",
           "advanced": false,
           "uiOrder": 4010,
-          "detailsMarkdown": "What it does: Exact image channel containing the SMA/wall signal used when optional radial media inference is enabled. Manual wall annotations remain controlled by CLASS_SMA_MEDIA_REGION.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: \"SMA\".\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
+          "detailsMarkdown": "What it does: Exact image channel containing the SMA/wall signal used when optional radial media inference is enabled. Manual wall annotations remain controlled by CLASS_SMA_MEDIA_REGION.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: \"SMA\".\n\nExample: rename this when the image channel label differs from the workflow default, not when the biology is unchanged."
         },
         {
           "name": "NUCLEAR_CHANNEL",
@@ -4464,7 +4464,7 @@
           "group": "Channels & Markers",
           "advanced": false,
           "uiOrder": 4020,
-          "detailsMarkdown": "What it does: Exact image channel used for nucleus Cellpose detection and nuclear-signal QC measurements.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: \"DAPI\".\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
+          "detailsMarkdown": "What it does: Exact image channel used for nucleus Cellpose detection and nuclear-signal QC measurements.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: \"DAPI\".\n\nExample: rename this when the image channel label differs from the workflow default, not when the biology is unchanged."
         },
         {
           "name": "MARKER_SIGNAL_CHANNEL",
@@ -4476,7 +4476,7 @@
           "group": "Channels & Markers",
           "advanced": false,
           "uiOrder": 4030,
-          "detailsMarkdown": "What it does: Exact image channel containing the nuclear marker signal to score inside SMA-gated nuclei.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: \"Marker\".\n\nExample: rename this when the image channel label differs from the ASTRA default, not when the biology is unchanged."
+          "detailsMarkdown": "What it does: Exact image channel containing the nuclear marker signal to score inside SMA-gated nuclei.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which fluorescence signal is interpreted as each biological channel or marker.\n\nDefault value: \"Marker\".\n\nExample: rename this when the image channel label differs from the workflow default, not when the biology is unchanged."
         },
         {
           "name": "MARKER_SIGNAL_NAME",
@@ -4740,7 +4740,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3010,
-          "detailsMarkdown": "What it does: Exact QuPath annotation class used as the full analysis ROI where Cellpose runs. SMA wall/media inclusion is handled separately by CLASS_SMA_MEDIA_REGION or SMA-derived media inference.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"ROI\"."
+          "detailsMarkdown": "What it does: Exact QuPath annotation class used as the full analysis ROI where Cellpose runs. SMA wall/media inclusion is handled separately by CLASS_SMA_MEDIA_REGION or SMA-derived media inference.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"ROI\"."
         },
         {
           "name": "CLASS_SMA_MEDIA_REGION",
@@ -4787,19 +4787,19 @@
           "group": "Segmentation",
           "advanced": false,
           "uiOrder": 6030,
-          "detailsMarkdown": "What it does: GUI-friendly Cellpose-SAM inference preset for marker rescue nuclei. BALANCED matches ASTRA's previous defaults, STRICT reduces weak detections, SENSITIVE recovers weaker objects, and CUSTOM uses the explicit advanced detector knobs.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nAllowed values are controlled by SEGMENTATION_PRESET_OPTIONS in the manifest/script contract.\n\nDefault value: Balanced.\n\nExample: use BALANCED for routine runs, STRICT for fewer weak detections, SENSITIVE for weak-object recovery, and CUSTOM only after deliberate tuning."
+          "detailsMarkdown": "What it does: GUI-friendly Cellpose-SAM inference preset for marker rescue nuclei. BALANCED matches the previous defaults, STRICT reduces weak detections, SENSITIVE recovers weaker objects, and CUSTOM uses the explicit advanced detector knobs.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes Cellpose object recovery and can alter downstream cell counts and measurements.\n\nAllowed values are controlled by SEGMENTATION_PRESET_OPTIONS in the manifest/script contract.\n\nDefault value: Balanced.\n\nExample: use BALANCED for routine runs, STRICT for fewer weak detections, SENSITIVE for weak-object recovery, and CUSTOM only after deliberate tuning."
         },
         {
           "name": "WRITE_RECONSTRUCTED_LUMEN_ANNOTATIONS",
           "type": "boolean",
           "defaultGroovy": "true",
-          "helpGroovy": "\"Control whether ASTRA writes write reconstructed lumen annotations.\"",
+          "helpGroovy": "\"Control whether the pipeline writes write reconstructed lumen annotations.\"",
           "editable": true,
           "internal": false,
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3020,
-          "detailsMarkdown": "What it does: QC display. Measurements are always written; when enabled, ASTRA also creates visible reconstructed lumen annotations under each analysis ROI.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: QC display. Measurements are always written; when enabled, the pipeline also creates visible reconstructed lumen annotations under each analysis ROI.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: true."
         },
         {
           "name": "USE_MANUAL_LUMEN_DIAMETER_ANNOTATIONS",
@@ -4811,7 +4811,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3030,
-          "detailsMarkdown": "What it does: Include manually drawn lumen-diameter line annotations in marker-rescue exports. Enable when each analysis ROI may contain a user-drawn lumen diameter annotation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: false."
+          "detailsMarkdown": "What it does: Include manually drawn lumen-diameter line annotations in marker-rescue exports. Enable when each analysis ROI may contain a user-drawn lumen diameter annotation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: false."
         },
         {
           "name": "CLASS_LUMEN_DIAMETER_ANNOTATION",
@@ -4823,14 +4823,14 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3040,
-          "detailsMarkdown": "What it does: Exact QuPath class name for optional manually drawn lumen-diameter line annotations. Used only when USE_MANUAL_LUMEN_DIAMETER_ANNOTATIONS is enabled.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"Diameter\"."
+          "detailsMarkdown": "What it does: Exact QuPath class name for optional manually drawn lumen-diameter line annotations. Used only when USE_MANUAL_LUMEN_DIAMETER_ANNOTATIONS is enabled.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"Diameter\"."
         },
         {
           "name": "NUC_MODEL_SOURCE",
           "type": "String",
           "defaultGroovy": "CellposeInferenceDefaults.MODEL_SOURCE_MODEL_NAME",
           "optionsGroovy": "[\"MODEL_NAME\", \"FILE\"]",
-          "helpGroovy": "\"Choose how ASTRA resolves nucleus model.\"",
+          "helpGroovy": "\"Choose how the pipeline resolves nucleus model.\"",
           "editable": true,
           "internal": false,
           "group": "Models",
@@ -4925,7 +4925,7 @@
           "group": "Segmentation",
           "advanced": true,
           "uiOrder": 6080,
-          "detailsMarkdown": "What it does: Sets the smallest nucleus mask ASTRA keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny specks or fragmented nuclear debris. Decrease it only if true nuclei are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream classification.\n\nDefault value: 1.0 um."
+          "detailsMarkdown": "What it does: Sets the smallest nucleus mask the pipeline keeps after Cellpose segmentation, expressed as equivalent circular diameter in microns. This is the user-facing physical-size guard behind the Cellpose minimum-size behavior.\n\nWhen to change: Increase it to remove tiny specks or fragmented nuclear debris. Decrease it only if true nuclei are visibly smaller in this assay.\n\nAnalysis consequence: Raising this value reduces weak or tiny detections before downstream classification.\n\nDefault value: 1.0 um."
         },
         {
           "name": "TILE_SIZE",
@@ -4949,7 +4949,7 @@
           "group": "Runtime & Performance",
           "advanced": false,
           "uiOrder": 9010,
-          "detailsMarkdown": "What it does: Runs Cellpose with GPU acceleration when the configured ASTRA runtime supports it. Disable only when CPU execution is intentional.\n\nWhen to change: Change this when moving between workstations or diagnosing runtime behavior.\n\nAnalysis consequence: This changes execution speed or hardware use. It should not change intended biology when calibration stays enabled.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: Runs Cellpose with GPU acceleration when the configured runtime supports it. Disable only when CPU execution is intentional.\n\nWhen to change: Change this when moving between workstations or diagnosing runtime behavior.\n\nAnalysis consequence: This changes execution speed or hardware use. It should not change intended biology when calibration stays enabled.\n\nDefault value: true."
         },
         {
           "name": "SAM_SIMPLIFY_DISTANCE_PX",
@@ -5033,19 +5033,19 @@
           "group": "Output & Export",
           "advanced": true,
           "uiOrder": 10010,
-          "detailsMarkdown": "What it does: Writes the publication rescue technical CSV with Smooth Muscle overlap, Marker background source, diffuse/focal thresholds, p-values, q-values, call reason, and final binary call.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by ASTRA.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: Writes the publication rescue technical CSV with Smooth Muscle overlap, Marker background source, diffuse/focal thresholds, p-values, q-values, call reason, and final binary call.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by the pipeline.\n\nDefault value: true."
         },
         {
           "name": "RESULTS_FOLDER",
           "type": "String",
           "defaultGroovy": "\"sma_marker_rescue\"",
-          "helpGroovy": "\"Choose the project-relative ASTRA results folder.\"",
+          "helpGroovy": "\"Choose the project-relative results folder.\"",
           "editable": true,
           "internal": false,
           "group": "Output & Export",
           "advanced": false,
           "uiOrder": 10020,
-          "detailsMarkdown": "What it does: Project-relative results folder under projectRoot/astra/results for the marker-rescue CSV files.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by ASTRA.\n\nDefault value: \"sma_marker_rescue\"."
+          "detailsMarkdown": "What it does: Project-relative results folder under projectRoot/astra/results for the marker-rescue CSV files.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by the pipeline.\n\nDefault value: \"sma_marker_rescue\"."
         },
         {
           "name": "RESULTS_BASENAME",
@@ -5057,7 +5057,7 @@
           "group": "Output & Export",
           "advanced": false,
           "uiOrder": 10030,
-          "detailsMarkdown": "What it does: Optional filename prefix for exported marker-rescue results. Leave blank to use sma_marker_rescue.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by ASTRA.\n\nDefault value: \"\"."
+          "detailsMarkdown": "What it does: Optional filename prefix for exported marker-rescue results. Leave blank to use sma_marker_rescue.\n\nWhen to change: Change this when you need different exported artifacts or result locations.\n\nAnalysis consequence: This changes files or visible QC annotations written by the pipeline.\n\nDefault value: \"\"."
         },
         {
           "name": "NUC_PARAM_SOURCE",
@@ -5182,7 +5182,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3010,
-          "detailsMarkdown": "What it does: Exact number of output region annotations to create. The script fails rather than saving a partial set.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 24."
+          "detailsMarkdown": "What it does: Exact number of output region annotations to create. The script fails rather than saving a partial set.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 24."
         },
         {
           "name": "OUTPUT_CLASS_NAME",
@@ -5194,7 +5194,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3020,
-          "detailsMarkdown": "What it does: QuPath class assigned to every generated or copied output region.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"Training Image\"."
+          "detailsMarkdown": "What it does: QuPath class assigned to every generated or copied output region.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"Training Image\"."
         },
         {
           "name": "CLEAR_EXISTING_OUTPUT_CLASS_FIRST",
@@ -5206,7 +5206,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3030,
-          "detailsMarkdown": "What it does: Removes existing annotations with OUTPUT_CLASS_NAME before creating the new deterministic region set.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: Removes existing annotations with OUTPUT_CLASS_NAME before creating the new deterministic region set.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: true."
         },
         {
           "name": "SOURCE_CLASS_NAME",
@@ -5218,7 +5218,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3040,
-          "detailsMarkdown": "What it does: Exact QuPath class copied in FROM_ROI mode.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"ROI\"."
+          "detailsMarkdown": "What it does: Exact QuPath class copied in FROM_ROI mode.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"ROI\"."
         },
         {
           "name": "COPY_OFFSET_PX",
@@ -5230,7 +5230,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3050,
-          "detailsMarkdown": "What it does: Signed pixel offset applied to copied ROIs; positive expands, negative shrinks, and zero copies exactly.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 2.0d."
+          "detailsMarkdown": "What it does: Signed pixel offset applied to copied ROIs; positive expands, negative shrinks, and zero copies exactly.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 2.0d."
         },
         {
           "name": "GENERATED_REGION_WIDTH_PX",
@@ -5242,7 +5242,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3060,
-          "detailsMarkdown": "What it does: Width in pixels for each random rectangle created in GENERATE mode.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 512.0d."
+          "detailsMarkdown": "What it does: Width in pixels for each random rectangle created in GENERATE mode.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 512.0d."
         },
         {
           "name": "GENERATED_REGION_HEIGHT_PX",
@@ -5254,7 +5254,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3070,
-          "detailsMarkdown": "What it does: Height in pixels for each random rectangle created in GENERATE mode.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 512.0d."
+          "detailsMarkdown": "What it does: Height in pixels for each random rectangle created in GENERATE mode.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 512.0d."
         },
         {
           "name": "MATCH_SELECTED_IMAGE_NAMES_AGAINST_ORIGINAL",
@@ -5278,7 +5278,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3080,
-          "detailsMarkdown": "What it does: Locks newly-created output annotations to reduce accidental manual edits after deterministic generation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: Locks newly-created output annotations to reduce accidental manual edits after deterministic generation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: true."
         },
         {
           "name": "GENERATED_MAX_ATTEMPTS_PER_REGION",
@@ -5290,7 +5290,7 @@
           "group": "Classes & Regions",
           "advanced": true,
           "uiOrder": 3090,
-          "detailsMarkdown": "What it does: Maximum placement attempts for each generated rectangle before the run treats the placement as unsatisfied.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: 500."
+          "detailsMarkdown": "What it does: Maximum placement attempts for each generated rectangle before the run treats the placement as unsatisfied.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: 500."
         },
         {
           "name": "GENERATED_PERMIT_EROSION",
@@ -5302,7 +5302,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3100,
-          "detailsMarkdown": "What it does: Allows erosion of the available placement mask during random rectangle generation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: false."
+          "detailsMarkdown": "What it does: Allows erosion of the available placement mask during random rectangle generation.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: false."
         },
         {
           "name": "OUTPUT_NAME_PREFIX",
@@ -5314,7 +5314,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3110,
-          "detailsMarkdown": "What it does: Prefix used for deterministic names assigned to generated output annotations.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: \"TI\"."
+          "detailsMarkdown": "What it does: Prefix used for deterministic names assigned to generated output annotations.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: \"TI\"."
         },
         {
           "name": "CLEAR_OUTPUT_KEEP_CHILDREN",
@@ -5326,7 +5326,7 @@
           "group": "Classes & Regions",
           "advanced": false,
           "uiOrder": 3120,
-          "detailsMarkdown": "What it does: Keeps child objects when clearing existing output annotations before generating the new region set.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers ASTRA reads or writes.\n\nDefault value: true."
+          "detailsMarkdown": "What it does: Keeps child objects when clearing existing output annotations before generating the new region set.\n\nWhen to change: Change this only when the project, staining panel, model source, or analysis protocol requires it.\n\nAnalysis consequence: This changes which QuPath annotations or classifiers the pipeline reads or writes.\n\nDefault value: true."
         },
         {
           "name": "DEBUG",
@@ -5341,6 +5341,88 @@
           "detailsMarkdown": "What it does: Reserved diagnostic flag recorded in cfg for future region-generation troubleshooting.\n\nWhen to change: Change this when auditing a run or investigating a failure.\n\nAnalysis consequence: This changes audit verbosity or diagnostic artifacts without changing intended analysis logic.\n\nDefault value: false."
         }
       ]
+    },
+    "count-nuclei": {
+      "id": "count-nuclei",
+      "targets": ["NUCLEUS"],
+      "runtimePreflight": {"requiresPython": false},
+      "visibleStages": [],
+      "scriptActions": ["RUN"],
+      "headerActions": [],
+      "imageScopes": ["CURRENT_IMAGE"],
+      "thresholdScopes": [],
+      "parameters": [
+        {"name":"DETECTION_CHANNEL","type":"String","defaultGroovy":"\"DAPI\"","helpGroovy":"\"Fluorescence channel used for nuclear segmentation; brightfield uses Hematoxylin OD.\"","editable":true,"internal":false,"group":"Channels & Markers","advanced":false,"uiOrder":3010,"detailsMarkdown":"Fluorescence nuclear channel. Brightfield images use QuPath hematoxylin color deconvolution."},
+        {"name":"REQUESTED_PIXEL_SIZE_UM","type":"double","defaultGroovy":"0.5d","helpGroovy":"\"Analysis pixel size in microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6010,"detailsMarkdown":"Requested segmentation resolution in microns per pixel."},
+        {"name":"BACKGROUND_RADIUS_UM","type":"double","defaultGroovy":"8.0d","helpGroovy":"\"Background subtraction radius in microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6020,"detailsMarkdown":"Local background subtraction radius used by QuPath watershed detection."},
+        {"name":"MEDIAN_RADIUS_UM","type":"double","defaultGroovy":"0.0d","helpGroovy":"\"Median-filter radius in microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":true,"uiOrder":6030,"detailsMarkdown":"Median-filter radius before segmentation; zero disables it."},
+        {"name":"SIGMA_UM","type":"double","defaultGroovy":"1.5d","helpGroovy":"\"Gaussian smoothing sigma in microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6040,"detailsMarkdown":"Gaussian smoothing scale before watershed segmentation."},
+        {"name":"MIN_NUCLEUS_AREA_UM2","type":"double","defaultGroovy":"10.0d","helpGroovy":"\"Minimum accepted nuclear area in square microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6050,"detailsMarkdown":"Minimum nuclear area retained after segmentation."},
+        {"name":"MAX_NUCLEUS_AREA_UM2","type":"double","defaultGroovy":"400.0d","helpGroovy":"\"Maximum accepted nuclear area in square microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6060,"detailsMarkdown":"Maximum nuclear area retained after segmentation."},
+        {"name":"INTENSITY_THRESHOLD","type":"double","defaultGroovy":"0.1d","helpGroovy":"\"Watershed detection intensity threshold.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6070,"detailsMarkdown":"QuPath watershed intensity threshold after modality-specific preprocessing."},
+        {"name":"CELL_EXPANSION_UM","type":"double","defaultGroovy":"0.0d","helpGroovy":"\"Cell expansion is zero for nucleus-only counting.\"","editable":false,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6080,"detailsMarkdown":"Zero preserves nucleus-only objects."},
+        {"name":"WATERSHED_POST_PROCESS","type":"boolean","defaultGroovy":"true","helpGroovy":"\"Apply QuPath watershed post-processing.\"","editable":true,"internal":false,"group":"Segmentation","advanced":true,"uiOrder":6090,"detailsMarkdown":"Separates touching candidate nuclei after thresholding."},
+        {"name":"SMOOTH_BOUNDARIES","type":"boolean","defaultGroovy":"true","helpGroovy":"\"Smooth detected object boundaries.\"","editable":true,"internal":false,"group":"Segmentation","advanced":true,"uiOrder":6100,"detailsMarkdown":"Applies QuPath boundary smoothing to detected objects."},
+        {"name":"MAKE_MEASUREMENTS","type":"boolean","defaultGroovy":"true","helpGroovy":"\"Add standard QuPath measurements to detected objects.\"","editable":true,"internal":false,"group":"Output & Export","advanced":false,"uiOrder":10010,"detailsMarkdown":"Adds standard shape and intensity measurements to created objects."}
+      ]
+    },
+    "count-cells": {
+      "id": "count-cells",
+      "targets": ["CELL"],
+      "runtimePreflight": {"requiresPython": false},
+      "visibleStages": [],
+      "scriptActions": ["RUN"],
+      "headerActions": [],
+      "imageScopes": ["CURRENT_IMAGE"],
+      "thresholdScopes": [],
+      "parameters": [
+        {"name":"DETECTION_CHANNEL","type":"String","defaultGroovy":"\"DAPI\"","helpGroovy":"\"Fluorescence channel used for nuclear segmentation; brightfield uses Hematoxylin OD.\"","editable":true,"internal":false,"group":"Channels & Markers","advanced":false,"uiOrder":3010,"detailsMarkdown":"Fluorescence nuclear channel. Brightfield images use QuPath hematoxylin color deconvolution."},
+        {"name":"REQUESTED_PIXEL_SIZE_UM","type":"double","defaultGroovy":"0.5d","helpGroovy":"\"Analysis pixel size in microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6010,"detailsMarkdown":"Requested segmentation resolution in microns per pixel."},
+        {"name":"BACKGROUND_RADIUS_UM","type":"double","defaultGroovy":"8.0d","helpGroovy":"\"Background subtraction radius in microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6020,"detailsMarkdown":"Local background subtraction radius used by QuPath watershed detection."},
+        {"name":"MEDIAN_RADIUS_UM","type":"double","defaultGroovy":"0.0d","helpGroovy":"\"Median-filter radius in microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":true,"uiOrder":6030,"detailsMarkdown":"Median-filter radius before segmentation; zero disables it."},
+        {"name":"SIGMA_UM","type":"double","defaultGroovy":"1.5d","helpGroovy":"\"Gaussian smoothing sigma in microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6040,"detailsMarkdown":"Gaussian smoothing scale before watershed segmentation."},
+        {"name":"MIN_NUCLEUS_AREA_UM2","type":"double","defaultGroovy":"10.0d","helpGroovy":"\"Minimum accepted nuclear area in square microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6050,"detailsMarkdown":"Minimum nuclear area retained after segmentation."},
+        {"name":"MAX_NUCLEUS_AREA_UM2","type":"double","defaultGroovy":"400.0d","helpGroovy":"\"Maximum accepted nuclear area in square microns.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6060,"detailsMarkdown":"Maximum nuclear area retained after segmentation."},
+        {"name":"INTENSITY_THRESHOLD","type":"double","defaultGroovy":"0.1d","helpGroovy":"\"Watershed detection intensity threshold.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6070,"detailsMarkdown":"QuPath watershed intensity threshold after modality-specific preprocessing."},
+        {"name":"CELL_EXPANSION_UM","type":"double","defaultGroovy":"5.0d","helpGroovy":"\"Distance in microns used to estimate each cell boundary from its nucleus.\"","editable":true,"internal":false,"group":"Segmentation","advanced":false,"uiOrder":6080,"detailsMarkdown":"Expands each segmented nucleus to estimate a cell boundary while resolving overlaps."},
+        {"name":"WATERSHED_POST_PROCESS","type":"boolean","defaultGroovy":"true","helpGroovy":"\"Apply QuPath watershed post-processing.\"","editable":true,"internal":false,"group":"Segmentation","advanced":true,"uiOrder":6090,"detailsMarkdown":"Separates touching candidate nuclei after thresholding."},
+        {"name":"SMOOTH_BOUNDARIES","type":"boolean","defaultGroovy":"true","helpGroovy":"\"Smooth detected object boundaries.\"","editable":true,"internal":false,"group":"Segmentation","advanced":true,"uiOrder":6100,"detailsMarkdown":"Applies QuPath boundary smoothing to detected objects."},
+        {"name":"MAKE_MEASUREMENTS","type":"boolean","defaultGroovy":"true","helpGroovy":"\"Add standard QuPath measurements to detected objects.\"","editable":true,"internal":false,"group":"Output & Export","advanced":false,"uiOrder":10010,"detailsMarkdown":"Adds standard shape and intensity measurements to created cells."}
+      ]
+    },
+    "summarize-objects": {
+      "id": "summarize-objects",
+      "targets": [],
+      "runtimePreflight": {
+        "requiresPython": false
+      },
+      "visibleStages": [],
+      "scriptActions": [
+        "RUN"
+      ],
+      "headerActions": [],
+      "imageScopes": [
+        "CURRENT_IMAGE"
+      ],
+      "thresholdScopes": [],
+      "parameters": []
+    },
+    "save-current-image": {
+      "id": "save-current-image",
+      "targets": [],
+      "runtimePreflight": {
+        "requiresPython": false
+      },
+      "visibleStages": [],
+      "scriptActions": [
+        "RUN"
+      ],
+      "headerActions": [],
+      "imageScopes": [
+        "CURRENT_IMAGE"
+      ],
+      "thresholdScopes": [],
+      "parameters": []
     }
   }
 }

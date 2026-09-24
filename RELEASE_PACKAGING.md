@@ -4,7 +4,7 @@ The installable ASTRA artifact is the runtime JAR published by this repository's
 release process and referenced by the ASTRA QuPath catalog.
 
 Source tags identify the extension source snapshot used for a release. Release
-JARs contain the resources QuPath needs at runtime, including ASTRA workflow
+JARs contain the resources QuPath needs at runtime, including workflow
 resources, runtime metadata, and packaged helper scripts.
 
 Generated build outputs, generated Javadocs, IDE metadata, operating-system

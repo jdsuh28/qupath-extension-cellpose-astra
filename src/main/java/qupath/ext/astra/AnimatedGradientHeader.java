@@ -6,7 +6,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.shape.Rectangle;
 
 /**
- * Header container that moves the shared ASTRA gradient behind static content.
+ * Header container that moves the shared launcher gradient behind static content.
  */
 final class AnimatedGradientHeader extends StackPane {
 

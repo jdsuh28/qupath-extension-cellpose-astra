@@ -21,8 +21,8 @@ import java.util.Map;
 
 final class StyledLogView extends VBox {
 
-    private static final String FONT_STACK = "\"Inter\", \"Avenir Next\", \"Segoe UI\", sans-serif";
-    private static final String MONO_FONT_STACK = "\"JetBrains Mono\", \"SFMono-Regular\", \"Consolas\", monospace";
+    private static final String FONT_STACK = LauncherTypographyTokens.PRIMARY_FONT_STACK;
+    private static final String MONO_FONT_STACK = LauncherTypographyTokens.MONO_FONT_STACK;
     private static final double LOG_STACK_GAP =
             LauncherGeometryTokens.INTRA_PANEL_SUBTLE_GAP - LauncherGeometryTokens.SURFACE_BORDER_WIDTH;
     private static final double LOG_ROW_GAP =
@@ -66,7 +66,7 @@ final class StyledLogView extends VBox {
     private final RunLogBlockAccumulator blockAccumulator = new RunLogBlockAccumulator();
     private final Button copyButton = GuiText.button(GuiText.Role.CONTROL_TEXT, "Copy All");
     private final Label statusTitle = GuiText.label(GuiText.Role.LOG_TEXT, "Ready");
-    private final Label statusDetail = GuiText.label(GuiText.Role.LOG_TEXT, "Waiting for an ASTRA run.");
+    private final Label statusDetail = GuiText.label(GuiText.Role.LOG_TEXT, "Waiting for a run.");
     private final VBox failureSummary = new VBox(LOG_TIGHT_GAP);
     private final HBox timelineRail = new HBox(LOG_TIGHT_GAP + LauncherGeometryTokens.SURFACE_BORDER_WIDTH);
     private RunLogSource currentSource;
@@ -93,7 +93,8 @@ final class StyledLogView extends VBox {
             Clipboard.getSystemClipboard().setContent(content);
             copyButton.setText("Copied");
             styleCopyButton(copyButton, true);
-            PauseTransition reset = new PauseTransition(Duration.seconds(1.2));
+            PauseTransition reset = new PauseTransition(
+                    Duration.seconds(LauncherMotionTokens.COPY_FEEDBACK_SECONDS));
             reset.setOnFinished(done -> {
                 copyButton.setText("Copy All");
                 styleCopyButton(copyButton, false);
@@ -137,7 +138,7 @@ final class StyledLogView extends VBox {
                         : newBounds.getHeight()));
         Region topFade = new Region();
         topFade.setMouseTransparent(true);
-        topFade.setMinSize(0.0d, 0.0d);
+        topFade.setMinSize(LauncherGeometryTokens.FLUSH, LauncherGeometryTokens.FLUSH);
         topFade.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         addStyleClass(topFade, "astra-log-scroll-top-fade");
         StackPane scrollFrame = new StackPane(scroll, topFade);
@@ -256,7 +257,7 @@ final class StyledLogView extends VBox {
                 appendStandalone(createCommandBlock(entry), entry);
                 continue;
             }
-            if (entry.source() == RunLogSource.ASTRA || blockAccumulator.isCapturing()) {
+            if (entry.source() == RunLogSource.PIPELINE || blockAccumulator.isCapturing()) {
                 var renderedBlock = blockAccumulator.accept(entry);
                 if (renderedBlock.isPresent()) {
                     appendRenderedBlock(renderedBlock.get());
@@ -277,7 +278,7 @@ final class StyledLogView extends VBox {
                 appendStandalone(createStageCard(entry, event), entry);
                 continue;
             }
-            if (entry.kind() == RunLogKind.KEY_VALUE && entry.source() == RunLogSource.ASTRA) {
+            if (entry.kind() == RunLogKind.KEY_VALUE && entry.source() == RunLogSource.PIPELINE) {
                 appendStandalone(createKeyValueCard(entry), entry);
                 continue;
             }

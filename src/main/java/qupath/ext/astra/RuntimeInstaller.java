@@ -57,57 +57,79 @@ import java.util.concurrent.TimeUnit;
 import java.util.Comparator;
 
 /**
- * Installs and registers the ASTRA Python runtime used by Cellpose-SAM.
+ * Installs and registers the managed Python runtime used by Cellpose-SAM.
  *
- * <p>The installer is intentionally ASTRA-specific and leaves upstream BIOP
+ * <p>The installer is intentionally extension-specific and leaves upstream BIOP
  * setup untouched. It creates a deterministic user-local conda-prefix
- * environment, installs the ASTRA Cellpose fork, validates imports/startup, and
+ * environment, installs the Cellpose fork, validates imports/startup, and
  * then writes the extension preference consumed by {@link CellposeSetup}.</p>
  *
- * <p>Conda/miniforge is the only supported installer path. It allows ASTRA to
+ * <p>Conda/miniforge is the only supported installer path. It allows the extension to
  * bootstrap a pinned Python runtime without relying on system Python.</p>
  */
 final class RuntimeInstaller {
 
-    static final String ASTRA_CELLPOSE_REPO = "https://github.com/jdsuh28/cellpose-astra.git";
-    static final String DEFAULT_CELLPOSE_REF = "v4.1.1+astra.3";
-    static final String DEFAULT_PYTHON_VERSION = "3.10";
-    static final String ENVIRONMENT_NAME = "cellpose-astra";
+    static final String CELLPOSE_FORK_REPOSITORY = "https://github.com/jdsuh28/cellpose-astra.git";
+    static final String DEFAULT_CELLPOSE_REF = "f40c2157e8b90176905283797a0e6d005f91980f";
+    static final String DEFAULT_DINOV3_REF = "6876159a11b4df116f30f667f8c9888617df0751";
+    static final String DEFAULT_PYTHON_VERSION = "3.11";
+    static final String ENVIRONMENT_NAME = "cellpose-astra-py311";
     static final String CONDA_OVERRIDE_OSX = "CONDA_OVERRIDE_OSX";
     static final String MACOS_CONDA_SOLVER_VERSION = "10.15";
     static final String RUNTIME_PIN_PREFIX = "runtime_pin.";
+    static final long INITIAL_ELAPSED_SECONDS = 0L;
+    static final String ELAPSED_PREFIX = "Elapsed ";
+    static final String ELAPSED_SUFFIX = "s";
 
     private static final String RUNTIME_FOLDER_NAME = ENVIRONMENT_NAME;
     private static final String RELEASE_PROPERTIES_RESOURCE = "qupath/ext/astra/release/runtime.properties";
     private static final String RELEASE_MANIFEST_RESOURCE = "astra/rulebook/manifests/release.json";
     private static final String MINIFORGE_FOLDER_NAME = "miniforge";
-    private static final Duration COMMAND_TIMEOUT = Duration.ofMinutes(45);
-    private static final Duration BOOTSTRAP_TIMEOUT = Duration.ofMinutes(20);
+    private static final Duration COMMAND_TIMEOUT =
+            LauncherMotionTokens.RUNTIME_COMMAND_TIMEOUT;
+    private static final Duration BOOTSTRAP_TIMEOUT =
+            LauncherMotionTokens.RUNTIME_BOOTSTRAP_TIMEOUT;
     private static final Gson GSON = new Gson();
     private static final Type MAP_TYPE = new TypeToken<LinkedHashMap<String, Object>>() {}.getType();
     private static final Map<String, String> DEFAULT_RUNTIME_PINS = Map.ofEntries(
-            Map.entry("MarkupSafe", "3.0.3"),
+            Map.entry("antlr4-python3-runtime", "4.9.3"),
+            Map.entry("cloudpickle", "3.1.2"),
             Map.entry("fastremap", "1.20.0"),
-            Map.entry("filelock", "3.29.4"),
+            Map.entry("filelock", "4.0.1"),
             Map.entry("fill-voids", "2.1.2"),
-            Map.entry("fsspec", "2026.6.0"),
-            Map.entry("imagecodecs", "2025.3.30"),
+            Map.entry("fsspec", "2026.9.0"),
+            Map.entry("ftfy", "6.3.1"),
+            Map.entry("imagecodecs", "2026.3.6"),
             Map.entry("jinja2", "3.1.6"),
+            Map.entry("joblib", "1.6.0"),
+            Map.entry("lightning-utilities", "0.15.3"),
+            Map.entry("markupsafe", "3.0.3"),
             Map.entry("mpmath", "1.3.0"),
+            Map.entry("narwhals", "2.26.0"),
             Map.entry("natsort", "8.4.0"),
-            Map.entry("networkx", "3.4.2"),
-            Map.entry("numpy", "1.26.4"),
-            Map.entry("opencv-python-headless", "4.10.0.84"),
-            Map.entry("pillow", "12.2.0"),
-            Map.entry("roifile", "2025.12.12"),
+            Map.entry("networkx", "3.6.1"),
+            Map.entry("numpy", "2.2.6"),
+            Map.entry("omegaconf", "2.3.1"),
+            Map.entry("opencv-python-headless", "4.13.0.92"),
+            Map.entry("packaging", "26.3"),
+            Map.entry("pillow", "12.3.0"),
+            Map.entry("pyyaml", "6.0.3"),
+            Map.entry("regex", "2026.9.10"),
+            Map.entry("roifile", "2026.2.10"),
+            Map.entry("scikit-learn", "1.9.1"),
             Map.entry("scipy", "1.15.3"),
             Map.entry("segment-anything", "1.0"),
+            Map.entry("submitit", "1.5.4"),
             Map.entry("sympy", "1.14.0"),
-            Map.entry("tifffile", "2025.5.10"),
-            Map.entry("torch", "2.2.2"),
-            Map.entry("torchvision", "0.17.2"),
-            Map.entry("tqdm", "4.68.3"),
-            Map.entry("typing-extensions", "4.15.0")
+            Map.entry("termcolor", "3.3.0"),
+            Map.entry("threadpoolctl", "3.7.0"),
+            Map.entry("tifffile", "2026.3.3"),
+            Map.entry("torch", "2.10.0"),
+            Map.entry("torchmetrics", "1.9.0"),
+            Map.entry("torchvision", "0.25.0"),
+            Map.entry("tqdm", "4.70.1"),
+            Map.entry("typing-extensions", "4.16.0"),
+            Map.entry("wcwidth", "0.9.1")
     );
 
     private static final class InstallerGeometry {
@@ -138,16 +160,16 @@ final class RuntimeInstaller {
     private enum RuntimeSetupKind {
         ALREADY_READY(
                 "Runtime ready",
-                "The existing ASTRA-managed runtime passed validation.",
-                "ASTRA registered the existing managed runtime. You can run Cellpose workflows now."),
+                "The existing managed runtime passed validation.",
+                "The installer registered the existing managed runtime. You can run Cellpose workflows now."),
         CREATED_RUNTIME(
                 "Runtime created",
-                "ASTRA created and validated a new managed runtime.",
-                "ASTRA registered the new managed runtime. You can run Cellpose workflows now."),
+                "The installer created and validated a new managed runtime.",
+                "The installer registered the new managed runtime. You can run Cellpose workflows now."),
         REPAIRED_RUNTIME(
                 "Runtime repaired",
-                "ASTRA rebuilt and validated the managed runtime.",
-                "ASTRA registered the repaired managed runtime. You can run Cellpose workflows now.");
+                "The installer rebuilt and validated the managed runtime.",
+                "The installer registered the repaired managed runtime. You can run Cellpose workflows now.");
 
         private final String title;
         private final String heading;
@@ -163,32 +185,32 @@ final class RuntimeInstaller {
     private enum RuntimeFailureKind {
         CANCELLED(
                 "Runtime setup cancelled",
-                "ASTRA stopped the active runtime setup command.",
-                "Run ASTRA Runtime Setup again when you are ready."),
+                "The installer stopped the active runtime setup command.",
+                "Run Runtime Setup again when you are ready."),
         NETWORK_DOWNLOAD_FAILED(
                 "Download failed",
-                "ASTRA could not download or verify a required runtime installer.",
-                "Check the network connection, then run ASTRA Runtime Setup again."),
+                "The installer could not download or verify a required runtime installer.",
+                "Check the network connection, then run Runtime Setup again."),
         CONDA_SOLVER_FAILED(
                 "Conda runtime creation failed",
-                "ASTRA could not create the pinned Python runtime with conda.",
-                "Run ASTRA Runtime Setup again. If this repeats, send the install log."),
+                "The installer could not create the pinned Python runtime with conda.",
+                "Run Runtime Setup again. If this repeats, send the install log."),
         PIP_INSTALL_FAILED(
                 "Python package install failed",
-                "ASTRA could not install the release-pinned Cellpose-ASTRA Python stack.",
-                "Check the network connection, then run ASTRA Runtime Setup again. If this repeats, send the install log."),
+                "The installer could not install the release-pinned Cellpose-ASTRA Python stack.",
+                "Check the network connection, then run Runtime Setup again. If this repeats, send the install log."),
         PYTHON_PACKAGE_VALIDATION_FAILED(
                 "Runtime validation failed",
-                "The managed runtime did not match ASTRA's pinned Python/package requirements.",
-                "Run ASTRA Runtime Setup again to recreate the managed runtime."),
+                "The managed runtime did not match release-pinned Python/package requirements.",
+                "Run Runtime Setup again to recreate the managed runtime."),
         PERMISSION_DELETE_FAILED(
                 "Runtime repair needs file access",
-                "ASTRA could not remove the broken managed runtime directory.",
+                "The installer could not remove the broken managed runtime directory.",
                 "Close tools using ~/.astra/cellpose-astra, check file permissions, then run repair again."),
         UNEXPECTED_ERROR(
                 "Runtime setup failed",
-                "ASTRA hit an unexpected runtime setup error.",
-                "Run ASTRA Runtime Setup again. If this repeats, send the install log.");
+                "The installer encountered an unexpected runtime setup error.",
+                "Run Runtime Setup again. If this repeats, send the install log.");
 
         private final String title;
         private final String heading;
@@ -243,12 +265,12 @@ final class RuntimeInstaller {
      */
     static void installOrRepairAsync(StringProperty runtimePythonPath) {
         Objects.requireNonNull(runtimePythonPath, "runtimePythonPath");
-        boolean proceed = PipelineLauncher.createAstraSuccessConfirmationDialog(
+        boolean proceed = PipelineLauncher.createSuccessConfirmationDialog(
                 null,
-                "ASTRA Runtime Setup",
-                "Create or repair the ASTRA Cellpose runtime?",
+                "Runtime Setup",
+                "Create or repair the Cellpose runtime?",
                 """
-                ASTRA will create or repair a local Python runtime, install Cellpose-ASTRA,
+                The installer will create or repair a local Python runtime, install Cellpose-ASTRA,
                 verify the installation, and register it with QuPath.
 
                 This can take several minutes and requires internet access the first time.
@@ -261,7 +283,7 @@ final class RuntimeInstaller {
         }
 
         InstallProgress progress = InstallProgress.show();
-        Thread worker = new Thread(() -> installOrRepair(runtimePythonPath, progress), "ASTRA runtime installer");
+        Thread worker = new Thread(() -> installOrRepair(runtimePythonPath, progress), "runtime installer");
         worker.setDaemon(true);
         worker.start();
     }
@@ -285,7 +307,7 @@ final class RuntimeInstaller {
                 applyRuntimePath(runtimePythonPath, python);
                 RuntimeSetupOutcome outcome = new RuntimeSetupOutcome(RuntimeSetupKind.ALREADY_READY, python, logFile);
                 progress.done(outcome);
-                showOutcome("ASTRA Runtime Setup", outcome);
+                showOutcome("Runtime Setup", outcome);
                 return;
             }
 
@@ -309,16 +331,16 @@ final class RuntimeInstaller {
                     python,
                     logFile);
             progress.done(outcome);
-            showOutcome("ASTRA Runtime Setup", outcome);
+            showOutcome("Runtime Setup", outcome);
         } catch (Throwable t) {
             RuntimeSetupFailure failure = new RuntimeSetupFailure(classifyFailure(t), t, logFile);
             progress.failed(failure);
-            showFailure("ASTRA Runtime Setup", failure);
+            showFailure("Runtime Setup", failure);
         }
     }
 
     /**
-     * Installs the ASTRA runtime into the deterministic conda prefix.
+     * Installs the managed runtime into the deterministic conda prefix.
      *
      * @param runtimeDirectory deterministic runtime directory.
      * @param python runtime Python executable.
@@ -328,20 +350,29 @@ final class RuntimeInstaller {
      * @throws InterruptedException if command execution is interrupted.
      */
     private static void installRuntime(File runtimeDirectory, File python, InstallProgress progress, File logFile) throws IOException, InterruptedException {
-        String conda = findOrBootstrapCondaExecutable(progress, logFile);
+        boolean mac = platformKey(System.getProperty("os.name", ""), System.getProperty("os.arch", "")).startsWith("macos-");
+        boolean armHost = mac && isAppleSiliconHost();
+        if (mac && !armHost) {
+            throw new IOException("The pinned Cellpose-ASTRA fork requires torch 2.10, which has no macOS x86_64 wheel. "
+                    + "This Intel Mac cannot create the new runtime; the previous runtime and QuPath preference are unchanged.");
+        }
+        String conda = condaExecutableForRuntime(findOrBootstrapCondaExecutable(progress, logFile), armHost);
         progress.step("Creating conda runtime", String.join(" ", condaCreateCommand(conda, runtimeDirectory)));
-        runCommand(condaCreateCommand(conda, runtimeDirectory), null, condaCreateEnvironmentOverrides(), progress, logFile);
+        runCommand(condaCreateCommand(conda, runtimeDirectory), null,
+                condaCreateEnvironmentOverrides(System.getProperty("os.name", ""), armHost), progress, logFile);
         progress.step("Upgrading Python packaging tools", python.getAbsolutePath());
         runCommand(List.of(python.getAbsolutePath(), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"), null, progress, logFile);
         File constraints = writePipConstraintsFile(logFile);
         progress.step("Installing Cellpose-ASTRA", cellposePackageSpec() + "\nconstraints: " + constraints.getAbsolutePath());
         runCommand(pipInstallCellposeCommand(python, constraints), null, progress, logFile);
+        progress.step("Installing DINOv3", pinnedDinov3Ref());
+        runCommand(pipInstallDinov3Command(python, constraints), null, progress, logFile);
         progress.step("Checking Python package consistency", python.getAbsolutePath());
         runCommand(pipCheckCommand(python), null, progress, logFile);
     }
 
     /**
-     * Removes the deterministic ASTRA-managed runtime prefix before repair.
+     * Removes the deterministic managed runtime prefix before repair.
      *
      * @param runtimeDirectory deterministic managed runtime directory.
      * @param progress progress UI/log sink.
@@ -353,12 +384,12 @@ final class RuntimeInstaller {
             return;
         }
         if (!RUNTIME_FOLDER_NAME.equals(runtimeDirectory.getName())) {
-            throw new IOException("ASTRA refused to remove a non-managed runtime path: " + runtimeDirectory.getAbsolutePath());
+            throw new IOException("The installer refused to remove a non-managed runtime path: " + runtimeDirectory.getAbsolutePath());
         }
         File expectedParent = new File(System.getProperty("user.home"), ".astra").getCanonicalFile();
         File actualParent = runtimeDirectory.getParentFile() == null ? null : runtimeDirectory.getParentFile().getCanonicalFile();
         if (!expectedParent.equals(actualParent)) {
-            throw new IOException("ASTRA refused to remove a runtime outside the managed ~/.astra folder: " + runtimeDirectory.getAbsolutePath());
+            throw new IOException("The installer refused to remove a runtime outside the managed ~/.astra folder: " + runtimeDirectory.getAbsolutePath());
         }
 
         progressStep(progress, "Removing broken managed runtime", runtimeDirectory.getAbsolutePath());
@@ -371,7 +402,7 @@ final class RuntimeInstaller {
                 Files.deleteIfExists(path);
             }
         } catch (IOException e) {
-            throw new IOException("ASTRA could not remove the broken managed runtime directory: "
+            throw new IOException("The installer could not remove the broken managed runtime directory: "
                     + runtimeDirectory.getAbsolutePath() + ". Close any process using it and try repair again.", e);
         }
     }
@@ -412,12 +443,12 @@ final class RuntimeInstaller {
     }
 
     /**
-     * Builds the pinned pip package spec for the released ASTRA Cellpose fork.
+     * Builds the pinned pip package spec for the released Cellpose fork.
      *
      * @return pip install spec containing a tag or immutable ref.
      */
     static String cellposePackageSpec() {
-        return "git+" + ASTRA_CELLPOSE_REPO + "@" + pinnedCellposeRef();
+        return "git+" + CELLPOSE_FORK_REPOSITORY + "@" + pinnedCellposeRef();
     }
 
     /**
@@ -427,6 +458,15 @@ final class RuntimeInstaller {
      */
     static String pinnedCellposeRef() {
         return releaseProperty("cellpose_astra_ref", DEFAULT_CELLPOSE_REF);
+    }
+
+    static String pinnedDinov3Ref() {
+        return releaseProperty("dinov3_ref", DEFAULT_DINOV3_REF);
+    }
+
+    static List<String> pipInstallDinov3Command(File python, File constraints) {
+        return List.of(python.getAbsolutePath(), "-m", "pip", "install", "--upgrade", "-c",
+                constraints.getAbsolutePath(), "git+https://github.com/facebookresearch/dinov3@" + pinnedDinov3Ref());
     }
 
     /**
@@ -537,7 +577,7 @@ final class RuntimeInstaller {
     }
 
     /**
-     * Returns the deterministic ASTRA runtime directory.
+     * Returns the deterministic managed runtime directory.
      *
      * @return user-local runtime directory.
      */
@@ -591,7 +631,7 @@ final class RuntimeInstaller {
     }
 
     /**
-     * Detects the classic {@code conda} frontend so ASTRA can request the
+     * Detects the classic {@code conda} frontend so the installer can request the
      * libmamba solver explicitly during environment creation.
      *
      * @param condaExecutable conda-compatible executable name/path.
@@ -607,7 +647,7 @@ final class RuntimeInstaller {
      *
      * <p>Conda represents the host macOS version as a virtual package named
      * {@code __osx}. Future macOS marketing versions can make old-but-valid
-     * Python package constraints look unsatisfiable to the solver. ASTRA
+     * Python package constraints look unsatisfiable to the solver. The installer
      * targets a conservative macOS solver version for the managed runtime so
      * Python 3.10.x can be resolved reproducibly.</p>
      *
@@ -624,11 +664,56 @@ final class RuntimeInstaller {
      * @return environment overrides for conda create.
      */
     static Map<String, String> condaCreateEnvironmentOverrides(String osName) {
+        return condaCreateEnvironmentOverrides(osName, false);
+    }
+
+    static Map<String, String> condaCreateEnvironmentOverrides(String osName, boolean armHost) {
         if (String.valueOf(osName).toLowerCase(Locale.ROOT).contains("mac")
                 || String.valueOf(osName).toLowerCase(Locale.ROOT).contains("darwin")) {
+            if (armHost) {
+                return Map.of(CONDA_OVERRIDE_OSX, MACOS_CONDA_SOLVER_VERSION, "CONDA_SUBDIR", "osx-arm64");
+            }
             return Map.of(CONDA_OVERRIDE_OSX, MACOS_CONDA_SOLVER_VERSION);
         }
         return Map.of();
+    }
+
+    private static boolean isAppleSiliconHost() throws IOException, InterruptedException {
+        String arch = System.getProperty("os.arch", "").toLowerCase(Locale.ROOT);
+        try {
+            CommandResult result = runCommand(List.of("/usr/sbin/sysctl", "-n", "hw.optional.arm64"),
+                    null, LauncherMotionTokens.RUNTIME_PROBE_TIMEOUT, null, null);
+            if (result.exitCode() == 0) return "1".equals(result.output().trim());
+            if (arch.equals("arm64") || arch.equals("aarch64")) return true;
+            throw new IOException("Could not verify macOS host architecture: " + result.output().trim());
+        } catch (IOException e) {
+            if (arch.equals("arm64") || arch.equals("aarch64")) return true;
+            throw e;
+        }
+    }
+
+    static String condaExecutableForRuntime(String conda, boolean armHost) throws IOException, InterruptedException {
+        if (!armHost) return conda;
+        File parent = new File(conda).getParentFile();
+        if (parent != null) {
+            File siblingMamba = new File(parent, isWindows() ? "mamba.exe" : "mamba");
+            if (isUsableCondaExecutable(siblingMamba)) return siblingMamba.getAbsolutePath();
+        }
+        try {
+            CommandResult mamba = runCommand(List.of("mamba", "--version"),
+                    null, LauncherMotionTokens.RUNTIME_PROBE_TIMEOUT, null, null);
+            if (mamba.exitCode() == 0) return "mamba";
+        } catch (IOException ignored) {
+            // A native-arm conda executable remains usable without mamba.
+        }
+        CommandResult info = runCommand(List.of(conda, "info", "--json"),
+                null, LauncherMotionTokens.RUNTIME_PROBE_TIMEOUT, null, null);
+        String platform = String.valueOf(mapValue(GSON.fromJson(info.output(), MAP_TYPE)).get("platform"));
+        if (!"osx-arm64".equals(platform)) {
+            throw new IOException("Apple Silicon requires an arm64 conda runtime, but "
+                    + conda + " reports " + platform + " and no usable mamba is available.");
+        }
+        return conda;
     }
 
     /**
@@ -647,10 +732,28 @@ final class RuntimeInstaller {
                 List.of(py, "-c", runtimePinProbeCode()),
                 List.of(py, "-c", "import torch; print('torch', torch.__version__)"),
                 List.of(py, "-c", torchNumpyBridgeProbeCode()),
-                List.of(py, "-c", "import cellpose; from cellpose.version import version_str; assert 'astra' in version_str.lower(), version_str; print('cellpose', version_str)"),
-                List.of(py, "-c", "import cellpose, cellpose.astra, torch, numpy; print('ASTRA runtime import validation OK')"),
+                List.of(py, "-c", "import cellpose, cellpose.astra, torch, numpy; print('Runtime import validation OK')"),
+                List.of(py, "-c", cellposeCommitProbeCode()),
+                List.of(py, "-c", dinov3CommitProbeCode()),
+                List.of(py, "-c", "from dinov3.hub.backbones import dinov3_vitl16, dinov3_vitb16; from cellpose import models; assert 'cpdino' in models.MODEL_NAMES; assert hasattr(models, 'CPDINO'); print('cpdino available')"),
                 List.of(py, "-m", "cellpose.astra", "--version")
         );
+    }
+
+    static String cellposeCommitProbeCode() {
+        return "import json\nfrom importlib.metadata import distribution\n"
+                + "metadata=json.loads(distribution('cellpose').read_text('direct_url.json'))\n"
+                + "actual=metadata.get('vcs_info', {}).get('commit_id')\n"
+                + "assert actual == '" + pythonString(pinnedCellposeRef()) + "', f'Cellpose fork commit mismatch: {actual}'\n"
+                + "print('cellpose fork commit', actual)\n";
+    }
+
+    static String dinov3CommitProbeCode() {
+        return "import json\nfrom importlib.metadata import distribution\n"
+                + "metadata=json.loads(distribution('dinov3').read_text('direct_url.json'))\n"
+                + "actual=metadata.get('vcs_info', {}).get('commit_id')\n"
+                + "assert actual == '" + pythonString(pinnedDinov3Ref()) + "', f'DINOv3 commit mismatch: {actual}'\n"
+                + "print('dinov3 commit', actual)\n";
     }
 
     static String pythonVersionProbeCode(String required) {
@@ -658,8 +761,8 @@ final class RuntimeInstaller {
                 + "required='" + pythonString(required) + "'\n"
                 + "detected=f'{sys.version_info.major}.{sys.version_info.minor}'\n"
                 + "if detected != required:\n"
-                + "    raise SystemExit('ASTRA runtime Python version mismatch: required Python " + pythonString(required)
-                + ", detected Python ' + detected + '. Use ASTRA Runtime Setup to create the managed Miniforge/conda runtime.')\n"
+                + "    raise SystemExit('Runtime Python version mismatch: required Python " + pythonString(required)
+                + ", detected Python ' + detected + '. Use Runtime Setup to create the managed Miniforge/conda runtime.')\n"
                 + "print('python', detected)\n";
     }
 
@@ -677,14 +780,12 @@ final class RuntimeInstaller {
                 + "for name, expected in pins.items():\n"
                 + "    actual=md.version(name)\n"
                 + "    if actual != expected:\n"
-                + "        raise SystemExit(f'ASTRA runtime package mismatch for {name}: required {expected}, detected {actual}. Use ASTRA Runtime Setup to recreate the managed runtime.')\n"
+                + "        raise SystemExit(f'Runtime package mismatch for {name}: required {expected}, detected {actual}. Use Runtime Setup to recreate the managed runtime.')\n"
                 + "print('runtime pins OK', ','.join(f'{k}=={v}' for k, v in sorted(pins.items())))\n";
     }
 
     static String torchNumpyBridgeProbeCode() {
         return "import numpy as np\n"
-                + "if int(np.__version__.split('.')[0]) >= 2:\n"
-                + "    raise SystemExit('ASTRA runtime NumPy mismatch: required NumPy < 2, detected ' + np.__version__ + '. Use ASTRA Runtime Setup to recreate the managed runtime.')\n"
                 + "import torch\n"
                 + "x=np.zeros((2,), dtype=np.float32)\n"
                 + "y=torch.from_numpy(x)\n"
@@ -708,7 +809,7 @@ final class RuntimeInstaller {
             return conda;
         }
         throw new IOException("No conda-compatible executable was found. Install Miniforge/conda or set ASTRA_CONDA. " +
-                "ASTRA can also bootstrap its managed Miniforge runtime when downloads are available.");
+                "The installer can also bootstrap its managed Miniforge runtime when downloads are available.");
     }
 
     /**
@@ -729,7 +830,8 @@ final class RuntimeInstaller {
 
         for (String candidate : candidates) {
             try {
-                CommandResult result = runCommand(List.of(candidate, "--version"), null, Duration.ofSeconds(20), null, null);
+                CommandResult result = runCommand(List.of(candidate, "--version"), null,
+                        LauncherMotionTokens.RUNTIME_PROBE_TIMEOUT, null, null);
                 if (result.exitCode() == 0) {
                     return candidate;
                 }
@@ -741,7 +843,7 @@ final class RuntimeInstaller {
     }
 
     /**
-     * Locates conda, installing ASTRA-private Miniforge when no conda-compatible
+     * Locates conda, installing managed Miniforge when no conda-compatible
      * command exists.
      *
      * @param progress progress UI/log sink.
@@ -764,13 +866,13 @@ final class RuntimeInstaller {
 
         bootstrapMiniforge(installer, progress, logFile);
         if (!isUsableCondaExecutable(conda)) {
-            throw new IOException("ASTRA Miniforge install completed, but conda is not usable: " + conda.getAbsolutePath());
+            throw new IOException("Managed Miniforge install completed, but conda is not usable: " + conda.getAbsolutePath());
         }
         return conda.getAbsolutePath();
     }
 
     /**
-     * Resolves the ASTRA-private Miniforge root.
+     * Resolves the managed Miniforge root.
      *
      * @return user-local Miniforge directory.
      */
@@ -779,7 +881,7 @@ final class RuntimeInstaller {
     }
 
     /**
-     * Resolves the ASTRA-private Miniforge installer download cache.
+     * Resolves the managed Miniforge installer download cache.
      *
      * @return user-local download directory.
      */
@@ -808,7 +910,7 @@ final class RuntimeInstaller {
         String version = stringValue(miniforge.get("version"));
         Map<String, Object> platform = mapValue(mapValue(miniforge.get("platforms")).get(platformKey));
         if (version.isBlank() || platform.isEmpty()) {
-            throw new IllegalStateException("ASTRA release manifest does not support Miniforge platform '" + platformKey + "'.");
+            throw new IllegalStateException("Release manifest does not support Miniforge platform '" + platformKey + "'.");
         }
         return new MiniforgeInstaller(
                 version,
@@ -870,7 +972,7 @@ final class RuntimeInstaller {
     }
 
     /**
-     * Resolves the conda executable inside ASTRA-private Miniforge.
+     * Resolves the conda executable inside managed Miniforge.
      *
      * @param installer selected installer metadata.
      * @return expected conda executable path.
@@ -880,7 +982,7 @@ final class RuntimeInstaller {
     }
 
     /**
-     * Downloads, verifies, and silently installs ASTRA-private Miniforge.
+     * Downloads, verifies, and silently installs managed Miniforge.
      *
      * @param installer selected installer metadata.
      * @param progress progress UI/log sink.
@@ -896,7 +998,7 @@ final class RuntimeInstaller {
         downloadFile(installer.url(), installerFile, progress, logFile);
         progressStep(progress, "Verifying Miniforge checksum", installerFile.getAbsolutePath());
         verifySha256(installerFile, installer.sha256());
-        progressStep(progress, "Installing ASTRA-private Miniforge", miniforgeDirectory().getAbsolutePath());
+        progressStep(progress, "Installing managed Miniforge", miniforgeDirectory().getAbsolutePath());
         List<String> command = miniforgeInstallCommand(installer, installerFile);
         CommandResult result = runCommand(command, null, BOOTSTRAP_TIMEOUT, progress, logFile);
         if (result.exitCode() != 0) {
@@ -909,7 +1011,8 @@ final class RuntimeInstaller {
             return false;
         }
         try {
-            return runCommand(List.of(conda.getAbsolutePath(), "--version"), null, Duration.ofSeconds(20), null, null).exitCode() == 0;
+            return runCommand(List.of(conda.getAbsolutePath(), "--version"), null,
+                    LauncherMotionTokens.RUNTIME_PROBE_TIMEOUT, null, null).exitCode() == 0;
         } catch (IOException ignored) {
             return false;
         }
@@ -917,25 +1020,25 @@ final class RuntimeInstaller {
 
     private static void downloadFile(String url, File target, InstallProgress progress, File logFile) throws IOException {
         if (progress != null && progress.cancelRequested) {
-            throw new CancellationException("ASTRA runtime installation cancelled before Miniforge download.");
+            throw new CancellationException("Runtime installation cancelled before Miniforge download.");
         }
         appendLog(logFile, "\n$ download " + url + " -> " + target.getAbsolutePath() + System.lineSeparator());
         URLConnection connection = URI.create(url).toURL().openConnection();
-        connection.setConnectTimeout((int) Duration.ofSeconds(30).toMillis());
-        connection.setReadTimeout((int) Duration.ofSeconds(30).toMillis());
+        connection.setConnectTimeout((int) LauncherMotionTokens.RUNTIME_NETWORK_TIMEOUT.toMillis());
+        connection.setReadTimeout((int) LauncherMotionTokens.RUNTIME_NETWORK_TIMEOUT.toMillis());
         try (InputStream stream = connection.getInputStream();
              OutputStream out = Files.newOutputStream(target.toPath())) {
             byte[] buffer = new byte[8192];
             int n;
             while ((n = stream.read(buffer)) >= 0) {
                 if (progress != null && progress.cancelRequested) {
-                    throw new CancellationException("ASTRA runtime installation cancelled during Miniforge download.");
+                    throw new CancellationException("Runtime installation cancelled during Miniforge download.");
                 }
                 out.write(buffer, 0, n);
             }
         }
         if (progress != null && progress.cancelRequested) {
-            throw new CancellationException("ASTRA runtime installation cancelled after Miniforge download.");
+            throw new CancellationException("Runtime installation cancelled after Miniforge download.");
         }
         progressLine(progress, "Downloaded " + target.getAbsolutePath());
     }
@@ -992,19 +1095,19 @@ final class RuntimeInstaller {
     private static Map<String, Object> releaseManifest() {
         try (InputStream stream = RuntimeInstaller.class.getClassLoader().getResourceAsStream(RELEASE_MANIFEST_RESOURCE)) {
             if (stream == null) {
-                throw new IllegalStateException("Missing bundled ASTRA release manifest: " + RELEASE_MANIFEST_RESOURCE);
+                throw new IllegalStateException("Missing bundled release manifest: " + RELEASE_MANIFEST_RESOURCE);
             }
             try (InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
                 Map<String, Object> parsed = GSON.fromJson(reader, MAP_TYPE);
                 if (parsed == null) {
-                    throw new IllegalStateException("Bundled ASTRA release manifest is empty: " + RELEASE_MANIFEST_RESOURCE);
+                    throw new IllegalStateException("Bundled release manifest is empty: " + RELEASE_MANIFEST_RESOURCE);
                 }
                 return parsed;
             }
         } catch (JsonSyntaxException e) {
-            throw new IllegalStateException("Bundled ASTRA release manifest is malformed: " + RELEASE_MANIFEST_RESOURCE, e);
+            throw new IllegalStateException("Bundled release manifest is malformed: " + RELEASE_MANIFEST_RESOURCE, e);
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to read bundled ASTRA release manifest: " + RELEASE_MANIFEST_RESOURCE, e);
+            throw new IllegalStateException("Failed to read bundled release manifest: " + RELEASE_MANIFEST_RESOURCE, e);
         }
     }
 
@@ -1045,7 +1148,7 @@ final class RuntimeInstaller {
      * Verifies that the runtime passes all required startup checks before it is
      * accepted: Python executable version, NumPy import/version, torch
      * import/version, Cellpose-ASTRA fork marker, combined import validation,
-     * and ASTRA Cellpose startup/version command.
+     * and Cellpose fork startup/version command.
      *
      * @param python runtime Python executable.
      * @throws IOException if any validation command fails.
@@ -1054,7 +1157,8 @@ final class RuntimeInstaller {
     private static void verifyRuntime(File python, InstallProgress progress, File logFile) throws IOException, InterruptedException {
         progressStep(progress, "Validating runtime", python.getAbsolutePath());
         for (List<String> command : validationCommands(python)) {
-            CommandResult result = runCommand(command, null, Duration.ofMinutes(2), progress, logFile);
+            CommandResult result = runCommand(command, null,
+                    LauncherMotionTokens.RUNTIME_VALIDATION_TIMEOUT, progress, logFile);
             if (result.exitCode() != 0) {
                 throw new IOException(formatCommandFailure(command, result));
             }
@@ -1161,7 +1265,7 @@ final class RuntimeInstaller {
                                             InstallProgress progress,
                                             File logFile) throws IOException, InterruptedException {
         if (progress != null && progress.cancelRequested) {
-            throw new CancellationException("ASTRA runtime installation cancelled by user before starting command:\n" + String.join(" ", command));
+            throw new CancellationException("Runtime installation cancelled by user before starting command:\n" + String.join(" ", command));
         }
         appendLog(logFile, "\n$ " + String.join(" ", command) + System.lineSeparator());
         if (!environmentOverrides.isEmpty()) {
@@ -1182,18 +1286,19 @@ final class RuntimeInstaller {
         }
         StringBuilder output = new StringBuilder();
         try {
-            Thread reader = new Thread(() -> readOutput(process, output, progress, logFile), "ASTRA runtime installer output");
+            Thread reader = new Thread(() -> readOutput(process, output, progress, logFile), "runtime installer output");
             reader.setDaemon(true);
             reader.start();
 
             boolean finished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
             if (!finished) {
-                terminateProcessForCancellation(process, Duration.ofSeconds(2));
+                terminateProcessForCancellation(process,
+                        LauncherMotionTokens.RUNTIME_CANCELLATION_GRACE);
                 throw new IOException("Command timed out after " + timeout.toMinutes() + " minutes:\n" + String.join(" ", command));
             }
-            reader.join(Duration.ofSeconds(2).toMillis());
+            reader.join(LauncherMotionTokens.RUNTIME_CANCELLATION_GRACE.toMillis());
             if (progress != null && progress.cancelRequested) {
-                throw new CancellationException("ASTRA runtime installation cancelled by user after command:\n" + String.join(" ", command));
+                throw new CancellationException("Runtime installation cancelled by user after command:\n" + String.join(" ", command));
             }
             return new CommandResult(process.exitValue(), output.toString());
         } finally {
@@ -1325,7 +1430,7 @@ final class RuntimeInstaller {
      * @param outcome classified successful result.
      */
     private static void showOutcome(String title, RuntimeSetupOutcome outcome) {
-        Platform.runLater(() -> PipelineLauncher.showAstraMessage(
+        Platform.runLater(() -> PipelineLauncher.showMessage(
                 null,
                 title,
                 outcome.title(),
@@ -1339,7 +1444,7 @@ final class RuntimeInstaller {
      * @param failure classified failure.
      */
     private static void showFailure(String title, RuntimeSetupFailure failure) {
-        Platform.runLater(() -> PipelineLauncher.showAstraErrorMessage(
+        Platform.runLater(() -> PipelineLauncher.showErrorMessage(
                 null,
                 title,
                 failure.title() + "\n\n" + failure.heading() + "\n\n" + failure.body()));
@@ -1395,7 +1500,7 @@ final class RuntimeInstaller {
     }
 
     /**
-     * ASTRA-owned runtime setup progress window.
+     * Runtime setup progress window.
      */
     private static final class InstallProgress {
         private final long started = System.currentTimeMillis();
@@ -1443,7 +1548,9 @@ final class RuntimeInstaller {
             this.progressBar = progressBar;
             this.cancel = cancel;
             this.log = log;
-            this.elapsedTimeline = new Timeline(new KeyFrame(javafx.util.Duration.seconds(1.0), event -> refreshElapsed()));
+            this.elapsedTimeline = new Timeline(new KeyFrame(
+                    javafx.util.Duration.seconds(LauncherMotionTokens.RUN_LOG_ELAPSED_REFRESH_SECONDS),
+                    event -> refreshElapsed()));
             this.elapsedTimeline.setCycleCount(Animation.INDEFINITE);
         }
 
@@ -1455,8 +1562,9 @@ final class RuntimeInstaller {
         static InstallProgress show() {
             Stage stage = new Stage();
             Label phase = GuiText.label(GuiText.Role.DIALOG_TEXT, "Preparing runtime setup");
-            Label detail = GuiText.label(GuiText.Role.DIALOG_TEXT, "ASTRA is preparing the managed Cellpose runtime workflow.");
-            Label elapsed = GuiText.label(GuiText.Role.DIALOG_TEXT, "Elapsed 0s");
+            Label detail = GuiText.label(GuiText.Role.DIALOG_TEXT, "The installer is preparing the managed Cellpose runtime workflow.");
+            Label elapsed = GuiText.label(GuiText.Role.DIALOG_TEXT,
+                    formatElapsedSeconds(INITIAL_ELAPSED_SECONDS));
             Label stepList = GuiText.label(GuiText.Role.DIALOG_TEXT, "Steps: validate managed runtime -> repair if needed -> install pinned packages -> validate final runtime -> register with QuPath.");
             Label resultTitle = GuiText.label(GuiText.Role.DIALOG_TEXT, "Runtime setup pending");
             Label resultBody = GuiText.label(GuiText.Role.DIALOG_TEXT, "Validation, repair, installation, and registration messages will appear here.");
@@ -1486,9 +1594,9 @@ final class RuntimeInstaller {
             });
             VBox root = createInstallProgressRoot(phase, detail, elapsed, stepList, resultTitle, resultBody,
                     progressBar, cancel, copyLog, logPane, log);
-            stage.setTitle("ASTRA Runtime Setup");
+            stage.setTitle("Runtime Setup");
             Scene scene = new Scene(root, InstallerGeometry.WINDOW_WIDTH, InstallerGeometry.WINDOW_HEIGHT);
-            addAstraStylesheet(scene);
+            addLauncherStylesheet(scene);
             stage.setScene(scene);
             stage.show();
             progress.elapsedTimeline.play();
@@ -1507,7 +1615,7 @@ final class RuntimeInstaller {
                 phase.setText(label);
                 this.detail.setText(detail);
                 resultTitle.setText("Working");
-                resultBody.setText("ASTRA is running: " + label);
+                resultBody.setText("The installer is running: " + label);
                 refreshElapsed();
             });
         }
@@ -1530,7 +1638,8 @@ final class RuntimeInstaller {
         void setCurrentProcess(Process process) {
             currentProcess = process;
             if (cancelRequested) {
-                terminateProcessForCancellation(process, Duration.ofSeconds(2));
+                terminateProcessForCancellation(process,
+                        LauncherMotionTokens.RUNTIME_CANCELLATION_GRACE);
             }
         }
 
@@ -1553,12 +1662,13 @@ final class RuntimeInstaller {
             line("Cancellation requested. Stopping the active install command.");
             Platform.runLater(() -> {
                 phase.setText("Cancelling runtime setup");
-                detail.setText("ASTRA is stopping the active command.");
+                detail.setText("The installer is stopping the active command.");
                 resultTitle.setText(RuntimeFailureKind.CANCELLED.title);
                 resultBody.setText(RuntimeFailureKind.CANCELLED.nextAction);
             });
             Process process = currentProcess;
-            if (terminateProcessForCancellation(process, Duration.ofSeconds(2))) {
+            if (terminateProcessForCancellation(process,
+                    LauncherMotionTokens.RUNTIME_CANCELLATION_GRACE)) {
                 line("Active install command was asked to terminate.");
             }
         }
@@ -1611,14 +1721,15 @@ final class RuntimeInstaller {
         }
 
         private void refreshElapsed() {
-            elapsed.setText("Elapsed " + elapsedSeconds() + "s");
+            elapsed.setText(formatElapsedSeconds(elapsedSeconds()));
         }
     }
 
     static VBox createInstallProgressRootForTesting() {
         Label phase = GuiText.label(GuiText.Role.DIALOG_TEXT, "Preparing runtime setup");
-        Label detail = GuiText.label(GuiText.Role.DIALOG_TEXT, "ASTRA is preparing the managed Cellpose runtime workflow.");
-        Label elapsed = GuiText.label(GuiText.Role.DIALOG_TEXT, "Elapsed 0s");
+        Label detail = GuiText.label(GuiText.Role.DIALOG_TEXT, "The installer is preparing the managed Cellpose runtime workflow.");
+        Label elapsed = GuiText.label(GuiText.Role.DIALOG_TEXT,
+                formatElapsedSeconds(INITIAL_ELAPSED_SECONDS));
         Label stepList = GuiText.label(GuiText.Role.DIALOG_TEXT, "Steps: validate managed runtime -> repair if needed -> install pinned packages -> validate final runtime -> register with QuPath.");
         Label resultTitle = GuiText.label(GuiText.Role.DIALOG_TEXT, "Runtime setup pending");
         Label resultBody = GuiText.label(GuiText.Role.DIALOG_TEXT, "Validation, repair, installation, and registration messages will appear here.");
@@ -1637,6 +1748,10 @@ final class RuntimeInstaller {
         GuiText.adoptEditableText(log);
         return createInstallProgressRoot(phase, detail, elapsed, stepList, resultTitle, resultBody,
                 progressBar, cancel, copyLog, logPane, log);
+    }
+
+    static String formatElapsedSeconds(long seconds) {
+        return ELAPSED_PREFIX + Math.max(INITIAL_ELAPSED_SECONDS, seconds) + ELAPSED_SUFFIX;
     }
 
     static double installerRootPaddingForTesting() {
@@ -1720,10 +1835,11 @@ final class RuntimeInstaller {
         return root;
     }
 
-    private static void addAstraStylesheet(Scene scene) {
-        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/astra-launcher.css");
+    private static void addLauncherStylesheet(Scene scene) {
+        var resource = PipelineLauncher.class.getResource("/qupath/ext/astra/launcher.css");
         if (resource != null) {
             scene.getStylesheets().add(resource.toExternalForm());
         }
+        PipelineLauncher.applyCurrentVisualTheme(scene.getRoot());
     }
 }

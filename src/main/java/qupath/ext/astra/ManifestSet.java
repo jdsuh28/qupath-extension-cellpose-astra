@@ -21,7 +21,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Reads ASTRA's split rulebook manifests for the extension launcher.
+ * Reads the split rulebook manifests for the extension launcher.
  */
 final class ManifestSet {
 
@@ -48,7 +48,7 @@ final class ManifestSet {
                 return new ManifestSet(compose(index, path -> parseBundled(loader, BUNDLED_ROOT + "/" + path)));
             }
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to read bundled ASTRA manifest index: " + INDEX_RESOURCE, e);
+            throw new IllegalStateException("Failed to read bundled manifest index: " + INDEX_RESOURCE, e);
         }
 
         if (Files.isRegularFile(localRoot.resolve("index.json"))) {
@@ -56,7 +56,7 @@ final class ManifestSet {
             return new ManifestSet(compose(index, path -> parseFile(localRoot.resolve(path))));
         }
 
-        throw new IllegalStateException("Missing ASTRA manifest set. Expected resource " + INDEX_RESOURCE
+        throw new IllegalStateException("Missing manifest set. Expected resource " + INDEX_RESOURCE
                 + " or local directory " + localRoot + ".");
     }
 
@@ -108,12 +108,41 @@ final class ManifestSet {
         return stringMap(gui().get("optionLabels"));
     }
 
-    Map<String, Object> advancedControls() {
-        return mapValue(gui().get("advancedControls"));
+    Map<String, Object> parameterModes() {
+        return mapValue(gui().get("parameterModes"));
     }
 
     List<Map<String, Object>> standardGroups() {
         return mapList(gui().get("standardGroups"));
+    }
+
+    List<Map<String, Object>> dashboardCards() {
+        return mapList(gui().get("dashboardCards"));
+    }
+
+    List<Map<String, Object>> workflowBuilderTools() {
+        Map<String, Object> moduleRecords = mapValue(modules().get("modules"));
+        Map<String, Object> runnableModules = mapValue(modules().get("runnableModules"));
+        java.util.ArrayList<Map<String, Object>> tools = new java.util.ArrayList<>();
+        for (String runnableId : runnableOrder()) {
+            Map<String, Object> runnableModule = mapValue(runnableModules.get(runnableId));
+            Map<String, Object> module = mapValue(moduleRecords.get(stringValue(runnableModule.get("moduleId"))));
+            Map<String, Object> builder = mapValue(module.get("builder"));
+            if (!"tool".equals(stringValue(module.get("kind")))
+                    || !booleanValue(builder.get("enabled"))) {
+                continue;
+            }
+            LinkedHashMap<String, Object> record = new LinkedHashMap<>(builder);
+            record.put("id", stringValue(module.get("id")));
+            record.put("runnableId", runnableId);
+            record.put("menuPath", stringValue(runnableGui(runnableId).get("menuPath")));
+            String entrypointPath =
+                    stringValue(runnableRuntime(runnableId).get("entrypointPath"));
+            record.put("scriptResource",
+                    entrypointPath.isBlank() ? "" : "astra/" + entrypointPath);
+            tools.add(Map.copyOf(record));
+        }
+        return List.copyOf(tools);
     }
 
     List<String> visibleStages(String pipelineName) {
@@ -154,6 +183,10 @@ final class ManifestSet {
                 .orElse("");
     }
 
+    String extensionReleaseTag() {
+        return stringValue(mapValue(release().get("extension")).get("releaseTag"));
+    }
+
     private Map<String, Object> composedRunnable(String id) {
         LinkedHashMap<String, Object> out = new LinkedHashMap<>();
         Map<String, Object> inputs = runnableInputs(id);
@@ -177,7 +210,7 @@ final class ManifestSet {
             Map<String, Object> record = mapValue(manifestRecords.get(id));
             String path = manifestFileName(record.getOrDefault("manifest", record.get("path")));
             if (path.isBlank()) {
-                throw new IllegalStateException("ASTRA manifest index missing path for " + id + ".");
+                throw new IllegalStateException("Manifest index missing path for " + id + ".");
             }
             out.put(id, reader.read(path));
         }
@@ -213,11 +246,11 @@ final class ManifestSet {
     private static Map<String, Object> parseBundled(ClassLoader loader, String resourcePath) {
         try (InputStream stream = loader.getResourceAsStream(resourcePath)) {
             if (stream == null) {
-                throw new IllegalStateException("Missing bundled ASTRA manifest resource: " + resourcePath);
+                throw new IllegalStateException("Missing bundled manifest resource: " + resourcePath);
             }
             return parse(new InputStreamReader(stream, StandardCharsets.UTF_8), resourcePath);
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to read bundled ASTRA manifest resource: " + resourcePath, e);
+            throw new IllegalStateException("Failed to read bundled manifest resource: " + resourcePath, e);
         }
     }
 
@@ -225,7 +258,7 @@ final class ManifestSet {
         try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             return parse(reader, path.toString());
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to read ASTRA manifest: " + path, e);
+            throw new IllegalStateException("Failed to read manifest: " + path, e);
         }
     }
 
@@ -233,11 +266,11 @@ final class ManifestSet {
         try {
             Map<String, Object> parsed = GSON.fromJson(reader, MAP_TYPE);
             if (parsed == null) {
-                throw new IllegalStateException("ASTRA manifest must be a JSON object: " + source);
+                throw new IllegalStateException("Manifest must be a JSON object: " + source);
             }
             return parsed;
         } catch (JsonSyntaxException e) {
-            throw new IllegalStateException("Invalid ASTRA manifest JSON: " + source, e);
+            throw new IllegalStateException("Invalid manifest JSON: " + source, e);
         }
     }
 
@@ -272,6 +305,10 @@ final class ManifestSet {
 
     private Map<String, Object> gui() {
         return mapValue(manifests.get("gui"));
+    }
+
+    private Map<String, Object> release() {
+        return mapValue(manifests.get("release"));
     }
 
     @SuppressWarnings("unchecked")
@@ -314,6 +351,12 @@ final class ManifestSet {
 
     private static String stringValue(Object raw) {
         return raw == null ? "" : String.valueOf(raw);
+    }
+
+    private static boolean booleanValue(Object raw) {
+        return raw instanceof Boolean value
+                ? value
+                : Boolean.parseBoolean(stringValue(raw));
     }
 
     private static String normalize(String value) {

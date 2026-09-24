@@ -27,7 +27,7 @@ repositories {
 qupathExtension {
     name = "qupath-extension-cellpose-astra"
     group = "io.github.jdsuh28"
-    version = "0.1.160"
+    version = "0.1.161"
     description = "ASTRA QuPath extension for Cellpose-backed tissue analysis"
     automaticModule = "qupath.ext.astra.cellpose"
 }
@@ -59,7 +59,7 @@ tasks.withType<Test>().configureEach {
 
 tasks.register<JavaExec>("previewLauncher") {
     group = "ASTRA development"
-    description = "Open an ASTRA launcher dialog from working-tree classes."
+    description = "Open the launcher dialog from working-tree classes."
 
     dependsOn("testClasses")
     val quPathAppPath = providers.gradleProperty("astraQuPathAppPath")

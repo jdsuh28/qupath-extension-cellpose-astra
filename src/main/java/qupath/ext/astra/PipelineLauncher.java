@@ -64,6 +64,10 @@ import javafx.scene.layout.RowConstraints;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
+import javafx.scene.shape.ClosePath;
+import javafx.scene.shape.CubicCurveTo;
+import javafx.scene.shape.LineTo;
+import javafx.scene.shape.MoveTo;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.StrokeType;
 import javafx.scene.text.Text;
@@ -109,6 +113,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.WeakHashMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -119,10 +124,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Presents a lightweight ASTRA configuration dialog and executes the selected
+ * Presents a lightweight configuration dialog and executes the selected
  * bundled pipeline script with the user's edited constants.
  *
- * <p>The launcher deliberately treats the base ASTRA Groovy script as the
+ * <p>The launcher deliberately treats the base Groovy script as the
  * source of truth.  It extracts editable top-level {@code final} declarations,
  * edits only those declaration values, and then executes the resulting script
  * through QuPath's Groovy scripting runtime.  This keeps the extension-side GUI
@@ -137,18 +142,20 @@ final class PipelineLauncher {
     private static final String AUTOSAVE_PROFILE_FILE = "_autosave.json";
     private static final String LAUNCHER_VIEW_FILE = "_launcher_view.json";
     private static final String GUI_RUN_ACTIVE_PROPERTY = "ASTRA_GUI_RUN_ACTIVE";
-    private static final String LAUNCHER_STYLESHEET_RESOURCE = "/qupath/ext/astra/astra-launcher.css";
-    private static final String FONT_STACK = "\"Inter\", \"Aptos Display\", \"Segoe UI\", \"Helvetica Neue\", Arial, sans-serif";
-    private static final String MONO_FONT_STACK = "\"JetBrains Mono\", \"SF Mono\", Consolas, monospace";
-    private static final String INK = "#172431";
-    private static final String MUTED = "#5f7080";
-    private static final String PAPER = "#f4f7f8";
-    private static final String PANEL = "#ffffff";
-    private static final String TEAL = "#1f7a7a";
-    private static final String TEAL_DARK = "#0d4f55";
-    private static final String CORAL = "#d9604c";
-    private static final String GOLD = "#d4a72c";
-    private static final String CONTROL_BORDER = "#7fa3ad";
+    private static final String LAUNCHER_STYLESHEET_RESOURCE = "/qupath/ext/astra/launcher.css";
+    private static final String FONT_STACK = LauncherTypographyTokens.PRIMARY_FONT_STACK;
+    private static final String MONO_FONT_STACK = LauncherTypographyTokens.MONO_FONT_STACK;
+    private static final String INK = LauncherThemeTokens.INK;
+    private static final String MUTED = LauncherThemeTokens.MUTED;
+    private static final String PAPER = LauncherThemeTokens.PAPER;
+    private static final String PANEL = LauncherThemeTokens.PANEL;
+    private static final String TEAL = LauncherThemeTokens.TEAL;
+    private static final String TEAL_DARK = LauncherThemeTokens.TEAL_DARK;
+    private static final String CORAL = LauncherThemeTokens.CORAL;
+    private static final String GOLD = LauncherThemeTokens.GOLD;
+    private static final String CONTROL_BORDER = LauncherThemeTokens.CONTROL_BORDER;
+    private static final String CLEARED_INLINE_STYLE = "";
+    private static final String BASE_INLINE_STYLE_PROPERTY = "astra.baseStyle";
     private static final int SETTINGS_PROFILE_SCHEMA_VERSION = 1;
     private static final class LauncherGeometry {
         private static final double FLUSH = LauncherGeometryTokens.FLUSH;
@@ -159,9 +166,12 @@ final class PipelineLauncher {
         private static final double INTRA_PANEL_TIGHT_GAP = LauncherGeometryTokens.INTRA_PANEL_TIGHT_GAP;
         private static final double INTRA_PANEL_SUBTLE_GAP = LauncherGeometryTokens.INTRA_PANEL_SUBTLE_GAP;
         private static final double SCROLLBAR_GUTTER_WIDTH = OUTER_MARGIN;
-        private static final double SCROLLBAR_THUMB_WIDTH = SCROLLBAR_GUTTER_WIDTH / 3.0;
+        private static final double SCROLLBAR_THUMB_WIDTH =
+                SCROLLBAR_GUTTER_WIDTH
+                        / LauncherGeometryTokens.SCROLLBAR_THUMB_GUTTER_DIVISOR;
         private static final double SCROLLBAR_SIDE_PADDING =
-                (SCROLLBAR_GUTTER_WIDTH - SCROLLBAR_THUMB_WIDTH) / 2.0;
+                (SCROLLBAR_GUTTER_WIDTH - SCROLLBAR_THUMB_WIDTH)
+                        / LauncherGeometryTokens.SCROLLBAR_SIDE_PADDING_DIVISOR;
         // Visual gap to the bar is derived gap plus the centered gutter padding.
         private static final double INPUT_CONTENT_TO_BAR_GAP =
                 OUTER_MARGIN - SCROLLBAR_SIDE_PADDING;
@@ -232,12 +242,18 @@ final class PipelineLauncher {
             LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
     private static final double BORDER_WIDTH =
             LauncherGeometryTokens.SURFACE_BORDER_WIDTH;
+    private static final double SINGLE_COUNT =
+            LauncherGeometryTokens.SINGLE_COUNT;
+    private static final double BILATERAL_EDGE_COUNT =
+            LauncherGeometryTokens.BILATERAL_EDGE_COUNT;
+    private static final double TRILATERAL_EDGE_COUNT =
+            LauncherGeometryTokens.TRILATERAL_EDGE_COUNT;
     private static final double PARAMETER_LABEL_COLUMN_WIDTH =
             (LauncherGeometry.LAYOUT_UNIT * 12.0)
                     + LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
     private static final double PARAMETER_HELP_COLUMN_WIDTH =
             LauncherGeometry.LAYOUT_UNIT
-                    - (BORDER_WIDTH * 2.0);
+                    - (BORDER_WIDTH * BILATERAL_EDGE_COUNT);
     private static final double PARAMETER_ANCHOR_WIDTH =
             LauncherGeometry.LAYOUT_UNIT / 4.0;
     private static final double BAR_WIDTH =
@@ -249,9 +265,10 @@ final class PipelineLauncher {
     private static final double PARAMETER_ANCHOR_HEIGHT =
             PARAMETER_FIRST_ROW_HEIGHT;
     private static final double PARAMETER_ANCHOR_PAINT_RADIUS =
-            Math.min(PARAMETER_ANCHOR_WIDTH, PARAMETER_FIRST_ROW_HEIGHT) / 2.0;
+            Math.min(PARAMETER_ANCHOR_WIDTH, PARAMETER_FIRST_ROW_HEIGHT)
+                    / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR;
     private static final double PARAMETER_ANCHOR_PAINT_ARC =
-            PARAMETER_ANCHOR_PAINT_RADIUS * 2.0;
+            PARAMETER_ANCHOR_PAINT_RADIUS * LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR;
     private static final double PARAMETER_HELP_BUTTON_SIZE =
             PARAMETER_HELP_COLUMN_WIDTH
                     - LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
@@ -274,7 +291,7 @@ final class PipelineLauncher {
     private static final double PARAMETER_BAR_TO_TEXT_GAP =
             ACCENT_INDENT - BAR_WIDTH;
     private static final double TEXT_OPTICAL_INSET_CORRECTION =
-            LauncherGeometry.FLUSH;
+            LauncherTypographyTokens.TEXT_OPTICAL_INSET_CORRECTION;
     private static final double PARAMETER_LABEL_COLUMN_GAP =
             PARAMETER_BAR_TO_TEXT_GAP;
     private static final double PARAMETER_ROW_TEXT_RAIL =
@@ -290,7 +307,9 @@ final class PipelineLauncher {
                     - PARAMETER_ROW_HORIZONTAL_PADDING
                     - PARAMETER_HELP_COLUMN_WIDTH;
     private static final double DEPENDENT_PANEL_LEFT_INSET =
-            ACCENT_INDENT - (BORDER_WIDTH * 2.0) - PARAMETER_ROW_EDGE_TO_BAR_GAP;
+            ACCENT_INDENT
+                    - (BORDER_WIDTH * BILATERAL_EDGE_COUNT)
+                    - PARAMETER_ROW_EDGE_TO_BAR_GAP;
     private static final double DEPENDENT_ROWS_LEFT_INSET =
             DEPENDENT_PANEL_LEFT_INSET + BORDER_WIDTH;
     private static final double DEPENDENT_PANEL_OUTER_LEFT_MARGIN =
@@ -308,14 +327,36 @@ final class PipelineLauncher {
                 HEADER_STACK_GAP;
         private static final double TITLE_BLOCK_GAP =
                 LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
+        private static final double WORKFLOW_COMPACT_GAP =
+                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
+        private static final double WORKFLOW_STEP_HEIGHT =
+                PARAMETER_ROW_HEIGHT;
+        private static final double WORKFLOW_CHEVRON_WIDTH =
+                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
+        private static final double WORKFLOW_CHEVRON_HEIGHT =
+                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP;
+        private static final double WORKFLOW_CHEVRON_EDGE_INSET =
+                SURFACE_BORDER_WIDTH;
         private static final double ACTION_RAIL_GAP =
-                LauncherGeometry.FLUSH;
+                OUTPUT_PANE_INSET;
         private static final double ACTION_RAIL_TOP_OFFSET =
                 -LauncherGeometry.OUTER_MARGIN;
+        private static final double ACTION_RAIL_X_OFFSET =
+                SURFACE_BORDER_WIDTH;
         private static final double ACTION_RIBBON_INSET =
                 OUTPUT_PANE_INSET;
+        private static final double ACTION_RIBBON_SIDE_INSET =
+                LauncherGeometry.OUTER_MARGIN;
+        private static final double ACTION_RIBBON_BEVEL_RADIUS =
+                ACTION_RIBBON_INSET;
+        private static final double ACTION_RIBBON_SLOPE_WIDTH =
+                ACTION_RIBBON_SIDE_INSET - ACTION_RIBBON_BEVEL_RADIUS;
         private static final double ACTION_CLUSTER_GAP =
                 ACTION_RIBBON_INSET;
+        private static final double HEADER_CONTEXT_GAP =
+                ACTION_CLUSTER_GAP;
+        private static final double HEADER_CONTEXT_HEIGHT =
+                WORKFLOW_STEP_HEIGHT;
         private static final double MENU_GRAPHIC_GAP =
                 ACTION_CLUSTER_GAP;
         private static final double MENU_EDGE_MARGIN =
@@ -334,61 +375,218 @@ final class PipelineLauncher {
                 LauncherGeometry.LAYOUT_UNIT * 4.0;
         private static final double SEGMENT_CONTROL_GAP =
                 LauncherGeometry.INTRA_PANEL_TIGHT_GAP - SURFACE_BORDER_WIDTH;
+        private static final double SEGMENT_BUTTON_COUNT =
+                HeaderActionSlot.values().length - SINGLE_COUNT;
+        private static final double SEGMENT_CONTROL_GAP_COUNT =
+                SEGMENT_BUTTON_COUNT - SINGLE_COUNT;
+        private static final double SEGMENT_BUTTON_WIDTH_REDUCTION =
+                LauncherGeometry.INTRA_PANEL_SUBTLE_GAP
+                        * (SEGMENT_BUTTON_COUNT + BILATERAL_EDGE_COUNT)
+                        / BILATERAL_EDGE_COUNT;
         private static final double SEGMENT_BUTTON_WIDTH =
-                SEGMENT_LABEL_WIDTH - (LauncherGeometry.INTRA_PANEL_SUBTLE_GAP * 5.0 / 2.0);
+                SEGMENT_LABEL_WIDTH - SEGMENT_BUTTON_WIDTH_REDUCTION;
         private static final double SEGMENT_BUTTON_HEIGHT =
                 LauncherGeometry.LAYOUT_UNIT + SURFACE_BORDER_WIDTH;
         private static final double WIDEST_SEGMENT_ROW_WIDTH =
                 SEGMENT_LABEL_WIDTH
                         + SEGMENT_ROW_GAP
-                        + (SEGMENT_BUTTON_WIDTH * 3.0)
-                        + (SEGMENT_CONTROL_GAP * 2.0);
+                        + (SEGMENT_BUTTON_WIDTH * SEGMENT_BUTTON_COUNT)
+                        + (SEGMENT_CONTROL_GAP * SEGMENT_CONTROL_GAP_COUNT);
         private static final double OPTIONS_GROUP_OUTER_WIDTH =
                 WIDEST_SEGMENT_ROW_WIDTH
-                        + (OPTIONS_GROUP_GAP * 2.0)
-                        + (SURFACE_BORDER_WIDTH * 2.0);
+                        + (OPTIONS_GROUP_GAP * BILATERAL_EDGE_COUNT)
+                        + (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
         private static final double MENU_WIDTH =
                 OPTIONS_GROUP_OUTER_WIDTH
-                        + (OPTIONS_PANEL_INSET * 2.0)
-                        + (SURFACE_BORDER_WIDTH * 2.0);
+                        + (OPTIONS_PANEL_INSET * BILATERAL_EDGE_COUNT)
+                        + (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
         private static final double MENU_POPUP_WIDTH =
                 MENU_WIDTH
-                        + (OPTIONS_PANEL_INSET * 2.0)
+                        + (OPTIONS_PANEL_INSET * BILATERAL_EDGE_COUNT)
                         + SURFACE_BORDER_WIDTH;
         private static final double MENU_RENDERED_POPUP_WIDTH =
-                MENU_POPUP_WIDTH + (MENU_EDGE_MARGIN * 2.0);
+                MENU_POPUP_WIDTH + (MENU_EDGE_MARGIN * BILATERAL_EDGE_COUNT);
         private static final double MENU_ANCHOR_TO_WINDOW_OFFSET =
                 MENU_EDGE_MARGIN;
         private static final double SIMPLE_MENU_ITEM_SHELL_INSET =
-                OPTIONS_PANEL_INSET - (SURFACE_BORDER_WIDTH * 2.0);
+                OPTIONS_PANEL_INSET - (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
         private static final double MENU_ITEM_WIDTH =
-                MENU_WIDTH - (OPTIONS_PANEL_INSET * 2.0);
+                MENU_WIDTH - (OPTIONS_PANEL_INSET * BILATERAL_EDGE_COUNT);
         private static double actionBoxWidth() {
             return OUTPUT_PANE_PREF_WIDTH;
         }
 
         private static double actionRibbonHeight() {
-            return PARAMETER_ROW_HEIGHT + (ACTION_RIBBON_INSET * 2.0);
+            return PARAMETER_ROW_HEIGHT + (ACTION_RIBBON_INSET * BILATERAL_EDGE_COUNT);
+        }
+
+        private static double actionRailHeight() {
+            return actionRibbonHeight() + HEADER_CONTEXT_GAP + HEADER_CONTEXT_HEIGHT;
+        }
+
+        private static double identityPanelWidth() {
+            return INPUT_PANEL_WIDTH;
+        }
+
+        private static double identityTextWidth() {
+            return identityPanelWidth();
+        }
+
+        private static double workflowStepWidth(int stageCount) {
+            int safeStageCount = Math.max(1, stageCount);
+            double separatorCount = Math.max(LauncherGeometry.FLUSH, safeStageCount - SINGLE_COUNT);
+            double nodeGapCount = separatorCount * BILATERAL_EDGE_COUNT;
+            return (identityPanelWidth()
+                    - (WORKFLOW_CHEVRON_WIDTH * separatorCount)
+                    - (WORKFLOW_COMPACT_GAP * nodeGapCount))
+                    / safeStageCount;
         }
 
         private static Insets actionRibbonPadding() {
-            return new Insets(ACTION_RIBBON_INSET);
+            return new Insets(
+                    ACTION_RIBBON_INSET,
+                    ACTION_RIBBON_INSET,
+                    ACTION_RIBBON_INSET,
+                    ACTION_RIBBON_INSET);
         }
 
         private static double actionPageSubtitleWidth() {
             return actionBoxWidth()
-                    - (ACTION_RIBBON_INSET * 2.0)
-                    - (SURFACE_BORDER_WIDTH * 2.0);
+                    - (ACTION_RIBBON_INSET * BILATERAL_EDGE_COUNT)
+                    - (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
         }
 
         private HeaderGeometry() {
+        }
+    }
+    private static final class FooterGeometry {
+        private static final double ACTION_SHELL_INSET =
+                HeaderGeometry.ACTION_RIBBON_INSET;
+        private static final double ACTION_SHELL_GAP =
+                HeaderGeometry.ACTION_CLUSTER_GAP;
+        private static final double ACTION_SHELL_SLOPE_WIDTH =
+                HeaderGeometry.ACTION_RIBBON_SLOPE_WIDTH;
+        private static final double ACTION_SHELL_BEVEL_RADIUS =
+                HeaderGeometry.ACTION_RIBBON_BEVEL_RADIUS;
+        private static final double ACTION_SHELL_BUTTON_COUNT =
+                2.0;
+        private static final double ACTION_SHELL_GAP_COUNT =
+                ACTION_SHELL_BUTTON_COUNT - SINGLE_COUNT;
+        private static final double ACTION_BUTTON_OUTER_GAP =
+                LauncherGeometry.OUTER_MARGIN;
+        private static final double ACTION_SHELL_PLACEMENT_GAP =
+                ACTION_BUTTON_OUTER_GAP;
+        private static final double ACTION_SHELL_BOTTOM_PLACEMENT_GAP =
+                LauncherGeometry.FLUSH;
+        private static final double ACTION_SHELL_TOP_PLACEMENT_GAP =
+                ACTION_BUTTON_OUTER_GAP
+                        - LauncherGeometry.OUTER_MARGIN
+                        - ACTION_SHELL_INSET;
+        private static final double ACTION_SHELL_CONTENT_RAIL_CORRECTION =
+                SURFACE_BORDER_WIDTH;
+
+        private static double actionShellWidth() {
+            return (LauncherGeometry.macroActionButtonWidth() * ACTION_SHELL_BUTTON_COUNT)
+                    + (ACTION_SHELL_GAP * ACTION_SHELL_GAP_COUNT)
+                    + (ACTION_SHELL_INSET * BILATERAL_EDGE_COUNT);
+        }
+
+        private static double actionShellSlopeWidth(double shellWidth) {
+            return ActionTrapezoidGeometry.slopeWidth(ACTION_SHELL_SLOPE_WIDTH, shellWidth);
+        }
+
+        private static double actionShellVisibleWidth() {
+            return actionShellVisibleWidth(actionShellWidth());
+        }
+
+        private static double actionShellVisibleWidth(double shellWidth) {
+            return shellWidth + (actionShellSlopeWidth(shellWidth) * BILATERAL_EDGE_COUNT);
+        }
+
+        private static double actionShellHeight() {
+            return HeaderGeometry.actionRibbonHeight();
+        }
+
+        private static Insets actionShellPadding() {
+            return new Insets(
+                    ACTION_SHELL_INSET,
+                    ACTION_SHELL_INSET,
+                    ACTION_SHELL_INSET,
+                    ACTION_SHELL_INSET);
+        }
+
+        private static Insets actionBarPadding() {
+            return new Insets(
+                    ACTION_SHELL_TOP_PLACEMENT_GAP,
+                    ACTION_SHELL_PLACEMENT_GAP,
+                    ACTION_SHELL_BOTTOM_PLACEMENT_GAP,
+                    LauncherGeometry.OUTER_MARGIN);
+        }
+
+        private FooterGeometry() {
+        }
+    }
+    private static final class ActionTrapezoidGeometry {
+        private static final double QUARTER_CURVE_CONTROL =
+                LauncherGeometryTokens.CUBIC_ARC_HANDLE_RATIO;
+        private static final double FOLDER_CURVE_DEPTH_FRACTION =
+                SINGLE_COUNT / 3.0;
+        private static final double FOLDER_CURVE_WALL_FRACTION =
+                SINGLE_COUNT - SINGLE_COUNT;
+
+        private static double slopeWidth(double configuredSlopeWidth, double width) {
+            return Math.min(configuredSlopeWidth, width / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR);
+        }
+
+        private static double bevelRadius(double configuredBevelRadius, double height) {
+            return Math.min(configuredBevelRadius, height / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR);
+        }
+
+        private static double edgeInset() {
+            return SURFACE_BORDER_WIDTH;
+        }
+
+        private static double footerPaintBottom(double height) {
+            return Math.max(LauncherGeometry.FLUSH, height);
+        }
+
+        private static double folderCurveRun(double outerX, double innerX) {
+            return Math.abs(outerX - innerX);
+        }
+
+        private static double folderCurveHandle(double run, double bevelRadius) {
+            return Math.max(bevelRadius, run) * QUARTER_CURVE_CONTROL;
+        }
+
+        private static double bevelCurveHandle(double bevelRadius) {
+            return bevelRadius * QUARTER_CURVE_CONTROL;
+        }
+
+        private static double curveInset(double bevelRadius) {
+            return Math.max(edgeInset(), bevelRadius);
+        }
+
+        private static double folderCurveInset(double height, double bevelRadius) {
+            return Math.max(curveInset(bevelRadius), height * FOLDER_CURVE_DEPTH_FRACTION);
+        }
+
+        private static double folderCurveInset(double height, double bevelRadius, double targetInset) {
+            return Math.max(curveInset(bevelRadius), Math.min(height, targetInset));
+        }
+
+        private static double folderWallLength(double curveInset) {
+            return curveInset * FOLDER_CURVE_WALL_FRACTION;
+        }
+
+        private ActionTrapezoidGeometry() {
         }
     }
     private static final class ControlGeometry {
         private static final double COMBO_CELL_VERTICAL_INSET =
                 LauncherGeometry.INTRA_PANEL_SUBTLE_GAP - SURFACE_BORDER_WIDTH;
         private static final double COMBO_CELL_HORIZONTAL_INSET =
-                LauncherGeometry.INTRA_PANEL_MARGIN - (SURFACE_BORDER_WIDTH * 2.0);
+                LauncherGeometry.INTRA_PANEL_MARGIN
+                        - (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
 
         private ControlGeometry() {
         }
@@ -413,9 +611,9 @@ final class PipelineLauncher {
         private static final double PROJECT_LIST_HEIGHT =
                 LauncherGeometry.LAYOUT_UNIT * 40.0 / 3.0;
         private static final double SINGLE_LIST_WIDTH =
-                PROJECT_LIST_WIDTH * 7.0 / 5.0;
+                PROJECT_LIST_WIDTH * LauncherGeometryTokens.SINGLE_LIST_WIDTH_SCALE;
         private static final double SINGLE_LIST_HEIGHT =
-                PROJECT_LIST_HEIGHT * 7.0 / 8.0;
+                PROJECT_LIST_HEIGHT * LauncherGeometryTokens.SINGLE_LIST_HEIGHT_SCALE;
 
         private SelectionGeometry() {
         }
@@ -434,29 +632,31 @@ final class PipelineLauncher {
             LauncherGeometry.INTRA_PANEL_SUBTLE_GAP - SURFACE_BORDER_WIDTH;
     private static final double LEGEND_VERTICAL_GAP =
             LauncherGeometry.INTRA_PANEL_TIGHT_GAP + SURFACE_BORDER_WIDTH;
-    private static final double ADVANCED_UNLOCK_CONTROL_GAP =
-            LauncherGeometry.INTRA_PANEL_MARGIN - (SURFACE_BORDER_WIDTH * 2.0);
+    private static final double INLINE_CONTROL_GAP =
+            LauncherGeometry.INTRA_PANEL_MARGIN
+                    - (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
     private static final double MODEL_SOURCE_CARD_INSET =
-            ADVANCED_UNLOCK_CONTROL_GAP;
+            INLINE_CONTROL_GAP;
     private static final double DASHBOARD_CARD_HEIGHT =
             LauncherGeometry.LAYOUT_UNIT * 11.0 / 2.0;
     private static final double DASHBOARD_CARD_INSET =
             LauncherGeometry.INTRA_PANEL_MARGIN;
     private static final double DASHBOARD_CARD_BODY_HEIGHT =
             DASHBOARD_CARD_HEIGHT
-                    - (DASHBOARD_CARD_INSET * 2.0)
-                    - (SURFACE_BORDER_WIDTH * 2.0);
+                    - (DASHBOARD_CARD_INSET * BILATERAL_EDGE_COUNT)
+                    - (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
     private static final double DASHBOARD_CARD_ACCENT_WIDTH =
             PARAMETER_ANCHOR_WIDTH;
     private static final double DASHBOARD_CARD_ACCENT_HEIGHT =
             DASHBOARD_CARD_BODY_HEIGHT
-                    - (LauncherGeometry.INTRA_PANEL_SUBTLE_GAP * 2.0)
+                    - (LauncherGeometry.INTRA_PANEL_SUBTLE_GAP * BILATERAL_EDGE_COUNT)
                     - (PARAMETER_ANCHOR_WIDTH);
     private static final double DASHBOARD_CARD_ACCENT_TO_CONTENT_GAP =
             DASHBOARD_CARD_INSET;
-    private static final double DASHBOARD_GRID_MAX_WIDTH =
-            (DASHBOARD_CARD_HEIGHT * 2.0 * 3.0)
-                    + (SECTION_CONTENT_GAP * 2.0);
+    private static final int DASHBOARD_COLUMN_COUNT = (int) TRILATERAL_EDGE_COUNT;
+    private static final int DASHBOARD_ROW_COUNT = (int) TRILATERAL_EDGE_COUNT;
+    private static final int DASHBOARD_CARD_COUNT =
+            DASHBOARD_COLUMN_COUNT * DASHBOARD_ROW_COUNT;
     private static final double HELP_DIALOG_INSET =
             LauncherGeometry.INTRA_PANEL_MARGIN;
     private static final double HELP_DIALOG_SECTION_GAP =
@@ -484,7 +684,8 @@ final class PipelineLauncher {
     private static final double HELP_SUMMARY_LABEL_WIDTH =
             LauncherGeometry.LAYOUT_UNIT * 55.0 / 12.0;
     private static final double FORM_BLOCK_GAP =
-            LauncherGeometry.INTRA_PANEL_TIGHT_GAP + (SURFACE_BORDER_WIDTH * 2.0);
+            LauncherGeometry.INTRA_PANEL_TIGHT_GAP
+                    + (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
     private static final double NESTED_FIELD_GAP =
             LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
     private static final double NESTED_PANEL_INSET =
@@ -492,9 +693,11 @@ final class PipelineLauncher {
     private static final double CHANNEL_PANEL_GAP =
             COMPACT_CONTROL_GAP;
     private static final double CHANNEL_PANEL_INSET =
-            LauncherGeometry.INTRA_PANEL_MARGIN + (SURFACE_BORDER_WIDTH * 2.0);
+            LauncherGeometry.INTRA_PANEL_MARGIN
+                    + (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
     private static final double CHANNEL_CHIP_GAP =
-            LauncherGeometry.INTRA_PANEL_TIGHT_GAP + (SURFACE_BORDER_WIDTH * 2.0);
+            LauncherGeometry.INTRA_PANEL_TIGHT_GAP
+                    + (SURFACE_BORDER_WIDTH * BILATERAL_EDGE_COUNT);
     private static final double CHANNEL_CHIP_VERTICAL_INSET =
             LauncherGeometry.INTRA_PANEL_TIGHT_GAP + SURFACE_BORDER_WIDTH;
     private static final double CHANNEL_CHIP_HORIZONTAL_INSET =
@@ -504,11 +707,7 @@ final class PipelineLauncher {
     private static final double CHANNEL_SWATCH_ARC =
             PARAMETER_ANCHOR_WIDTH;
     private static final double CHANNEL_SWATCH_STROKE_WIDTH =
-            SURFACE_BORDER_WIDTH / 2.0;
-    private static final double UNGROUPED_SECTION_HGAP =
-            LauncherGeometry.INTRA_PANEL_MARGIN;
-    private static final double UNGROUPED_LABEL_WIDTH =
-            HELP_SUMMARY_LABEL_WIDTH + (LauncherGeometry.INTRA_PANEL_MARGIN * 5.0);
+            SURFACE_BORDER_WIDTH / LauncherGeometryTokens.BEVEL_DIAMETER_DIVISOR;
     private static final double OUTPUT_PANE_GAP =
             COMPACT_CONTROL_GAP;
     private static final double OUTPUT_PANE_INSET =
@@ -518,7 +717,7 @@ final class PipelineLauncher {
     private static final double OUTPUT_PANE_MIN_WIDTH =
             LauncherGeometry.LAYOUT_UNIT * 15.0;
     private static final double OUTPUT_HEADER_GAP =
-            ADVANCED_UNLOCK_CONTROL_GAP;
+            OUTPUT_PANE_INSET;
     private static final double OUTPUT_PROGRESS_SIZE =
             PARAMETER_HELP_BUTTON_SIZE;
     private enum HeaderActionSlot {
@@ -531,7 +730,7 @@ final class PipelineLauncher {
     private static final double MACRO_ACTION_BUTTON_COUNT =
             HeaderActionSlot.values().length;
     private static final double MACRO_ACTION_BUTTON_GAP_COUNT =
-            MACRO_ACTION_BUTTON_COUNT - SURFACE_BORDER_WIDTH;
+            MACRO_ACTION_BUTTON_COUNT - SINGLE_COUNT;
     private static final double COLLAPSIBLE_ARROW_WIDTH =
             PARAMETER_HELP_BUTTON_SIZE;
     private static final double COLLAPSIBLE_HEADER_VERTICAL_INSET =
@@ -547,28 +746,52 @@ final class PipelineLauncher {
     private static final double CHECK_COMPARTMENT_MIN_WIDTH =
             LauncherGeometry.LAYOUT_UNIT * 5.0;
     private static final double CHECK_COMPARTMENT_PREF_WIDTH =
-            CHECK_COMPARTMENT_MIN_WIDTH + ADVANCED_UNLOCK_CONTROL_GAP;
+            CHECK_COMPARTMENT_MIN_WIDTH + INLINE_CONTROL_GAP;
     private static final double COLOCALIZATION_CHECK_EDITOR_GAP =
             COMPACT_CONTROL_GAP;
     private static final double STRUCTURED_VALUE_EDITOR_GAP =
             SelectionGeometry.LABEL_TO_LIST_GAP;
+    private static final double DASHBOARD_CARD_TARGET_WIDTH =
+            OUTPUT_PANE_PREF_WIDTH / BILATERAL_EDGE_COUNT;
+    private static final double DASHBOARD_GRID_HORIZONTAL_INSET =
+            LauncherGeometry.LAYOUT_UNIT / LauncherGeometryTokens.QUADRILATERAL_EDGE_COUNT;
+    private static final double DASHBOARD_GRID_VERTICAL_INSET =
+            LauncherGeometry.INTRA_PANEL_TIGHT_GAP / BILATERAL_EDGE_COUNT;
     private static final double SETTINGS_VIEWPORT_WIDTH =
-            LauncherGeometry.LAYOUT_UNIT * 30.0;
+            (DASHBOARD_CARD_TARGET_WIDTH * DASHBOARD_COLUMN_COUNT)
+                    + (SECTION_CONTENT_GAP * (DASHBOARD_COLUMN_COUNT - 1))
+                    + (DASHBOARD_GRID_HORIZONTAL_INSET * BILATERAL_EDGE_COUNT)
+                    + LauncherGeometry.INPUT_CONTENT_TO_BAR_GAP
+                    + (LauncherGeometry.INTRA_PANEL_MARGIN * BILATERAL_EDGE_COUNT);
     private static final double SETTINGS_VIEWPORT_HEIGHT =
             (LauncherGeometry.LAYOUT_UNIT * 29.0)
                     + LauncherGeometry.INTRA_PANEL_TIGHT_GAP;
+    private static final double SETTINGS_SCROLL_WIDTH =
+            SETTINGS_VIEWPORT_WIDTH
+                    + LauncherGeometry.SCROLLBAR_GUTTER_WIDTH
+                    + (BORDER_WIDTH * BILATERAL_EDGE_COUNT);
+    private static final double INPUT_PANEL_WIDTH =
+            SETTINGS_SCROLL_WIDTH
+                    - LauncherGeometry.SCROLLBAR_GUTTER_WIDTH
+                    - LauncherGeometry.INPUT_CONTENT_TO_BAR_GAP;
+    private static final double LAUNCHER_CONTENT_WIDTH =
+            SETTINGS_SCROLL_WIDTH
+                    + LauncherGeometry.INTER_PANE_GAP
+                    + OUTPUT_PANE_PREF_WIDTH
+                    + (LauncherGeometry.OUTER_MARGIN * BILATERAL_EDGE_COUNT);
     private static final double COLOCALIZATION_PANEL_LABEL_WIDTH =
             LauncherGeometry.LAYOUT_UNIT * 20.0 / 3.0;
     private static final double COLOCALIZATION_PANEL_WIDE_LABEL_WIDTH =
             LauncherGeometry.LAYOUT_UNIT * 15.0 / 2.0;
-    private static final int MULTI_SELECT_BUTTON_SUMMARY_LIMIT = 64;
+    private static final int MULTI_SELECT_BUTTON_SUMMARY_LIMIT =
+            LauncherGeometryTokens.MULTI_SELECT_SUMMARY_CHARACTER_LIMIT;
     private static final String CHEVRON_DOWN = "▾";
     private static final String CHEVRON_RIGHT = "▸";
     private static final PseudoClass PRESSED_PSEUDO = PseudoClass.getPseudoClass("pressed");
 
     private static double macroActionButtonWidth() {
         return (HeaderGeometry.actionBoxWidth()
-                - (HeaderGeometry.ACTION_RIBBON_INSET * 2.0)
+                - (HeaderGeometry.ACTION_RIBBON_INSET * BILATERAL_EDGE_COUNT)
                 - (HeaderGeometry.ACTION_CLUSTER_GAP * MACRO_ACTION_BUTTON_GAP_COUNT))
                 / MACRO_ACTION_BUTTON_COUNT;
     }
@@ -579,11 +802,22 @@ final class PipelineLauncher {
     }
     private static final String HEADER_MODE_PREFERENCE_KEY = "qupath.ext.astra.headerMode";
     private static final String HEADER_MOTION_PREFERENCE_KEY = "qupath.ext.astra.headerMotion";
+    private static final String VISUAL_THEME_PREFERENCE_KEY = "qupath.ext.astra.visualTheme";
     private static final String RELEASE_PROPERTIES_RESOURCE = "qupath/ext/astra/release/runtime.properties";
     private static final StringProperty HEADER_MODE_PREFERENCE =
             PathPrefs.createPersistentPreference(HEADER_MODE_PREFERENCE_KEY, AnimatedGradientHeader.HeaderMode.DYNAMIC.name());
     private static final StringProperty HEADER_MOTION_PREFERENCE =
             PathPrefs.createPersistentPreference(HEADER_MOTION_PREFERENCE_KEY, AnimatedGradientHeader.MotionSpeed.SMOOTH.name());
+    private static final StringProperty VISUAL_THEME_PREFERENCE =
+            PathPrefs.createPersistentPreference(VISUAL_THEME_PREFERENCE_KEY, LauncherVisualTheme.MODERN.name());
+    private static final Set<Node> THEMED_ROOTS =
+            Collections.newSetFromMap(new WeakHashMap<>());
+    private static final AtomicBoolean POPUP_THEME_BRIDGE_INSTALLED = new AtomicBoolean(false);
+
+    static {
+        VISUAL_THEME_PREFERENCE.addListener((obs, oldValue, newValue) ->
+                applyVisualThemeToRegisteredRoots(LauncherVisualTheme.fromText(newValue)));
+    }
 
     private static Insets parameterGridPadding() {
         return new Insets(
@@ -594,11 +828,7 @@ final class PipelineLauncher {
     }
 
     private static Insets mainActionBarPadding() {
-        return new Insets(
-                LauncherGeometry.FLUSH,
-                LauncherGeometry.OUTER_MARGIN,
-                LauncherGeometry.OUTER_MARGIN,
-                LauncherGeometry.OUTER_MARGIN);
+        return FooterGeometry.actionBarPadding();
     }
 
     private static Insets parameterRowPadding() {
@@ -652,10 +882,10 @@ final class PipelineLauncher {
     private static double parameterLabelTextWidth(double labelColumnWidth,
                                                   double labelColumnGap) {
         return labelColumnWidth
-                - (PARAMETER_ROW_HORIZONTAL_PADDING * 2.0)
+                - (PARAMETER_ROW_HORIZONTAL_PADDING * BILATERAL_EDGE_COUNT)
                 - PARAMETER_ANCHOR_COLUMN_WIDTH
                 - PARAMETER_HELP_COLUMN_WIDTH
-                - (labelColumnGap * 2.0);
+                - (labelColumnGap * BILATERAL_EDGE_COUNT);
     }
 
     private static Insets helpDialogPadding() {
@@ -666,12 +896,8 @@ final class PipelineLauncher {
         return new Insets(HELP_DETAIL_CARD_INSET);
     }
     private static final Gson PROFILE_GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final int LAUNCHER_VIEW_SCHEMA_VERSION = 1;
-    private static final List<String> STANDARD_GROUP_ORDER = GuiPresentation.standardGroups()
-            .stream()
-            .map(GuiPresentation.StandardGroup::name)
-            .toList();
-    private static final Map<String, Integer> STANDARD_GROUP_RANK = standardGroupRank();
+    private static final int LAUNCHER_VIEW_SCHEMA_VERSION = 2;
+    private static final boolean HEADER_WORKFLOW_VISIBLE = false;
 
     private PipelineLauncher() {
         throw new AssertionError("No instances");
@@ -697,9 +923,9 @@ final class PipelineLauncher {
 
         List<EditableConstant> constants = editableConstantsForScript(scriptName, scriptText);
         if (constants.isEmpty()) {
-            showAstraErrorMessage(qupath.getStage(),
-                    "ASTRA " + scriptName,
-                    "No editable ASTRA configuration constants were found.");
+            showErrorMessage(qupath.getStage(),
+                    scriptName,
+                    "No editable configuration settings were found.");
             return;
         }
         String schemaId = schemaIdentity(constants);
@@ -726,10 +952,12 @@ final class PipelineLauncher {
         runButton.setFocusTraversable(false);
         styleButton(runButton, ButtonRole.PRIMARY);
         applyButtonFamilyGeometry(runButton, ButtonFamily.MACRO_ACTION);
+        addStyleClass(runButton, "astra-main-run-button");
         Button cancelButton = GuiText.button(GuiText.Role.CONTROL_TEXT, "Cancel");
         cancelButton.setFocusTraversable(false);
         styleButton(cancelButton, ButtonRole.SECONDARY);
         applyButtonFamilyGeometry(cancelButton, ButtonFamily.MACRO_ACTION);
+        addStyleClass(cancelButton, "astra-main-cancel-button");
         cancelButton.setOnAction(event -> {
             dialog.setResult(ButtonType.CANCEL);
             dialog.close();
@@ -740,7 +968,7 @@ final class PipelineLauncher {
             try {
                 configuredScript = applyConstants(scriptText, constants, profileState, Map.of("SCRIPT_ACTION", "\"EXPORT\""));
             } catch (RuntimeException e) {
-                showAstraErrorMessage(qupath.getStage(), "ASTRA " + scriptName, e.getMessage());
+                showErrorMessage(qupath.getStage(), scriptName, e.getMessage());
                 return;
             }
             feedback.info(finalConfigSummary(scriptName, schemaId, constants, profileState));
@@ -756,7 +984,7 @@ final class PipelineLauncher {
             runHeaderReset(qupath, scriptName, scriptText, constants, profileState, schemaId, feedback, runButtonRef.get(), resetProjectButtonRef.get(), "RESET_PROJECT", true);
         };
         dialog.getDialogPane().setContent(createContent(qupath, scriptName, constants, true, feedback, schemaId, sourceScriptSha256, profileState, exportAction, exportButtonRef::set, resetImageAction, resetImageButtonRef::set, resetProjectAction, resetProjectButtonRef::set, cancelButton, runButton));
-        installAstraStyles(dialog.getDialogPane());
+        installLauncherStyles(dialog.getDialogPane());
         addStyleClass(dialog.getDialogPane(), "astra-launcher-dialog-pane");
         dialog.setResizable(true);
         runButton.setOnAction(event -> {
@@ -765,7 +993,7 @@ final class PipelineLauncher {
             try {
                 configuredScript = applyConstants(scriptText, constants, profileState);
             } catch (RuntimeException e) {
-                showAstraErrorMessage(qupath.getStage(), "ASTRA " + scriptName, e.getMessage());
+                showErrorMessage(qupath.getStage(), scriptName, e.getMessage());
                 return;
             }
             if (requiresProvisionalVascularConfirmation(constants) && !confirmProvisionalVascularAutomation(qupath, scriptName)) {
@@ -1085,7 +1313,7 @@ final class PipelineLauncher {
         Pattern pattern = Pattern.compile("(?m)^(\\s*final\\s+(?:String|Object|List|Map|boolean|int|double)\\s+" + Pattern.quote(name) + "\\s*=\\s*)([^\\r\\n]*?)(\\s*(?://.*)?$)");
         Matcher matcher = pattern.matcher(out);
         if (!matcher.find()) {
-            throw new IllegalArgumentException("Could not apply override for hidden ASTRA constant: " + name);
+            throw new IllegalArgumentException("Could not apply override for hidden constant: " + name);
         }
         out.replace(matcher.start(), matcher.end(), matcher.group(1) + renderedValue + matcher.group(3));
     }
@@ -1114,7 +1342,7 @@ final class PipelineLauncher {
 
         List<String> missing = missingProvenanceConstants(scriptText, provenance.keySet());
         if (!missing.isEmpty()) {
-            throw new IllegalStateException("ASTRA settings provenance injection failed; script is missing required constant(s): " + String.join(", ", missing));
+            throw new IllegalStateException("Settings provenance injection failed; script is missing required constant(s): " + String.join(", ", missing));
         }
 
         String configured = scriptText;
@@ -1161,7 +1389,7 @@ final class PipelineLauncher {
         Pattern pattern = Pattern.compile("(?s)final\\s+Map\\s+USER_OVERRIDES\\s*=\\s*\\[.*?\\]\\s*(?=\\s*final\\s+ClassLoader)");
         Matcher matcher = pattern.matcher(scriptText);
         if (!matcher.find()) {
-            throw new IllegalArgumentException("Could not apply ASTRA overrides; compact script is missing USER_OVERRIDES before the class loader bootstrap.");
+            throw new IllegalArgumentException("Could not apply launcher overrides; compact script is missing USER_OVERRIDES before the class loader bootstrap.");
         }
         return matcher.replaceFirst(Matcher.quoteReplacement(rendered.toString()));
     }
@@ -1194,7 +1422,7 @@ final class PipelineLauncher {
         Pattern pattern = Pattern.compile("(?m)^final\\s+(String|boolean)\\s+" + Pattern.quote(name) + "\\s*=\\s*[^\\r\\n]*(\\R?)");
         Matcher matcher = pattern.matcher(scriptText);
         if (!matcher.find()) {
-            throw new IllegalStateException("ASTRA settings provenance injection failed; script is missing required constant: " + name);
+            throw new IllegalStateException("Settings provenance injection failed; script is missing required constant: " + name);
         }
         String type = matcher.group(1);
         String newline = matcher.group(2);
@@ -1219,7 +1447,7 @@ final class PipelineLauncher {
             }
             return out.toString();
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is unavailable for ASTRA GUI schema identity.", e);
+            throw new IllegalStateException("SHA-256 is unavailable for GUI schema identity.", e);
         }
     }
 
@@ -1294,7 +1522,7 @@ final class PipelineLauncher {
     static void writeAutosaveSettings(File file, String scriptName, String schemaId, String sourceScriptSha256,
                                       List<EditableConstant> constants) throws IOException {
         SettingsProfile profile = createSettingsProfile(scriptName, schemaId, sourceScriptSha256, constants);
-        profile.notes = "ASTRA automatic last-working-settings autosave.";
+        profile.notes = "Automatic last-working-settings autosave.";
         writeSettingsProfile(file, profile);
     }
 
@@ -1309,12 +1537,12 @@ final class PipelineLauncher {
             applySettingsProfile(profile, scriptName, schemaId, sourceScriptSha256, constants);
             profileState.loadedAutosave(file.getName(), file.getAbsolutePath(), sha256File(file));
             if (info != null) {
-                info.accept("Restored ASTRA autosave: " + file.getAbsolutePath());
+                info.accept("Restored autosave: " + file.getAbsolutePath());
             }
             return true;
         } catch (IOException | RuntimeException e) {
             if (warn != null) {
-                warn.accept("Ignoring ASTRA autosave at " + file.getAbsolutePath() + ": " + e.getMessage());
+                warn.accept("Ignoring autosave at " + file.getAbsolutePath() + ": " + e.getMessage());
             }
             return false;
         }
@@ -1341,7 +1569,7 @@ final class PipelineLauncher {
     static void applySettingsProfile(SettingsProfile profile, String scriptName, String schemaId, String sourceScriptSha256, List<EditableConstant> constants) {
         Objects.requireNonNull(profile, "profile");
         if (profile.schema_version != SETTINGS_PROFILE_SCHEMA_VERSION) {
-            throw new IllegalArgumentException("Unsupported ASTRA settings profile schema version: " + profile.schema_version);
+            throw new IllegalArgumentException("Unsupported settings profile schema version: " + profile.schema_version);
         }
         if (!Objects.equals(profile.pipeline_name, settingsPipelineName(scriptName))) {
             throw new IllegalArgumentException("Settings profile is for pipeline '" + profile.pipeline_name + "', not '" + settingsPipelineName(scriptName) + "'.");
@@ -1356,7 +1584,7 @@ final class PipelineLauncher {
         constants.forEach(c -> byName.put(c.name, c));
         for (String key : profile.constants.keySet()) {
             if (!byName.containsKey(key)) {
-                throw new IllegalArgumentException("Settings profile contains unknown ASTRA constant: " + key);
+                throw new IllegalArgumentException("Settings profile contains unknown setting: " + key);
             }
         }
         for (Map.Entry<String, String> entry : profile.constants.entrySet()) {
@@ -1407,7 +1635,10 @@ final class PipelineLauncher {
     }
 
     static String launcherVersionSummary() {
-        String extension = runtimeProperty("Implementation-Version", "unknown");
+        String extension = GuiPresentation.extensionReleaseTag();
+        if (isUnknownVersion(extension)) {
+            extension = runtimeProperty("Implementation-Version", "unknown");
+        }
         return launcherVersionSummary(extension);
     }
 
@@ -1416,7 +1647,7 @@ final class PipelineLauncher {
     }
 
     static String launcherVersionSummary(String extension) {
-        return "ASTRA Extension " + displayVersionToken(extension);
+        return displayVersionToken(extension);
     }
 
     private static String displayVersionToken(String value) {
@@ -1570,8 +1801,8 @@ final class PipelineLauncher {
         if (projectReset) {
             List<String> names = projectImageNames(qupath);
             if (names.isEmpty()) {
-                showAstraErrorMessage(qupath.getStage(),
-                        "ASTRA " + scriptName,
+                showErrorMessage(qupath.getStage(),
+                        scriptName,
                         "Project reset requires an open project with image entries.");
                 return;
             }
@@ -1584,25 +1815,25 @@ final class PipelineLauncher {
         try {
             configuredScript = applyConstants(scriptText, constants, profileState, overrides);
         } catch (RuntimeException e) {
-            showAstraErrorMessage(qupath.getStage(), "ASTRA " + scriptName, e.getMessage());
+            showErrorMessage(qupath.getStage(), scriptName, e.getMessage());
             return;
         }
         feedback.info(finalConfigSummary(scriptName, schemaId, constants, profileState));
-        feedback.warn((projectReset ? "Project" : "Image") + " reset requested from the launcher header. ASTRA will remove only ledger-recorded object IDs and measurement keys; exported files are not deleted.");
+        feedback.warn((projectReset ? "Project" : "Image") + " reset requested from the launcher header. The launcher will remove only ledger-recorded object IDs and measurement keys; exported files are not deleted.");
         executeAsync(qupath, scriptName, configuredScript, feedback, runButton, actionButton);
     }
 
     private static boolean confirmAnalysisReset(QuPathGUI qupath, String scriptName, boolean projectReset) {
-        Dialog<ButtonType> dialog = createAstraConfirmationDialog(
+        Dialog<ButtonType> dialog = createConfirmationDialog(
                 qupath.getStage(),
-                "ASTRA " + scriptName,
+                scriptName,
                 projectReset
-                        ? "Reset recorded ASTRA state for the project?"
-                        : "Reset recorded ASTRA state for the current image?",
+                        ? "Reset recorded analysis state for the project?"
+                        : "Reset recorded analysis state for the current image?",
                 """
-                This is destructive for ASTRA-generated hierarchy state.
+                This is destructive for generated hierarchy state.
 
-                ASTRA will delete only objects recorded by QuPath object ID in the analysis ledger and remove only recorded ASTRA measurement keys.
+                The launcher will delete only objects recorded by QuPath object ID in the analysis ledger and remove only recorded measurement keys.
                 User ROI, Trace, analysis-region annotations, unledgered objects, and exported CSV/QC files are preserved.
                 """,
                 ButtonRole.DANGER);
@@ -1714,7 +1945,7 @@ final class PipelineLauncher {
                     .sorted(Comparator.comparing(File::getAbsolutePath, String.CASE_INSENSITIVE_ORDER))
                     .forEach(file -> labels.put(file.getAbsolutePath(), projectRelativeLabel(projectBase, file)));
         } catch (IOException e) {
-            logger.warn("Unable to discover ASTRA assets under {}", root, e);
+            logger.warn("Unable to discover assets under {}", root, e);
         }
         return new AssetDiscovery(labels);
     }
@@ -1767,6 +1998,10 @@ final class PipelineLauncher {
     }
 
     private static List<String> projectImageNames(QuPathGUI qupath) {
+        List<String> testingImageNames = projectImageNamesForTesting;
+        if (testingImageNames != null) {
+            return testingImageNames;
+        }
         if (qupath == null || qupath.getProject() == null) {
             return List.of();
         }
@@ -1776,6 +2011,12 @@ final class PipelineLauncher {
                 .distinct()
                 .sorted(String.CASE_INSENSITIVE_ORDER)
                 .toList();
+    }
+
+    private static volatile List<String> projectImageNamesForTesting;
+
+    static void setProjectImageNamesForTesting(List<String> imageNames) {
+        projectImageNamesForTesting = imageNames == null ? null : List.copyOf(imageNames);
     }
 
     static List<String> targetModelControlNames(String detectionTarget) {
@@ -1801,9 +2042,9 @@ final class PipelineLauncher {
     }
 
     private static boolean confirmProvisionalVascularAutomation(QuPathGUI qupath, String scriptName) {
-        Dialog<ButtonType> dialog = createAstraConfirmationDialog(
+        Dialog<ButtonType> dialog = createConfirmationDialog(
                 qupath.getStage(),
-                "ASTRA " + scriptName,
+                scriptName,
                 "Run provisional vascular automation?",
                 """
                 These vascular automation modes are provisional and review-required.
@@ -1840,24 +2081,18 @@ final class PipelineLauncher {
 
         VBox root = new VBox(LauncherGeometry.FLUSH);
         root.setPadding(new Insets(LauncherGeometry.FLUSH));
+        root.setMinWidth(LAUNCHER_CONTENT_WIDTH);
+        root.setPrefWidth(LAUNCHER_CONTENT_WIDTH);
+        root.setMaxWidth(Double.MAX_VALUE);
         addStyleClass(root, "astra-launcher-root");
+        registerThemedRoot(root);
+        ensurePopupThemeBridge();
 
         VBox header = new VBox(HeaderGeometry.HEADER_STACK_GAP);
         header.setPadding(LauncherGeometry.uniformOuterMargin());
         HBox titleRow = new HBox(HeaderGeometry.TITLE_ROW_GAP);
         titleRow.setAlignment(Pos.TOP_LEFT);
-        VBox titleBlock = new VBox(HeaderGeometry.TITLE_BLOCK_GAP);
-        Label title = GuiText.label(GuiText.Role.PANEL_TEXT, scriptName);
-        title.getStyleClass().add("astra-header-title");
-        Label subtitle = GuiText.label(GuiText.Role.PANEL_TEXT, descriptionFor(scriptName));
-        subtitle.setWrapText(true);
-        subtitle.getStyleClass().add("astra-header-subtitle");
-        Label provenance = GuiText.label(GuiText.Role.PANEL_TEXT, launcherVersionSummary());
-        provenance.getStyleClass().add("astra-header-provenance");
-        titleBlock.getChildren().addAll(title, subtitle, provenance);
-        VBox titleStack = new VBox(HeaderGeometry.HEADER_STACK_GAP);
-        titleStack.setAlignment(Pos.TOP_LEFT);
-        titleStack.getChildren().add(titleBlock);
+        Region titleBlock = createHeaderIdentity(scriptName);
         Region titleSpacer = new Region();
         HBox.setHgrow(titleSpacer, Priority.ALWAYS);
         VBox actionRail = new VBox(HeaderGeometry.ACTION_RAIL_GAP);
@@ -1865,11 +2100,24 @@ final class PipelineLauncher {
         actionRail.setMinWidth(HeaderGeometry.actionBoxWidth());
         actionRail.setPrefWidth(HeaderGeometry.actionBoxWidth());
         actionRail.setMaxWidth(HeaderGeometry.actionBoxWidth());
-        actionRail.setMinHeight(HeaderGeometry.actionRibbonHeight());
-        actionRail.setPrefHeight(HeaderGeometry.actionRibbonHeight());
-        actionRail.setMaxHeight(HeaderGeometry.actionRibbonHeight());
+        actionRail.setMinHeight(HeaderGeometry.actionRailHeight());
+        actionRail.setPrefHeight(HeaderGeometry.actionRailHeight());
+        actionRail.setMaxHeight(HeaderGeometry.actionRailHeight());
         actionRail.setTranslateY(HeaderGeometry.ACTION_RAIL_TOP_OFFSET);
+        actionRail.setTranslateX(HeaderGeometry.ACTION_RAIL_X_OFFSET);
         addStyleClass(actionRail, "astra-header-action-rail");
+        StackPane actionShell = new StackPane();
+        actionShell.setMinWidth(HeaderGeometry.actionBoxWidth());
+        actionShell.setPrefWidth(HeaderGeometry.actionBoxWidth());
+        actionShell.setMaxWidth(HeaderGeometry.actionBoxWidth());
+        actionShell.setMinHeight(HeaderGeometry.actionRibbonHeight());
+        actionShell.setPrefHeight(HeaderGeometry.actionRibbonHeight());
+        actionShell.setMaxHeight(HeaderGeometry.actionRibbonHeight());
+        addStyleClass(actionShell, "astra-header-action-shell");
+        javafx.scene.shape.Path actionShellFill = createHeaderRibbonPath("astra-header-action-shell-fill");
+        addStyleClass(actionShellFill, "astra-tab-sheen-fill");
+        bindTabSheenPaint(actionShellFill);
+        javafx.scene.shape.Path actionShellBorder = createHeaderRibbonPath("astra-header-action-shell-border");
         StackPane actionContent = new StackPane();
         actionContent.setMinWidth(HeaderGeometry.actionBoxWidth());
         actionContent.setPrefWidth(HeaderGeometry.actionBoxWidth());
@@ -1879,6 +2127,18 @@ final class PipelineLauncher {
         actionContent.setMaxHeight(HeaderGeometry.actionRibbonHeight());
         actionContent.setPadding(HeaderGeometry.actionRibbonPadding());
         addStyleClass(actionContent, "astra-header-action-content");
+        actionShell.getChildren().addAll(actionShellFill, actionShellBorder, actionContent);
+        actionShell.widthProperty().addListener((obs, oldWidth, newWidth) ->
+                updateHeaderRibbonPath(actionShellFill, actionShellBorder,
+                        newWidth.doubleValue(), actionShell.getHeight()));
+        actionShell.heightProperty().addListener((obs, oldHeight, newHeight) ->
+                updateHeaderRibbonPath(actionShellFill, actionShellBorder,
+                        actionShell.getWidth(), newHeight.doubleValue()));
+        Platform.runLater(() -> updateHeaderRibbonPath(
+                actionShellFill,
+                actionShellBorder,
+                actionShell.getWidth() <= LauncherGeometry.FLUSH ? HeaderGeometry.actionBoxWidth() : actionShell.getWidth(),
+                actionShell.getHeight() <= LauncherGeometry.FLUSH ? HeaderGeometry.actionRibbonHeight() : actionShell.getHeight()));
         HeaderActionMenu settingsMenu = createHeaderMenuButton("Settings", "settings");
         HeaderActionMenu projectMenu = createHeaderMenuButton("Project", "project");
         HeaderActionMenu viewMenu = createHeaderMenuButton("View", "view");
@@ -1910,7 +2170,7 @@ final class PipelineLauncher {
             Button resetImage = GuiText.button(GuiText.Role.CONTROL_TEXT, "Reset Image");
             resetImage.setFocusTraversable(false);
             styleButton(resetImage, ButtonRole.DANGER);
-            resetImage.setTooltip(new Tooltip("Analysis action: delete only ASTRA objects and measurements recorded for the current image in the analysis ledger."));
+            resetImage.setTooltip(new Tooltip("Analysis action: delete only objects and measurements recorded for the current image in the analysis ledger."));
             resetImage.setOnAction(resetImageAction::accept);
             if (resetImageButtonSink != null) {
                 resetImageButtonSink.accept(resetImage);
@@ -1918,7 +2178,7 @@ final class PipelineLauncher {
             Button resetProject = GuiText.button(GuiText.Role.CONTROL_TEXT, "Reset Project");
             resetProject.setFocusTraversable(false);
             styleButton(resetProject, ButtonRole.DANGER);
-            resetProject.setTooltip(new Tooltip("Analysis action: delete only ASTRA objects and measurements recorded for every project image in the analysis ledger."));
+            resetProject.setTooltip(new Tooltip("Analysis action: delete only objects and measurements recorded for every project image in the analysis ledger."));
             resetProject.setOnAction(resetProjectAction::accept);
             if (resetProjectButtonSink != null) {
                 resetProjectButtonSink.accept(resetProject);
@@ -1946,9 +2206,8 @@ final class PipelineLauncher {
                 appendHeaderActionToPanel(projectMenu.getItems().get(0), projectMenu.menu(), exportSpec);
             }
         }
-        actionRail.getChildren().add(actionContent);
-        titleStack.getChildren().add(createPipelineFlow(scriptName));
-        titleRow.getChildren().addAll(titleStack, titleSpacer, actionRail);
+        actionRail.getChildren().add(actionShell);
+        titleRow.getChildren().addAll(titleBlock, titleSpacer, actionRail);
         header.getChildren().add(titleRow);
         AnimatedGradientHeader animatedHeader = new AnimatedGradientHeader(header);
 
@@ -1956,88 +2215,18 @@ final class PipelineLauncher {
         body.setFillWidth(true);
         body.setPadding(LauncherGeometry.inputContentPadding());
         body.getChildren().add(createChannelPanel(imageChannels));
-        List<SettingsSectionModel> routineSections = new ArrayList<>();
-        if (colocalization) {
-            routineSections.add(new SettingsSectionModel(
-                    "Colocalization Setup",
-                    "Target, segmentation, marker checks, thresholds, and background.",
-                    "Guided",
-                    createColocalizationPanel(qupath, constants, imageChannels, autosave),
-                    false
-            ));
-        }
-        for (String group : orderedGroups(constants, false)) {
-            List<EditableConstant> groupConstants = constants.stream()
-                    .filter(c -> !c.advanced && group.equals(c.group))
-                    .filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))
-                    .sorted(Comparator.comparingInt(EditableConstant::uiOrder))
-                    .toList();
-            if (!groupConstants.isEmpty()) {
-                routineSections.add(new SettingsSectionModel(
-                        group,
-                        groupDashboardDescription(group),
-                        groupDashboardBadge(group, groupConstants),
-                        createSection(group, groupConstants, constants, true, autosave),
-                        false
-                ));
-            }
-        }
-
-        List<SettingsSectionModel> advancedSections = new ArrayList<>();
-        for (String group : orderedGroups(constants, true)) {
-            List<EditableConstant> groupConstants = constants.stream()
-                    .filter(c -> c.advanced && group.equals(c.group))
-                    .filter(c -> !isHandledByColocalizationPanel(c.name, colocalization))
-                    .sorted(Comparator.comparingInt(EditableConstant::uiOrder))
-                    .toList();
-            if (!groupConstants.isEmpty()) {
-                Node section = "Advanced".equalsIgnoreCase(group)
-                        ? createUngroupedSection(groupConstants, false, autosave)
-                        : createSection(group, groupConstants, constants, false, autosave);
-                advancedSections.add(new SettingsSectionModel(
-                        group,
-                        groupDashboardDescription(group),
-                        "Advanced",
-                        section,
-                        true
-                ));
-            }
-        }
-
+        Function<ParameterVisibilityMode, List<SettingsSectionModel>> sectionFactory = mode ->
+                createDashboardSections(qupath, constants, imageChannels, autosave,
+                        colocalization, mode);
         Node routineNavigator = createSettingsNavigator("Settings Dashboard",
-                "Choose one settings group at a time, or switch to All Settings for a full review.",
-                routineSections,
+                "Choose a stable category, or switch to Parameter List for one continuous view.",
+                sectionFactory,
                 launcherViewState,
                 launcherHomeResets::add);
         addStyleClass(routineNavigator, "astra-routine-settings-panel");
+        VBox.setVgrow(routineNavigator, Priority.ALWAYS);
         body.getChildren().add(routineNavigator);
         InputGradientFillPanel inputFillPanel = new InputGradientFillPanel();
-        VBox.setVgrow(inputFillPanel, Priority.ALWAYS);
-        if (!advancedSections.isEmpty()) {
-            Node advanced = createSettingsNavigator("Advanced Settings",
-                    "Developer controls for deliberate tuning, diagnostics, and publication-specific overrides.",
-                    advancedSections,
-                    launcherViewState,
-                    launcherHomeResets::add);
-            addStyleClass(advanced, "astra-advanced-settings-panel");
-            if (GuiPresentation.advancedControlsLockedByDefault()) {
-                advanced.setVisible(false);
-                advanced.setManaged(false);
-                VBox advancedUnlock = createAdvancedUnlockPanel(advanced);
-                addStyleClass(advancedUnlock, "astra-advanced-unlock-panel");
-                launcherHomeResets.add(() -> {
-                    advanced.setVisible(false);
-                    advanced.setManaged(false);
-                    advancedUnlock.setVisible(true);
-                    advancedUnlock.setManaged(true);
-                });
-                body.getChildren().addAll(advancedUnlock, advanced, inputFillPanel);
-            } else {
-                body.getChildren().addAll(advanced, inputFillPanel);
-            }
-        } else {
-            body.getChildren().add(inputFillPanel);
-        }
 
         ScrollPane scroll = new ScrollPane(body);
         scroll.setFitToWidth(true);
@@ -2046,6 +2235,8 @@ final class PipelineLauncher {
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scroll.setPrefViewportWidth(SETTINGS_VIEWPORT_WIDTH);
         scroll.setPrefViewportHeight(SETTINGS_VIEWPORT_HEIGHT);
+        scroll.setMinWidth(SETTINGS_SCROLL_WIDTH);
+        scroll.setPrefWidth(SETTINGS_SCROLL_WIDTH);
         scroll.viewportBoundsProperty().addListener((obs, oldBounds, newBounds) ->
                 body.setMinHeight(newBounds == null ? Region.USE_COMPUTED_SIZE : newBounds.getHeight()));
         addStyleClass(scroll, "astra-settings-scroll");
@@ -2119,7 +2310,7 @@ final class PipelineLauncher {
         bar.setPadding(mainActionBarPadding());
         addStyleClass(bar, "astra-main-action-bar");
         HBox.setHgrow(progressLane, Priority.ALWAYS);
-        bar.getChildren().addAll(progressLane, cancelButton, runButton);
+        bar.getChildren().addAll(progressLane, new FooterActionShell(cancelButton, runButton));
         return bar;
     }
 
@@ -2131,9 +2322,9 @@ final class PipelineLauncher {
             profileDir = settingsProfileDirectory(projectBaseDirectory(qupath), scriptName);
             Files.createDirectories(profileDir.toPath());
         } catch (RuntimeException | IOException e) {
-            showAstraErrorMessage(qupath.getStage(),
-                    "ASTRA Settings Profile",
-                    "Unable to resolve ASTRA project settings directory:\n" + e.getMessage());
+            showErrorMessage(qupath.getStage(),
+                    "Settings Profile",
+                    "Unable to resolve project settings directory:\n" + e.getMessage());
             return;
         }
         String profileName = showSettingsProfileNameDialog(qupath.getStage())
@@ -2151,10 +2342,10 @@ final class PipelineLauncher {
             String hash = sha256File(target);
             profileState.loadedProfile(target.getName(), target.getAbsolutePath(), hash);
             autosave.saveCurrent();
-            feedback.info("Saved ASTRA settings profile: " + target.getAbsolutePath());
+            feedback.info("Saved settings profile: " + target.getAbsolutePath());
         } catch (IOException | RuntimeException e) {
-            showAstraErrorMessage(qupath.getStage(),
-                    "ASTRA Settings Profile",
+            showErrorMessage(qupath.getStage(),
+                    "Settings Profile",
                     "Unable to save settings profile:\n" + e.getMessage());
         }
     }
@@ -2168,10 +2359,10 @@ final class PipelineLauncher {
         if (owner != null) {
             dialog.initOwner(owner);
         }
-        dialog.setTitle("Save ASTRA Settings Profile");
+        dialog.setTitle("Save Settings Profile");
         dialog.setHeaderText(null);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-        installAstraStyles(dialog.getDialogPane());
+        installLauncherStyles(dialog.getDialogPane());
 
         Label title = GuiText.label(GuiText.Role.DIALOG_TEXT, "Profile name");
         addStyleClass(title, "astra-dialog-section-title");
@@ -2202,23 +2393,23 @@ final class PipelineLauncher {
     }
 
     static Dialog<ButtonType> createResetConfirmationDialog(Window owner) {
-        return createAstraConfirmationDialog(
+        return createConfirmationDialog(
                 owner,
-                "ASTRA Reset Confirmation",
-                "Reset recorded ASTRA state for the current image?",
+                "Reset Confirmation",
+                "Reset recorded analysis state for the current image?",
                 """
-                This is destructive for ASTRA-generated hierarchy state.
+                This is destructive for generated hierarchy state.
 
-                ASTRA will delete only objects recorded by QuPath object ID in the analysis ledger and remove only recorded ASTRA measurement keys.
+                The launcher will delete only objects recorded by QuPath object ID in the analysis ledger and remove only recorded measurement keys.
                 User ROI, Trace, analysis-region annotations, unledgered objects, and exported CSV/QC files are preserved.
                 """,
                 ButtonRole.DANGER);
     }
 
     static Dialog<ButtonType> createProvisionalVascularConfirmationDialog(Window owner) {
-        return createAstraConfirmationDialog(
+        return createConfirmationDialog(
                 owner,
-                "ASTRA Vascular",
+                "Vascular",
                 "Run provisional vascular automation?",
                 """
                 These vascular automation modes are provisional and review-required.
@@ -2227,11 +2418,11 @@ final class PipelineLauncher {
                 ButtonRole.SUCCESS);
     }
 
-    static Dialog<ButtonType> createAstraSuccessConfirmationDialog(Window owner,
+    static Dialog<ButtonType> createSuccessConfirmationDialog(Window owner,
                                                                    String titleText,
                                                                    String headingText,
                                                                    String bodyText) {
-        return createAstraConfirmationDialog(
+        return createConfirmationDialog(
                 owner,
                 titleText,
                 headingText,
@@ -2239,8 +2430,8 @@ final class PipelineLauncher {
                 ButtonRole.SUCCESS);
     }
 
-    static void showAstraMessage(Window owner, String titleText, String headingText, String bodyText) {
-        createAstraMessageDialog(
+    static void showMessage(Window owner, String titleText, String headingText, String bodyText) {
+        createMessageDialog(
                 owner,
                 titleText,
                 headingText,
@@ -2248,17 +2439,17 @@ final class PipelineLauncher {
                 ButtonRole.SECONDARY).showAndWait();
     }
 
-    static void showAstraErrorMessage(Window owner, String titleText, String bodyText) {
-        createAstraMessageDialog(
+    static void showErrorMessage(Window owner, String titleText, String bodyText) {
+        createMessageDialog(
                 owner,
                 titleText,
-                "ASTRA could not complete the request.",
+                "The request could not be completed.",
                 bodyText,
                 ButtonRole.SECONDARY).showAndWait();
     }
 
     static Dialog<ButtonType> createRunFailureDialog(Window owner, String titleText, String bodyText) {
-        return createAstraMessageDialog(
+        return createMessageDialog(
                 owner,
                 titleText,
                 "Run failed.",
@@ -2266,12 +2457,12 @@ final class PipelineLauncher {
                 ButtonRole.SECONDARY);
     }
 
-    static Dialog<ButtonType> createAstraPreviewMessageDialog(Window owner,
+    static Dialog<ButtonType> createPreviewMessageDialog(Window owner,
                                                               String titleText,
                                                               String headingText,
                                                               String bodyText,
                                                               boolean error) {
-        return createAstraMessageDialog(
+        return createMessageDialog(
                 owner,
                 titleText,
                 headingText,
@@ -2279,7 +2470,7 @@ final class PipelineLauncher {
                 error ? ButtonRole.DANGER : ButtonRole.SECONDARY);
     }
 
-    private static Dialog<ButtonType> createAstraConfirmationDialog(Window owner,
+    private static Dialog<ButtonType> createConfirmationDialog(Window owner,
                                                                     String titleText,
                                                                     String headingText,
                                                                     String bodyText,
@@ -2291,7 +2482,7 @@ final class PipelineLauncher {
         dialog.setTitle(titleText);
         dialog.setHeaderText(null);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-        installAstraStyles(dialog.getDialogPane());
+        installLauncherStyles(dialog.getDialogPane());
 
         Label title = GuiText.label(GuiText.Role.DIALOG_TEXT, headingText);
         title.setWrapText(true);
@@ -2318,7 +2509,7 @@ final class PipelineLauncher {
         return dialog;
     }
 
-    private static Dialog<ButtonType> createAstraMessageDialog(Window owner,
+    private static Dialog<ButtonType> createMessageDialog(Window owner,
                                                                String titleText,
                                                                String headingText,
                                                                String bodyText,
@@ -2330,7 +2521,7 @@ final class PipelineLauncher {
         dialog.setTitle(titleText);
         dialog.setHeaderText(null);
         dialog.getDialogPane().getButtonTypes().add(ButtonType.OK);
-        installAstraStyles(dialog.getDialogPane());
+        installLauncherStyles(dialog.getDialogPane());
 
         Label title = GuiText.label(GuiText.Role.DIALOG_TEXT, headingText);
         title.setWrapText(true);
@@ -2361,15 +2552,15 @@ final class PipelineLauncher {
             profileDir = settingsProfileDirectory(projectBaseDirectory(qupath), scriptName);
             Files.createDirectories(profileDir.toPath());
         } catch (RuntimeException | IOException e) {
-            showAstraErrorMessage(qupath.getStage(),
-                    "ASTRA Settings Profile",
-                    "Unable to resolve ASTRA project settings directory:\n" + e.getMessage());
+            showErrorMessage(qupath.getStage(),
+                    "Settings Profile",
+                    "Unable to resolve project settings directory:\n" + e.getMessage());
             return;
         }
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Load ASTRA Settings Profile");
+        chooser.setTitle("Load Settings Profile");
         chooser.setInitialDirectory(profileDir);
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("ASTRA settings profiles", "*.json"));
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Settings profiles", "*.json"));
         File selected = chooser.showOpenDialog(qupath.getStage());
         if (selected == null) {
             return;
@@ -2380,26 +2571,26 @@ final class PipelineLauncher {
             constants.forEach(EditableConstant::syncEditorFromValue);
             profileState.loadedProfile(selected.getName(), selected.getAbsolutePath(), sha256File(selected));
             autosave.saveCurrent();
-            feedback.info("Loaded ASTRA settings profile: " + selected.getAbsolutePath());
+            feedback.info("Loaded settings profile: " + selected.getAbsolutePath());
             List<String> missingChannels = missingProfileChannels(profile, imageChannels(qupath).stream().map(ImageChannel::getName).filter(Objects::nonNull).toList());
             if (!missingChannels.isEmpty()) {
                 feedback.warn("Loaded profile references channels not present in the open image: " + missingChannels);
             }
         } catch (IOException | RuntimeException e) {
-            showAstraErrorMessage(qupath.getStage(),
-                    "ASTRA Settings Profile",
+            showErrorMessage(qupath.getStage(),
+                    "Settings Profile",
                     "Unable to load settings profile:\n" + e.getMessage());
         }
     }
 
     private static File projectBaseDirectory(QuPathGUI qupath) {
         if (qupath.getProject() == null || qupath.getProject().getPath() == null) {
-            throw new IllegalStateException("Open a QuPath project before saving or loading ASTRA settings profiles.");
+            throw new IllegalStateException("Open a QuPath project before saving or loading Settings profiles.");
         }
         Path projectPath = qupath.getProject().getPath();
         Path base = Files.isDirectory(projectPath) ? projectPath : projectPath.getParent();
         if (base == null) {
-            throw new IllegalStateException("Unable to resolve the QuPath project directory for ASTRA settings profiles.");
+            throw new IllegalStateException("Unable to resolve the QuPath project directory for Settings profiles.");
         }
         return base.toFile();
     }
@@ -2442,81 +2633,175 @@ final class PipelineLauncher {
         return box;
     }
 
-    private static VBox createAdvancedUnlockPanel(Node advanced) {
-        VBox box = sectionShell("Advanced Locked", GuiPresentation.advancedControlsDescription());
-        TextField phrase = new TextField();
-        phrase.setPromptText("Unlock phrase");
-        phrase.setPrefColumnCount(18);
-        phrase.setMinWidth(LauncherGeometry.CONTROL_FIELD_MIN_WIDTH);
-        addStyleClass(phrase, "astra-input");
-        Button unlock = GuiText.button(GuiText.Role.CONTROL_TEXT, "Unlock advanced");
-        unlock.setFocusTraversable(false);
-        styleButton(unlock, ButtonRole.HEADER);
-        applyButtonFamilyGeometry(unlock, ButtonFamily.INLINE_UTILITY);
-        Label status = GuiText.label(GuiText.Role.PANEL_TEXT, "");
-        addStyleClass(status, "astra-dialog-error");
-        Runnable tryUnlock = () -> {
-            String expected = GuiPresentation.advancedUnlockPhrase();
-            if (expected.equals(phrase.getText() == null ? "" : phrase.getText().trim())) {
-                advanced.setVisible(true);
-                advanced.setManaged(true);
-                box.setVisible(false);
-                box.setManaged(false);
-            } else {
-                status.setText("Enter the developer unlock phrase exactly.");
+    private static List<SettingsSectionModel> createDashboardSections(
+            QuPathGUI qupath,
+            List<EditableConstant> constants,
+            List<ImageChannel> imageChannels,
+            SettingsAutosave autosave,
+            boolean colocalization,
+            ParameterVisibilityMode mode) {
+        List<EditableConstant> visibleConstants = constants.stream()
+                .filter(constant -> visibleInParameterMode(constant, mode))
+                .toList();
+        Map<String, List<Node>> specialized = colocalization
+                ? createColocalizationPanels(qupath, constants, imageChannels, autosave, mode)
+                : Map.of();
+        List<SettingsSectionModel> sections = new ArrayList<>();
+        for (GuiPresentation.DashboardCard card : GuiPresentation.dashboardCards()) {
+            VBox content = new VBox(SECTION_CONTENT_GAP);
+            content.setFillWidth(true);
+            addStyleClass(content, "astra-dashboard-card-content");
+            List<EditableConstant> cardConstants = visibleConstants.stream()
+                    .filter(constant -> card.groups().contains(constant.group))
+                    .toList();
+            for (String group : card.groups()) {
+                List<Node> specializedNodes = specialized.getOrDefault(group, List.of());
+                specializedNodes.forEach(node -> {
+                    detachFromParent(node);
+                    content.getChildren().add(node);
+                });
+                List<EditableConstant> groupConstants = visibleConstants.stream()
+                        .filter(constant -> group.equals(constant.group))
+                        .filter(constant -> !isHandledByColocalizationPanel(constant.name, colocalization))
+                        .sorted(Comparator.comparingInt(EditableConstant::uiOrder))
+                        .toList();
+                if (!groupConstants.isEmpty()) {
+                    content.getChildren().add(createSection(group, groupConstants,
+                            constants, true, autosave));
+                }
             }
-        };
-        unlock.setOnAction(event -> tryUnlock.run());
-        phrase.setOnAction(event -> tryUnlock.run());
-        HBox row = new HBox(ADVANCED_UNLOCK_CONTROL_GAP, phrase, unlock);
-        row.setAlignment(Pos.CENTER_LEFT);
-        box.getChildren().addAll(row, status);
-        return box;
+            if (content.getChildren().isEmpty()) {
+                Label empty = GuiText.label(GuiText.Role.PANEL_TEXT,
+                        "No parameters are exposed in " + mode.label() + " mode.");
+                empty.setWrapText(true);
+                addStyleClass(empty, "astra-dialog-muted");
+                content.getChildren().add(empty);
+            }
+            long changed = cardConstants.stream().filter(constant -> !constant.isAtDefaultValue()).count();
+            String badge = changed > 0 ? changed + " changed" : card.importance();
+            sections.add(new SettingsSectionModel(
+                    card.label(),
+                    card.description(),
+                    badge,
+                    card.importance(),
+                    card.accentTheme(),
+                    content
+            ));
+        }
+        if (sections.size() != DASHBOARD_CARD_COUNT) {
+            throw new IllegalStateException("The dashboard manifest must define exactly "
+                    + DASHBOARD_CARD_COUNT + " cards; found " + sections.size() + ".");
+        }
+        return List.copyOf(sections);
+    }
+
+    private static final class DashboardGrid extends Pane {
+
+        private final double gap;
+
+        private DashboardGrid(double gap) {
+            this.gap = gap;
+            setPadding(new Insets(
+                    DASHBOARD_GRID_VERTICAL_INSET,
+                    DASHBOARD_GRID_HORIZONTAL_INSET,
+                    DASHBOARD_GRID_VERTICAL_INSET,
+                    DASHBOARD_GRID_HORIZONTAL_INSET));
+            setMinSize(LauncherGeometry.FLUSH, LauncherGeometry.FLUSH);
+            setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+            addStyleClass(this, "astra-card-dashboard");
+        }
+
+        private void addCard(Node card) {
+            getChildren().add(card);
+        }
+
+        @Override
+        protected void layoutChildren() {
+            Insets insets = getInsets();
+            double horizontalGapTotal = gap * (DASHBOARD_COLUMN_COUNT - SINGLE_COUNT);
+            double verticalGapTotal = gap * (DASHBOARD_ROW_COUNT - SINGLE_COUNT);
+            double cellWidth = (getWidth() - insets.getLeft() - insets.getRight()
+                    - horizontalGapTotal) / DASHBOARD_COLUMN_COUNT;
+            double cellHeight = (getHeight() - insets.getTop() - insets.getBottom()
+                    - verticalGapTotal) / DASHBOARD_ROW_COUNT;
+            for (int index = 0; index < getChildren().size(); index++) {
+                Node card = getChildren().get(index);
+                int column = index % DASHBOARD_COLUMN_COUNT;
+                int row = index / DASHBOARD_COLUMN_COUNT;
+                double x = insets.getLeft() + (column * (cellWidth + gap));
+                double y = insets.getTop() + (row * (cellHeight + gap));
+                card.resizeRelocate(x, y, cellWidth, cellHeight);
+            }
+        }
+    }
+
+    static ParameterVisibilityMode requiredParameterMode(EditableConstant constant) {
+        if (constant == null) {
+            return ParameterVisibilityMode.BASIC;
+        }
+        return ParameterVisibilityMode.fromText(
+                GuiPresentation.parameterMode(constant.group, constant.advanced));
+    }
+
+    static boolean visibleInParameterMode(EditableConstant constant,
+                                          ParameterVisibilityMode activeMode) {
+        ParameterVisibilityMode safeMode = activeMode == null
+                ? ParameterVisibilityMode.BASIC
+                : activeMode;
+        return safeMode.includes(requiredParameterMode(constant));
     }
 
     private static Node createSettingsNavigator(String titleText, String subtitleText,
-                                                List<SettingsSectionModel> sections,
+                                                Function<ParameterVisibilityMode, List<SettingsSectionModel>> sectionFactory,
                                                 LauncherViewState launcherViewState,
                                                 Consumer<Runnable> homeResetSink) {
         HBox viewRow = new HBox(COMPACT_CONTROL_GAP);
-        viewRow.setAlignment(Pos.TOP_RIGHT);
+        viewRow.setAlignment(Pos.CENTER_RIGHT);
         addStyleClass(viewRow, "astra-settings-view-toggle");
         Button dashboard = GuiText.button(GuiText.Role.CONTROL_TEXT, "Dashboard");
-        Button allSettings = GuiText.button(GuiText.Role.CONTROL_TEXT, "All Settings");
+        Button parameterList = GuiText.button(GuiText.Role.CONTROL_TEXT, "Parameter List");
         styleButton(dashboard, ButtonRole.SECONDARY);
-        styleButton(allSettings, ButtonRole.SECONDARY);
+        styleButton(parameterList, ButtonRole.SECONDARY);
         applyButtonFamilyGeometry(dashboard, ButtonFamily.PANEL_NAVIGATION);
-        applyButtonFamilyGeometry(allSettings, ButtonFamily.PANEL_NAVIGATION);
-        viewRow.getChildren().addAll(dashboard, allSettings);
+        applyButtonFamilyGeometry(parameterList, ButtonFamily.PANEL_NAVIGATION);
+        ComboBox<String> mode = new ComboBox<>();
+        mode.getItems().setAll(Arrays.stream(ParameterVisibilityMode.values())
+                .map(ParameterVisibilityMode::label)
+                .toList());
+        mode.setValue(launcherViewState.parameterMode().label());
+        mode.setAccessibleText("Parameter detail mode");
+        mode.setTooltip(new Tooltip("Choose how many pipeline parameters are shown."));
+        styleComboBox(mode);
+        viewRow.getChildren().addAll(mode, dashboard, parameterList);
         VBox root = sectionShell(titleText, subtitleText, viewRow);
-        if (sections == null || sections.isEmpty()) {
-            Label empty = GuiText.label(GuiText.Role.PANEL_TEXT, "No settings are available for this view.");
-            addStyleClass(empty, "astra-dialog-muted");
-            root.getChildren().add(empty);
-            return root;
-        }
+        root.setMinHeight(LauncherGeometry.FLUSH);
+        root.setMaxHeight(Double.MAX_VALUE);
 
         VBox host = new VBox(SECTION_CONTENT_GAP);
         host.setFillWidth(true);
+        host.setMinHeight(LauncherGeometry.FLUSH);
+        host.setMaxHeight(Double.MAX_VALUE);
+        VBox.setVgrow(host, Priority.ALWAYS);
         addStyleClass(host, "astra-settings-host");
+        AtomicReference<List<SettingsSectionModel>> sectionsRef = new AtomicReference<>(
+                sectionFactory.apply(launcherViewState.parameterMode()));
 
         Runnable[] showDashboard = new Runnable[1];
         Runnable[] showAll = new Runnable[1];
         Consumer<SettingsSectionModel> showOne = section -> {
-            markSettingsViewButtons(dashboard, allSettings, LauncherViewMode.DASHBOARD);
+            markSettingsViewButtons(dashboard, parameterList, LauncherViewMode.DASHBOARD);
             VBox focused = new VBox(SECTION_CONTENT_GAP);
             focused.setFillWidth(true);
             BorderPane top = new BorderPane();
             top.setPadding(LauncherGeometry.intraPanelPadding());
             addStyleClass(top, "astra-focused-section-header");
-            GuiPresentation.StandardGroup group = GuiPresentation.standardGroup(section.title());
-            addStyleClass(top, "astra-focused-section-theme-" + cssToken(group.accentTheme()));
+            addStyleClass(top, "astra-focused-section-theme-" + cssToken(section.accentTheme()));
             Button back = GuiText.button(GuiText.Role.CONTROL_TEXT, "Back to Dashboard");
             styleButton(back, ButtonRole.SECONDARY);
             applyButtonFamilyGeometry(back, ButtonFamily.PANEL_NAVIGATION);
-            Label badge = GuiText.label(GuiText.Role.PANEL_TEXT, group.importance());
+            Label badge = GuiText.label(GuiText.Role.PANEL_TEXT, section.importance());
             addStyleClass(badge, "astra-badge");
-            addStyleClass(badge, "astra-badge-importance-" + cssToken(group.importance()));
+            addStyleClass(badge, "astra-badge-importance-" + cssToken(section.importance()));
             Label title = GuiText.label(GuiText.Role.PANEL_TEXT, section.title());
             addStyleClass(title, "astra-focused-section-title");
             Label description = GuiText.label(GuiText.Role.PANEL_TEXT, section.description());
@@ -2536,37 +2821,29 @@ final class PipelineLauncher {
         };
 
         showDashboard[0] = () -> {
-            markSettingsViewButtons(dashboard, allSettings, LauncherViewMode.DASHBOARD);
+            List<SettingsSectionModel> sections = sectionsRef.get();
+            markSettingsViewButtons(dashboard, parameterList, LauncherViewMode.DASHBOARD);
             launcherViewState.setViewMode(LauncherViewMode.DASHBOARD);
             launcherViewState.save();
-            GridPane cards = new GridPane();
-            cards.setHgap(SECTION_CONTENT_GAP);
-            cards.setVgap(SECTION_CONTENT_GAP);
-            cards.setMaxWidth(DASHBOARD_GRID_MAX_WIDTH);
-            addStyleClass(cards, "astra-card-dashboard");
-            for (int i = 0; i < 3; i++) {
-                ColumnConstraints column = new ColumnConstraints();
-                column.setPercentWidth(100.0d / 3.0d);
-                column.setHgrow(Priority.ALWAYS);
-                column.setFillWidth(true);
-                cards.getColumnConstraints().add(column);
-            }
+            DashboardGrid cards = new DashboardGrid(SECTION_CONTENT_GAP);
             int index = 0;
             for (SettingsSectionModel section : sections) {
                 Button card = createSettingsCard(section, () -> showOne.accept(section));
-                GridPane.setFillWidth(card, true);
-                GridPane.setHgrow(card, Priority.ALWAYS);
-                cards.add(card, index % 3, index / 3);
+                cards.addCard(card);
                 index++;
             }
             BorderPane cardFrame = new BorderPane(cards);
-            BorderPane.setAlignment(cards, Pos.TOP_CENTER);
+            cardFrame.setMinHeight(LauncherGeometry.FLUSH);
+            cardFrame.setMaxHeight(Double.MAX_VALUE);
+            BorderPane.setAlignment(cards, Pos.CENTER);
             addStyleClass(cardFrame, "astra-card-dashboard-frame");
             host.getChildren().setAll(createImportanceLegend(sections), cardFrame);
+            VBox.setVgrow(cardFrame, Priority.ALWAYS);
         };
         showAll[0] = () -> {
-            markSettingsViewButtons(dashboard, allSettings, LauncherViewMode.ALL_SETTINGS);
-            launcherViewState.setViewMode(LauncherViewMode.ALL_SETTINGS);
+            List<SettingsSectionModel> sections = sectionsRef.get();
+            markSettingsViewButtons(dashboard, parameterList, LauncherViewMode.PARAMETER_LIST);
+            launcherViewState.setViewMode(LauncherViewMode.PARAMETER_LIST);
             launcherViewState.save();
             VBox all = new VBox(SECTION_CONTENT_GAP);
             all.setFillWidth(true);
@@ -2581,8 +2858,19 @@ final class PipelineLauncher {
             homeResetSink.accept(showDashboard[0]);
         }
         dashboard.setOnAction(event -> showDashboard[0].run());
-        allSettings.setOnAction(event -> showAll[0].run());
-        if (launcherViewState.viewMode() == LauncherViewMode.ALL_SETTINGS) {
+        parameterList.setOnAction(event -> showAll[0].run());
+        mode.valueProperty().addListener((obs, oldMode, newMode) -> {
+            ParameterVisibilityMode selected = ParameterVisibilityMode.fromText(newMode);
+            launcherViewState.setParameterMode(selected);
+            launcherViewState.save();
+            sectionsRef.set(sectionFactory.apply(selected));
+            if (launcherViewState.viewMode() == LauncherViewMode.PARAMETER_LIST) {
+                showAll[0].run();
+            } else {
+                showDashboard[0].run();
+            }
+        });
+        if (launcherViewState.viewMode() == LauncherViewMode.PARAMETER_LIST) {
             showAll[0].run();
         } else {
             showDashboard[0].run();
@@ -2595,13 +2883,17 @@ final class PipelineLauncher {
     private static void setCollapsibleHeaderVisible(Node node, boolean visible) {
         if (node instanceof CollapsibleSection section) {
             section.setHeaderVisible(visible);
+            return;
+        }
+        if (node instanceof Pane pane) {
+            pane.getChildren().forEach(child -> setCollapsibleHeaderVisible(child, visible));
         }
     }
 
     private static Node createImportanceLegend(List<SettingsSectionModel> sections) {
         LinkedHashSet<String> levels = new LinkedHashSet<>();
         for (SettingsSectionModel section : sections) {
-            levels.add(GuiPresentation.standardGroup(section.title()).importance());
+            levels.add(section.importance());
         }
         if (levels.isEmpty()) {
             return new Pane();
@@ -2621,10 +2913,10 @@ final class PipelineLauncher {
         return legend;
     }
 
-    private static void markSettingsViewButtons(Button dashboard, Button allSettings,
+    private static void markSettingsViewButtons(Button dashboard, Button parameterList,
                                                 LauncherViewMode active) {
         setToggleActive(dashboard, active == LauncherViewMode.DASHBOARD);
-        setToggleActive(allSettings, active == LauncherViewMode.ALL_SETTINGS);
+        setToggleActive(parameterList, active == LauncherViewMode.PARAMETER_LIST);
     }
 
     private static void setToggleActive(Node node, boolean active) {
@@ -2639,25 +2931,21 @@ final class PipelineLauncher {
     }
 
     private static Button createSettingsCard(SettingsSectionModel section, Runnable openAction) {
-        GuiPresentation.StandardGroup group = GuiPresentation.standardGroup(section.title());
         Button card = GuiText.button(GuiText.Role.CONTROL_TEXT, "");
         card.setFocusTraversable(false);
         card.setMinWidth(LauncherGeometry.FLUSH);
-        card.setMinHeight(DASHBOARD_CARD_HEIGHT);
-        card.setPrefHeight(DASHBOARD_CARD_HEIGHT);
+        card.setMinHeight(LauncherGeometry.FLUSH);
         card.setMaxWidth(Double.MAX_VALUE);
+        card.setMaxHeight(Double.MAX_VALUE);
         card.setPadding(new Insets(DASHBOARD_CARD_INSET));
         addStyleClass(card, "astra-settings-card");
-        addStyleClass(card, "astra-settings-card-theme-" + cssToken(group.accentTheme()));
-        addStyleClass(card, "astra-settings-card-importance-" + cssToken(group.importance()));
-        if (section.advanced()) {
-            addStyleClass(card, "astra-settings-card-advanced");
-        }
+        addStyleClass(card, "astra-settings-card-theme-" + cssToken(section.accentTheme()));
+        addStyleClass(card, "astra-settings-card-importance-" + cssToken(section.importance()));
         Rectangle accent = new Rectangle(
                 DASHBOARD_CARD_ACCENT_WIDTH,
                 DASHBOARD_CARD_ACCENT_HEIGHT);
         addStyleClass(accent, "astra-settings-card-accent");
-        addStyleClass(accent, "astra-accent-" + cssToken(group.accentTheme()));
+        addStyleClass(accent, "astra-accent-" + cssToken(section.accentTheme()));
         VBox content = new VBox(CARD_CONTENT_GAP);
         content.setAlignment(Pos.CENTER_LEFT);
         content.setMinWidth(LauncherGeometry.FLUSH);
@@ -2667,8 +2955,8 @@ final class PipelineLauncher {
         RailText description = railText(section.description(), Double.MAX_VALUE, "astra-settings-card-description");
         description.wrappingWidthProperty().bind(content.widthProperty());
         Label badge = GuiText.label(GuiText.Role.PANEL_TEXT, section.badge());
-        badge.getStyleClass().add(section.advanced() ? "astra-badge-advanced" : "astra-badge");
-        badge.getStyleClass().add("astra-badge-importance-" + cssToken(group.importance()));
+        badge.getStyleClass().add("astra-badge");
+        badge.getStyleClass().add("astra-badge-importance-" + cssToken(section.importance()));
         content.getChildren().addAll(badge, title, description);
         HBox shell = new HBox(DASHBOARD_CARD_ACCENT_TO_CONTENT_GAP, accent, content);
         shell.setAlignment(Pos.CENTER_LEFT);
@@ -2693,27 +2981,6 @@ final class PipelineLauncher {
         if (node.getParent() instanceof Pane pane) {
             pane.getChildren().remove(node);
         }
-    }
-
-    private static String groupDashboardDescription(String group) {
-        return GuiPresentation.standardGroup(group).description();
-    }
-
-    private static String groupDashboardBadge(String group, List<EditableConstant> constants) {
-        long changed = constants.stream().filter(c -> !c.isAtDefaultValue()).count();
-        if (changed > 0) {
-            return changed + " changed";
-        }
-        if (constants.stream().anyMatch(c -> c.name.contains("MODEL"))) {
-            return "Models";
-        }
-        if (constants.stream().anyMatch(c -> c.name.contains("CLASSIFIER"))) {
-            return "Project assets";
-        }
-        if ("Runtime & Performance".equals(group) || "Diagnostics".equals(group)) {
-            return GuiPresentation.standardGroup(group).importance();
-        }
-        return GuiPresentation.standardGroup(group).importance();
     }
 
     private static boolean isColocalizationConfig(List<EditableConstant> constants) {
@@ -2743,7 +3010,12 @@ final class PipelineLauncher {
         ).contains(name);
     }
 
-    private static VBox createColocalizationPanel(QuPathGUI qupath, List<EditableConstant> constants, List<ImageChannel> imageChannels, SettingsAutosave autosave) {
+    private static Map<String, List<Node>> createColocalizationPanels(
+            QuPathGUI qupath,
+            List<EditableConstant> constants,
+            List<ImageChannel> imageChannels,
+            SettingsAutosave autosave,
+            ParameterVisibilityMode mode) {
         Map<String, EditableConstant> byName = new LinkedHashMap<>();
         constants.forEach(c -> byName.put(c.name, c));
         List<String> channelNames = imageChannels.stream().map(ImageChannel::getName).filter(Objects::nonNull).toList();
@@ -2751,12 +3023,11 @@ final class PipelineLauncher {
         SavedModelDiscovery nucleusModels = discoverSavedModelIds(projectBase, "nucleus");
         SavedModelDiscovery cellModels = discoverSavedModelIds(projectBase, "cell");
 
-        VBox box = sectionShell("Colocalization Setup", "Target-specific controls for segmentation models, segmentation channels, marker checks, thresholding, and background correction.");
         EditableConstant detectionTarget = byName.get("DETECTION_TARGET");
 
         VBox targetPanel = semanticCard(displayLabel("DETECTION_TARGET"), "Choose whether colocalization runs nucleus segmentation, cell segmentation, or paired nucleus/cell detection.");
         if (detectionTarget != null) {
-            Node editor = detectionTarget.createEditor();
+            Node editor = reusableEditor(detectionTarget);
             HBox row = labeledRow(displayLabel("DETECTION_TARGET"), editor,
                     COLOCALIZATION_PANEL_LABEL_WIDTH);
             detectionTarget.addChangeListener(autosave::markManualEditAndSave);
@@ -2794,18 +3065,29 @@ final class PipelineLauncher {
         EditableConstant displayCheckConstant = byName.get("DISPLAY_COLOCALIZATION_CHECK");
         installDisplayCheckSelector(checksPanel, displayCheckConstant, checksEditor, autosave);
 
+        VBox classificationPanel = semanticCard(
+                "Expression Classification",
+                "Choose how marker expression is converted into biological classes.");
+        Map<String, RowNodes> classificationRows = new LinkedHashMap<>();
+        addColocalizationConstantRow(
+                classificationPanel,
+                classificationRows,
+                visibleConstant(byName, "EXPRESSION_CLASSIFICATION_MODE", mode),
+                displayLabel("EXPRESSION_CLASSIFICATION_MODE"),
+                autosave);
+
         List<MarkerKeyMapEditor> markerMapEditors = new ArrayList<>();
-        installMarkerKeyMapEditor(byName.get("MANUAL_INTENSITY_BOUNDARIES_BY_MARKER"), MarkerMapValueType.NUMERIC,
+        installMarkerKeyMapEditor(visibleConstant(byName, "MANUAL_INTENSITY_BOUNDARIES_BY_MARKER", mode), MarkerMapValueType.NUMERIC,
                 "Manual expression boundaries appear here after checks define marker keys.", markerMapEditors);
-        installMarkerKeyMapEditor(byName.get("MANUAL_INTENSITY_THRESHOLDS"), MarkerMapValueType.NUMERIC,
+        installMarkerKeyMapEditor(visibleConstant(byName, "MANUAL_INTENSITY_THRESHOLDS", mode), MarkerMapValueType.NUMERIC,
                 "Manual threshold values appear here after checks define marker keys.", markerMapEditors);
-        installMarkerKeyMapEditor(byName.get("RANGE_THRESHOLD_FRACTIONS_BY_MARKER"), MarkerMapValueType.NUMERIC,
+        installMarkerKeyMapEditor(visibleConstant(byName, "RANGE_THRESHOLD_FRACTIONS_BY_MARKER", mode), MarkerMapValueType.NUMERIC,
                 "Range-percent expression boundary fractions appear here after checks define marker keys.", markerMapEditors);
-        installMarkerKeyMapEditor(byName.get("RANGE_THRESHOLD_FRACTION_BY_MARKER"), MarkerMapValueType.NUMERIC,
+        installMarkerKeyMapEditor(visibleConstant(byName, "RANGE_THRESHOLD_FRACTION_BY_MARKER", mode), MarkerMapValueType.NUMERIC,
                 "Range-percent threshold fractions appear here after checks define marker keys.", markerMapEditors);
-        installMarkerKeyMapEditor(byName.get("THRESHOLD_PROVENANCE_BY_MARKER"), MarkerMapValueType.TEXT,
+        installMarkerKeyMapEditor(visibleConstant(byName, "THRESHOLD_PROVENANCE_BY_MARKER", mode), MarkerMapValueType.TEXT,
                 "Threshold provenance rows appear here after checks define marker keys.", markerMapEditors);
-        installMarkerKeyMapEditor(byName.get("BACKGROUND_SUBTRACTION_BY_CHANNEL"), MarkerMapValueType.NUMERIC,
+        installMarkerKeyMapEditor(visibleConstant(byName, "BACKGROUND_SUBTRACTION_BY_CHANNEL", mode), MarkerMapValueType.NUMERIC,
                 "Manual background offsets appear here after checks define marker keys.", markerMapEditors);
         Runnable refreshMarkerKeyEditors = () -> {
             List<String> markerKeys = thresholdedMarkerKeysFromChecks(checksEditor.checks());
@@ -2819,24 +3101,22 @@ final class PipelineLauncher {
 
         VBox thresholdPanel = semanticCard("Thresholds & Background", "Choose how positivity thresholds and explicit background correction are resolved before running colocalization.");
         Map<String, RowNodes> thresholdRows = new LinkedHashMap<>();
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("EXPRESSION_CLASSIFICATION_MODE"), displayLabel("EXPRESSION_CLASSIFICATION_MODE"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("POSITIVITY_METHOD"), displayLabel("POSITIVITY_METHOD"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("PIXEL_POSITIVE_FRACTION_MIN"), displayLabel("PIXEL_POSITIVE_FRACTION_MIN"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_POPULATION"), displayLabel("THRESHOLD_POPULATION"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_MODE"), displayLabel("THRESHOLD_MODE"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("GMM_COMPONENTS"), displayLabel("GMM_COMPONENTS"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("OTSU_CLASS_COUNT"), displayLabel("OTSU_CLASS_COUNT"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_SCOPE"), displayLabel("THRESHOLD_SCOPE"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_SELECTED_IMAGE_NAMES"), displayLabel("THRESHOLD_SELECTED_IMAGE_NAMES"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL"), displayLabel("MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("MANUAL_INTENSITY_BOUNDARIES_BY_MARKER"), displayLabel("MANUAL_INTENSITY_BOUNDARIES_BY_MARKER"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("MANUAL_INTENSITY_THRESHOLDS"), displayLabel("MANUAL_INTENSITY_THRESHOLDS"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("THRESHOLD_PROVENANCE_BY_MARKER"), displayLabel("THRESHOLD_PROVENANCE_BY_MARKER"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("RANGE_THRESHOLD_FRACTIONS_BY_MARKER"), displayLabel("RANGE_THRESHOLD_FRACTIONS_BY_MARKER"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("RANGE_THRESHOLD_FRACTION_BY_MARKER"), displayLabel("RANGE_THRESHOLD_FRACTION_BY_MARKER"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("BACKGROUND_MODE"), displayLabel("BACKGROUND_MODE"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("LOCAL_BACKGROUND_PERCENTILE"), displayLabel("LOCAL_BACKGROUND_PERCENTILE"), autosave);
-        addColocalizationConstantRow(thresholdPanel, thresholdRows, byName.get("BACKGROUND_SUBTRACTION_BY_CHANNEL"), displayLabel("BACKGROUND_SUBTRACTION_BY_CHANNEL"), autosave);
+        List.of(
+                "POSITIVITY_METHOD", "PIXEL_POSITIVE_FRACTION_MIN", "THRESHOLD_POPULATION",
+                "THRESHOLD_MODE", "GMM_COMPONENTS", "OTSU_CLASS_COUNT",
+                "THRESHOLD_SCOPE", "THRESHOLD_SELECTED_IMAGE_NAMES",
+                "MATCH_THRESHOLD_IMAGE_NAMES_AGAINST_ORIGINAL",
+                "MANUAL_INTENSITY_BOUNDARIES_BY_MARKER",
+                "MANUAL_INTENSITY_THRESHOLDS", "THRESHOLD_PROVENANCE_BY_MARKER",
+                "RANGE_THRESHOLD_FRACTIONS_BY_MARKER",
+                "RANGE_THRESHOLD_FRACTION_BY_MARKER", "BACKGROUND_MODE",
+                "LOCAL_BACKGROUND_PERCENTILE", "BACKGROUND_SUBTRACTION_BY_CHANNEL"
+        ).forEach(name -> addColocalizationConstantRow(
+                thresholdPanel,
+                thresholdRows,
+                visibleConstant(byName, name, mode),
+                displayLabel(name),
+                autosave));
 
         Runnable updateTargetAvailability = () -> {
             String target = detectionTarget == null ? "BOTH" : detectionTarget.optionValue();
@@ -2852,8 +3132,20 @@ final class PipelineLauncher {
         updateTargetAvailability.run();
         installColocalizationThresholdDependencies(byName, thresholdRows, thresholdPanel);
 
-        box.getChildren().addAll(targetPanel, modelPanel, segmentationPanel, checksPanel, thresholdPanel);
-        return box;
+        Map<String, List<Node>> panels = new LinkedHashMap<>();
+        panels.put("Run Setup", List.of(targetPanel));
+        panels.put("Models", List.of(modelPanel));
+        panels.put("Channels & Markers", List.of(segmentationPanel, checksPanel));
+        panels.put("Biological Classification", List.of(classificationPanel));
+        panels.put("Thresholds & Background", List.of(thresholdPanel));
+        return Map.copyOf(panels);
+    }
+
+    private static EditableConstant visibleConstant(Map<String, EditableConstant> byName,
+                                                    String name,
+                                                    ParameterVisibilityMode mode) {
+        EditableConstant constant = byName.get(name);
+        return visibleInParameterMode(constant, mode) ? constant : null;
     }
 
     private static void installMarkerKeyMapEditor(EditableConstant constant, MarkerMapValueType valueType,
@@ -2905,10 +3197,10 @@ final class PipelineLauncher {
         if (constant == null) {
             return;
         }
-        Node editor = constant.createEditor();
+        Node editor = reusableEditor(constant);
         constant.addChangeListener(autosave::markManualEditAndSave);
         if (constant.name.contains("MATCH_") && constant.name.contains("_AGAINST_ORIGINAL")) {
-            Tooltip.install(editor, new Tooltip("Use this when QuPath display names were renamed after import and ASTRA should match against the original imported image names."));
+            Tooltip.install(editor, new Tooltip("Use this when QuPath display names were renamed after import and the launcher should match against the original imported image names."));
         }
         Node row = editor instanceof MarkerKeyMapEditor || editor instanceof ProjectImageSelectionEditor
                 ? labeledVariableBlock(label, editor)
@@ -3023,7 +3315,7 @@ final class PipelineLauncher {
             if (constant == null) {
                 continue;
             }
-            Node editor = constant.createEditor();
+            Node editor = reusableEditor(constant);
             HBox row = labeledRow(displayLabel(constant.name), editor,
                     COLOCALIZATION_PANEL_LABEL_WIDTH);
             group.getChildren().add(row);
@@ -3094,11 +3386,11 @@ final class PipelineLauncher {
     }
 
     private static void styleComboBox(ComboBox<String> combo) {
-        combo.setStyle("");
+        clearInlineStyle(combo);
         addStyleClass(combo, "astra-combo");
         styleComboBoxText(combo);
         if (combo.isEditable()) {
-            combo.getEditor().setStyle("");
+            clearInlineStyle(combo.getEditor());
             addStyleClass(combo.getEditor(), "astra-input");
         }
         combo.skinProperty().addListener((obs, oldSkin, newSkin) -> Platform.runLater(() -> styleComboBoxSubnodes(combo)));
@@ -3114,22 +3406,22 @@ final class PipelineLauncher {
     private static void styleComboBoxSubnodes(ComboBox<String> combo) {
         Node arrowButton = combo.lookup(".arrow-button");
         if (arrowButton != null) {
-            arrowButton.setStyle("");
+            clearInlineStyle(arrowButton);
             addStyleClass(arrowButton, "astra-combo-arrow-button");
         }
         Node arrow = combo.lookup(".arrow");
         if (arrow != null) {
-            arrow.setStyle("");
+            clearInlineStyle(arrow);
             addStyleClass(arrow, "astra-combo-arrow");
         }
         Node editor = combo.lookup(".text-field");
         if (editor instanceof TextField textField) {
-            textField.setStyle("");
+            clearInlineStyle(textField);
             addStyleClass(textField, "astra-input");
         }
         Node selectedCell = combo.lookup(".list-cell");
         if (selectedCell != null) {
-            selectedCell.setStyle("");
+            clearInlineStyle(selectedCell);
             addStyleClass(selectedCell, "astra-combo-cell");
         }
     }
@@ -3154,7 +3446,7 @@ final class PipelineLauncher {
     }
 
     private static void styleComboCell(ListCell<?> cell) {
-        cell.setStyle("");
+        clearInlineStyle(cell);
         cell.setPadding(comboCellPadding());
         GuiText.mark(cell, GuiText.Role.CONTROL_TEXT);
         addStyleClass(cell, "astra-combo-cell");
@@ -3166,7 +3458,7 @@ final class PipelineLauncher {
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
                 setText(empty ? null : item);
-                setStyle("");
+                clearInlineStyle(this);
                 GuiText.mark(this, GuiText.Role.CONTROL_TEXT);
                 addStyleClass(this, "astra-list-cell");
             }
@@ -3201,13 +3493,68 @@ final class PipelineLauncher {
         node.setManaged(visible);
     }
 
-    private static Node createPipelineFlow(String scriptName) {
-        HBox flow = new HBox(COMPACT_CONTROL_GAP);
-        flow.setAlignment(Pos.CENTER_LEFT);
+    private static Region createHeaderIdentity(String scriptName) {
+        VBox root = createHeaderIdentityRoot();
+        HBox titleRow = new HBox(HeaderGeometry.WORKFLOW_COMPACT_GAP);
+        titleRow.setAlignment(Pos.BASELINE_LEFT);
+        Label title = GuiText.label(GuiText.Role.PANEL_TEXT, scriptName);
+        title.getStyleClass().add("astra-header-title");
+        Label provenance = GuiText.label(GuiText.Role.PANEL_TEXT, launcherVersionSummary());
+        provenance.getStyleClass().add("astra-header-provenance");
+        titleRow.getChildren().addAll(title, provenance);
+        root.getChildren().addAll(titleRow, createHeaderSubtitle(scriptName));
+        if (HEADER_WORKFLOW_VISIBLE) {
+            root.getChildren().add(createHeaderWorkflowRow(scriptName));
+        }
+        return root;
+    }
+
+    private static VBox createHeaderIdentityRoot() {
+        VBox root = new VBox(HeaderGeometry.TITLE_BLOCK_GAP);
+        root.setMinWidth(HeaderGeometry.identityPanelWidth());
+        root.setPrefWidth(HeaderGeometry.identityPanelWidth());
+        root.setMaxWidth(HeaderGeometry.identityPanelWidth());
+        root.setMinHeight(HeaderGeometry.actionRailHeight());
+        root.setPrefHeight(HeaderGeometry.actionRailHeight());
+        root.setMaxHeight(HeaderGeometry.actionRailHeight());
+        root.setAlignment(Pos.CENTER_LEFT);
+        addStyleClass(root, "astra-header-identity");
+        return root;
+    }
+
+    private static Label createHeaderSubtitle(String scriptName) {
+        Label subtitle = GuiText.label(GuiText.Role.PANEL_TEXT, descriptionFor(scriptName));
+        subtitle.setWrapText(true);
+        subtitle.setMaxWidth(HeaderGeometry.identityTextWidth());
+        subtitle.getStyleClass().add("astra-header-subtitle");
+        return subtitle;
+    }
+
+    private static StackPane createHeaderWorkflowRow(String scriptName) {
+        StackPane host = new StackPane(createCompactPipelineFlow(scriptName));
+        host.setAlignment(Pos.CENTER);
+        host.setMinWidth(HeaderGeometry.identityPanelWidth());
+        host.setPrefWidth(HeaderGeometry.identityPanelWidth());
+        host.setMaxWidth(HeaderGeometry.identityPanelWidth());
+        host.setMinHeight(HeaderGeometry.HEADER_CONTEXT_HEIGHT);
+        host.setPrefHeight(HeaderGeometry.HEADER_CONTEXT_HEIGHT);
+        host.setMaxHeight(HeaderGeometry.HEADER_CONTEXT_HEIGHT);
+        addStyleClass(host, "astra-header-workflow-row");
+        return host;
+    }
+
+    private static Node createCompactPipelineFlow(String scriptName) {
         List<String> stages = GuiPresentation.workflowSequence(scriptName);
         if (stages.isEmpty()) {
             stages = List.of("Training", "Tuning", "Validation", pipelineStage(scriptName));
         }
+        double stepWidth = HeaderGeometry.workflowStepWidth(stages.size());
+        HBox flow = new HBox(HeaderGeometry.WORKFLOW_COMPACT_GAP);
+        flow.setAlignment(Pos.CENTER);
+        flow.setMinHeight(HeaderGeometry.WORKFLOW_STEP_HEIGHT);
+        flow.setPrefHeight(HeaderGeometry.WORKFLOW_STEP_HEIGHT);
+        flow.setMaxHeight(HeaderGeometry.WORKFLOW_STEP_HEIGHT);
+        addStyleClass(flow, "astra-workflow-strip");
         String active = GuiPresentation.workflowActiveLabel(scriptName);
         if (active.isBlank()) {
             active = pipelineStage(scriptName);
@@ -3215,17 +3562,44 @@ final class PipelineLauncher {
         for (int i = 0; i < stages.size(); i++) {
             String stage = stages.get(i);
             Label chip = GuiText.label(GuiText.Role.PANEL_TEXT, stage);
+            chip.setAlignment(Pos.CENTER);
+            chip.setMinWidth(stepWidth);
+            chip.setPrefWidth(stepWidth);
+            chip.setMaxWidth(stepWidth);
+            chip.setMinHeight(HeaderGeometry.WORKFLOW_STEP_HEIGHT);
+            chip.setPrefHeight(HeaderGeometry.WORKFLOW_STEP_HEIGHT);
+            chip.setMaxHeight(HeaderGeometry.WORKFLOW_STEP_HEIGHT);
             boolean isActive = stage.equals(active);
-            addStyleClass(chip, "astra-workflow-chip");
-            addStyleClass(chip, isActive ? "astra-workflow-chip-active" : "astra-workflow-chip-idle");
+            addStyleClass(chip, "astra-workflow-step");
+            addStyleClass(chip, isActive ? "astra-workflow-step-active" : "astra-workflow-step-idle");
             flow.getChildren().add(chip);
             if (i < stages.size() - 1) {
-                Label arrow = GuiText.label(GuiText.Role.PANEL_TEXT, ">");
-                addStyleClass(arrow, "astra-workflow-arrow");
-                flow.getChildren().add(arrow);
+                flow.getChildren().add(createWorkflowChevron());
             }
         }
         return flow;
+    }
+
+    private static Node createWorkflowChevron() {
+        double width = HeaderGeometry.WORKFLOW_CHEVRON_WIDTH;
+        double height = HeaderGeometry.WORKFLOW_CHEVRON_HEIGHT;
+        double inset = HeaderGeometry.WORKFLOW_CHEVRON_EDGE_INSET;
+        javafx.scene.shape.Path chevron = new javafx.scene.shape.Path(
+                new MoveTo(inset, inset),
+                new LineTo(width - inset, height / BILATERAL_EDGE_COUNT),
+                new LineTo(inset, height - inset));
+        chevron.setManaged(false);
+        chevron.setMouseTransparent(true);
+        addStyleClass(chevron, "astra-workflow-chevron");
+        StackPane host = new StackPane(chevron);
+        host.setMinWidth(width);
+        host.setPrefWidth(width);
+        host.setMaxWidth(width);
+        host.setMinHeight(HeaderGeometry.WORKFLOW_STEP_HEIGHT);
+        host.setPrefHeight(HeaderGeometry.WORKFLOW_STEP_HEIGHT);
+        host.setMaxHeight(HeaderGeometry.WORKFLOW_STEP_HEIGHT);
+        addStyleClass(host, "astra-workflow-chevron-host");
+        return host;
     }
 
     private static void renderHeaderActionHome(StackPane host,
@@ -3319,6 +3693,129 @@ final class PipelineLauncher {
         return actionCluster;
     }
 
+    private static javafx.scene.shape.Path createHeaderRibbonPath(String styleClass) {
+        javafx.scene.shape.Path path = new javafx.scene.shape.Path();
+        path.setManaged(false);
+        path.setMouseTransparent(true);
+        path.setStrokeType(StrokeType.INSIDE);
+        addStyleClass(path, styleClass);
+        return path;
+    }
+
+    private static void updateHeaderRibbonPath(javafx.scene.shape.Path fill,
+                                               javafx.scene.shape.Path border,
+                                               double width,
+                                               double height) {
+        double safeWidth = Math.max(LauncherGeometry.FLUSH, width);
+        double safeHeight = Math.max(LauncherGeometry.FLUSH, height);
+        double slopeWidth = ActionTrapezoidGeometry.slopeWidth(
+                HeaderGeometry.ACTION_RIBBON_SLOPE_WIDTH, safeWidth);
+        double bevelRadius = ActionTrapezoidGeometry.bevelRadius(
+                HeaderGeometry.ACTION_RIBBON_BEVEL_RADIUS, safeHeight);
+        updateHeaderRibbonPath(fill, safeWidth, safeHeight, slopeWidth, bevelRadius);
+        updateHeaderRibbonPath(border, safeWidth, safeHeight, slopeWidth, bevelRadius);
+    }
+
+    private static void updateHeaderRibbonPath(javafx.scene.shape.Path path,
+                                               double width,
+                                               double height,
+                                               double slopeWidth,
+                                               double bevelRadius) {
+        if (path == null) {
+            return;
+        }
+        double topY = LauncherGeometry.FLUSH;
+        double bottomY = height;
+        double leftRail = LauncherGeometry.FLUSH;
+        double rightRail = width;
+        double leftOuterX = -slopeWidth;
+        double rightOuterX = width + slopeWidth;
+        double leftInnerX = leftRail + bevelRadius;
+        double rightInnerX = rightRail - bevelRadius;
+        double cornerHandle = ActionTrapezoidGeometry.bevelCurveHandle(bevelRadius);
+        double curveInset = ActionTrapezoidGeometry.folderCurveInset(
+                height, bevelRadius, HeaderGeometry.ACTION_RIBBON_INSET);
+        double wallLength = ActionTrapezoidGeometry.folderWallLength(curveInset);
+        path.getElements().setAll(
+                new MoveTo(leftOuterX, topY),
+                new LineTo(rightOuterX, topY));
+        appendFolderCurveOuterToRail(
+                path,
+                rightOuterX, topY,
+                rightRail, topY + curveInset,
+                wallLength);
+        path.getElements().addAll(
+                new LineTo(rightRail, bottomY - bevelRadius),
+                new CubicCurveTo(
+                        rightRail,
+                        bottomY - bevelRadius + cornerHandle,
+                        rightInnerX + cornerHandle,
+                        bottomY,
+                        rightInnerX, bottomY),
+                new LineTo(leftInnerX, bottomY),
+                new CubicCurveTo(
+                        leftInnerX - cornerHandle,
+                        bottomY,
+                        leftRail,
+                        bottomY - bevelRadius + cornerHandle,
+                        leftRail, bottomY - bevelRadius),
+                new LineTo(leftRail, topY + curveInset));
+        appendFolderCurveRailToOuter(
+                path,
+                leftRail, topY + curveInset,
+                leftOuterX, topY,
+                wallLength);
+        path.getElements().add(new ClosePath());
+    }
+
+    private static void appendFolderCurveOuterToRail(javafx.scene.shape.Path path,
+                                                     double outerX,
+                                                     double outerY,
+                                                     double railX,
+                                                     double railY,
+                                                     double wallLength) {
+        double run = Math.abs(outerX - railX);
+        double rise = Math.abs(railY - outerY);
+        double wall = Math.min(Math.max(LauncherGeometry.FLUSH, wallLength), rise);
+        double curveEndY = railY > outerY ? railY - wall : railY + wall;
+        double horizontalDirection = Math.signum(railX - outerX);
+        double verticalDirection = Math.signum(curveEndY - outerY);
+        double horizontalHandle = ActionTrapezoidGeometry.bevelCurveHandle(run);
+        double verticalHandle = ActionTrapezoidGeometry.bevelCurveHandle(Math.abs(curveEndY - outerY));
+        path.getElements().add(new CubicCurveTo(
+                outerX + (horizontalDirection * horizontalHandle),
+                outerY,
+                railX,
+                curveEndY - (verticalDirection * verticalHandle),
+                railX,
+                curveEndY));
+        path.getElements().add(new LineTo(railX, railY));
+    }
+
+    private static void appendFolderCurveRailToOuter(javafx.scene.shape.Path path,
+                                                     double railX,
+                                                     double railY,
+                                                     double outerX,
+                                                     double outerY,
+                                                     double wallLength) {
+        double run = Math.abs(outerX - railX);
+        double rise = Math.abs(railY - outerY);
+        double wall = Math.min(Math.max(LauncherGeometry.FLUSH, wallLength), rise);
+        double curveStartY = railY > outerY ? railY - wall : railY + wall;
+        double horizontalDirection = Math.signum(outerX - railX);
+        double verticalDirection = Math.signum(outerY - curveStartY);
+        double horizontalHandle = ActionTrapezoidGeometry.bevelCurveHandle(run);
+        double verticalHandle = ActionTrapezoidGeometry.bevelCurveHandle(Math.abs(outerY - curveStartY));
+        path.getElements().add(new LineTo(railX, curveStartY));
+        path.getElements().add(new CubicCurveTo(
+                railX,
+                curveStartY + (verticalDirection * verticalHandle),
+                outerX - (horizontalDirection * horizontalHandle),
+                outerY,
+                outerX,
+                outerY));
+    }
+
     private static void addHeaderActionHomeButton(HBox row, Button button) {
         if (row == null || button == null) {
             return;
@@ -3330,10 +3827,11 @@ final class PipelineLauncher {
     private static Button createHeaderPageHomeButton(String title, String token, Runnable action) {
         Button button = GuiText.button(GuiText.Role.CONTROL_TEXT, title);
         button.setFocusTraversable(false);
-        styleButton(button, ButtonRole.HEADER);
+        boolean homeButton = "home".equals(cssToken(token));
+        styleButton(button, homeButton ? ButtonRole.PRIMARY : ButtonRole.HEADER);
         applyButtonFamilyGeometry(button, ButtonFamily.MACRO_ACTION);
         button.setDisable(action == null);
-        addStyleClass(button, "astra-header-menu-button");
+        addStyleClass(button, homeButton ? "astra-header-home-button" : "astra-header-menu-button");
         button.setOnAction(event -> {
             if (action != null) {
                 action.run();
@@ -3424,17 +3922,131 @@ final class PipelineLauncher {
                                              HeaderActionMode headerActionMode,
                                              Consumer<HeaderActionMode> setHeaderActionMode,
                                              Runnable backAction) {
-        VBox page = createHeaderActionPageShell("View", "Run-log visibility and launcher motion.", backAction);
-        page.getChildren().add(createHeaderViewPanel(
-                outputVisible,
-                setOutputVisible,
-                animatedHeader,
-                runProgressLane,
-                inputFillPanel,
-                headerActionMode,
-                setHeaderActionMode,
-                false));
-        return page;
+        StackPane host = new StackPane();
+        AtomicReference<Runnable> showHome = new AtomicReference<>();
+        AtomicReference<Runnable> showLook = new AtomicReference<>();
+        AtomicReference<Runnable> showLog = new AtomicReference<>();
+        AtomicReference<Runnable> showMore = new AtomicReference<>();
+        AtomicReference<Runnable> showGradient = new AtomicReference<>();
+        AtomicReference<Runnable> showSpeed = new AtomicReference<>();
+        AtomicReference<Runnable> showActions = new AtomicReference<>();
+        AtomicBoolean outputVisibleState = new AtomicBoolean(outputVisible);
+        AtomicReference<HeaderActionMode> actionModeState = new AtomicReference<>(
+                headerActionMode == null ? HeaderActionMode.PAGES : headerActionMode);
+
+        showLook.set(() -> host.getChildren().setAll(createHeaderViewChoiceRow(
+                showHome.get(),
+                new HeaderViewChoice(LauncherVisualTheme.MODERN.label(),
+                        visualThemePreference() == LauncherVisualTheme.MODERN,
+                        () -> {
+                            VISUAL_THEME_PREFERENCE.set(LauncherVisualTheme.MODERN.name());
+                            showLook.get().run();
+                        }),
+                new HeaderViewChoice(LauncherVisualTheme.SOFT.label(),
+                        visualThemePreference() == LauncherVisualTheme.SOFT,
+                        () -> {
+                            VISUAL_THEME_PREFERENCE.set(LauncherVisualTheme.SOFT.name());
+                            showLook.get().run();
+                        }),
+                new HeaderViewChoice(LauncherVisualTheme.SLATE.label(),
+                        visualThemePreference() == LauncherVisualTheme.SLATE,
+                        () -> {
+                            VISUAL_THEME_PREFERENCE.set(LauncherVisualTheme.SLATE.name());
+                            showLook.get().run();
+                        }))));
+        showLog.set(() -> host.getChildren().setAll(createHeaderViewChoiceRow(
+                showHome.get(),
+                new HeaderViewChoice("Show", outputVisibleState.get(),
+                        () -> {
+                            outputVisibleState.set(true);
+                            setOutputVisible.accept(Boolean.TRUE);
+                            showLog.get().run();
+                        }),
+                new HeaderViewChoice("Hide", !outputVisibleState.get(),
+                        () -> {
+                            outputVisibleState.set(false);
+                            setOutputVisible.accept(Boolean.FALSE);
+                            showLog.get().run();
+                        }))));
+        showGradient.set(() -> host.getChildren().setAll(createHeaderViewChoiceRow(
+                showMore.get(),
+                new HeaderViewChoice("Static", headerModePreference() == AnimatedGradientHeader.HeaderMode.STATIC,
+                        () -> {
+                            applyGradientMode(AnimatedGradientHeader.HeaderMode.STATIC,
+                                    animatedHeader, runProgressLane, inputFillPanel);
+                            showGradient.get().run();
+                        }),
+                new HeaderViewChoice("Dynamic", headerModePreference() == AnimatedGradientHeader.HeaderMode.DYNAMIC,
+                        () -> {
+                            applyGradientMode(AnimatedGradientHeader.HeaderMode.DYNAMIC,
+                                    animatedHeader, runProgressLane, inputFillPanel);
+                            showGradient.get().run();
+                        }))));
+        showSpeed.set(() -> host.getChildren().setAll(createHeaderViewChoiceRow(
+                showMore.get(),
+                Arrays.stream(AnimatedGradientHeader.MotionSpeed.values())
+                        .map(speed -> new HeaderViewChoice(speed.label(), headerMotionPreference() == speed, () -> {
+                            applyGradientSpeed(speed, animatedHeader, runProgressLane, inputFillPanel);
+                            showSpeed.get().run();
+                        }))
+                        .toArray(HeaderViewChoice[]::new))));
+        showActions.set(() -> host.getChildren().setAll(createHeaderViewChoiceRow(
+                showMore.get(),
+                new HeaderViewChoice("Pages", actionModeState.get() != HeaderActionMode.DROPDOWNS,
+                        () -> {
+                            actionModeState.set(HeaderActionMode.PAGES);
+                            setHeaderActionMode.accept(HeaderActionMode.PAGES);
+                        }),
+                new HeaderViewChoice("Dropdowns", actionModeState.get() == HeaderActionMode.DROPDOWNS,
+                        () -> {
+                            actionModeState.set(HeaderActionMode.DROPDOWNS);
+                            setHeaderActionMode.accept(HeaderActionMode.DROPDOWNS);
+                        }))));
+        showMore.set(() -> host.getChildren().setAll(createHeaderViewChoiceRow(
+                showHome.get(),
+                new HeaderViewChoice("Gradient", false, showGradient.get()),
+                new HeaderViewChoice("Speed", false, showSpeed.get()),
+                new HeaderViewChoice("Actions", false, showActions.get()))));
+        showHome.set(() -> host.getChildren().setAll(createHeaderViewChoiceRow(
+                backAction,
+                new HeaderViewChoice("Look", false, showLook.get()),
+                new HeaderViewChoice("Run Log", false, showLog.get()),
+                new HeaderViewChoice("More", false, showMore.get()))));
+        showHome.get().run();
+        return host;
+    }
+
+    private static HBox createHeaderViewChoiceRow(Runnable backAction, HeaderViewChoice... choices) {
+        HBox row = createHeaderActionCluster();
+        addHeaderActionHomeButton(row, createHeaderPageHomeButton("Back", "home", backAction));
+        if (choices != null) {
+            for (HeaderViewChoice choice : choices) {
+                Button button = createHeaderPageHomeButton(choice.label(), "view-choice", choice.action());
+                setToggleActive(button, choice.active());
+                addHeaderActionHomeButton(row, button);
+            }
+        }
+        return row;
+    }
+
+    private static void applyGradientMode(AnimatedGradientHeader.HeaderMode mode,
+                                          AnimatedGradientHeader animatedHeader,
+                                          RunProgressLane runProgressLane,
+                                          InputGradientFillPanel inputFillPanel) {
+        HEADER_MODE_PREFERENCE.set(mode.name());
+        animatedHeader.setHeaderMode(mode);
+        runProgressLane.setGradientMode(mode);
+        inputFillPanel.setGradientMode(mode);
+    }
+
+    private static void applyGradientSpeed(AnimatedGradientHeader.MotionSpeed speed,
+                                           AnimatedGradientHeader animatedHeader,
+                                           RunProgressLane runProgressLane,
+                                           InputGradientFillPanel inputFillPanel) {
+        HEADER_MOTION_PREFERENCE.set(speed.name());
+        animatedHeader.setMotionSpeed(speed);
+        runProgressLane.setMotionSpeed(speed);
+        inputFillPanel.setMotionSpeed(speed);
     }
 
     private static HeaderActionMenu createHeaderMenuButton(String title, String token) {
@@ -3500,7 +4112,7 @@ final class PipelineLauncher {
                 visualBounds.getMaxX() - HeaderGeometry.MENU_RENDERED_POPUP_WIDTH - HeaderGeometry.MENU_EDGE_MARGIN);
         y = Math.min(y, visualBounds.getMaxY() - HeaderGeometry.MENU_MIN_VISIBLE_HEIGHT);
         menu.show(button, x + HeaderGeometry.MENU_ANCHOR_TO_WINDOW_OFFSET, y);
-        installAstraStyles(menu);
+        installLauncherStyles(menu);
         Platform.runLater(() -> {
             Window popupWindow = menu.getScene() == null ? null : menu.getScene().getWindow();
             double width = popupWindow == null
@@ -3720,7 +4332,34 @@ final class PipelineLauncher {
         smooth.setUserData(AnimatedGradientHeader.MotionSpeed.SMOOTH);
         lively.setUserData(AnimatedGradientHeader.MotionSpeed.LIVELY);
 
-        HBox modeRow = headerSegmentRow("Header", staticMode, dynamicMode);
+        ToggleButton modernTheme = headerSegmentButton(LauncherVisualTheme.MODERN.label());
+        ToggleButton softTheme = headerSegmentButton(LauncherVisualTheme.SOFT.label());
+        ToggleButton slateTheme = headerSegmentButton(LauncherVisualTheme.SLATE.label());
+        ToggleGroup themeGroup = new ToggleGroup();
+        modernTheme.setToggleGroup(themeGroup);
+        softTheme.setToggleGroup(themeGroup);
+        slateTheme.setToggleGroup(themeGroup);
+        modernTheme.setUserData(LauncherVisualTheme.MODERN);
+        softTheme.setUserData(LauncherVisualTheme.SOFT);
+        slateTheme.setUserData(LauncherVisualTheme.SLATE);
+        LauncherVisualTheme initialTheme = visualThemePreference();
+        themeGroup.selectToggle(switch (initialTheme) {
+            case MODERN -> modernTheme;
+            case SOFT -> softTheme;
+            case SLATE -> slateTheme;
+        });
+        List.of(modernTheme, softTheme, slateTheme).forEach(button ->
+                button.selectedProperty().addListener((obs, wasSelected, isSelected) -> styleHeaderSegmentButton(button)));
+        List.of(modernTheme, softTheme, slateTheme).forEach(PipelineLauncher::styleHeaderSegmentButton);
+        themeGroup.selectedToggleProperty().addListener((obs, oldToggle, newToggle) -> {
+            if (newToggle == null) {
+                themeGroup.selectToggle(oldToggle == null ? modernTheme : oldToggle);
+                return;
+            }
+            VISUAL_THEME_PREFERENCE.set(((LauncherVisualTheme) newToggle.getUserData()).name());
+        });
+        HBox lookRow = headerSegmentRow("Look", modernTheme, softTheme, slateTheme);
+        HBox gradientRow = headerSegmentRow("Gradient", staticMode, dynamicMode);
         HBox motionRow = headerSegmentRow("Motion", slow, smooth, lively);
         HBox outputRow = headerSegmentRow("Run Log Pane", show, hide);
         ToggleButton pages = headerSegmentButton("Pages");
@@ -3750,7 +4389,7 @@ final class PipelineLauncher {
         if (!wrapInGroup) {
             addStyleClass(menuContent, "astra-header-action-page-controls");
         }
-        menuContent.getChildren().addAll(outputRow, modeRow, motionRow, headerActionsRow);
+        menuContent.getChildren().addAll(outputRow, lookRow, gradientRow, motionRow, headerActionsRow);
 
         AnimatedGradientHeader.HeaderMode initialMode = headerModePreference();
         AnimatedGradientHeader.MotionSpeed initialSpeed = headerMotionPreference();
@@ -3766,6 +4405,7 @@ final class PipelineLauncher {
         runProgressLane.setMotionSpeed(initialSpeed);
         inputFillPanel.setGradientMode(initialMode);
         inputFillPanel.setMotionSpeed(initialSpeed);
+        AnimatedGradientSurface.setSharedVisualTheme(initialTheme);
         setHeaderMotionRowEnabled(motionRow, initialMode == AnimatedGradientHeader.HeaderMode.DYNAMIC);
 
         modeGroup.selectedToggleProperty().addListener((obs, oldToggle, newToggle) -> {
@@ -3806,6 +4446,18 @@ final class PipelineLauncher {
         }
     }
 
+    private static LauncherVisualTheme visualThemePreference() {
+        LauncherVisualTheme theme = LauncherVisualTheme.fromText(VISUAL_THEME_PREFERENCE.get());
+        if (!theme.name().equals(VISUAL_THEME_PREFERENCE.get())) {
+            VISUAL_THEME_PREFERENCE.set(theme.name());
+        }
+        return theme;
+    }
+
+    static void setVisualThemeForTesting(LauncherVisualTheme theme) {
+        VISUAL_THEME_PREFERENCE.set((theme == null ? LauncherVisualTheme.MODERN : theme).name());
+    }
+
     private static AnimatedGradientHeader.MotionSpeed headerMotionPreference() {
         try {
             return AnimatedGradientHeader.MotionSpeed.valueOf(HEADER_MOTION_PREFERENCE.get());
@@ -3813,6 +4465,12 @@ final class PipelineLauncher {
             HEADER_MOTION_PREFERENCE.set(AnimatedGradientHeader.MotionSpeed.SMOOTH.name());
             return AnimatedGradientHeader.MotionSpeed.SMOOTH;
         }
+    }
+
+    static void setHeaderModeForTesting(AnimatedGradientHeader.HeaderMode mode) {
+        HEADER_MODE_PREFERENCE.set((mode == null
+                ? AnimatedGradientHeader.HeaderMode.DYNAMIC
+                : mode).name());
     }
 
     private static HBox headerSegmentRow(String labelText, ToggleButton... buttons) {
@@ -3845,7 +4503,7 @@ final class PipelineLauncher {
 
     private static void styleHeaderSegmentButton(ToggleButton button) {
         boolean selected = button.isSelected();
-        button.setStyle("");
+        clearInlineStyle(button);
         if (selected) {
             addStyleClass(button, "astra-header-segment-button-selected");
         } else {
@@ -3855,7 +4513,9 @@ final class PipelineLauncher {
 
     private static void setHeaderMotionRowEnabled(HBox motionRow, boolean enabled) {
         motionRow.setDisable(!enabled);
-        motionRow.setOpacity(enabled ? 1.0d : 0.48d);
+        motionRow.setOpacity(enabled
+                ? LauncherThemeTokens.ENABLED_OPACITY
+                : LauncherThemeTokens.HEADER_MOTION_ROW_DISABLED_OPACITY);
     }
 
     private static HBox labeledRow(String labelText, Node editor, double labelWidth) {
@@ -4038,7 +4698,7 @@ final class PipelineLauncher {
         GridPane.setHalignment(anchor, HPos.LEFT);
         GridPane.setFillHeight(anchor, true);
 
-        Node editor = constant.createEditor();
+        Node editor = reusableEditor(constant);
         boolean tall = isTallParameterEditor(editor);
         // The accent spans the full tall stack, while label/help controls
         // center within it; the editor keeps its top rail so helper rows flow.
@@ -4055,6 +4715,12 @@ final class PipelineLauncher {
             region.setMinHeight(PARAMETER_ROW_HEIGHT);
         }
         return new RowNodes(labelBox, editor, tall);
+    }
+
+    private static Node reusableEditor(EditableConstant constant) {
+        Node editor = constant.createEditor();
+        detachFromParent(editor);
+        return editor;
     }
 
     private static RailText railText(String text, double wrappingWidth, String... styleClasses) {
@@ -4374,7 +5040,7 @@ final class PipelineLauncher {
         Label logBadge = GuiText.label(GuiText.Role.LOG_TEXT, "WARNING");
         addStyleClass(logBadge, "astra-log-severity-badge");
         addStyleClass(logBadge, "astra-log-severity-warning");
-        Label sourceTab = GuiText.label(GuiText.Role.LOG_TEXT, "ASTRA");
+        Label sourceTab = GuiText.label(GuiText.Role.LOG_TEXT, "Pipeline");
         addStyleClass(sourceTab, "astra-log-source-tab");
         addStyleClass(sourceTab, "astra-log-source-astra");
         Label dialogSample = GuiText.label(GuiText.Role.DIALOG_TEXT, "Dialog text");
@@ -4384,9 +5050,9 @@ final class PipelineLauncher {
         comboRow.getChildren().addAll(combo, logBadge, sourceTab, dialogSample, diagnosticSample);
 
         Region widthProbe = new Region();
-        widthProbe.setMinSize(0, 0);
-        widthProbe.setPrefSize(0, 0);
-        widthProbe.setMaxHeight(0);
+        widthProbe.setMinSize(LauncherGeometryTokens.HIDDEN_CONTROL_SIZE, LauncherGeometryTokens.HIDDEN_CONTROL_SIZE);
+        widthProbe.setPrefSize(LauncherGeometryTokens.HIDDEN_CONTROL_SIZE, LauncherGeometryTokens.HIDDEN_CONTROL_SIZE);
+        widthProbe.setMaxHeight(LauncherGeometryTokens.HIDDEN_CONTROL_SIZE);
         widthProbe.setMaxWidth(Double.MAX_VALUE);
         addStyleClass(widthProbe, "astra-typography-width-probe");
 
@@ -4571,7 +5237,7 @@ final class PipelineLauncher {
             new DependencyPanel(
                     "failure-recovery",
                     "Failure recovery",
-                    "Rollback applies only when ASTRA stops on a failed region.",
+                    "Rollback applies only when the run stops on a failed region.",
                     "STOP_ON_REGION_FAILURE",
                     Set.of("ROLLBACK_SUCCESSFUL_REGIONS_ON_FAILURE")
             ),
@@ -4628,7 +5294,7 @@ final class PipelineLauncher {
 
     private static void showParameterHelpDialog(EditableConstant constant) {
         Dialog<ButtonType> dialog = new Dialog<>();
-        dialog.setTitle("ASTRA Parameter Help");
+        dialog.setTitle("Parameter Help");
         dialog.setHeaderText(null);
 
         VBox content = new VBox(HELP_DIALOG_SECTION_GAP);
@@ -4637,7 +5303,7 @@ final class PipelineLauncher {
 
         Label title = GuiText.label(GuiText.Role.DIALOG_TEXT, displayLabel(constant.name));
         addStyleClass(title, "astra-help-title");
-        Label subtitle = GuiText.label(GuiText.Role.DIALOG_TEXT, "ASTRA parameter reference");
+        Label subtitle = GuiText.label(GuiText.Role.DIALOG_TEXT, "Parameter reference");
         addStyleClass(subtitle, "astra-help-subtitle");
         VBox titleBlock = new VBox(HELP_DIALOG_TIGHT_GAP, title, subtitle);
 
@@ -4686,7 +5352,7 @@ final class PipelineLauncher {
         dialog.getDialogPane().setContent(content);
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
         dialog.getDialogPane().setPrefWidth(HELP_DIALOG_WIDTH);
-        installAstraStyles(dialog.getDialogPane());
+        installLauncherStyles(dialog.getDialogPane());
         Node close = dialog.getDialogPane().lookupButton(ButtonType.CLOSE);
         if (close instanceof ButtonBase button) {
             styleButton(button, ButtonRole.SECONDARY);
@@ -4812,26 +5478,6 @@ final class PipelineLauncher {
         return GuiPresentation.displayOption(constant.name, token);
     }
 
-    private static GridPane createUngroupedSection(List<EditableConstant> constants, boolean expanded, SettingsAutosave autosave) {
-        GridPane grid = new GridPane();
-        grid.setPadding(new Insets(LauncherGeometry.FLUSH));
-        grid.setHgap(UNGROUPED_SECTION_HGAP);
-        grid.setVgap(PARAMETER_ROW_GAP);
-        int row = 0;
-        for (EditableConstant constant : constants) {
-            Node editor = constant.createEditor();
-            Label label = GuiText.label(GuiText.Role.PANEL_TEXT, displayLabel(constant.name));
-            label.setMinWidth(UNGROUPED_LABEL_WIDTH);
-            addStyleClass(label, "astra-form-label");
-            grid.add(label, 0, row);
-            grid.add(editor, 1, row);
-            GridPane.setHgrow(editor, Priority.ALWAYS);
-            constant.addChangeListener(autosave::markManualEditAndSave);
-            row++;
-        }
-        return grid;
-    }
-
     static Node createChannelPanel(List<ImageChannel> channels) {
         VBox panel = new VBox(CHANNEL_PANEL_GAP);
         panel.setPadding(new Insets(CHANNEL_PANEL_INSET));
@@ -4863,7 +5509,9 @@ final class PipelineLauncher {
             swatch.setArcWidth(CHANNEL_SWATCH_ARC);
             swatch.setStrokeType(StrokeType.INSIDE);
             addStyleClass(swatch, "astra-channel-chip-swatch");
-            swatch.setStyle("-fx-fill: " + channelColor(channel) + "; -fx-stroke: #31404a; -fx-stroke-width: " + CHANNEL_SWATCH_STROKE_WIDTH + ";");
+            swatch.setStyle("-fx-fill: " + channelColor(channel)
+                    + "; -fx-stroke: " + LauncherThemeTokens.lookup(LauncherThemeTokens.CHANNEL_SWATCH_STROKE)
+                    + "; -fx-stroke-width: " + CHANNEL_SWATCH_STROKE_WIDTH + ";");
             Label name = GuiText.label(GuiText.Role.PANEL_TEXT, channel.getName());
             addStyleClass(name, "astra-channel-chip-name");
             chip.getChildren().addAll(swatch, name);
@@ -5092,7 +5740,8 @@ final class PipelineLauncher {
         }
     }
 
-    private record SettingsSectionModel(String title, String description, String badge, Node content, boolean advanced) {
+    private record SettingsSectionModel(String title, String description, String badge,
+                                        String importance, String accentTheme, Node content) {
     }
 
     private record HeaderActionMenu(Button button, ContextMenu menu) {
@@ -5104,10 +5753,13 @@ final class PipelineLauncher {
     private record HeaderActionSpec(String label, ButtonRole role, Runnable action, ButtonBase actionButton) {
     }
 
+    private record HeaderViewChoice(String label, boolean active, Runnable action) {
+    }
+
     record HelpDetailSection(String title, String body) {
     }
 
-    private static void installAstraStyles(DialogPane pane) {
+    private static void installLauncherStyles(DialogPane pane) {
         if (pane == null) {
             return;
         }
@@ -5121,9 +5773,10 @@ final class PipelineLauncher {
         if (!pane.getStyleClass().contains("astra-dialog-pane")) {
             pane.getStyleClass().add("astra-dialog-pane");
         }
+        registerThemedRoot(pane);
     }
 
-    private static void installAstraStyles(ContextMenu menu) {
+    private static void installLauncherStyles(ContextMenu menu) {
         if (menu == null || menu.getScene() == null) {
             return;
         }
@@ -5134,6 +5787,90 @@ final class PipelineLauncher {
                 menu.getScene().getStylesheets().add(css);
             }
         }
+        registerThemedRoot(menu.getScene().getRoot());
+    }
+
+    private static void registerThemedRoot(Node root) {
+        if (root == null) {
+            return;
+        }
+        THEMED_ROOTS.add(root);
+        applyVisualTheme(root, visualThemePreference());
+        AnimatedGradientSurface.setSharedVisualTheme(visualThemePreference());
+    }
+
+    private static void ensurePopupThemeBridge() {
+        if (!POPUP_THEME_BRIDGE_INSTALLED.compareAndSet(false, true)) {
+            return;
+        }
+        Window.getWindows().addListener((ListChangeListener<Window>) change -> {
+            while (change.next()) {
+                if (!change.wasAdded()) {
+                    continue;
+                }
+                for (Window window : change.getAddedSubList()) {
+                    Platform.runLater(() -> applyThemeToOwnedPopup(window));
+                }
+            }
+        });
+    }
+
+    private static void applyThemeToOwnedPopup(Window window) {
+        if (window == null || window.getScene() == null || !hasThemedOwner(window)) {
+            return;
+        }
+        var resource = PipelineLauncher.class.getResource(LAUNCHER_STYLESHEET_RESOURCE);
+        if (resource != null) {
+            String css = resource.toExternalForm();
+            if (!window.getScene().getStylesheets().contains(css)) {
+                window.getScene().getStylesheets().add(css);
+            }
+        }
+        registerThemedRoot(window.getScene().getRoot());
+    }
+
+    private static boolean hasThemedOwner(Window window) {
+        Window owner = ownerWindow(window);
+        while (owner != null) {
+            if (owner.getScene() != null && owner.getScene().getRoot() != null) {
+                Node root = owner.getScene().getRoot();
+                for (LauncherVisualTheme theme : LauncherVisualTheme.values()) {
+                    if (root.getStyleClass().contains(theme.styleClass())) {
+                        return true;
+                    }
+                }
+            }
+            owner = ownerWindow(owner);
+        }
+        return false;
+    }
+
+    private static Window ownerWindow(Window window) {
+        if (window instanceof PopupWindow popupWindow) {
+            return popupWindow.getOwnerWindow();
+        }
+        if (window instanceof Stage stage) {
+            return stage.getOwner();
+        }
+        return null;
+    }
+
+    static void applyCurrentVisualTheme(Node root) {
+        registerThemedRoot(root);
+    }
+
+    private static void applyVisualThemeToRegisteredRoots(LauncherVisualTheme theme) {
+        THEMED_ROOTS.removeIf(Objects::isNull);
+        THEMED_ROOTS.forEach(root -> applyVisualTheme(root, theme));
+        AnimatedGradientSurface.setSharedVisualTheme(theme);
+    }
+
+    private static void applyVisualTheme(Node root, LauncherVisualTheme theme) {
+        for (LauncherVisualTheme candidate : LauncherVisualTheme.values()) {
+            root.getStyleClass().remove(candidate.styleClass());
+        }
+        root.getStyleClass().add((theme == null ? LauncherVisualTheme.MODERN : theme).styleClass());
+        root.applyCss();
     }
 
     private static void addStyleClass(Node node, String styleClass) {
@@ -5150,6 +5887,26 @@ final class PipelineLauncher {
                 textField.setMaxHeight(LauncherGeometry.CONTROL_FIELD_HEIGHT);
                 textField.setPadding(LauncherGeometry.controlFieldPadding());
             }
+        }
+    }
+
+    private static void clearInlineStyle(Node node) {
+        if (node != null) {
+            node.setStyle(CLEARED_INLINE_STYLE);
+        }
+    }
+
+    private static void rememberBaseInlineStyle(Node node) {
+        if (node != null) {
+            node.getProperties().putIfAbsent(BASE_INLINE_STYLE_PROPERTY,
+                    node.getStyle() == null ? CLEARED_INLINE_STYLE : node.getStyle());
+        }
+    }
+
+    private static void restoreBaseInlineStyle(Node node) {
+        if (node != null) {
+            Object base = node.getProperties().getOrDefault(BASE_INLINE_STYLE_PROPERTY, CLEARED_INLINE_STYLE);
+            node.setStyle(String.valueOf(base));
         }
     }
 
@@ -5188,7 +5945,7 @@ final class PipelineLauncher {
             return;
         }
         button.getStyleClass().removeIf(name -> name.startsWith("astra-button"));
-        button.setStyle("");
+        clearInlineStyle(button);
         button.getStyleClass().add("astra-button");
         button.getStyleClass().add(switch (role) {
             case PRIMARY -> "astra-button-primary";
@@ -5254,7 +6011,7 @@ final class PipelineLauncher {
     }
 
     private static void styleCheckBox(CheckBox box) {
-        box.setStyle("");
+        clearInlineStyle(box);
         addStyleClass(box, "astra-checkbox");
     }
 
@@ -5558,7 +6315,7 @@ final class PipelineLauncher {
             String previousGuiRunActive = System.getProperty(GUI_RUN_ACTIVE_PROPERTY);
             System.setProperty(GUI_RUN_ACTIVE_PROPERTY, "true");
             try (RunLogCapture ignored = RunLogCapture.attach(feedback::appendLogText)) {
-                logger.info("ASTRA {} started from configuration dialog.", scriptName);
+                logger.info("{} started from configuration dialog.", scriptName);
                 feedback.info("Started " + scriptName + ".");
                 ScriptParameters params = ScriptParameters.builder()
                         .setScript(configuredScript)
@@ -5571,24 +6328,24 @@ final class PipelineLauncher {
                         .build();
                 Object result = GroovyLanguage.getInstance().execute(params);
                 if (result != null) {
-                    logger.info("ASTRA {} result: {}", scriptName, result);
+                    logger.info("{} result: {}", scriptName, result);
                     feedback.info("Result: " + result);
                 }
                 if (feedback.isCancellationRequested()) {
                     feedback.cancelled("Run cancellation was requested.");
                 } else {
                     feedback.success("Run completed.");
-                    Platform.runLater(() -> showAstraMessage(
+                    Platform.runLater(() -> showMessage(
                             null,
-                            "ASTRA " + scriptName,
+                            scriptName,
                             "Run completed.",
-                            "ASTRA finished the run. See the run log pane for source-labeled messages and timing."));
+                            "The run finished. See the run log pane for source-labeled messages and timing."));
                 }
             } catch (CancellationException e) {
-                logger.warn("ASTRA {} cancelled.", scriptName);
+                logger.warn("{} cancelled.", scriptName);
                 feedback.cancelled("Run cancelled.");
             } catch (ScriptException e) {
-                logger.error("ASTRA {} failed.", scriptName, e);
+                logger.error("{} failed.", scriptName, e);
                 if (feedback.isCancellationRequested()) {
                     feedback.cancelled("Run cancellation was requested before the script stopped.");
                 } else {
@@ -5596,7 +6353,7 @@ final class PipelineLauncher {
                     showRunFailureDialog(scriptName, feedback, String.valueOf(e.getMessage()));
                 }
             } catch (Throwable t) {
-                logger.error("ASTRA {} failed.", scriptName, t);
+                logger.error("{} failed.", scriptName, t);
                 if (feedback.isCancellationRequested()) {
                     feedback.cancelled("Run cancellation was requested before the script stopped.");
                 } else {
@@ -5628,8 +6385,8 @@ final class PipelineLauncher {
         }
         Platform.runLater(() -> createRunFailureDialog(
                 null,
-                "ASTRA " + scriptName,
-                String.valueOf(message) + "\n\nSee the ASTRA run log for full details."
+                scriptName,
+                String.valueOf(message) + "\n\nSee the run log for full details."
         ).showAndWait());
     }
 
@@ -5695,29 +6452,6 @@ final class PipelineLauncher {
         return lower.substring(0, 1).toUpperCase(Locale.ROOT) + lower.substring(1);
     }
 
-    private static List<String> orderedGroups(List<EditableConstant> constants, boolean advanced) {
-        Set<String> groups = new LinkedHashSet<>();
-        for (EditableConstant constant : constants) {
-            if (constant.advanced != advanced) {
-                continue;
-            }
-            groups.add(constant.group);
-        }
-        return groups.stream()
-                .sorted(Comparator
-                        .comparingInt((String group) -> STANDARD_GROUP_RANK.getOrDefault(group, Integer.MAX_VALUE))
-                        .thenComparing(group -> group))
-                .toList();
-    }
-
-    private static Map<String, Integer> standardGroupRank() {
-        Map<String, Integer> ranks = new LinkedHashMap<>();
-        for (int i = 0; i < STANDARD_GROUP_ORDER.size(); i++) {
-            ranks.put(STANDARD_GROUP_ORDER.get(i), i);
-        }
-        return Map.copyOf(ranks);
-    }
-
     private static String descriptionFor(String scriptName) {
         String manifestDescription = GuiPresentation.description(scriptName);
         if (!manifestDescription.isBlank()) {
@@ -5731,8 +6465,8 @@ final class PipelineLauncher {
                     ? "Run vascular region generation, detection, and quantification workflows."
                     : scriptName.toLowerCase(Locale.ROOT).contains("colocalization")
                     ? "Detect cells, measure channels, and call marker colocalization with explicit thresholds."
-                    : "Run downstream ASTRA analysis utilities.";
-            default -> "Configure and run an ASTRA pipeline.";
+                    : "Run downstream analysis utilities.";
+            default -> "Configure and run a pipeline.";
         };
     }
 
@@ -5813,7 +6547,7 @@ final class PipelineLauncher {
     private static String channelColor(ImageChannel channel) {
         Integer color = channel.getColor();
         if (color == null || channel.isTransparent()) {
-            return "#b7c0c7";
+            return LauncherThemeTokens.CHANNEL_FALLBACK;
         }
         int[] rgb = ColorTools.unpackRGB(color);
         return String.format("#%02x%02x%02x", rgb[0], rgb[1], rgb[2]);
@@ -5954,7 +6688,7 @@ final class PipelineLauncher {
             shimmer.resizeRelocate(
                     -shimmer.getBoundsInLocal().getWidth(),
                     LauncherGeometry.FLUSH,
-                    Math.max(LauncherGeometry.FLUSH, shimmer.prefWidth(-1.0d)),
+                    Math.max(LauncherGeometry.FLUSH, shimmer.prefWidth(Region.USE_COMPUTED_SIZE)),
                     LauncherGeometry.ACTION_PROGRESS_HEIGHT);
             configureShimmerAnimation();
         }
@@ -6000,8 +6734,8 @@ final class PipelineLauncher {
 
         private static String progressTextFor(RunProgressState state) {
             return switch (state) {
-                case IDLE -> "Ready for the next ASTRA run.";
-                case RUNNING -> "ASTRA is running. Watch the run log for details.";
+                case IDLE -> "Ready for the next run.";
+                case RUNNING -> "The pipeline is running. Watch the run log for details.";
                 case SUCCESS -> "Run completed.";
                 case ERROR -> "Run failed. Review the run log.";
                 case CANCELLED -> "Cancellation requested.";
@@ -6028,7 +6762,8 @@ final class PipelineLauncher {
         }
 
         private void configureShimmerAnimation() {
-            double shimmerWidth = Math.max(LauncherGeometry.FLUSH, shimmer.prefWidth(-1.0d));
+            double shimmerWidth = Math.max(LauncherGeometry.FLUSH,
+                    shimmer.prefWidth(Region.USE_COMPUTED_SIZE));
             double runWidth = Math.max(LauncherGeometry.FLUSH, progressBar.getWidth());
             shimmerAnimation.stop();
             shimmerAnimation.setFromX(-shimmerWidth);
@@ -6037,6 +6772,156 @@ final class PipelineLauncher {
                     selectedSpeed.cycleSeconds() / LauncherGeometry.ACTION_PROGRESS_SHIMMER_SPEED_DIVISOR));
             applyShimmerState();
         }
+    }
+
+    private static final class FooterActionShell extends StackPane {
+
+        private final AnimatedGradientHeader gradientLayer = new AnimatedGradientHeader(new Pane());
+        private final javafx.scene.shape.Path clipPath = createFooterTrapezoidPath("astra-footer-action-shell-clip");
+        private final javafx.scene.shape.Path overlayPath = createFooterTrapezoidPath("astra-footer-action-shell-fill");
+        private final javafx.scene.shape.Path borderPath = createFooterTrapezoidPath("astra-footer-action-shell-border");
+
+        private FooterActionShell(Button cancelButton, Button runButton) {
+            setMinWidth(FooterGeometry.actionShellWidth());
+            setPrefWidth(FooterGeometry.actionShellWidth());
+            setMaxWidth(FooterGeometry.actionShellWidth());
+            setMinHeight(FooterGeometry.actionShellHeight());
+            setPrefHeight(FooterGeometry.actionShellHeight());
+            setMaxHeight(FooterGeometry.actionShellHeight());
+            addStyleClass(this, "astra-footer-action-shell");
+            addStyleClass(overlayPath, "astra-tab-sheen-fill");
+            bindTabSheenPaint(overlayPath);
+            gradientLayer.setMouseTransparent(true);
+            gradientLayer.setManaged(false);
+            gradientLayer.setClip(clipPath);
+            gradientLayer.setMinWidth(FooterGeometry.actionShellVisibleWidth());
+            gradientLayer.setPrefWidth(FooterGeometry.actionShellVisibleWidth());
+            gradientLayer.setMaxWidth(FooterGeometry.actionShellVisibleWidth());
+            gradientLayer.setMinHeight(FooterGeometry.actionShellHeight());
+            gradientLayer.setPrefHeight(FooterGeometry.actionShellHeight());
+            gradientLayer.setMaxHeight(FooterGeometry.actionShellHeight());
+
+            HBox buttons = new HBox(FooterGeometry.ACTION_SHELL_GAP);
+            buttons.setAlignment(Pos.CENTER);
+            buttons.setPadding(FooterGeometry.actionShellPadding());
+            buttons.setMinWidth(FooterGeometry.actionShellWidth());
+            buttons.setPrefWidth(FooterGeometry.actionShellWidth());
+            buttons.setMaxWidth(FooterGeometry.actionShellWidth());
+            buttons.setMinHeight(FooterGeometry.actionShellHeight());
+            buttons.setPrefHeight(FooterGeometry.actionShellHeight());
+            buttons.setMaxHeight(FooterGeometry.actionShellHeight());
+            buttons.setTranslateX(-FooterGeometry.ACTION_SHELL_CONTENT_RAIL_CORRECTION);
+            addStyleClass(buttons, "astra-footer-action-content");
+            buttons.getChildren().addAll(cancelButton, runButton);
+
+            widthProperty().addListener((obs, oldValue, newValue) -> resizeFooterShell());
+            heightProperty().addListener((obs, oldValue, newValue) -> resizeFooterShell());
+            HEADER_MODE_PREFERENCE.addListener((obs, oldValue, newValue) -> applyHeaderGradientPreferences());
+            HEADER_MOTION_PREFERENCE.addListener((obs, oldValue, newValue) -> applyHeaderGradientPreferences());
+
+            getChildren().addAll(gradientLayer, overlayPath, buttons, borderPath);
+            applyHeaderGradientPreferences();
+            resizeFooterShell();
+        }
+
+        private void applyHeaderGradientPreferences() {
+            gradientLayer.setHeaderMode(headerModePreference());
+            gradientLayer.setMotionSpeed(headerMotionPreference());
+        }
+
+        private void resizeFooterShell() {
+            double width = Math.max(LauncherGeometry.FLUSH, getWidth());
+            double height = Math.max(LauncherGeometry.FLUSH, getHeight());
+            double slopeWidth = FooterGeometry.actionShellSlopeWidth(width);
+            double visibleWidth = FooterGeometry.actionShellVisibleWidth(width);
+            gradientLayer.resizeRelocate(
+                    -slopeWidth,
+                    LauncherGeometry.FLUSH,
+                    visibleWidth,
+                    height);
+            updateFooterTrapezoidPath(clipPath, width, height, slopeWidth);
+            updateFooterTrapezoidPath(overlayPath, width, height);
+            updateFooterTrapezoidPath(borderPath, width, height);
+        }
+    }
+
+    private static javafx.scene.shape.Path createFooterTrapezoidPath(String styleClass) {
+        javafx.scene.shape.Path path = new javafx.scene.shape.Path();
+        path.setManaged(false);
+        path.setMouseTransparent(true);
+        path.setStrokeType(StrokeType.INSIDE);
+        addStyleClass(path, styleClass);
+        if ("astra-footer-action-shell-clip".equals(styleClass)) {
+            path.setFill(javafx.scene.paint.Color.BLACK);
+        }
+        return path;
+    }
+
+    private static void bindTabSheenPaint(javafx.scene.shape.Path path) {
+        path.fillProperty().bind(javafx.beans.binding.Bindings.createObjectBinding(
+                LauncherThemeTokens::tabSheenPaint));
+    }
+
+    private static void updateFooterTrapezoidPath(javafx.scene.shape.Path path,
+                                                  double width,
+                                                  double height) {
+        updateFooterTrapezoidPath(path, width, height, LauncherGeometry.FLUSH);
+    }
+
+    private static void updateFooterTrapezoidPath(javafx.scene.shape.Path path,
+                                                  double width,
+                                                  double height,
+                                                  double xOffset) {
+        if (path == null) {
+            return;
+        }
+        double safeWidth = Math.max(LauncherGeometry.FLUSH, width);
+        double safeHeight = Math.max(LauncherGeometry.FLUSH, height);
+        double slopeWidth = FooterGeometry.actionShellSlopeWidth(safeWidth);
+        double bevelRadius = ActionTrapezoidGeometry.bevelRadius(
+                FooterGeometry.ACTION_SHELL_BEVEL_RADIUS, safeHeight);
+        double topY = LauncherGeometry.FLUSH;
+        double bottomY = ActionTrapezoidGeometry.footerPaintBottom(safeHeight);
+        double leftRail = xOffset;
+        double rightRail = xOffset + safeWidth;
+        double rightOuterX = rightRail + slopeWidth;
+        double leftOuterX = leftRail - slopeWidth;
+        double rightInnerX = rightRail - bevelRadius;
+        double leftInnerX = leftRail + bevelRadius;
+        double cornerHandle = ActionTrapezoidGeometry.bevelCurveHandle(bevelRadius);
+        double curveInset = ActionTrapezoidGeometry.folderCurveInset(
+                safeHeight, bevelRadius, FooterGeometry.ACTION_SHELL_INSET);
+        double wallLength = ActionTrapezoidGeometry.folderWallLength(curveInset);
+        path.getElements().setAll(
+                new MoveTo(leftInnerX, topY),
+                new LineTo(rightInnerX, topY),
+                new CubicCurveTo(
+                        rightInnerX + cornerHandle,
+                        topY,
+                        rightRail,
+                        topY + bevelRadius - cornerHandle,
+                        rightRail, topY + bevelRadius),
+                new LineTo(rightRail, bottomY - curveInset));
+        appendFolderCurveRailToOuter(
+                path,
+                rightRail, bottomY - curveInset,
+                rightOuterX, bottomY,
+                wallLength);
+        path.getElements().add(new LineTo(leftOuterX, bottomY));
+        appendFolderCurveOuterToRail(
+                path,
+                leftOuterX, bottomY,
+                leftRail, bottomY - curveInset,
+                wallLength);
+        path.getElements().addAll(
+                new LineTo(leftRail, topY + bevelRadius),
+                new CubicCurveTo(
+                        leftRail,
+                        topY + bevelRadius - cornerHandle,
+                        leftInnerX - cornerHandle,
+                        topY,
+                        leftInnerX, topY),
+                new ClosePath());
     }
 
     private static final class ParameterAccentBar extends StackPane {
@@ -6155,7 +7040,9 @@ final class PipelineLauncher {
             header.getChildren().addAll(progress, status, killSpacer, actionRail);
 
             VBox.setVgrow(output, Priority.ALWAYS);
-            elapsedHeartbeat = new Timeline(new KeyFrame(Duration.seconds(1.0), event -> output.refreshTimelineElapsed()));
+            elapsedHeartbeat = new Timeline(new KeyFrame(
+                    Duration.seconds(LauncherMotionTokens.RUN_LOG_ELAPSED_REFRESH_SECONDS),
+                    event -> output.refreshTimelineElapsed()));
             elapsedHeartbeat.setCycleCount(Animation.INDEFINITE);
 
             box.getChildren().addAll(header, output);
@@ -6184,7 +7071,7 @@ final class PipelineLauncher {
                 killButton.setDisable(false);
                 cancellationRequested.set(false);
                 errorDialogShown.set(false);
-                appendMessage(RunLogSource.ASTRA, RunLogSeverity.INFO, "ASTRA run started.");
+                appendMessage(RunLogSource.PIPELINE, RunLogSeverity.INFO, "Run started.");
                 elapsedHeartbeat.playFromStart();
             });
         }
@@ -6222,11 +7109,11 @@ final class PipelineLauncher {
         }
 
         private void info(String message) {
-            appendMessage(RunLogSource.ASTRA, RunLogSeverity.INFO, message);
+            appendMessage(RunLogSource.PIPELINE, RunLogSeverity.INFO, message);
         }
 
         private void warn(String message) {
-            appendMessage(RunLogSource.ASTRA, RunLogSeverity.WARNING, message);
+            appendMessage(RunLogSource.PIPELINE, RunLogSeverity.WARNING, message);
         }
 
         private void success(String message) {
@@ -6241,7 +7128,7 @@ final class PipelineLauncher {
                     runProgressLane.succeeded();
                 }
                 killButton.setDisable(true);
-                output.appendMessage(RunLogSource.ASTRA, RunLogSeverity.SUCCESS, message);
+                output.appendMessage(RunLogSource.PIPELINE, RunLogSeverity.SUCCESS, message);
             });
         }
 
@@ -6257,7 +7144,7 @@ final class PipelineLauncher {
                     runProgressLane.failed();
                 }
                 killButton.setDisable(true);
-                output.appendMessage(RunLogSource.ASTRA, RunLogSeverity.ERROR, message);
+                output.appendMessage(RunLogSource.PIPELINE, RunLogSeverity.ERROR, message);
             });
         }
 
@@ -6273,7 +7160,7 @@ final class PipelineLauncher {
                     runProgressLane.cancelled();
                 }
                 killButton.setDisable(true);
-                output.appendMessage(RunLogSource.ASTRA, RunLogSeverity.CANCELLED, message);
+                output.appendMessage(RunLogSource.PIPELINE, RunLogSeverity.CANCELLED, message);
             });
         }
 
@@ -6415,16 +7302,50 @@ final class PipelineLauncher {
 
     enum LauncherViewMode {
         DASHBOARD,
-        ALL_SETTINGS;
+        PARAMETER_LIST;
 
         static LauncherViewMode fromText(String raw) {
             if (raw == null || raw.isBlank()) {
                 return DASHBOARD;
             }
             try {
-                return LauncherViewMode.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+                String normalized = raw.trim().toUpperCase(Locale.ROOT);
+                return "ALL_SETTINGS".equals(normalized)
+                        ? PARAMETER_LIST
+                        : LauncherViewMode.valueOf(normalized);
             } catch (IllegalArgumentException e) {
                 return DASHBOARD;
+            }
+        }
+    }
+
+    enum ParameterVisibilityMode {
+        BASIC("Basic"),
+        STANDARD("Standard"),
+        ADVANCED("Advanced");
+
+        private final String label;
+
+        ParameterVisibilityMode(String label) {
+            this.label = label;
+        }
+
+        String label() {
+            return label;
+        }
+
+        boolean includes(ParameterVisibilityMode required) {
+            return ordinal() >= required.ordinal();
+        }
+
+        static ParameterVisibilityMode fromText(String raw) {
+            if (raw == null || raw.isBlank()) {
+                return BASIC;
+            }
+            try {
+                return ParameterVisibilityMode.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                return BASIC;
             }
         }
     }
@@ -6452,6 +7373,8 @@ final class PipelineLauncher {
         private final String schemaId;
         private final String sourceScriptSha256;
         private LauncherViewMode viewMode = LauncherViewMode.DASHBOARD;
+        private ParameterVisibilityMode parameterMode = ParameterVisibilityMode.fromText(
+                GuiPresentation.defaultParameterMode());
         private boolean outputVisible = true;
         private HeaderActionMode headerActionMode = HeaderActionMode.PAGES;
 
@@ -6480,6 +7403,14 @@ final class PipelineLauncher {
             this.viewMode = viewMode == null ? LauncherViewMode.DASHBOARD : viewMode;
         }
 
+        ParameterVisibilityMode parameterMode() {
+            return parameterMode;
+        }
+
+        void setParameterMode(ParameterVisibilityMode parameterMode) {
+            this.parameterMode = parameterMode == null ? ParameterVisibilityMode.BASIC : parameterMode;
+        }
+
         boolean outputVisible() {
             return outputVisible;
         }
@@ -6506,6 +7437,7 @@ final class PipelineLauncher {
             profile.script_schema_id = schemaId;
             profile.source_script_sha256 = sourceScriptSha256;
             profile.view_mode = viewMode.name();
+            profile.parameter_mode = parameterMode.name();
             profile.output_visible = outputVisible;
             profile.header_action_mode = headerActionMode.name();
             try {
@@ -6517,7 +7449,7 @@ final class PipelineLauncher {
                     PROFILE_GSON.toJson(profile, writer);
                 }
             } catch (IOException | RuntimeException e) {
-                logger.debug("Unable to save ASTRA launcher view state at {}", file, e);
+                logger.debug("Unable to save launcher view state at {}", file, e);
             }
         }
 
@@ -6537,10 +7469,11 @@ final class PipelineLauncher {
                     return;
                 }
                 viewMode = LauncherViewMode.fromText(profile.view_mode);
+                parameterMode = ParameterVisibilityMode.fromText(profile.parameter_mode);
                 outputVisible = profile.output_visible;
                 headerActionMode = HeaderActionMode.fromText(profile.header_action_mode);
             } catch (IOException | RuntimeException e) {
-                logger.debug("Ignoring invalid ASTRA launcher view state at {}", file, e);
+                logger.debug("Ignoring invalid launcher view state at {}", file, e);
             }
         }
     }
@@ -6551,6 +7484,7 @@ final class PipelineLauncher {
         String script_schema_id;
         String source_script_sha256;
         String view_mode;
+        String parameter_mode;
         boolean output_visible;
         String header_action_mode;
     }
@@ -6585,7 +7519,7 @@ final class PipelineLauncher {
                 autosaveFile = autosaveSettingsFile(projectBaseDirectory(qupath), scriptName);
             } catch (RuntimeException e) {
                 if (feedback != null) {
-                    feedback.warn("ASTRA settings autosave disabled: " + e.getMessage());
+                    feedback.warn("settings autosave disabled: " + e.getMessage());
                 }
             }
             return new SettingsAutosave(autosaveFile, scriptName, schemaId, sourceScriptSha256, constants, profileState, feedback);
@@ -6606,7 +7540,9 @@ final class PipelineLauncher {
             if (pendingSave != null) {
                 pendingSave.stop();
             }
-            pendingSave = new Timeline(new KeyFrame(Duration.millis(350.0), event -> saveCurrent()));
+            pendingSave = new Timeline(new KeyFrame(
+                    Duration.millis(LauncherMotionTokens.AUTOSAVE_DEBOUNCE_MILLIS),
+                    event -> saveCurrent()));
             pendingSave.setCycleCount(1);
             pendingSave.play();
         }
@@ -6619,7 +7555,7 @@ final class PipelineLauncher {
             if (file == null) {
                 if (!warnedDisabled && feedback != null) {
                     warnedDisabled = true;
-                    feedback.warn("ASTRA settings autosave skipped because no project-local settings path is available.");
+                    feedback.warn("settings autosave skipped because no project-local settings path is available.");
                 }
                 return;
             }
@@ -6630,7 +7566,7 @@ final class PipelineLauncher {
                     return;
                 }
                 if (feedback != null) {
-                    feedback.warn("Unable to write ASTRA autosave at " + file.getAbsolutePath() + ": " + e.getMessage());
+                    feedback.warn("Unable to write autosave at " + file.getAbsolutePath() + ": " + e.getMessage());
                 }
             }
         }
@@ -6652,7 +7588,7 @@ final class PipelineLauncher {
                 clearAutosaveSettings(file);
             } catch (IOException e) {
                 if (feedback != null) {
-                    feedback.warn("Unable to clear ASTRA autosave at " + file.getAbsolutePath() + ": " + e.getMessage());
+                    feedback.warn("Unable to clear autosave at " + file.getAbsolutePath() + ": " + e.getMessage());
                 }
             }
         }
@@ -6902,9 +7838,9 @@ final class PipelineLauncher {
                 return;
             }
             Dialog<ButtonType> dialog = new Dialog<>();
-            dialog.setTitle(titleText.isBlank() ? "ASTRA Selection" : "ASTRA " + titleText);
+            dialog.setTitle(titleText.isBlank() ? "Selection" : titleText);
             dialog.getDialogPane().getButtonTypes().addAll(ButtonType.APPLY, ButtonType.CANCEL);
-            installAstraStyles(dialog.getDialogPane());
+            installLauncherStyles(dialog.getDialogPane());
 
             LinkedHashSet<String> working = new LinkedHashSet<>(selected);
             TextField filter = new TextField();
@@ -6921,7 +7857,7 @@ final class PipelineLauncher {
                 protected void updateItem(String item, boolean empty) {
                     super.updateItem(item, empty);
                     setText(empty ? null : display.apply(item));
-                    setStyle("");
+                    clearInlineStyle(this);
                     GuiText.mark(this, GuiText.Role.CONTROL_TEXT);
                     addStyleClass(this, "astra-list-cell");
                 }
@@ -7328,9 +8264,9 @@ final class PipelineLauncher {
 
         private void openSelectionDialog() {
             Dialog<ButtonType> dialog = new Dialog<>();
-            dialog.setTitle("ASTRA Project Image Selection");
+            dialog.setTitle("Project Image Selection");
             dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-            installAstraStyles(dialog.getDialogPane());
+            installLauncherStyles(dialog.getDialogPane());
 
             LinkedHashSet<String> working = new LinkedHashSet<>(selected);
             TextField filter = new TextField();
@@ -7492,7 +8428,7 @@ final class PipelineLauncher {
             selector = new MultiSelectListEditor("", orderedModes, EditableConstant.csvValues(rawValue),
                     "No stages available.", StageModeEditor::displayMode);
             selector.addChangeListener(this::notifyListeners);
-            Label hint = GuiText.label(GuiText.Role.PANEL_TEXT, "Choose stages in ASTRA's fixed order. Reset and export are separate script actions.");
+            Label hint = GuiText.label(GuiText.Role.PANEL_TEXT, "Choose stages in the configured order. Reset and export are separate script actions.");
             hint.setWrapText(true);
             addStyleClass(hint, "astra-dialog-muted");
             getChildren().addAll(selector, hint);
@@ -7537,7 +8473,7 @@ final class PipelineLauncher {
             field.setPrefColumnCount(48);
             addStyleClass(field, "astra-input");
             addStyleClass(field, "astra-list-editor-field");
-            Label hint = GuiText.label(GuiText.Role.PANEL_TEXT, "Enter plain values separated by commas. ASTRA will write the required Groovy list syntax.");
+            Label hint = GuiText.label(GuiText.Role.PANEL_TEXT, "Enter plain values separated by commas. The launcher will write the required Groovy list syntax.");
             hint.setWrapText(true);
             addStyleClass(hint, "astra-dialog-muted");
             addStyleClass(hint, "astra-list-editor-hint");
@@ -7634,7 +8570,7 @@ final class PipelineLauncher {
             this.uiOrder = uiOrder;
             this.options = options == null ? List.of() : List.copyOf(options);
             this.help = help == null || help.isBlank()
-                    ? "ASTRA did not provide help metadata for this script constant."
+                    ? "No help metadata for this script constant."
                     : help;
             this.details = details == null || details.isBlank() ? this.help : details;
             this.editor = null;
@@ -7645,6 +8581,10 @@ final class PipelineLauncher {
 
         String name() {
             return name;
+        }
+
+        String group() {
+            return group;
         }
 
         String helpText() {
@@ -7910,7 +8850,7 @@ final class PipelineLauncher {
                 return;
             }
             defaultStyleInstalled = true;
-            editor.getProperties().putIfAbsent("astra.baseStyle", editor.getStyle() == null ? "" : editor.getStyle());
+            rememberBaseInlineStyle(editor);
             addChangeListener(this::updateDefaultStateStyle);
             updateDefaultStateStyle();
         }
@@ -7919,10 +8859,12 @@ final class PipelineLauncher {
             if (editor == null) {
                 return;
             }
-            Object base = editor.getProperties().getOrDefault("astra.baseStyle", "");
-            String baseStyle = String.valueOf(base);
-            String changedStyle = " -fx-effect: dropshadow(gaussian, rgba(212,167,44,0.42), 8, 0.2, 0, 0);";
-            editor.setStyle(isAtDefaultValue() ? baseStyle : baseStyle + changedStyle);
+            restoreBaseInlineStyle(editor);
+            if (isAtDefaultValue()) {
+                removeStyleClass(editor, "astra-editor-changed-from-default");
+            } else {
+                addStyleClass(editor, "astra-editor-changed-from-default");
+            }
         }
 
         private String optionValue() {
@@ -7974,9 +8916,17 @@ final class PipelineLauncher {
         }
 
         private static String controlStyle() {
-            return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: 12px; -fx-background-color: #fbfdff; " +
-                    "-fx-border-color: " + CONTROL_BORDER + "; -fx-border-radius: 4; -fx-background-radius: 4; " +
-                    "-fx-control-inner-background: #fbfdff; -fx-text-fill: " + INK + ";";
+            return "-fx-font-family: " + FONT_STACK + "; -fx-font-size: "
+                    + LauncherTypographyTokens.cssSize(LauncherTypographyTokens.FONT_SIZE_BODY)
+                    + "; -fx-background-color: " + LauncherThemeTokens.lookup(LauncherThemeTokens.FIELD_BACKGROUND) + "; "
+                    + "-fx-border-color: " + LauncherThemeTokens.lookup(CONTROL_BORDER) + "; -fx-border-radius: " + compactBevelCss() +
+                    "; -fx-background-radius: " + compactBevelCss() + "; " +
+                    "-fx-control-inner-background: " + LauncherThemeTokens.lookup(LauncherThemeTokens.FIELD_BACKGROUND)
+                            + "; -fx-text-fill: " + LauncherThemeTokens.lookup(INK) + ";";
+        }
+
+        private static String compactBevelCss() {
+            return Double.toString(LauncherGeometryTokens.COMPACT_BEVEL_RADIUS);
         }
 
         private void installOptionDisplay(ComboBox<String> comboBox) {

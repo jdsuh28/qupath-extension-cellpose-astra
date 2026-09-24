@@ -29,9 +29,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
- * ASTRA-owned publication-quality QC figure renderer.
+ * Publication-quality QC figure renderer.
  *
- * <p>This class intentionally lives in the extension rather than the ASTRA Groovy pipeline repository. The base
+ * <p>This class intentionally lives in the extension rather than the pipeline repository. The base
  * pipelines own biological and execution logic; the extension owns Cellpose-adjacent interface artifacts, including
  * QC figure rendering. All methods write deterministic PNG files and fail loudly if inputs cannot be rendered.</p>
  */
@@ -53,30 +53,30 @@ public final class QcFigures {
      */
     public static void saveTrainingLossFigure(ResultsTable trainingResults, File outputFile) throws IOException {
         if (trainingResults == null) {
-            throw new IllegalStateException("ASTRA training graph save requires parsed training results.");
+            throw new IllegalStateException("Training graph save requires parsed training results.");
         }
-        saveOnFxThread("ASTRA training graph", () -> saveCanvasPng(createTrainingLossCanvas(trainingResults), outputFile));
+        saveOnFxThread("Training graph", () -> saveCanvasPng(createTrainingLossCanvas(trainingResults), outputFile));
     }
 
     /**
      * Saves a validation QC figure from parsed Cellpose validation metrics.
      *
-     * @param validationResults validation metrics table produced by the ASTRA extension QC helper.
+     * @param validationResults validation metrics table produced by the extension QC helper.
      * @param outputFile destination PNG file.
      * @throws IOException if the figure cannot be rendered or written.
      * @throws IllegalStateException if {@code validationResults} is missing.
      */
     public static void saveValidationQcFigure(ResultsTable validationResults, File outputFile) throws IOException {
         if (validationResults == null) {
-            throw new IllegalStateException("ASTRA validation QC figure requires validation results.");
+            throw new IllegalStateException("Validation QC figure requires validation results.");
         }
-        saveOnFxThread("ASTRA validation QC figure", () -> saveCanvasPng(createValidationQcCanvas(validationResults), outputFile));
+        saveOnFxThread("Validation QC figure", () -> saveCanvasPng(createValidationQcCanvas(validationResults), outputFile));
     }
 
     /**
-     * Saves a tuning QC figure from the canonical ASTRA tuning results CSV.
+     * Saves a tuning QC figure from the canonical tuning results CSV.
      *
-     * @param tuningResultsCsv canonical {@code tuning_results.csv} file written by the base ASTRA tuning pipeline.
+     * @param tuningResultsCsv canonical {@code tuning_results.csv} file written by the base tuning pipeline.
      * @param outputFile destination PNG file.
      * @throws IOException if the CSV cannot be read or the figure cannot be rendered or written.
      * @throws IllegalStateException if the CSV has no usable tuning result rows.
@@ -84,9 +84,9 @@ public final class QcFigures {
     public static void saveTuningQcFigure(File tuningResultsCsv, File outputFile) throws IOException {
         List<Map<String, String>> rows = readCsvRows(tuningResultsCsv);
         if (rows.isEmpty()) {
-            throw new IllegalStateException("ASTRA tuning QC figure requires at least one tuning result row.");
+            throw new IllegalStateException("Tuning QC figure requires at least one tuning result row.");
         }
-        saveOnFxThread("ASTRA tuning QC figure", () -> saveCanvasPng(createTuningQcCanvas(rows), outputFile));
+        saveOnFxThread("Tuning QC figure", () -> saveCanvasPng(createTuningQcCanvas(rows), outputFile));
     }
 
     private static Canvas createTrainingLossCanvas(ResultsTable trainingResults) {
@@ -101,7 +101,7 @@ public final class QcFigures {
         double[] lossBounds = resolvePointBounds(trainingSeries, validationSeries, 1, 0.0, 1.0, true);
 
         fillBackground(g, width, height);
-        drawFigureTitle(g, "ASTRA Training QC", "Cellpose-SAM loss trajectory across training epochs", 150.0, 92.0);
+        drawFigureTitle(g, "Training QC", "Cellpose-SAM loss trajectory across training epochs", 150.0, 92.0);
         drawAxes(g, 150.0, 190.0, 1180.0, 650.0, epochBounds, lossBounds, "Epoch", "Loss", false);
         drawLineSeries(g, trainingSeries, epochBounds, lossBounds, 150.0, 190.0, 1180.0, 650.0,
                 Color.rgb(38, 99, 168), 5.0);
@@ -122,7 +122,7 @@ public final class QcFigures {
         GraphicsContext g = canvas.getGraphicsContext2D();
 
         fillBackground(g, width, height);
-        drawFigureTitle(g, "ASTRA Validation QC", "Cellpose-SAM prediction quality against validation masks", 110.0, 92.0);
+        drawFigureTitle(g, "Validation QC", "Cellpose-SAM prediction quality against validation masks", 110.0, 92.0);
 
         LinkedHashMap<String, Double> metrics = new LinkedHashMap<>();
         metrics.put("IoU", meanColumn(results, "Prediction v. GT Intersection over Union"));
@@ -149,7 +149,7 @@ public final class QcFigures {
         Map<String, String> best = bestScoreRow(rows);
 
         fillBackground(g, width, height);
-        drawFigureTitle(g, "ASTRA Tuning QC", "Deterministic Cellpose-SAM parameter search performance", 150.0, 92.0);
+        drawFigureTitle(g, "Tuning QC", "Deterministic Cellpose-SAM parameter search performance", 150.0, 92.0);
         drawAxes(g, 150.0, 190.0, 1180.0, 650.0, xBounds, yBounds, "Evaluation", "Score", false);
         drawLineSeries(g, scoreSeries, xBounds, yBounds, 150.0, 190.0, 1180.0, 650.0,
                 Color.rgb(39, 128, 112), 4.5);
@@ -603,11 +603,11 @@ public final class QcFigures {
 
     private static void saveCanvasPng(Canvas canvas, File outputFile) throws IOException {
         if (outputFile == null) {
-            throw new IOException("ASTRA QC figure output file is null.");
+            throw new IOException("QC figure output file is null.");
         }
         File parent = outputFile.getParentFile();
         if (parent != null && !parent.exists() && !parent.mkdirs()) {
-            throw new IOException("Could not create ASTRA QC figure directory: " + parent.getAbsolutePath());
+            throw new IOException("Could not create QC figure directory: " + parent.getAbsolutePath());
         }
         new Scene(new Group(canvas));
         SnapshotParameters snapshotParameters = new SnapshotParameters();
@@ -615,7 +615,7 @@ public final class QcFigures {
         WritableImage writableImage = canvas.snapshot(snapshotParameters, null);
         RenderedImage renderedImage = SwingFXUtils.fromFXImage(writableImage, null);
         if (!ImageIO.write(renderedImage, "png", outputFile)) {
-            throw new IOException("Could not write ASTRA QC figure image: no PNG writer available.");
+            throw new IOException("Could not write QC figure image: no PNG writer available.");
         }
     }
 
@@ -655,7 +655,7 @@ public final class QcFigures {
 
     private static List<Map<String, String>> readCsvRows(File csvFile) throws IOException {
         if (csvFile == null || !csvFile.isFile()) {
-            throw new IOException("ASTRA tuning QC figure requires an existing CSV file.");
+            throw new IOException("Tuning QC figure requires an existing CSV file.");
         }
         try (BufferedReader reader = Files.newBufferedReader(csvFile.toPath(), StandardCharsets.UTF_8)) {
             String headerLine = reader.readLine();

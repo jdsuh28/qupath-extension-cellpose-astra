@@ -17,7 +17,7 @@ final class RunLogBlockAccumulator {
         }
         if (entry.kind() == RunLogKind.SEPARATOR) {
             if (!open) {
-                if (entry.source() != RunLogSource.ASTRA) {
+                if (entry.source() != RunLogSource.PIPELINE) {
                     return Optional.empty();
                 }
                 open = true;
@@ -62,7 +62,7 @@ final class RunLogBlockAccumulator {
         List<RunLogEntry> meaningful = blockEntries == null ? List.of() : blockEntries.stream()
                 .filter(e -> e != null && e.kind() != RunLogKind.SEPARATOR && !e.text().isBlank())
                 .toList();
-        String title = meaningful.isEmpty() ? "ASTRA" : meaningful.get(0).text();
+        String title = meaningful.isEmpty() ? "Pipeline" : meaningful.get(0).text();
         String subtitle = "";
         List<RunLogKeyValue> kvs = new ArrayList<>();
         Map<String, String> metrics = new LinkedHashMap<>();
