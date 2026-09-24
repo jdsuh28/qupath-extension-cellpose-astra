@@ -318,30 +318,68 @@ class ExtensionContractTest {
     }
 
     /**
-     * Verifies menu registration exposes only pipeline scripts.
+     * Verifies menu registration exposes every manifest-declared runnable script.
      *
      * @throws Exception if the private script map cannot be inspected.
      */
     @Test
     @SuppressWarnings("unchecked")
     void scriptResourceMapRegistersOnlyMenuScripts() throws Exception {
-        Method method = AstraCellposeExtension.class.getDeclaredMethod("createScriptResources");
-        method.setAccessible(true);
+        Map<String, String> scripts = ManifestSet.load(
+                Path.of("src/test/resources/astra/rulebook/manifests"))
+                .scriptResources();
 
-        Map<String, String> scripts = (Map<String, String>) method.invoke(null);
-
-        assertEquals(List.of("Training", "Tuning", "Validation", "Analysis>Vascular", "Analysis>Colocalization", "Analysis>SMA-Gated Nuclear Marker Rescue", "Analysis>Generate Regions"),
+        assertEquals(List.of(
+                        "Training",
+                        "Tuning",
+                        "Validation",
+                        "Analysis>Vascular",
+                        "Analysis>Colocalization",
+                        "Analysis>SMA-Gated Nuclear Marker Rescue",
+                        "Analysis>Generate Regions",
+                        "Tools>Count Nuclei",
+                        "Tools>Count Cells",
+                        "Tools>Summarize Image Objects",
+                        "Tools>Save Current Image"),
                 new ArrayList<>(scripts.keySet()));
         assertEquals("astra/modules/pipelines/cellpose/training/src/main/groovy/training.groovy", scripts.get("Training"));
         assertEquals("astra/modules/pipelines/cellpose/tuning/src/main/groovy/tuning.groovy", scripts.get("Tuning"));
         assertEquals("astra/modules/pipelines/cellpose/validation/src/main/groovy/validation.groovy", scripts.get("Validation"));
         assertEquals("astra/modules/pipelines/analysis/vascular/src/main/groovy/vascular.groovy", scripts.get("Analysis>Vascular"));
         assertEquals("astra/modules/pipelines/analysis/colocalization/src/main/groovy/colocalization.groovy", scripts.get("Analysis>Colocalization"));
-        assertEquals("astra/modules/tools/sma-af647-oneshot/src/main/groovy/smaAf647Oneshot.groovy", scripts.get("Analysis>SMA-Gated Nuclear Marker Rescue"));
+        assertEquals("astra/modules/tools/marker-rescue/src/main/groovy/smaAf647Oneshot.groovy", scripts.get("Analysis>SMA-Gated Nuclear Marker Rescue"));
         assertEquals("astra/modules/tools/generate-regions/src/main/groovy/generateRegions.groovy", scripts.get("Analysis>Generate Regions"));
+        assertEquals("astra/modules/tools/count-nuclei/src/main/groovy/countNuclei.groovy",
+                scripts.get("Tools>Count Nuclei"));
+        assertEquals("astra/modules/tools/count-cells/src/main/groovy/countCells.groovy",
+                scripts.get("Tools>Count Cells"));
+        assertEquals("astra/modules/tools/summarize-objects/src/main/groovy/summarizeObjects.groovy",
+                scripts.get("Tools>Summarize Image Objects"));
+        assertEquals("astra/modules/tools/save-current-image/src/main/groovy/saveCurrentImage.groovy",
+                scripts.get("Tools>Save Current Image"));
 
         scripts.values().forEach(path -> assertTrue(path.startsWith("astra/"), path));
         scripts.values().forEach(path -> assertFalse(path.contains("Cellpose_"), path));
+    }
+
+    @Test
+    void workflowBuilderIsASeparateToolOnlyEntryPoint() throws Exception {
+        String extension = Files.readString(Path.of(
+                "src/main/java/qupath/ext/astra/AstraCellposeExtension.java"));
+        String builder = Files.readString(Path.of(
+                "src/main/java/qupath/ext/astra/WorkflowBuilder.java"));
+        String catalog = Files.readString(Path.of(
+                "src/main/java/qupath/ext/astra/WorkflowBlockCatalog.java"));
+
+        assertTrue(extension.contains("new Action(\"Workflow Builder\""));
+        assertTrue(extension.contains("WorkflowBuilder.show(qupath)"));
+        assertTrue(builder.contains("Constrained linear workflow composer"));
+        assertTrue(catalog.contains("manifests.workflowBuilderTools()"));
+        assertFalse(builder.contains("PipelineLauncher.configureAndRun"));
+        assertFalse(builder.contains("Generate Regions"));
+        assertFalse(builder.contains("generate-regions"));
+        assertFalse(catalog.contains("Generate Regions"));
+        assertFalse(catalog.contains("generate-regions"));
     }
 
     /**
@@ -478,7 +516,8 @@ class ExtensionContractTest {
         assertEquals(cellpose.get("baseRef"), RuntimeInstaller.DEFAULT_CELLPOSE_REF);
         assertEquals("git+https://github.com/jdsuh28/cellpose-astra.git@" + RuntimeInstaller.pinnedCellposeRef(),
                 RuntimeInstaller.cellposePackageSpec());
-        assertEquals("cellpose-astra", RuntimeInstaller.runtimeDirectory().getName());
+        assertEquals("cellpose-astra-py311", RuntimeInstaller.runtimeDirectory().getName());
+        assertEquals(cellpose.get("dinov3Ref"), RuntimeInstaller.pinnedDinov3Ref());
         assertTrue(RuntimeInstaller.runtimePythonExecutable(new File("runtime")).getPath().contains("runtime"));
     }
 
@@ -522,6 +561,7 @@ class ExtensionContractTest {
         assertTrue(runtime.getProperty("astra_tag", "").matches("v\\d+\\.\\d+\\.\\d+"));
         assertEquals(cellpose.get("repo"), runtime.getProperty("cellpose_astra_repo"));
         assertEquals(cellpose.get("baseRef"), runtime.getProperty("cellpose_astra_ref"));
+        assertEquals(cellpose.get("dinov3Ref"), runtime.getProperty("dinov3_ref"));
         assertEquals(cellpose.get("pythonVersion"), runtime.getProperty("python_version"));
         releaseFixtureRuntimePins().forEach((name, version) ->
                 assertEquals(version, runtime.getProperty(RuntimeInstaller.RUNTIME_PIN_PREFIX + name), name));
@@ -632,7 +672,7 @@ class ExtensionContractTest {
         String joined = commands.toString();
 
         assertTrue(joined.indexOf("Runtime Python version mismatch") < joined.indexOf("--version"));
-        assertTrue(joined.contains("required Python 3.10"));
+        assertTrue(joined.contains("required Python 3.11"));
         assertTrue(joined.contains("detected Python"));
         assertTrue(joined.contains("managed Miniforge/conda runtime"));
         assertFalse(joined.contains("raise SystemExit(msg) if detected != required else print"));
@@ -644,6 +684,9 @@ class ExtensionContractTest {
         assertTrue(joined.contains("torch numpy bridge OK"));
         assertTrue(joined.contains("import cellpose"));
         assertTrue(joined.contains("import cellpose, cellpose.astra"));
+        assertTrue(joined.contains("Cellpose fork commit mismatch"));
+        assertTrue(joined.contains("DINOv3 commit mismatch"));
+        assertTrue(joined.contains("cpdino available"));
         assertTrue(joined.contains("astra"));
         assertTrue(joined.contains("-m, cellpose.astra, --version"));
         assertFalse(joined.contains("segment_anything"));
@@ -669,6 +712,8 @@ class ExtensionContractTest {
         assertTrue(command.contains("-c"));
         assertTrue(command.contains(constraints.getAbsolutePath()));
         assertTrue(command.contains(RuntimeInstaller.cellposePackageSpec()));
+        assertTrue(RuntimeInstaller.pipInstallDinov3Command(new File("/runtime/bin/python"), constraints)
+                .toString().contains(RuntimeInstaller.pinnedDinov3Ref()));
         assertEquals(List.of("/runtime/bin/python", "-m", "pip", "check"),
                 RuntimeInstaller.pipCheckCommand(new File("/runtime/bin/python")));
     }
@@ -915,6 +960,20 @@ class ExtensionContractTest {
         assertTrue(runtimeSource.contains("requireSuccessfulProcessExit(veRunner, \"Cellpose process\")"));
         assertTrue(runtimeSource.contains("exited with value"));
         assertTrue(runtimeSource.contains("Process log:"));
+        assertTrue(runtimeSource.contains("Candidate conversion returned no PathObject"));
+        assertTrue(runtimeSource.contains("Batch inference failed to convert a candidate object for parent"));
+        assertFalse(runtimeSource.contains("logger.warn(\"Batch inference failed to convert a candidate object"));
+        assertTrue(runtimeSource.contains("PreparedGeometryFactory.prepare(mask)"));
+        assertTrue(runtimeSource.contains("hasPositiveAreaInsideMask(candidate.geometry(), mask, preparedMask)"));
+        assertTrue(runtimeSource.contains("if (!preparedMask.covers(geomCell))"));
+        assertTrue(runtimeSource.contains("masks with no positive area inside"));
+        assertTrue(runtimeSource.contains("ROI tilingRoi = pad == 0 ? roi : paddedParent.getROI()"));
+        assertTrue(runtimeSource.contains("Cell overlap resolution changed the object count for parent"));
+        assertTrue(runtimeSource.contains("assertZeroPositiveAreaNucleusOverlap(objects)"));
+        assertTrue(runtimeSource.contains("Nucleus-preserving overlap resolution encountered overlapping nuclei"));
+        assertTrue(runtimeSource.contains("validateBatchOutputCoverage(veRunner, allTiles)"));
+        assertTrue(runtimeSource.contains("No cell pixels found."));
+        assertTrue(runtimeSource.contains("Cellpose output coverage mismatch"));
     }
 
     /**
@@ -1040,23 +1099,28 @@ class ExtensionContractTest {
     }
 
     /**
-     * Verifies advanced controls are hidden behind the manifest unlock phrase.
+     * Verifies advanced controls use manifest-owned visibility modes instead of
+     * a separate unlock surface.
      *
      * @throws Exception if launcher internals cannot be inspected.
      */
     @Test
-    void launcherLocksAdvancedConfigurationBehindManifestPhrase() throws Exception {
+    void launcherUsesManifestParameterModesWithoutAnUnlockSurface() throws Exception {
         String launcher = Files.readString(new File(ROOT,
                 "src/main/java/qupath/ext/astra/PipelineLauncher.java").toPath());
         String presentation = Files.readString(new File(ROOT,
                 "src/main/java/qupath/ext/astra/GuiPresentation.java").toPath());
+        String gui = Files.readString(new File(ROOT,
+                "src/test/resources/astra/rulebook/manifests/gui.json").toPath());
 
-        assertTrue(presentation.contains("advancedUnlockPhrase"));
-        assertTrue(presentation.contains("\"ADVANCED\""));
-        assertTrue(launcher.contains("createAdvancedUnlockPanel"));
-        assertTrue(launcher.contains("advancedControlsLockedByDefault"));
-        assertTrue(launcher.contains("advanced.setVisible(false);"));
-        assertTrue(launcher.contains("advanced.setManaged(false);"));
+        assertTrue(presentation.contains("defaultParameterMode"));
+        assertTrue(presentation.contains("parameterMode"));
+        assertTrue(launcher.contains("enum ParameterVisibilityMode"));
+        assertTrue(launcher.contains("visibleInParameterMode"));
+        assertTrue(gui.contains("\"parameterModes\""));
+        assertTrue(gui.contains("\"default\": \"BASIC\""));
+        assertFalse(launcher.contains("createAdvancedUnlockPanel"));
+        assertFalse(gui.contains("advancedControls"));
     }
 
     /**

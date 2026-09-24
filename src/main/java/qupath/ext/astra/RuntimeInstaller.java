@@ -70,9 +70,10 @@ import java.util.Comparator;
 final class RuntimeInstaller {
 
     static final String CELLPOSE_FORK_REPOSITORY = "https://github.com/jdsuh28/cellpose-astra.git";
-    static final String DEFAULT_CELLPOSE_REF = "v4.1.1+astra.3";
-    static final String DEFAULT_PYTHON_VERSION = "3.10";
-    static final String ENVIRONMENT_NAME = "cellpose-astra";
+    static final String DEFAULT_CELLPOSE_REF = "f40c2157e8b90176905283797a0e6d005f91980f";
+    static final String DEFAULT_DINOV3_REF = "6876159a11b4df116f30f667f8c9888617df0751";
+    static final String DEFAULT_PYTHON_VERSION = "3.11";
+    static final String ENVIRONMENT_NAME = "cellpose-astra-py311";
     static final String CONDA_OVERRIDE_OSX = "CONDA_OVERRIDE_OSX";
     static final String MACOS_CONDA_SOLVER_VERSION = "10.15";
     static final String RUNTIME_PIN_PREFIX = "runtime_pin.";
@@ -91,28 +92,44 @@ final class RuntimeInstaller {
     private static final Gson GSON = new Gson();
     private static final Type MAP_TYPE = new TypeToken<LinkedHashMap<String, Object>>() {}.getType();
     private static final Map<String, String> DEFAULT_RUNTIME_PINS = Map.ofEntries(
-            Map.entry("MarkupSafe", "3.0.3"),
+            Map.entry("antlr4-python3-runtime", "4.9.3"),
+            Map.entry("cloudpickle", "3.1.2"),
             Map.entry("fastremap", "1.20.0"),
-            Map.entry("filelock", "3.29.4"),
+            Map.entry("filelock", "4.0.1"),
             Map.entry("fill-voids", "2.1.2"),
-            Map.entry("fsspec", "2026.6.0"),
-            Map.entry("imagecodecs", "2025.3.30"),
+            Map.entry("fsspec", "2026.9.0"),
+            Map.entry("ftfy", "6.3.1"),
+            Map.entry("imagecodecs", "2026.3.6"),
             Map.entry("jinja2", "3.1.6"),
+            Map.entry("joblib", "1.6.0"),
+            Map.entry("lightning-utilities", "0.15.3"),
+            Map.entry("markupsafe", "3.0.3"),
             Map.entry("mpmath", "1.3.0"),
+            Map.entry("narwhals", "2.26.0"),
             Map.entry("natsort", "8.4.0"),
-            Map.entry("networkx", "3.4.2"),
-            Map.entry("numpy", "1.26.4"),
-            Map.entry("opencv-python-headless", "4.10.0.84"),
-            Map.entry("pillow", "12.2.0"),
-            Map.entry("roifile", "2025.12.12"),
+            Map.entry("networkx", "3.6.1"),
+            Map.entry("numpy", "2.2.6"),
+            Map.entry("omegaconf", "2.3.1"),
+            Map.entry("opencv-python-headless", "4.13.0.92"),
+            Map.entry("packaging", "26.3"),
+            Map.entry("pillow", "12.3.0"),
+            Map.entry("pyyaml", "6.0.3"),
+            Map.entry("regex", "2026.9.10"),
+            Map.entry("roifile", "2026.2.10"),
+            Map.entry("scikit-learn", "1.9.1"),
             Map.entry("scipy", "1.15.3"),
             Map.entry("segment-anything", "1.0"),
+            Map.entry("submitit", "1.5.4"),
             Map.entry("sympy", "1.14.0"),
-            Map.entry("tifffile", "2025.5.10"),
-            Map.entry("torch", "2.2.2"),
-            Map.entry("torchvision", "0.17.2"),
-            Map.entry("tqdm", "4.68.3"),
-            Map.entry("typing-extensions", "4.15.0")
+            Map.entry("termcolor", "3.3.0"),
+            Map.entry("threadpoolctl", "3.7.0"),
+            Map.entry("tifffile", "2026.3.3"),
+            Map.entry("torch", "2.10.0"),
+            Map.entry("torchmetrics", "1.9.0"),
+            Map.entry("torchvision", "0.25.0"),
+            Map.entry("tqdm", "4.70.1"),
+            Map.entry("typing-extensions", "4.16.0"),
+            Map.entry("wcwidth", "0.9.1")
     );
 
     private static final class InstallerGeometry {
@@ -333,14 +350,23 @@ final class RuntimeInstaller {
      * @throws InterruptedException if command execution is interrupted.
      */
     private static void installRuntime(File runtimeDirectory, File python, InstallProgress progress, File logFile) throws IOException, InterruptedException {
-        String conda = findOrBootstrapCondaExecutable(progress, logFile);
+        boolean mac = platformKey(System.getProperty("os.name", ""), System.getProperty("os.arch", "")).startsWith("macos-");
+        boolean armHost = mac && isAppleSiliconHost();
+        if (mac && !armHost) {
+            throw new IOException("The pinned Cellpose-ASTRA fork requires torch 2.10, which has no macOS x86_64 wheel. "
+                    + "This Intel Mac cannot create the new runtime; the previous runtime and QuPath preference are unchanged.");
+        }
+        String conda = condaExecutableForRuntime(findOrBootstrapCondaExecutable(progress, logFile), armHost);
         progress.step("Creating conda runtime", String.join(" ", condaCreateCommand(conda, runtimeDirectory)));
-        runCommand(condaCreateCommand(conda, runtimeDirectory), null, condaCreateEnvironmentOverrides(), progress, logFile);
+        runCommand(condaCreateCommand(conda, runtimeDirectory), null,
+                condaCreateEnvironmentOverrides(System.getProperty("os.name", ""), armHost), progress, logFile);
         progress.step("Upgrading Python packaging tools", python.getAbsolutePath());
         runCommand(List.of(python.getAbsolutePath(), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"), null, progress, logFile);
         File constraints = writePipConstraintsFile(logFile);
         progress.step("Installing Cellpose-ASTRA", cellposePackageSpec() + "\nconstraints: " + constraints.getAbsolutePath());
         runCommand(pipInstallCellposeCommand(python, constraints), null, progress, logFile);
+        progress.step("Installing DINOv3", pinnedDinov3Ref());
+        runCommand(pipInstallDinov3Command(python, constraints), null, progress, logFile);
         progress.step("Checking Python package consistency", python.getAbsolutePath());
         runCommand(pipCheckCommand(python), null, progress, logFile);
     }
@@ -432,6 +458,15 @@ final class RuntimeInstaller {
      */
     static String pinnedCellposeRef() {
         return releaseProperty("cellpose_astra_ref", DEFAULT_CELLPOSE_REF);
+    }
+
+    static String pinnedDinov3Ref() {
+        return releaseProperty("dinov3_ref", DEFAULT_DINOV3_REF);
+    }
+
+    static List<String> pipInstallDinov3Command(File python, File constraints) {
+        return List.of(python.getAbsolutePath(), "-m", "pip", "install", "--upgrade", "-c",
+                constraints.getAbsolutePath(), "git+https://github.com/facebookresearch/dinov3@" + pinnedDinov3Ref());
     }
 
     /**
@@ -629,11 +664,56 @@ final class RuntimeInstaller {
      * @return environment overrides for conda create.
      */
     static Map<String, String> condaCreateEnvironmentOverrides(String osName) {
+        return condaCreateEnvironmentOverrides(osName, false);
+    }
+
+    static Map<String, String> condaCreateEnvironmentOverrides(String osName, boolean armHost) {
         if (String.valueOf(osName).toLowerCase(Locale.ROOT).contains("mac")
                 || String.valueOf(osName).toLowerCase(Locale.ROOT).contains("darwin")) {
+            if (armHost) {
+                return Map.of(CONDA_OVERRIDE_OSX, MACOS_CONDA_SOLVER_VERSION, "CONDA_SUBDIR", "osx-arm64");
+            }
             return Map.of(CONDA_OVERRIDE_OSX, MACOS_CONDA_SOLVER_VERSION);
         }
         return Map.of();
+    }
+
+    private static boolean isAppleSiliconHost() throws IOException, InterruptedException {
+        String arch = System.getProperty("os.arch", "").toLowerCase(Locale.ROOT);
+        try {
+            CommandResult result = runCommand(List.of("/usr/sbin/sysctl", "-n", "hw.optional.arm64"),
+                    null, LauncherMotionTokens.RUNTIME_PROBE_TIMEOUT, null, null);
+            if (result.exitCode() == 0) return "1".equals(result.output().trim());
+            if (arch.equals("arm64") || arch.equals("aarch64")) return true;
+            throw new IOException("Could not verify macOS host architecture: " + result.output().trim());
+        } catch (IOException e) {
+            if (arch.equals("arm64") || arch.equals("aarch64")) return true;
+            throw e;
+        }
+    }
+
+    static String condaExecutableForRuntime(String conda, boolean armHost) throws IOException, InterruptedException {
+        if (!armHost) return conda;
+        File parent = new File(conda).getParentFile();
+        if (parent != null) {
+            File siblingMamba = new File(parent, isWindows() ? "mamba.exe" : "mamba");
+            if (isUsableCondaExecutable(siblingMamba)) return siblingMamba.getAbsolutePath();
+        }
+        try {
+            CommandResult mamba = runCommand(List.of("mamba", "--version"),
+                    null, LauncherMotionTokens.RUNTIME_PROBE_TIMEOUT, null, null);
+            if (mamba.exitCode() == 0) return "mamba";
+        } catch (IOException ignored) {
+            // A native-arm conda executable remains usable without mamba.
+        }
+        CommandResult info = runCommand(List.of(conda, "info", "--json"),
+                null, LauncherMotionTokens.RUNTIME_PROBE_TIMEOUT, null, null);
+        String platform = String.valueOf(mapValue(GSON.fromJson(info.output(), MAP_TYPE)).get("platform"));
+        if (!"osx-arm64".equals(platform)) {
+            throw new IOException("Apple Silicon requires an arm64 conda runtime, but "
+                    + conda + " reports " + platform + " and no usable mamba is available.");
+        }
+        return conda;
     }
 
     /**
@@ -652,10 +732,28 @@ final class RuntimeInstaller {
                 List.of(py, "-c", runtimePinProbeCode()),
                 List.of(py, "-c", "import torch; print('torch', torch.__version__)"),
                 List.of(py, "-c", torchNumpyBridgeProbeCode()),
-                List.of(py, "-c", "import cellpose; from cellpose.version import version_str; assert 'astra' in version_str.lower(), version_str; print('cellpose', version_str)"),
                 List.of(py, "-c", "import cellpose, cellpose.astra, torch, numpy; print('Runtime import validation OK')"),
+                List.of(py, "-c", cellposeCommitProbeCode()),
+                List.of(py, "-c", dinov3CommitProbeCode()),
+                List.of(py, "-c", "from dinov3.hub.backbones import dinov3_vitl16, dinov3_vitb16; from cellpose import models; assert 'cpdino' in models.MODEL_NAMES; assert hasattr(models, 'CPDINO'); print('cpdino available')"),
                 List.of(py, "-m", "cellpose.astra", "--version")
         );
+    }
+
+    static String cellposeCommitProbeCode() {
+        return "import json\nfrom importlib.metadata import distribution\n"
+                + "metadata=json.loads(distribution('cellpose').read_text('direct_url.json'))\n"
+                + "actual=metadata.get('vcs_info', {}).get('commit_id')\n"
+                + "assert actual == '" + pythonString(pinnedCellposeRef()) + "', f'Cellpose fork commit mismatch: {actual}'\n"
+                + "print('cellpose fork commit', actual)\n";
+    }
+
+    static String dinov3CommitProbeCode() {
+        return "import json\nfrom importlib.metadata import distribution\n"
+                + "metadata=json.loads(distribution('dinov3').read_text('direct_url.json'))\n"
+                + "actual=metadata.get('vcs_info', {}).get('commit_id')\n"
+                + "assert actual == '" + pythonString(pinnedDinov3Ref()) + "', f'DINOv3 commit mismatch: {actual}'\n"
+                + "print('dinov3 commit', actual)\n";
     }
 
     static String pythonVersionProbeCode(String required) {
@@ -688,8 +786,6 @@ final class RuntimeInstaller {
 
     static String torchNumpyBridgeProbeCode() {
         return "import numpy as np\n"
-                + "if int(np.__version__.split('.')[0]) >= 2:\n"
-                + "    raise SystemExit('Runtime NumPy mismatch: required NumPy < 2, detected ' + np.__version__ + '. Use Runtime Setup to recreate the managed runtime.')\n"
                 + "import torch\n"
                 + "x=np.zeros((2,), dtype=np.float32)\n"
                 + "y=torch.from_numpy(x)\n"
