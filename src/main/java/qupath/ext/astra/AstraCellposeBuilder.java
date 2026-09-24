@@ -39,6 +39,7 @@ public class AstraCellposeBuilder extends CellposeBuilder {
     private File validationDirectory;
     private File resultsDirectory;
     private boolean persistTrainingArtifacts = true;
+    private double maximumMaskEquivalentDiameterUm = Double.POSITIVE_INFINITY;
 
     public AstraCellposeBuilder(String executionModelReference) {
         super(executionModelReference);
@@ -232,6 +233,14 @@ public class AstraCellposeBuilder extends CellposeBuilder {
         return this;
     }
 
+    public AstraCellposeBuilder maximumMaskEquivalentDiameterUm(double diameterUm) {
+        if (!Double.isFinite(diameterUm) || diameterUm <= 0.0) {
+            throw new IllegalArgumentException("Maximum mask equivalent diameter must be positive and finite.");
+        }
+        this.maximumMaskEquivalentDiameterUm = diameterUm;
+        return this;
+    }
+
     @Override
     public AstraCellpose2D build() {
         File projectDirectory = requireProjectDirectory();
@@ -276,6 +285,7 @@ public class AstraCellposeBuilder extends CellposeBuilder {
                     resolvedResultsDirectory
             );
             runtime.setPersistTrainingArtifacts(persistTrainingArtifacts);
+            runtime.setMaximumMaskEquivalentDiameterUm(maximumMaskEquivalentDiameterUm);
 
             if (shouldSaveBuilder) {
                 saveSerializedBuilderState(resolvedModelDirectory, builderName);

@@ -14,6 +14,9 @@ import org.bytedeco.opencv.opencv_core.Mat;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryCollection;
+import org.locationtech.jts.geom.prep.PreparedGeometry;
+import org.locationtech.jts.geom.prep.PreparedGeometryFactory;
+import org.locationtech.jts.index.quadtree.Quadtree;
 import org.locationtech.jts.index.strtree.STRtree;
 import org.locationtech.jts.simplify.VWSimplifier;
 import org.slf4j.Logger;
@@ -108,9 +111,14 @@ public class AstraCellpose2D extends Cellpose2D {
     private boolean persistTrainingArtifacts = true;
     private Double lastCanonicalPixelSizeUsed = null;
     private String trainingAnnotationClass = null;
+    private double maximumMaskEquivalentDiameterUm = Double.POSITIVE_INFINITY;
 
     public AstraCellpose2D() {
         super();
+    }
+
+    public static boolean isStrictCandidateConversionEnabled() {
+        return true;
     }
 
     public static AstraCellposeBuilder builder(String executionModelReference) {
@@ -127,6 +135,13 @@ public class AstraCellpose2D extends Cellpose2D {
 
     public void setPixelScalingEnabled(boolean enabled) {
         this.pixelScalingEnabled = enabled;
+    }
+
+    public void setMaximumMaskEquivalentDiameterUm(double diameterUm) {
+        if (!Double.isFinite(diameterUm) || diameterUm <= 0.0) {
+            throw new IllegalArgumentException("Maximum mask equivalent diameter must be positive and finite.");
+        }
+        this.maximumMaskEquivalentDiameterUm = diameterUm;
     }
 
     public void setPersistTrainingArtifacts(boolean enabled) {
@@ -631,6 +646,7 @@ public class AstraCellpose2D extends Cellpose2D {
                 );
 
                 PathObject paddedParent = PathObjects.createAnnotationObject(paddedRoi);
+                ROI tilingRoi = pad == 0 ? roi : paddedParent.getROI();
                 RegionRequest request = RegionRequest.createInstance(
                         opServer.getPath(),
                         requestDownsample,
@@ -638,7 +654,7 @@ public class AstraCellpose2D extends Cellpose2D {
                 );
 
                 Collection<? extends ROI> tiledRois = RoiTools.computeTiledROIs(
-                        paddedParent.getROI(),
+                        tilingRoi,
                         ImmutableDimension.getInstance(
                                 scaledDimension(tileWidth, requestDownsample),
                                 scaledDimension(tileHeight, requestDownsample)
@@ -780,9 +796,28 @@ public class AstraCellpose2D extends Cellpose2D {
     }
 
     private List<PathObject> finalizeParentDetections(BatchEntryContext context, PathObject parent, Collection<CandidateObject> rawCandidates) {
-        List<CandidateObject> filteredDetections = resolveDetectionOverlaps(rawCandidates);
-
         Geometry mask = parent.getROI().getGeometry();
+        PreparedGeometry preparedMask = PreparedGeometryFactory.prepare(mask);
+        double pixelAreaUm2 = context.calibration().getPixelWidthMicrons()
+                * context.calibration().getPixelHeightMicrons();
+        double maximumAreaUm2 = Math.PI * Math.pow(maximumMaskEquivalentDiameterUm / 2.0, 2.0);
+        List<CandidateObject> sizeEligibleCandidates = rawCandidates.stream()
+                .filter(candidate -> candidate.area() * pixelAreaUm2 <= maximumAreaUm2)
+                .collect(Collectors.toList());
+        int oversizedCount = rawCandidates.size() - sizeEligibleCandidates.size();
+        if (oversizedCount > 0) {
+            logger.info("Excluded {} masks above the pre-expansion maximum of {} um for {}",
+                    oversizedCount, maximumMaskEquivalentDiameterUm, parent);
+        }
+        List<CandidateObject> parentEligibleCandidates = sizeEligibleCandidates.stream()
+                .filter(candidate -> hasPositiveAreaInsideMask(candidate.geometry(), mask, preparedMask))
+                .collect(Collectors.toList());
+        int outsideParentCount = sizeEligibleCandidates.size() - parentEligibleCandidates.size();
+        if (outsideParentCount > 0) {
+            logger.info("Excluded {} masks with no positive area inside {}", outsideParentCount, parent);
+        }
+        List<CandidateObject> filteredDetections = resolveDetectionOverlaps(parentEligibleCandidates);
+
         List<PathObject> finalObjects = new ArrayList<>();
 
         for (CandidateObject candidate : filteredDetections) {
@@ -792,18 +827,24 @@ public class AstraCellpose2D extends Cellpose2D {
                         parent.getROI().getImagePlane(),
                         context.expansion(),
                         constrainToParent,
-                        mask
+                        mask,
+                        preparedMask
                 );
                 if (pathObject != null) {
                     finalObjects.add(pathObject);
+                } else {
+                    throw new IllegalStateException("Candidate conversion returned no PathObject at "
+                            + candidate.geometry().getCentroid() + " with area " + candidate.area());
                 }
             } catch (RuntimeException e) {
-                logger.warn("Batch inference failed to convert a candidate object for parent {}: {}", parent, e.getLocalizedMessage(), e);
+                throw new IllegalStateException(
+                        "Batch inference failed to convert a candidate object for parent " + parent, e);
             }
         }
 
         if (context.expansion() > 0 && !ignoreCellOverlaps) {
             logger.info("Batch inference resolving cell overlaps for {}", parent);
+            int expectedObjectCount = finalObjects.size();
             if (creatorFun != null) {
                 List<PathObject> cells = finalObjects.stream()
                         .map(AstraCellpose2D::convertObjectToCell)
@@ -814,6 +855,11 @@ public class AstraCellpose2D extends Cellpose2D {
                         .collect(Collectors.toList());
             } else {
                 finalObjects = CellTools.constrainCellOverlaps(finalObjects);
+            }
+            finalObjects = enforceZeroPositiveAreaCellOverlap(finalObjects);
+            if (finalObjects.size() != expectedObjectCount) {
+                throw new IllegalStateException("Cell overlap resolution changed the object count for parent "
+                        + parent + ": " + expectedObjectCount + " -> " + finalObjects.size());
             }
         }
 
@@ -848,6 +894,152 @@ public class AstraCellpose2D extends Cellpose2D {
         }
 
         return finalObjects;
+    }
+
+    private static boolean hasPositiveAreaInsideMask(
+            Geometry candidate,
+            Geometry mask,
+            PreparedGeometry preparedMask
+    ) {
+        if (!preparedMask.intersects(candidate)) {
+            return false;
+        }
+        if (preparedMask.covers(candidate)) {
+            return true;
+        }
+        Geometry intersection = GeometryTools.attemptOperation(candidate, value -> value.intersection(mask));
+        return intersection != null && !intersection.isEmpty() && intersection.getArea() > 0.0;
+    }
+
+    static List<PathObject> enforceZeroPositiveAreaCellOverlap(List<PathObject> objects) {
+        if (objects.size() < 2) return objects;
+        if (objects.stream().anyMatch(object -> !(object instanceof PathCellObject))) {
+            assertZeroPositiveAreaOverlap(objects);
+            return objects;
+        }
+        assertZeroPositiveAreaNucleusOverlap(objects);
+        Quadtree index = new Quadtree();
+        Map<PathObject, Geometry> geometries = new IdentityHashMap<>();
+        Map<PathObject, Integer> positions = new IdentityHashMap<>();
+        List<PathObject> corrected = new ArrayList<>(objects.size());
+        for (PathObject object : objects) {
+            PathCellObject cell = (PathCellObject) object;
+            Geometry geometry = cell.getROI().getGeometry();
+            ROI nucleus = cell.getNucleusROI();
+            if (nucleus == null || nucleus.isEmpty())
+                throw new IllegalStateException("Exact overlap resolution received an empty nucleus");
+            Geometry nucleusGeometry = nucleus.getGeometry();
+            @SuppressWarnings("unchecked")
+            List<PathObject> nearby = new ArrayList<>(
+                    (List<PathObject>) index.query(geometry.getEnvelopeInternal()));
+            for (PathObject previous : nearby) {
+                Geometry previousGeometry = geometries.get(previous);
+                if (previousGeometry == null || !geometry.intersects(previousGeometry)) continue;
+                Geometry previousForIntersection = previousGeometry;
+                Geometry overlap = GeometryTools.attemptOperation(
+                        geometry, value -> value.intersection(previousForIntersection));
+                if (overlap == null || overlap.isEmpty() || overlap.getArea() <= 0.0) continue;
+                Geometry protectedNucleus = GeometryTools.attemptOperation(
+                        overlap, value -> value.intersection(nucleusGeometry));
+                if (protectedNucleus != null && !protectedNucleus.isEmpty()
+                        && protectedNucleus.getArea() > 0.0) {
+                    Geometry previousBeforeProtection = previousGeometry;
+                    Geometry updatedPrevious = GeometryTools.attemptOperation(
+                            previousBeforeProtection, value -> value.difference(protectedNucleus));
+                    updatedPrevious = GeometryTools.ensurePolygonal(updatedPrevious);
+                    if (updatedPrevious == null || updatedPrevious.isEmpty())
+                        throw new IllegalStateException(
+                                "Nucleus-preserving overlap resolution emptied an earlier cell boundary");
+                    PathCellObject previousCell = (PathCellObject) previous;
+                    ROI previousNucleus = previousCell.getNucleusROI();
+                    if (previousNucleus == null
+                            || !updatedPrevious.covers(previousNucleus.getGeometry()))
+                        throw new IllegalStateException(
+                                "Nucleus-preserving overlap resolution encountered overlapping nuclei");
+                    PathObject replacement = replaceCellGeometry(previousCell, updatedPrevious);
+                    Integer position = positions.remove(previous);
+                    if (position == null
+                            || !index.remove(previousGeometry.getEnvelopeInternal(), previous))
+                        throw new IllegalStateException(
+                                "Overlap index lost an earlier cell during exact resolution");
+                    corrected.set(position, replacement);
+                    geometries.remove(previous);
+                    geometries.put(replacement, updatedPrevious);
+                    positions.put(replacement, position);
+                    index.insert(updatedPrevious.getEnvelopeInternal(), replacement);
+                    previousGeometry = updatedPrevious;
+                }
+                Geometry previousForDifference = previousGeometry;
+                geometry = GeometryTools.attemptOperation(
+                        geometry, value -> value.difference(previousForDifference));
+                geometry = GeometryTools.ensurePolygonal(geometry);
+            }
+            if (geometry == null || geometry.isEmpty())
+                throw new IllegalStateException("Exact overlap resolution emptied a cell boundary");
+            if (!geometry.covers(nucleusGeometry))
+                throw new IllegalStateException(
+                        "Exact overlap resolution would remove part of a nucleus");
+            PathObject replacement = replaceCellGeometry(cell, geometry);
+            corrected.add(replacement);
+            geometries.put(replacement, geometry);
+            positions.put(replacement, corrected.size() - 1);
+            index.insert(geometry.getEnvelopeInternal(), replacement);
+        }
+        assertZeroPositiveAreaOverlap(corrected);
+        return corrected;
+    }
+
+    private static PathObject replaceCellGeometry(PathCellObject cell, Geometry geometry) {
+        PathObject replacement = PathObjects.createCellObject(
+                GeometryTools.geometryToROI(geometry, cell.getROI().getImagePlane()),
+                cell.getNucleusROI(), cell.getPathClass(), cell.getMeasurementList());
+        replacement.setID(cell.getID());
+        replacement.setName(cell.getName());
+        return replacement;
+    }
+
+    private static void assertZeroPositiveAreaNucleusOverlap(List<PathObject> objects) {
+        STRtree index = new STRtree();
+        for (int i = 0; i < objects.size(); i++) {
+            ROI nucleus = ((PathCellObject) objects.get(i)).getNucleusROI();
+            if (nucleus == null || nucleus.isEmpty())
+                throw new IllegalStateException("Cell overlap resolution received an empty nucleus");
+            index.insert(nucleus.getGeometry().getEnvelopeInternal(), i);
+        }
+        index.build();
+        for (int i = 0; i < objects.size(); i++) {
+            Geometry left = ((PathCellObject) objects.get(i)).getNucleusROI().getGeometry();
+            @SuppressWarnings("unchecked")
+            List<Integer> candidates = (List<Integer>) index.query(left.getEnvelopeInternal());
+            for (int j : candidates) {
+                if (j <= i) continue;
+                Geometry right = ((PathCellObject) objects.get(j)).getNucleusROI().getGeometry();
+                if (left.intersects(right) && left.intersection(right).getArea() > 0.0)
+                    throw new IllegalStateException("Cellpose-SAM produced overlapping nuclei");
+            }
+        }
+    }
+
+    private static void assertZeroPositiveAreaOverlap(List<PathObject> objects) {
+        STRtree index = new STRtree();
+        for (int i = 0; i < objects.size(); i++) {
+            index.insert(objects.get(i).getROI().getGeometry().getEnvelopeInternal(), i);
+        }
+        index.build();
+        for (int i = 0; i < objects.size(); i++) {
+            Geometry left = objects.get(i).getROI().getGeometry();
+            @SuppressWarnings("unchecked")
+            List<Integer> candidates = (List<Integer>) index.query(left.getEnvelopeInternal());
+            for (int j : candidates) {
+                if (j <= i) {
+                    continue;
+                }
+                Geometry right = objects.get(j).getROI().getGeometry();
+                if (left.intersects(right) && left.intersection(right).getArea() > 0.0) {
+                    throw new IllegalStateException("Cell overlap resolution retained positive-area overlap");
+                }
+            }
+        }
     }
 
 
@@ -1093,7 +1285,10 @@ public class AstraCellpose2D extends Cellpose2D {
     }
 
     private String syncRuntimePythonPreference() {
-        String pythonPath = PathPrefs.createPersistentPreference(RUNTIME_PYTHON_PATH_KEY, "").get();
+        String pythonPath = System.getProperty(RUNTIME_PYTHON_PATH_KEY, "");
+        if (pythonPath == null || pythonPath.isBlank()) {
+            pythonPath = PathPrefs.createPersistentPreference(RUNTIME_PYTHON_PATH_KEY, "").get();
+        }
         if (pythonPath == null || pythonPath.isBlank()) {
             cellposeSetup.setCellposePythonPath("");
             throw new IllegalStateException(
@@ -1240,7 +1435,8 @@ public class AstraCellpose2D extends Cellpose2D {
         try {
             if (!this.doReadResultsAsynchronously) {
                 requireSuccessfulProcessExit(veRunner, "Cellpose process");
-                allTiles.forEach(entry -> tileReadTasks.add(submitTileReadTask(executor, entry)));
+                validateBatchOutputCoverage(veRunner, allTiles).forEach(
+                        entry -> tileReadTasks.add(submitTileReadTask(executor, entry)));
             } else {
                 LinkedHashMap<File, TileFile> remainingFiles = allTiles.stream()
                         .map(entry -> new AbstractMap.SimpleEntry<>(entry.getLabelFile(), entry))
@@ -1284,6 +1480,29 @@ public class AstraCellpose2D extends Cellpose2D {
             executor.shutdown();
             awaitExecutorTermination(executor, "Cellpose tile-read executor");
         }
+    }
+
+    private List<TileFile> validateBatchOutputCoverage(VirtualEnvironmentRunner runner, List<TileFile> allTiles) {
+        List<TileFile> completed = allTiles.stream()
+                .filter(tile -> tile.getLabelFile().isFile())
+                .collect(Collectors.toList());
+        int missingCount = allTiles.size() - completed.size();
+        if (missingCount == 0) {
+            return completed;
+        }
+
+        long explicitEmptyCount = runner.getProcessLog().stream()
+                .filter(line -> line != null && line.contains("No cell pixels found."))
+                .count();
+        if (explicitEmptyCount != missingCount) {
+            throw new IllegalStateException(
+                    "Cellpose output coverage mismatch: " + missingCount
+                            + " label files are missing, but the successful process reported "
+                            + explicitEmptyCount + " explicitly empty tiles."
+            );
+        }
+        logger.info("Cellpose reported {} explicitly empty tiles; no label files are expected for them.", missingCount);
+        return completed;
     }
 
     private Collection<CandidateObject> readObjectsFromTileFile(TileFile tileFile) {
@@ -1340,17 +1559,27 @@ public class AstraCellpose2D extends Cellpose2D {
         }
     }
 
-    private PathObject createPathObjectFromCandidate(CandidateObject object, ImagePlane plane, double cellExpansion, boolean constrainToParent, Geometry mask) {
+    private PathObject createPathObjectFromCandidate(
+            CandidateObject object,
+            ImagePlane plane,
+            double cellExpansion,
+            boolean constrainToParent,
+            Geometry mask,
+            PreparedGeometry preparedMask
+    ) {
         var geomNucleus = simplifyGeometry(object.geometry());
         PathObject pathObject;
         if (cellExpansion > 0) {
             var geomCell = CellTools.estimateCellBoundary(geomNucleus, cellExpansion, cellConstrainScale);
             if (constrainToParent) {
-                geomCell = GeometryTools.attemptOperation(geomCell, g -> g.intersection(mask));
-                var geomCell2 = geomCell;
-                geomNucleus = GeometryTools.attemptOperation(geomNucleus, g -> g.intersection(geomCell2));
-                geomNucleus = GeometryTools.ensurePolygonal(geomNucleus);
-            } else if (!geomNucleus.intersects(mask)) {
+                if (!preparedMask.covers(geomCell)) {
+                    geomCell = GeometryTools.attemptOperation(geomCell, g -> g.intersection(mask));
+                    var clippedCell = geomCell;
+                    geomNucleus = GeometryTools.attemptOperation(
+                            geomNucleus, g -> g.intersection(clippedCell));
+                    geomNucleus = GeometryTools.ensurePolygonal(geomNucleus);
+                }
+            } else if (!preparedMask.intersects(geomNucleus)) {
                 return null;
             }
 
@@ -1378,12 +1607,14 @@ public class AstraCellpose2D extends Cellpose2D {
             }
         } else {
             if (constrainToParent) {
-                geomNucleus = GeometryTools.attemptOperation(geomNucleus, g -> g.intersection(mask));
-                geomNucleus = GeometryTools.ensurePolygonal(geomNucleus);
-                if (geomNucleus.isEmpty()) {
-                    return null;
+                if (!preparedMask.covers(geomNucleus)) {
+                    geomNucleus = GeometryTools.attemptOperation(geomNucleus, g -> g.intersection(mask));
+                    geomNucleus = GeometryTools.ensurePolygonal(geomNucleus);
+                    if (geomNucleus.isEmpty()) {
+                        return null;
+                    }
                 }
-            } else if (!geomNucleus.intersects(mask)) {
+            } else if (!preparedMask.intersects(geomNucleus)) {
                 return null;
             }
 
