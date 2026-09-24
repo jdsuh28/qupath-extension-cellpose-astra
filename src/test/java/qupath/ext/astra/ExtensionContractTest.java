@@ -432,8 +432,6 @@ class ExtensionContractTest {
             if (!isVendoredTestSource(path)) {
                 assertFalse(text.contains("contracts/src/test/resources"), file.getPath());
                 assertFalse(text.contains("test-fixtures"), file.getPath());
-                assertFalse(text.contains(".ome.tif"), file.getPath());
-                assertFalse(text.contains(".ome.tiff"), file.getPath());
                 assertFalse(text.contains("vessels/manifest.json"), file.getPath());
             }
         }

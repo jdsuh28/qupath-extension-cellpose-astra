@@ -564,7 +564,11 @@ class PipelineLauncherTest {
 
     @Test
     void launcherCompletedVisualArtifactsAvoidResidualRiskLanguage() throws Exception {
-        String carryForward = Files.readString(Path.of("..", "astra", "rulebook", "carry-forward.md"));
+        Path carryForwardPath = Path.of("..", "rulebook", "carry-forward.md");
+        if (!Files.isRegularFile(carryForwardPath)) {
+            carryForwardPath = LOCAL_BASE_REPOSITORY_ROOT.resolve("rulebook/carry-forward.md");
+        }
+        String carryForward = Files.readString(carryForwardPath);
         String guiCarryForward = carryForward.substring(0, carryForward.indexOf("- Pipeline backend logical smoke-run audit:"));
         String artifacts = Files.readString(Path.of("docs/gui-visual-token-audit.md"))
                 + Files.readString(Path.of("docs/gui-bevel-token-proof.md"))
